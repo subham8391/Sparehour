@@ -31,6 +31,22 @@
 - Mobile at M1: capture, Today and notifications are mobile-first. Full responsive by M2 (tap-to-schedule on phones). Native wrapper later for widgets, Live Activities and Watch.
 - Planning is desktop-first.
 
+## Design and spec rulings (2026-09-13, evening)
+
+**Visual identity — settled (this closes Q26).** Direction "Daylight": the working day as a strip of light; green is used only for spare time, blue for other people's meetings, dark ink for blocks you chose, amber for "gently over" and the evening, ember only for a real deadline. Instrument Serif for the numbers, Instrument Sans for the UI, DM Mono for times. Calm and keyboard-first, light and dark themes. Source of truth: `docs/design/DESIGN_SYSTEM.md`; reference screens: `docs/design/mockups/` and the published "Sparehour Daylight" canvas. Two low-fi alternates ("Ledger", "Tide") are kept on the canvas in case the direction changes.
+
+**Capacity maths.** Buffer = 15% of the day's working hours (a 9h day reserves 1h 20m), capped so capacity never goes below zero: `buffer = min(0.15 × work, work − meetings)`. Spare = work − meetings − buffer − planned estimates. The reference day used in every doc and mockup: 9h day, 2h 00m meetings, 1h 20m buffer, 2h 20m planned → 3h 20m spare, done by 4:30pm.
+
+**Three-carry ask** offers four options, in this order: Keep today · Someday · Break it down · Drop. A no-penalty "yes" must always exist.
+
+**Views.** Upcoming *is* the week planner (rolling 7 days with a capacity bar per day) — one view, not two. Morning plan is 3 steps (decide carried-over → pick tasks → block time). Onboarding is 5 steps ending in the spare-time reveal.
+
+**Milestone reconciliations.** Onboarding flow ships at M2 (beta users need it). Raw export (JSON/Markdown/CSV) at M1; polished export and import at M3. Estimate insights at M2; automatic estimate correction Later. Actionable notifications at M1 on Android and desktop; iOS shows the notification without action buttons.
+
+**Engineering rulings (2026-09-14).** The day rolls over at **04:00 local** by default (adjustable 00:00–06:00), not midnight, so a late night doesn't carry tasks over while you're still working on them. Calendar write target defaults to the **user's primary calendar** (so colleagues see blocks as busy); an app-owned "Sparehour" calendar is the privacy option and the automatic fallback when the events scope is declined. Notification action buttons (Start / Snooze / Plan) exist on Chrome, Firefox and Android; Safari and iOS have none, so there one tap opens an in-app action sheet. Full design: `docs/engineering/SYSTEM_DESIGN.md`.
+
+**Product docs.** `docs/product/PRODUCT_SPEC.md`, `ONBOARDING.md` and `SCREENS.md` are the detailed spec. Where they needed an answer to an open question (Q20–Q25) they assume the recommendation below and mark it "(assumed — confirm)".
+
 ## Deferred (decide later)
 - **Team features' shape** — after the personal app is built. Suggested: shared spaces where planning stays personal.
 - **Tech stack / sync layer** — see `research/06-sync-engines.md`. Recommendation: PowerSync + Supabase (Postgres + Auth); Firestore as fallback. Zero has no offline writes; InstantDB is sunsetting; Electric Cloud is closing.
@@ -45,7 +61,7 @@
 | Q23 | Organization | Inbox → Areas → Projects (optional headings) → Tasks, with a one-level checklist. Tags, 3 priority levels + none. Someday is a state; Logbook for done tasks. |
 | Q24 | Notifications | On: block start, deadline (day before and day of), one morning nudge. Off: shutdown nudge, per-task reminders. Opt-in "urgent" repeat. Quiet hours. Never "N overdue". |
 | Q25 | Sign-in | Google + magic link. Passkeys and Apple by M3. |
-| Q26 | Design direction | Calm + keyboard-first: Cmd+K, single-key shortcuts, light and dark themes. |
+| ~~Q26~~ | Design direction | **Settled:** "Daylight" — see the rulings above. |
 
 Still to decide after those:
 - quick-add syntax

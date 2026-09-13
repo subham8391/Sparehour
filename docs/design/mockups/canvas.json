@@ -1,0 +1,19 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Today · light", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "TodayDark.dc.html", "title": "Today · dark", "x": 1540, "y": 0, "w": 1440, "h": 900 },
+    { "file": "OnboardingReveal.dc.html", "title": "Onboarding · the reveal", "x": 0, "y": 1040, "w": 1440, "h": 900 },
+    { "file": "MorningPlan.dc.html", "title": "Morning plan · pick tasks", "x": 1540, "y": 1040, "w": 1440, "h": 900 },
+    { "file": "WeekPlanner.dc.html", "title": "Upcoming · week planner", "x": 0, "y": 2080, "w": 1440, "h": 900 },
+    { "file": "MobileToday.dc.html", "title": "Mobile · Today", "x": 1540, "y": 2080, "w": 390, "h": 844 },
+    { "file": "MobileQuickAdd.dc.html", "title": "Mobile · quick add", "x": 2030, "y": 2080, "w": 390, "h": 844 },
+    { "file": "DirectionLedger.dc.html", "title": "Alternate B · Ledger (low-fi)", "x": 0, "y": 3160, "w": 880, "h": 560 },
+    { "file": "DirectionTide.dc.html", "title": "Alternate C · Tide (low-fi)", "x": 980, "y": 3160, "w": 880, "h": 560 }
+  ],
+  "annotations": [
+    { "id": "direction", "x": 0, "y": -200, "w": 520, "text": "Direction A · “Daylight” — the working day as a strip of light.\nGreen is only ever spare time. Blue = other people's meetings. Dark = blocks you chose. Amber = gently over. Ember appears only for a real deadline.\nType: Instrument Serif (the numbers), Instrument Sans (UI), DM Mono (times).\nStatic mockups — nothing is clickable yet." },
+    { "id": "ribbon-states", "x": 1540, "y": -150, "w": 420, "text": "The spare-time ribbon has three states: spare (green), fits exactly (grey), over (amber with a soft tail). Never red, never a count of overdue tasks." },
+    { "id": "alternates", "x": 1980, "y": 3160, "w": 380, "text": "Two low-fi alternates in case Daylight isn't it. Pick one and I'll rebuild the whole set in that direction." }
+  ],
+  "launch": { "view": "canvas" }
+}

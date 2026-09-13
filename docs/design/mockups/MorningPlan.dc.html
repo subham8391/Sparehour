@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:9px;border:1px solid #BEC6C2;background:#FFFFFF;color:#161C19;font-size:14px;font-weight:500}
+    .btn.primary{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .btn.small{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+    .btn svg{width:16px;height:16px}
+    .card{background:#FFFFFF;border:1px solid #D9E0DD;border-radius:12px;box-shadow:0 1px 2px rgba(22,28,25,0.04)}
+    .row{display:flex;align-items:center;gap:12px;min-height:44px;padding:8px 14px;border-top:1px solid #D9E0DD}
+    .row.first{border-top:0}
+    .row .title{flex:1;font-size:15px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .check{width:18px;height:18px;border-radius:50%;border:1.5px solid #BEC6C2;flex:none;display:flex;align-items:center;justify-content:center}
+    .check.on{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .check svg{width:11px;height:11px}
+    .chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:6px;background:#EDF1EF;color:#5C6661;font-size:12px;white-space:nowrap}
+    .chip.time{font-family:'DM Mono','SF Mono',Menlo,monospace;font-variant-numeric:tabular-nums}
+    .chip.dashed{background:transparent;border:1px dashed #BEC6C2}
+    .chip.due{background:#FFE3DE;color:#B14F42;font-weight:500}
+    .chip svg{width:12px;height:12px}
+    .projname{font-size:13px;color:#5C6661;white-space:nowrap}
+    .group{display:flex;flex-direction:column;gap:8px}
+    .seg{position:absolute;top:0;bottom:0;border-radius:3px}
+    .seg.block{background:#161C19;opacity:0.86}
+    .seg.meet{background:#6586C3}
+  </style>
+</helmet>
+<div class="root" style="width:1440px;height:900px;background:#F4F8F6;overflow:hidden;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 44px 0">
+    <div style="display:flex;align-items:baseline;gap:14px">
+      <span class="serif" style="font-size:24px">Morning plan</span>
+      <span class="mono" style="font-size:12px;color:#5C6661">2 of 3 · Pick today's tasks</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:18px;font-size:13px;color:#5C6661">
+      <span class="mono" style="font-size:12px;display:flex;align-items:center;gap:6px"><svg viewBox="0 0 20 20" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"></circle><path d="M10 6.5V10l2.5 1.5"></path></svg>1 min 40 s</span>
+      <span>Skip for now</span>
+      <svg viewBox="0 0 20 20" style="width:18px;height:18px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"></path></svg>
+    </div>
+  </div>
+
+  <div style="flex:1;display:flex;gap:40px;padding:28px 44px 0;min-height:0">
+    <!-- Candidates -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <h1 class="serif" style="margin:0;font-size:34px;line-height:1.1">What matters today?</h1>
+        <p style="margin:0;font-size:15px;color:#5C6661">Tick what you'll work on. Everything else waits without turning red.</p>
+      </div>
+
+      <div class="group">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Carried over</span><span class="mono" style="font-size:11.5px;color:#89928D">3</span></div>
+        <div class="card" style="overflow:hidden">
+          <div class="row first"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Reply to Priya about the Q4 roadmap</span><span class="chip time">15m</span><span class="projname">#Acme</span></div>
+          <div class="row"><span class="check"></span><span class="title">Book dentist</span><span class="chip time">10m</span><span class="projname">Personal</span></div>
+          <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Draft onboarding email sequence</span><span class="chip time">1h</span><span class="projname">#Website</span></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Due this week</span><span class="mono" style="font-size:11.5px;color:#89928D">2</span></div>
+        <div class="card" style="overflow:hidden">
+          <div class="row first"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Write proposal for Acme renewal</span><span class="chip due"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17V3.5h9l-2 3.5 2 3.5H5"></path></svg>Due Fri</span><span class="chip time">1h 30m</span><span class="projname">#Acme</span></div>
+          <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Update website pricing page</span><span class="chip due"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17V3.5h9l-2 3.5 2 3.5H5"></path></svg>Due Thu</span><span class="chip time">45m</span><span class="projname">#Website</span></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">From your projects</span><span class="mono" style="font-size:11.5px;color:#89928D">5</span></div>
+        <div class="card" style="overflow:hidden">
+          <div class="row first"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Prep 1:1 with Dana</span><span class="chip time">20m</span><span class="projname">#Team</span></div>
+          <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Review PR #214 — calendar sync</span><span class="chip time">25m</span><span class="projname">#Platform</span></div>
+          <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Outline talk for October meetup</span><span class="chip time dashed">30m?</span><span class="projname">#Talks</span></div>
+          <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="title">Acme renewal: pricing tables</span><span class="chip time">1h 30m</span><span class="projname">#Acme</span></div>
+          <div class="row"><span class="check"></span><span class="title">Research CalDAV libraries</span><span class="chip time">1h</span><span class="projname">#Platform</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live capacity panel -->
+    <div style="width:460px;flex:none;display:flex;flex-direction:column;gap:16px">
+      <div class="card" style="padding:22px 24px 18px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between">
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span class="serif" style="font-size:48px;line-height:1;color:#A06F30">35m</span>
+            <span class="serif" style="font-size:30px;line-height:1;font-style:italic;color:#A06F30">over</span>
+          </div>
+          <div class="mono" style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:12px;color:#5C6661">
+            <span>5h 40m fits today</span>
+            <span>6h 15m picked · 8 tasks</span>
+          </div>
+        </div>
+        <div style="position:relative;height:22px;margin-right:36px;border-radius:6px;background:#EDF1EF;overflow:visible">
+          <div class="seg meet" style="left:0;width:26.1%;border-radius:6px 0 0 6px"></div>
+          <div class="seg block" style="left:26.1%;width:73.9%;border-radius:0"></div>
+          <div class="seg" style="left:100%;width:7.6%;background:#EBB16C;border-radius:0 6px 6px 0"></div>
+          <div style="position:absolute;top:-4px;bottom:-4px;left:100%;width:2px;background:#A06F30"></div>
+        </div>
+        <div class="mono" style="display:flex;justify-content:space-between;font-size:11px;color:#89928D"><span>meetings 2h</span><span>your tasks 6h 15m</span><span style="color:#A06F30">+35m</span></div>
+        <p style="margin:2px 0 0;font-size:15px;line-height:1.5;color:#161C19;text-wrap:pretty">35 minutes more than fits. Move something to tomorrow, or keep it and let the day breathe less.</p>
+      </div>
+
+      <div class="card" style="padding:16px 18px;display:flex;flex-direction:column;gap:12px;border-color:#EBB16C;background:#FEEBD6">
+        <span class="label" style="color:#A06F30">Easiest move</span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="flex:1;font-size:15px;font-weight:500">Outline talk for October meetup</span>
+          <span class="chip time dashed" style="border-color:#A06F30;color:#A06F30">30m?</span>
+        </div>
+        <p style="margin:0;font-size:13px;color:#5C6661;line-height:1.45">No deadline, and tomorrow has 1h 05m spare. Moving it leaves 5 minutes over — close enough to keep.</p>
+        <div style="display:flex;gap:8px">
+          <span class="btn small primary">Move to tomorrow</span>
+          <span class="btn small">Keep it anyway</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;padding:0 4px;font-size:12.5px;color:#89928D">
+        <svg viewBox="0 0 20 20" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 12.2A6 6 0 0 1 7.8 4.5a6 6 0 1 0 7.7 7.7z"></path></svg>
+        <span>Evening tasks are not counted here — they get their own 50 minutes after 18:00.</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 44px 26px;border-top:1px solid #D9E0DD;margin-top:24px">
+    <span class="btn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H4M9 5l-5 5 5 5"></path></svg>Back</span>
+    <div style="display:flex;gap:8px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:#161C19"></span><span style="width:8px;height:8px;border-radius:50%;background:#161C19"></span><span style="width:8px;height:8px;border-radius:50%;background:#D9E0DD"></span></div>
+    <span class="btn primary">Next · Block time<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M11 5l5 5-5 5"></path></svg></span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

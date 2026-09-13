@@ -1,0 +1,874 @@
+# Sparehour — screens
+
+Every screen, what it contains, and how it behaves. Companion to `PRODUCT_SPEC.md` (what the features are) and `ONBOARDING.md` (first run). Visual language — colour, type, spacing, motion curves — lives in `docs/design/DESIGN_SYSTEM.md` and is deliberately absent here.
+
+**Milestone tags:** M1 = daily driver · M2 = private beta · M2.5 = teams · M3 = public launch · Later.
+
+---
+
+## 0. Conventions
+
+**Wireframe key.** `▦` calendar meeting (read-only) · `▓` Sparehour time block · `░` planned, unblocked · `·` spare · `○` task checkbox · `◉` selected row · `▸` opens a flow · `⌄` disclosure · `⋯` overflow menu · `━━` now-line · `┆` projected finish.
+
+**Three interaction paths, always.** Every action in the app is reachable by (1) pointer, (2) a single key or chord, and (3) `Cmd+K`. If a feature has only two of the three, it isn't finished (P5).
+
+**Density.** Row height is set for one-handed scanning: title, then metadata chips, on one line. A row never wraps to two lines on desktop; it truncates with the full title in the detail panel.
+
+**Motion is feedback only** (Q26). Things that move: a completing checkbox, a dragged block, a panel sliding in, a toast. Things that never move on their own: the ribbon after its initial paint, the list, the timeline. The single exception is the onboarding reveal (`ONBOARDING.md` §Step 5).
+
+---
+
+## 1. App shell — M1
+
+```
+┌──────────────────┬──────────────────────────────────────────────────────────────────────┐
+│ Sparehour     ⌘K │  ← top command bar: view title · view actions · sync · account       │
+│ ──────────────── ├──────────────────────────────────────────────────────────────────────┤
+│ ○ Inbox        3 │                                                                      │
+│ ● Today        4 │                                                                      │
+│ ○ Upcoming       │                          MAIN PANE                     ┆  CONTEXT    │
+│ ○ Calendar       │                                                        ┆  PANE       │
+│ ○ Someday        │                                                        ┆             │
+│ ○ Logbook        │                                                        ┆  (timeline  │
+│ ──────────────── │                                                        ┆   or task   │
+│ AREAS         ⌄  │                                                        ┆   detail)   │
+│ ▸ Work           │                                                        ┆             │
+│ ▸ Personal       │                                                        ┆             │
+│ ▸ Side project   │                                                        ┆             │
+│ ──────────────── │                                                        ┆             │
+│                  │                                                        ┆             │
+│                  │                                                        ┆             │
+│ ⟳ Synced 12s ago ├──────────────────────────────────────────────────────────────────────┤
+│ ⚙ Settings    ?  │  + Quick add                                                    (Q)  │
+└──────────────────┴──────────────────────────────────────────────────────────────────────┘
+```
+
+### Regions
+
+| Region | Contents | Notes |
+|---|---|---|
+| **Sidebar** | Brand + `⌘K` affordance · fixed views in this order: Inbox, Today, Upcoming, Calendar, Someday, Logbook · Areas tree with projects nested one level · sync status · Settings, `?` | Collapsible with `Cmd+\`. Collapsed shows icons with tooltips. Order is fixed at M1; drag-to-reorder Areas and projects is M1, drag-to-reorder fixed views is Later |
+| **Counts** | Today shows tasks remaining (planned, never "late"). Inbox shows untriaged count. **No other view carries a number** | The only two numbers in the sidebar, both neutral (P2) |
+| **Top command bar** | View title and date context · view-specific actions · sync indicator · avatar menu | Never scrolls away |
+| **Main pane** | The view | Max content width so lines stay scannable on wide monitors |
+| **Context pane** | Today → day timeline. Everywhere else → task detail when a task is open, otherwise hidden | Toggled with `Cmd+.`; width is draggable and remembered per view |
+| **Quick-add bar** | Always present at the bottom on desktop | `Q` focuses it from anywhere |
+
+### Keyboard focus model
+
+1. **One focus ring at a time, always visible.** Three focus scopes: sidebar, main list, context pane. `Tab` moves between scopes; arrows / `J`,`K` move within one.
+2. **Selection ≠ focus.** A list has a *selected* row (acts as the target for `D`, `E`, `T`, etc.) which persists when focus moves to the context pane, so you can edit a task and keep your place.
+3. **`Esc` unwinds one layer at a time:** clear a filter → close a popover → close the panel → clear the selection → blur. Never more than one layer per press.
+4. **Typing anywhere with no input focused** opens quick-add and inserts the character. No keystroke is ever lost.
+5. **Trapped focus** in modals and flows only; every one closes on `Esc`.
+6. **Restoration:** after a dialog closes, focus returns to the element that opened it.
+7. **Screen readers:** views are landmarks, lists are `listbox`, the ribbon exposes its numbers as text (`3 hours 20 minutes spare, 4 hours 40 minutes planned, finishing at 5:40 pm`), and every state change that matters announces politely.
+
+---
+
+## 2. Today — the dashboard — M1
+
+The screen the product is judged on. Two panes: the plan on the left, the clock on the right.
+
+```
+┌──────────────────┬────────────────────────────────────────────────────┬─────────────────────────────┐
+│ Sparehour     ⌘K │ Tuesday 15 Sep    Planned at 9:12 · Shutdown ▸  ⋯  │ TIMELINE            ⌘. hide │
+│ ──────────────── │                                                    │                             │
+│ ○ Inbox        3 │  9a                                           6p   │  9:00 ┌───────────────────┐ │
+│ ● Today        4 │ ┌──┬──────┬────┬────┬───┬────┬─────────────────┐   │       │▦ Standup          │ │
+│ ○ Upcoming       │ │▦▦│▓▓▓▓▓▓│▦▦▦▦│▓▓░░│▦▦▦│▦▦▓▓│·················│   │  9:15 └───────────────────┘ │
+│ ○ Calendar       │ └──┴──────┴────┴────┴───┴────┴─────────────────┘   │ ━━━━━ 9:41 ━━━━━━━━━━━━━━━━ │
+│ ○ Someday        │  3h 20m spare · 2h 20m planned · 2h in meetings    │  9:45 ┌───────────────────┐ │
+│ ○ Logbook        │  done by 4:30pm                                    │       │▓ Write Acme       │ │
+│ ──────────────── │                                                    │       │  proposal · 1h 30m│ │
+│ AREAS         ⌄  │ ┌────────────────────────────────────────────────┐ │ 11:15 └───────────────────┘ │
+│ ▸ Work           │ │ CARRIED OVER · 3               Clear the slate │ │ 11:30 ┌───────────────────┐ │
+│   Acme           │ │ ○ Reply to Priya re Q4 roadmap  #Acme ~15m  ×2 │ │       │▦ Design review    │ │
+│   Website        │ │     [Today] [Tomorrow] [Someday] [Drop]        │ │ 12:15 └───────────────────┘ │
+│   Platform       │ │ ○ Book dentist               Personal ~10m  ×3 │ │                             │
+│ ▸ Personal       │ │     Carried over three times — still want this?│ │ 13:30 ┌───────────────────┐ │
+│ ──────────────── │ │     [Keep today] [Someday] [Break it down]     │ │       │▓ Prep 1:1 · 20m   │ │
+│ ⟳ Synced         │ │     [Drop]                                     │ │ 13:50 └───────────────────┘ │
+│ ⚙ Settings    ?  │ │ ○ Draft onboarding emails    #Website ~1h   ×1 │ │ 14:00 ┌───────────────────┐ │
+│                  │ └────────────────────────────────────────────────┘ │       │▦ 1:1 with Dana    │ │
+│                  │                                                    │ 14:30 └───────────────────┘ │
+│                  │ TODAY · 4 · 2h 20m                             ⌄   │ 15:00 ┌───────────────────┐ │
+│                  │ ◉ ○ Write Acme renewal proposal  #Acme ⚑Fri ~1h30  │       │▦ Acme sync        │ │
+│                  │   ○ Prep 1:1 with Dana           #Team 13:30 ~20m  │ 15:30 └───────────────────┘ │
+│                  │   ○ Review PR #214 — cal sync #Platform 16:00 ~25m │ 16:00 ┌───────────────────┐ │
+│                  │   ○ Pay electricity bill           Personal  ~5m   │       │▓ Review PR · 25m  │ │
+│                  │   + Add a task                                (N)  │ 16:25 └───────────────────┘ │
+│                  │                                                    │ 16:30 ┆┆┆ done by 4:30pm    │
+│                  │ THIS EVENING · 2 · 50m                         ⌄   │       ·  free · drop a task │
+│                  │   ○ Call Mum                       Personal ~20m   │       ·  here to block it   │
+│                  │   ○ Read 20 pages of Slow Productivity     ~30m?   │                             │
+│                  │                                                    │ 18:00 ─── end of day ────── │
+│                  │ ─────────────────────────────────────────────────  │                             │
+│                  │ + Quick add                                   (Q)  │                             │
+└──────────────────┴────────────────────────────────────────────────────┴─────────────────────────────┘
+```
+
+### 2.1 Header
+
+| Element | Behaviour |
+|---|---|
+| Date | "Tuesday 15 Sep". `[` / `]` step days; stepping off today swaps the header for "Tomorrow ·  ← back to today" and the timeline follows |
+| **Morning plan ▸** | Opens the morning plan flow (§14). Label becomes "Planned at 8:42" once `DayPlan.planned_at` is set, and moves to the overflow |
+| **Shutdown ▸** | Opens the evening shutdown (§15). Dimmed until 2h before the end of the last work segment, then normal; always clickable |
+| **Plan my day** (M2, Pro) | Appears between them. Free accounts see it and get preview-only (`ONBOARDING.md` §5) |
+| `⋯` overflow | Sort · Show completed · Clear the slate · Trim today · Copy today as text · Print |
+
+### 2.2 The spare-time ribbon
+
+The hero. One horizontal bar representing **the working day**, left edge = start of the first work segment, right edge = end of the last.
+
+**Segments, in clock order:** meetings (`▦`) · time blocks (`▓`) · planned-but-unblocked (`░`, packed into the next free gaps) · spare (`·`, the highlighted remainder). Buffer is *not* drawn as its own segment — it is subtracted from spare and explained on hover — because a visible "buffer" block reads as a meeting you don't have.
+
+**Text line, always directly under the bar:**
+
+| State | Text |
+|---|---|
+| Open | `3h 20m spare · 2h 20m planned · 2h in meetings · done by 4:30pm` — the "in meetings" term is always present when a calendar is connected; it is what makes the subtraction legible without opening the tooltip |
+| Tight | `25m spare · 5h 15m planned · 2h in meetings · done by 5:45pm` |
+| Over | `40m more than fits — move something to tomorrow?` |
+| Well over | `2h 30m more than fits — want help trimming?` |
+| Empty | `5h 40m spare · nothing planned yet · 2h in meetings · Plan your day` |
+| No calendar | `7h 40m of working time · connect a calendar to see real free time` |
+| Non-working day | `No working hours today · 3 things planned` |
+
+**Over-capacity rendering.** The bar grows a hatched overhang past its right edge, proportional to the overflow, and the text turns into the gentle question. **No red, no icon, no shake, no modal** (P2). Clicking the text opens **Trim today**.
+
+**Interactions.** Hover a segment → tooltip with its name and duration. Click a meeting segment → scrolls the timeline to it. Click the spare region → "Add something" quick-add prefilled with today. Hover anywhere → a breakdown popover: `9h working − 2h in meetings − 1h 20m buffer (15% of your working day) − 2h 20m planned = 3h 20m spare`.
+
+**Updates** on every change to tasks, estimates, blocks, meetings or work hours, debounced 250ms, with no animation after first paint.
+
+### 2.3 Carried over
+
+Renders **only when non-empty**. Header: `CARRIED OVER · 2`, a collapse chevron, and a **`Clear the slate`** action on the right (per the mockups — it belongs where the pile is, not only in the Today overflow). Above 8 rows the section starts collapsed as a single summary line.
+
+- Sorted by `carry_count` desc, then original do-date asc.
+- Each row shows the standard row plus a **carry chip** — `×3`, matching the mockups — whose tooltip reads "Moved 3 times since Tue 9 Sep". Neutral, factual, never red.
+- **One-tap actions** appear on the selected/hovered row: `[Today] [Tomorrow] [Someday] [Drop]`. On touch, they are always visible on the row. Keyboard: `T`, `Shift+T`, `S`, `Backspace`.
+- "Today" moves the row down into the Today list with a 200ms slide; the section header count decrements.
+- **The three-carry ask** replaces the action row in place, once, for tasks at the threshold:
+  `Carried over three times — still want this?  [Keep today] [Someday] [Break it down] [Drop]` — four options, always in that order
+  Max two asks visible per day; the rest wait.
+- Section footer when 3+ rows: `Move all to tomorrow` · `All to Someday` — both undoable.
+
+### 2.4 Today list
+
+Row anatomy, left to right: `checkbox · title · project chip · tags · estimate chip · deadline flag · priority mark · ⋯`.
+
+| Element | Detail |
+|---|---|
+| Checkbox | Click or `Cmd+Enter` completes. Subtle fill + strike, the row stays for 3 seconds showing "Undo", then moves to the bottom under a `done` divider (hidden by default; `Show completed` in the overflow) |
+| Estimate chip | `~45m` solid when set, `~30m?` dashed when assumed. Click to edit inline with the preset chips |
+| Deadline flag | `⚑Fri` only when a deadline exists. Once past, this is the one alarm state in the product |
+| Priority | A small leading mark for `!1`/`!2`; nothing for `!3` and none |
+| Time | `3:00pm` chip when `do_time` is set; such rows sort to their time position |
+| Drag handle | The whole row is draggable — to the timeline (creates a block), to another section, to a sidebar project, or to an Upcoming day column |
+| Order | Manual within the section, persisted. `Sort` offers Time → Priority → Deadline → Estimate, as a view preference, non-destructive |
+
+### 2.5 This Evening
+
+Same rows, separate section, separate budget. Evening tasks never consume working-hours spare time; the section header carries its own small readout: `THIS EVENING · 2 · 40m`. Overload here is quieter still: "That's a full evening." Drag a row between Today and This Evening to flip the `evening` flag.
+
+### 2.6 The day timeline (right pane)
+
+| Element | Behaviour |
+|---|---|
+| Range | The working day, plus one hour of padding either side. Scrollable to the full 24h; zoom with `+` / `-` (30m / 15m / 5m rows) |
+| Meetings `▦` | Read-only. Title, time, attendee count. Never draggable. Declined and free-marked events are hidden |
+| Blocks `▓` | Draggable, resizable from either edge, `L` toggles the padlock. Double-click renames. Click selects and shows the task in the detail panel |
+| **Now-line** | A full-width line with the current time, updating each minute, auto-scrolled into view on open |
+| **Projected finish** `┆` | A marker at the projected finish time, labelled "done by 4:30pm". When it lands past the end of the day, it pins to the edge and reads "40m past the end of your day" |
+| Free gaps | Show a faint "drop a task here" affordance on drag-over |
+| Outside work hours | Dimmed background, still usable |
+| Empty (no calendar) | "No calendar connected — your meetings would show here. Connect" |
+
+**Drag-to-block.** Dragging a task row over the timeline shows a ghost block sized to its estimate, snapping to 5 minutes, with the time under the cursor. Dropping creates the `TimeBlock`, writes it to the chosen calendar (Pro), and leaves the task in the list with a small block indicator. Dragging a block back onto the list removes the block and keeps the task. `Alt+drag` duplicates a block. Dropping onto a meeting is allowed and draws side by side.
+
+### 2.7 Today states
+
+| State | Screen |
+|---|---|
+| First open of a new day | Rollover has already run. If Carried over is non-empty, the section is expanded and focused |
+| Empty day | The returning-user empty state in `ONBOARDING.md` §4 |
+| All done | Ribbon shows spare; body reads "That's everything you planned. **2h 10m** left." with `Pull something in` and `Shutdown ▸`. No celebration graphic |
+| Loading | Ribbon skeleton, list skeleton rows. Local data paints first; calendar fills in. **Never a full-screen spinner** |
+| Offline | Everything works. Sync chip reads "Offline · 3 changes waiting". Blocks show a "will sync" dot |
+| Calendar error | One dismissible line above the ribbon: "Couldn't reach Google Calendar. Showing your last sync from 9:12am." Retry |
+
+---
+
+## 3. Upcoming · rolling 7 days — M1
+
+One view (ruled 2026-09-13 — the Week planner and Upcoming are the same screen). The next 7 days from today as columns, capacity per day at a glance, for moving work around; it keeps scrolling past day 7 (§6).
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Upcoming · rolling 7 days     Tue 15 – Mon 21 September     11h 15m spare this week   ⌘.  ⋯                    │
+├────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┬─────────────────────┤
+│ TUE 15     │ WED 16     │ THU 17     │ FRI 18     │ SAT 19     │ SUN 20     │ MON 21     │ NOT YET PLANNED · 5 │
+│ today      │            │            │            │            │            │            │ drag onto a day     │
+│            │            │            │            │            │            │            │                     │
+│ ▦▦▓▓░░···  │ ▦▓░░░····  │ ▦▦▓▓▓▓░░▒  │ ▦▓░······  │            │            │ ▦▓░░·····  │ ○ Research CalDAV   │
+│ 3h20 spare │ 1h05 spare │ 20m over   │ 2h40 spare │ no hours   │ no hours   │ 4h10 spare │     ~1h  #Platform  │
+│            │            │            │            │            │            │            │ ○ Birthday gift Ana │
+│ ○ Acme     │ ○ Onboard  │ ○ Renewal  │ ○ Send     │ ○ Farmers  │ ○ Call     │ ○ Q4 plan  │     ~20m            │
+│   proposal │   emails 1h│   deck 2h  │   proposal │   market   │   Grandpa  │   doc 1h   │ ○ Read PowerSync    │
+│   ⚑Fri 1h30│ ○ Reply    │ ○ Pricing  │   30m      │ ○ Bike     │   20m      │ ○ Passport │   docs   ~40m       │
+│ ○ 1:1 prep │   Priya 15m│   ⚑Thu 45m │ ○ Changelog│   brake 45m│            │   30m      │ ○ Fix flaky sync    │
+│   20m      │ ○ Outline  │ ○ Interview│   40m      │            │            │            │   test   ~30m       │
+│ ○ PR #214  │   talk 30m?│   notes 40m│            │            │            │            │ ○ Tidy Notion       │
+│   25m      │            │ ○ Expenses │            │            │            │            │   archive ~45m      │
+│ ○ Bill     │            │   20m      │            │            │            │            │                     │
+│   5m       │            │            │            │            │            │            │                     │
+│            │            │            │            │            │            │            │                     │
+│ + add      │ + add      │ + add      │ + add      │ + add      │ + add      │ + add      │                     │
+└────────────┴────────────┴────────────┴────────────┴────────────┴────────────┴────────────┴─────────────────────┘
+```
+
+| Aspect | Detail |
+|---|---|
+| Purpose | Move work between days when today doesn't fit. It is the *release valve* for the carry-over engine |
+| Header | Date range plus a **week total**: "11h 15m spare this week" |
+| Columns | Rolling 7 days starting today (`07` §A8). A "Calendar week" toggle switches to Mon–Sun as a view preference |
+| **Capacity bar** | One per day, same segment language as the Today ribbon, with a single-line readout: `3h 20m spare` / `40m over` / `no working hours` |
+| Rows | Compact: checkbox, title, estimate, plus deadline flag and project chip when they fit. Evening tasks sit under a thin divider at the bottom of the column |
+| Overflow | Columns cap at what fits; `…3 more` expands that column inline |
+| **Not yet planned rail** | Right-hand column: active tasks with no `do_date`, sorted by deadline then age. Drag onto any day. This is where Inbox triage lands |
+| Beyond day 7 | The same view keeps scrolling, grouped by day — see §6 |
+| Drag | Task between columns sets `do_date`; both capacity bars update live during the drag, so you can see the day you're about to overload before you drop |
+| Keyboard | `←`/`→` move the selected task a day; `J`/`K` within a column; `Tab` between columns |
+| Today's column | Marked, and always first |
+| Non-working days | Greyed, still droppable, readout "no working hours" |
+| Milestone | M1. Board view and saved filters are M2 |
+
+---
+
+## 4. Calendar — day / week — M1
+
+The time-first view. Same timeline component as Today's right pane, at full width.
+
+| Aspect | Detail |
+|---|---|
+| Modes | Day · Work week (5) · Week (7). `Cmd+1/2/3` |
+| Left rail | Today's unblocked tasks, draggable into slots — the same list component as Today |
+| Contents | Meetings (read-only) and blocks (editable), side by side on overlap |
+| Interactions | Drag on empty space to create an ad-hoc block; drag a task in to block it; drag an edge to resize; `Alt+drag` to duplicate; right-click for Unblock / Lock / Delete / Open task |
+| Now-line and projected finish | On the current day column only |
+| Work hours | Drawn as the un-dimmed band |
+| Header per day | Date + the day's capacity readout |
+| Empty | "Nothing on. Drag a task in, or drag on the grid to block time." |
+| Milestone | M1 |
+
+---
+
+## 5. Inbox — M1
+
+A triage queue, not a list. The goal is to empty it.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ Inbox · 3                                            Triage all ▸  ⋯ │
+├──────────────────────────────────────────────────────────────────────┤
+│ ◉ ○ Look into the pricing thing                           added 2d   │
+│                                                                      │
+│      [ Today ]  [ Tomorrow ]  [ This week ]  [ Someday ]  [ Drop ]   │
+│      Project ▾    Estimate ▾    Deadline ▾    Break it down          │
+│                                                                      │
+│   ○ Renew the domain                                      added 5d   │
+│   ○ That thing Dana mentioned                             added 5d   │
+├──────────────────────────────────────────────────────────────────────┤
+│ + Add to Inbox                                                  (N)  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- The selected row expands to show the triage actions; everything else stays one line.
+- `Triage all ▸` walks the queue one task at a time, full-screen, keyboard-driven — the fastest path to Inbox zero, and the same component used in the weekly review (M2).
+- Choosing a date moves the task to `active` and it leaves the Inbox immediately, with an undo toast.
+- Age is shown in days, factually. **No red, no "overdue" concept in the Inbox.**
+- Empty state: "Inbox zero. Nice." — one line, no graphic.
+- Milestone: M1. Share-target and email-in arrivals appear here at M2, badged with their source.
+
+---
+
+## 6. Upcoming — beyond the first 7 days — M1
+
+Not a separate view: this is what §3 shows once you scroll past day 7 — dated tasks grouped by day, continuing forward indefinitely. Everything below describes that continuation.
+
+- Day headers carry the date, the weekday, and a compact capacity readout once within the next 14 days.
+- Groups: `Tomorrow` · each named day for 7 days · then `Later this month` · `Next month` · month names.
+- A thin sub-group per day for items whose **deadline** falls that day but whose do-date is elsewhere, labelled "Due" — so a deadline is never a surprise.
+- Tasks hidden by a `start_date` show in a collapsed "Starting later · 4" group at the bottom of their start day.
+- Drag between days. `[`/`]` jump by week.
+- Milestone: M1.
+
+---
+
+## 7. Someday — M1
+
+The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
+
+- Header line: "Things you're not doing right now. That's allowed."
+- **Auto-filed group pinned at the top** when non-empty: "Moved here automatically · 6 — you hadn't touched these in 30 days" with `Review` (walks them one at a time) and `Bring them all back`.
+- Rest grouped by project, then loose items.
+- Row actions: `Today` · `Pick a date` · `Back to active` · `Drop`.
+- No counts in the sidebar, no age shaming, no badge. Ever.
+- M2 adds **backlog suggestions** — a "Worth another look" group ranked by age, reschedule count and deadline proximity (`07` §B16).
+- Milestone: M1.
+
+---
+
+## 8. Logbook — M1
+
+- Completed and dropped tasks, newest first, grouped by completion day.
+- Day headers: `Monday 14 Sep · 7 done · 4h 20m`. Once actuals exist (M2): `planned 4h 20m · actual 5h 05m`.
+- Dropped tasks sit in a separate, collapsed sub-group per day.
+- Filters: project, area, tag, date range, done vs dropped.
+- `U` on a row un-completes it, restoring its previous state and date (a past date lands it in Carried over).
+- Day rating and highlights from the shutdown appear as a quiet line under the day header.
+- Milestone: M1. Year heatmap and Year in Review: Later.
+
+---
+
+## 9. Area and Project views — M1
+
+**Area view.** Header with the area name and an inline rename. Below: its projects as cards — name, open task count, next deadline, and a one-line progress bar — then loose tasks belonging to the area directly. An `Add project` card sits last.
+
+**Project view.**
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ▸ Work / Acme redesign                          12 open · ~14h  ⚑Oct3│
+├──────────────────────────────────────────────────────────────────────┤
+│ Notes ⌄  Markdown notes for the project, editable in place.          │
+├──────────────────────────────────────────────────────────────────────┤
+│ ── Research ──────────────────────────────────────────────────────   │
+│   ⊘ Interview 3 users            done                                │
+│   ○ Write up the findings   ~2h   Mon 16                             │
+│ ── Build ─────────────────────────────────────────────────────────   │
+│   ○ Component pass          ~4h   ⚑Oct 3                             │
+│   ○ Wire up the API         ~3h                                      │
+│   + add                                                              │
+├──────────────────────────────────────────────────────────────────────┤
+│ Someday in this project · 3                                       ⌄  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+| Element | Detail |
+|---|---|
+| Header | Area breadcrumb · project name · open count · **summed estimate** (P1 — every list shows its time cost) · project deadline · `⋯` (complete, someday, archive, duplicate, convert to template (M2)) |
+| Notes | Collapsible markdown block |
+| Headings | Section dividers, drag to reorder, inline add, rename, delete (tasks move up, never deleted) |
+| Tasks | Standard rows. Completed hide under a per-heading `Show completed · 4` |
+| Someday group | Collapsed at the bottom, so parked work stays visible without cluttering the list |
+| Empty | "Nothing in this project yet." + `Add the first task` |
+| Milestone | M1. Board view over the same data: M2 |
+
+---
+
+## 10. Task detail panel — M1
+
+Opens in the context pane (desktop) or a sheet (mobile). `Space` peeks, `Enter` edits the title inline without opening it.
+
+```
+┌─────────────────────────────────────┐
+│ Draft the proposal              ✕   │
+│ #Acme redesign  ·  Work             │
+├─────────────────────────────────────┤
+│ Do        Today, 3:00pm          ▾  │
+│ Deadline  Fri 20 Sep             ▾  │
+│ Starts    —                      ▾  │
+│ Estimate  45m                    ▾  │
+│ Priority  !1                     ▾  │
+│ Repeat    —                      ▾  │
+│ If missed Carry over             ▾  │
+│ Tags      @deep  +                  │
+├─────────────────────────────────────┤
+│ Checklist                    2 / 4  │
+│  ☑ Pull last quarter's numbers      │
+│  ☑ Outline                          │
+│  ☐ Draft                            │
+│  ☐ Send to Dana                     │
+│  + add                              │
+├─────────────────────────────────────┤
+│ Notes                               │
+│  Markdown, edited in place.         │
+├─────────────────────────────────────┤
+│ Blocked  9:30–10:15  locked    ⋯    │
+│ Moved 3 times since Tue 9 Sep       │
+├─────────────────────────────────────┤
+│ [ Complete ]  [ Block it ]     ⋯    │
+└─────────────────────────────────────┘
+```
+
+| Aspect | Detail |
+|---|---|
+| Saving | Every field saves on change, locally and instantly. No Save button, no dirty state |
+| Field rows | Each opens a popover: dates get a calendar plus the smart-snooze presets and a natural-language input ("next tue"); estimate gets the preset chips; repeat gets the plain-language builder with a preview of the next 3 occurrences |
+| **If missed** | Carry over (default) · Skip this one · Expire. Inline help: "Skip suits routines — a missed one just doesn't count" |
+| Checklist | One level. `Enter` adds the next, `Tab`/`Shift+Tab` do nothing (nesting is impossible by design), drag to reorder, `Convert to project` in `⋯` |
+| History line | Carry count, created date, and — at M2 — activity history with the values from any overwritten sync conflict |
+| Footer | Complete · Block it · `⋯` (Someday, Duplicate, Convert to project, Copy link, Drop) |
+| Recurring | Header shows "Repeats every Monday · next Mon 16". Editing a date prompts **Just this once** vs **Change the rule** |
+| Milestone | M1; attachments and links M2 |
+
+---
+
+## 11. Quick-add — M1
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Draft the proposal ⟨tomorrow 3pm⟩ ⟨~45m⟩ ⟨#Acme⟩ ⟨!1⟩        │      │
+│  ────────────────────────────────────────────────────────────────    │
+│  Tomorrow 3:00pm · 45m · Acme redesign · priority 1                  │
+│                                                                      │
+│  ⏎ save and keep going      ⌘⏎ save and close      esc discard       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- Opens over the current view from `Q`, `Cmd+K`, the bottom bar, or the mobile FAB. Never navigates.
+- Parsed tokens render as inline chips as soon as they complete; the interpretation strip below restates the parse in plain English (the contract — see `PRODUCT_SPEC.md` §5).
+- `Backspace` next to a chip removes it and restores its literal text.
+- A `#` or `@` with no match shows an inline "Create *name*" as the first suggestion; `Tab` accepts.
+- Multi-line paste shows "12 tasks — Undo" after saving.
+- Destination line when it isn't obvious: "→ Inbox" or "→ Today".
+- Milestone: M1. Voice capture: M2.
+
+---
+
+## 12. Command palette — M1
+
+`Cmd+K`. Fuzzy search over commands, then projects, then tasks. Recent commands first on an empty query. Every command shows its shortcut, which is how shortcuts get learned (P5).
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ⌘K  block the prop|                                                  │
+├──────────────────────────────────────────────────────────────────────┤
+│  ACTIONS                                                             │
+│   ▸ Block time for "Draft the proposal"                          B   │
+│   ▸ Plan my day                                              ⌘⇧P     │
+│  TASKS                                                               │
+│   ○ Draft the proposal                             #Acme · today     │
+│  ADD                                                                 │
+│   + Add task "block the prop"                                        │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Command list (M1 unless marked).**
+
+| Group | Commands |
+|---|---|
+| **Create** | Add task · Add task to Inbox · Add project · Add area · Add tag · Add time block |
+| **Go to** | Today · Inbox · Upcoming · Calendar · Someday · Logbook · Settings · a project · an area · Search |
+| **Day** | Start morning plan · Start evening shutdown · **Plan my day** (M2) · **Re-plan the rest of today** (M2) · Trim today · Clear the slate · Go to tomorrow · Go to yesterday · Jump to date |
+| **Selected task** | Complete · Un-complete · Move to Today · Tomorrow · This evening · This weekend · In 4 hours · Next week · Pick a date · Set deadline · Set start date · Set estimate · Set priority · Move to project · Add tag · Move to Someday · Drop · Duplicate · Convert to project · Block it · **Start focus** (M2) · Copy link |
+| **View** | Toggle sidebar · Toggle timeline · Show completed · Sort by… · Zoom timeline in/out · Light / Dark / System |
+| **App** | Undo · Redo · Sync now · Export data · Keyboard shortcuts · Connect calendar · Settings · Sign out |
+| **M2** | Save current filter · Open a saved filter · Start weekly review · Enter focus mode · Brain-dump with AI · Break this down · Suggest an estimate |
+
+Rules: the palette never performs a destructive action without a confirm step in the same palette; commands that need a selection are listed but disabled with the reason ("select a task first"); results are keyboard-navigable and `Enter` runs the top one.
+
+---
+
+## 13. Search — M1
+
+`/` from anywhere. A full overlay, not a sidebar filter.
+
+| Aspect | Detail |
+|---|---|
+| Scope | Task titles, notes, checklist items, project and area names. Local index, results in under 100ms |
+| Grouping | Tasks · Projects · Areas · **Also found** (a collapsed group holding `done`, `dropped` and start-date-hidden matches) |
+| Result rows | The standard task row plus a one-line context snippet with the match highlighted, and the task's state when it isn't `active` |
+| Filter chips | Added inline under the query: project, area, tag, state, date range, has deadline, no estimate. Chips are removable and the URL reflects them, so a search is shareable and bookmarkable |
+| Actions | Every row supports the full selected-task key set without leaving search |
+| Empty | "Nothing matched *foo*." + `Add "foo" as a task` |
+| Milestone | M1. `Save this as a filter` appears here at M2 and pins the result to the sidebar |
+
+---
+
+## 14. Morning plan flow — M1
+
+Full-screen, three steps (ruled 2026-09-13), a persistent spare-time readout, and an always-available Skip. Target 2–5 minutes.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  Morning plan · 2 of 3 · Pick today's tasks      ● ● ○      1 min 40 s    Skip ✕ │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│   What matters today?                                                            │
+│   Tick what you'll work on. Everything else waits without turning red.           │
+│                                                                                  │
+│   CARRIED OVER · 3                                                               │
+│   ☑ Reply to Priya about the Q4 roadmap        #Acme        ~15m   ×2            │
+│   ☐ Book dentist                               Personal     ~10m   ×3            │
+│       Carried over three times — still want this?                                │
+│       [ Keep today ]  [ Someday ]  [ Break it down ]  [ Drop ]                   │
+│   ☑ Draft onboarding email sequence            #Website     ~1h    ×1            │
+│                                                                                  │
+│   DUE THIS WEEK · 2                                                              │
+│   ☑ Write proposal for Acme renewal            #Acme   ⚑Fri  ~1h30               │
+│   ☑ Update website pricing page                #Website ⚑Thu ~45m                │
+│                                                                                  │
+│   FROM YOUR PROJECTS · 4                                                         │
+│   ☑ Prep 1:1 with Dana                         #Team        ~20m                 │
+│   ☑ Review PR #214 — calendar sync             #Platform    ~25m                 │
+│   ☑ Outline talk for October meetup            #Talks       ~30m?                │
+│   ☐ Research CalDAV libraries                  #Platform    ~1h                  │
+│                                                                                  │
+│   ┌────────────────────────────────────────────────────────────────────────┐     │
+│   │ 40m over · 5h 40m fits today · 6h 20m picked · 7 tasks                 │     │
+│   │ ▦▦▦▦▦▦▦▦▦▦▦▦░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒ │     │
+│   │ 40 minutes more than fits. Move something to tomorrow, or keep it and  │     │
+│   │ let the day breathe less.                                              │     │
+│   │                                                                        │     │
+│   │ Easiest move · Outline talk for October meetup · 30m?                  │     │
+│   │ No deadline, and tomorrow has 1h 05m spare. Moving it leaves 10        │     │
+│   │ minutes over — close enough to keep.                                   │     │
+│   │ [ Move to tomorrow ]   [ Keep it anyway ]                              │     │
+│   └────────────────────────────────────────────────────────────────────────┘     │
+│   Evening tasks aren't counted here — they get their own 50 minutes after 18:00. │
+│                                                                                  │
+│                                              [ ← Back ]   [ Next · Block time ]  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Step | Content | Interactions | Exit |
+|---|---|---|---|
+| **1 · Here's your day** | Work hours, meeting count, capacity, spare time, and how many things carried over. The ribbon at full width. Read-only — it sets the frame before any decision | Nothing to do but read | `Next` / `→` |
+| **2 · Pick today's tasks** | One picker, three groups, tick to include. **Carried over**: every carried task with the four one-tap actions; the three-carry ask appears inline (max 2). **Due this week**: deadline in the next 7 days, or starting today. **From your projects**: Inbox and undated tasks, oldest first (max 6 shown, `More` expands). Estimates editable in place. The readout at the bottom — "5h 40m fits today · 6h 20m picked · 7 tasks" — updates on every tick. When over, the coach appears: the overflow in plain words, then **Easiest move** (the largest picked task with no deadline that fits tomorrow, with the reason) and `Move to tomorrow` / `Keep it anyway`. Evening tasks are excluded from the readout and say so | `Space` ticks, `J`/`K` between rows, `T` / `Shift+T` / `S` / `Backspace` on carried rows, `E` for estimate, `N` to add | `Next` works with anything unresolved — it never forces a decision |
+| **3 · Block time** | M1: the day timeline with drag-to-block. M2 (Pro): the Plan my day preview with its explanations and `Approve` / `Approve some` / `Shuffle` / `Discard` | Drag, `B`, `L` | `Done` |
+
+**Behaviour.**
+1. The header's spare-time readout updates on every action — this is the feedback loop the ritual exists to create.
+2. `Skip ✕` exits at any point, leaving every change already made intact. There is no "cancel the whole thing".
+3. Completing sets `DayPlan.planned_at`, which suppresses today's morning nudge and switches the Today header button to "Planned at 8:42".
+4. In step 3, the Plan my day preview is Pro (M2); free accounts get the drag-to-block timeline and a single line about what Plan my day does.
+5. Entry: Today header · the morning nudge notification · `Cmd+Shift+M` · command palette.
+6. Progress dots are navigable — you can go back without losing anything.
+
+---
+
+## 15. Evening shutdown flow — M1
+
+Four steps, target 60–90 seconds. The point is to *stop working*, so nothing here creates new work.
+
+| Step | Content | Copy | Interactions |
+|---|---|---|---|
+| **1 · What you did** | Today's completed tasks with the total time; then unfinished ones | "You finished **7 things** — about **4h 20m**." / "5 things didn't happen. That's normal." | Each unfinished task: `Tomorrow` · `Someday` · `Drop` · `Keep for today`. `Move all to tomorrow` in the footer |
+| **2 · Highlights** | Up to 3 free-text lines, with today's completions offered as one-tap picks | "What was worth it today?" | Type, or tap a completion to use it as a highlight. Skippable |
+| **3 · Rating** | A 1–5 scale, one tap, unlabelled beyond the scale. A 14-day sparkline appears once 5 ratings exist | "How was the day?" | One tap, or `1`–`5`. Skippable |
+| **4 · Close** | Tomorrow's load and spare time, with `Plan tomorrow now` and `Plan it in the morning` | "That's the day. Nothing is waiting for you." | `Done` closes the flow |
+
+**Behaviour.** Sets `DayPlan.shutdown_at`, `highlights`, `day_rating`. On completion, Today switches to a closed state for the rest of the evening: the ribbon is replaced by the day's summary line, This Evening stays visible, and the app stops showing the shutdown button. The badge clears. Entry: Today header · the opt-in shutdown nudge (off by default) · `Cmd+Shift+E`.
+
+---
+
+## 16. Weekly review — M2
+
+A wizard, same chrome as the morning plan, default Friday afternoon, entirely skippable.
+
+| Step | Content |
+|---|---|
+| 1 · Inbox to zero | The `Triage all` walker (§5) over everything left in the Inbox |
+| 2 · Projects with no next action | Active projects whose tasks are all done, someday, or undated. Each offers `Add a next step` · `Mark done` · `Someday` |
+| 3 · Stalled projects | No activity in 14 days. Same actions |
+| 4 · Waiting for | Items with a follow-up date due, each with `Nudge` · `Push the date` · `It arrived` |
+| 5 · Moved to Someday | The week's auto-filed tasks, one at a time: `Bring it back` · `Leave it` |
+| 6 · Your week | Completions, total time, highlights, rating trend, planned-vs-actual accuracy |
+| 7 · Next week | The 7-day capacity strip with one line per day, and any deadlines landing |
+
+An AI-drafted summary (labelled, editable, rejectable) appears at step 6 from M3.
+
+---
+
+## 17. Focus mode — M2
+
+One task, nothing else.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                            ✕  esc    │
+│                                                                      │
+│                          Draft the proposal                          │
+│                             #Acme redesign                           │
+│                                                                      │
+│                              2 8 : 1 4                               │
+│                          ────────────────                            │
+│                          of 45m estimated                            │
+│                                                                      │
+│              ☑ Pull last quarter's numbers                           │
+│              ☐ Outline                                               │
+│              ☐ Draft                                                 │
+│                                                                      │
+│            [ Pause ]      [ Done ]      [ +15m ]                     │
+│                                                                      │
+│                  Up next · Review the PRs · 1h                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- Entered with `F` on a selected task or from a block. Countdown to the estimate, or a Pomodoro cycle; both optional, neither required.
+- **Overrun is quiet:** at zero the timer counts up and the controls become `Done` / `+15m`. No alarm, no red, no sound unless enabled.
+- Records `actual_minutes` on the task.
+- Screen Wake Lock holds the display on (iOS 18.4+ home-screen apps).
+- **Document Picture-in-Picture "Now" card** on desktop Chromium/Firefox: a small always-on-top window with the task, the remaining time, pause and done. Not available in Safari — the feature is simply absent there, never broken.
+- The checklist is the only editable thing on screen; everything else is read-only by design.
+- Milestone: M2.
+
+---
+
+## 18. Settings — M1 unless noted
+
+Two-column: a section list on the left, the section on the right. Every change saves immediately with an inline "Saved" and a `Cmd+Z` undo.
+
+| Section | Contents |
+|---|---|
+| **Account** | Name, email, avatar · connected sign-in methods (Google, magic link; passkeys and Apple M3) · time zone with a "detected *Europe/London*" hint · sign out · delete account (typed confirmation, states exactly what is deleted and offers an export first) |
+| **Working hours** | Per-weekday segment editor with add/remove segments · non-working days · **buffer slider** 0–30% with a live preview ("15% · 1h 20m held back on a 9h day") · evening cut-off · week start day |
+| **Calendar** | Connected accounts with status · a per-calendar list with `counts as busy` and `hide titles` toggles · **the write-calendar picker**, with the read-all/write-one promise restated verbatim · sync status and `Sync now` · disconnect (explains that existing blocks stay, unsynced) |
+| **Notifications** | The category table from `PRODUCT_SPEC.md` §14 with per-category switches · quiet hours · lead time for block-start · badge toggle · **permission status**, honestly stated, with browser-specific re-enable instructions when denied · `Send a test` |
+| **Planning** | Carry threshold (default 3) · auto-Someday days (default 30) · default estimate (default 30m) · default miss policy · default view on open · sort defaults · show completed |
+| **Appearance** | Light / Dark / System · density (M2) · reduce motion (respects the OS setting by default) |
+| **Data** | Export (JSON · Markdown · CSV) · import (M3) · **Archive** with per-batch restore, each batch named by date and count · permanent delete (names the count, typed confirmation) · storage persistence status ("Your data is protected from automatic cleanup" / "Not protected — install the app") |
+| **Billing** (M3) | Plan · trial days remaining · founding-member badge · payment method · invoices · cancel (no retention maze: one screen, one button) |
+| **Labs** (M2) | Opt-in unfinished features, each with a one-line description and a "this may change" note |
+| **About** | Version, what's new, keyboard shortcuts, the exit guarantee (M3), privacy, contact |
+
+---
+
+## 19. Notifications UI — M1
+
+**Push notification anatomy.** Title carries the fact, body carries the context, and the body is self-sufficient because iOS home-screen web apps have limited action buttons (`07` §D).
+
+| Type | Title | Body | Actions (where supported) |
+|---|---|---|---|
+| Block starting | "Draft the proposal" | "9:30–10:15 · 45m" | Start · Snooze 15m |
+| Deadline, day before | "Due tomorrow: Send the invoice" | "Not planned yet — want to put it somewhere?" | Today · Tomorrow · Plan |
+| Deadline, day of | "Due today: Send the invoice" | "~20m · you have 3h 20m spare" | Today · Plan |
+| Morning nudge | "Good morning. 5h 40m fits today." | "2 meetings. Plan your day — about 2 minutes." | Plan · Not today |
+| Shutdown nudge (off by default) | "Wrapping up?" | "7 done today. Two minutes to close the day." | Shutdown · Not today |
+| Urgent repeat (M2, opt-in) | The task title | "Still waiting." | Done · Snooze |
+
+**Rules.** Never a count of what's late (permanent Never). Quiet hours drop notifications rather than queueing them into a morning pile. Tapping any notification deep-links to the exact task or flow, opening the app if it is closed. **Action buttons ship at M1 on Android and desktop; iOS shows the same notification without action buttons** (ruled 2026-09-13) — which is why every body above stands on its own.
+
+**In-app notification surfaces.**
+
+| Surface | Use |
+|---|---|
+| **Toast** (bottom-left, 10s, stacking to 3) | Every undoable action: "Dropped *Expenses* — Undo" |
+| **Inline banner** (above the ribbon, dismissible) | Connection and sync problems, permission prompts, the expired-tasks digest |
+| **Row-level hint** | "Long — break it down?", "block removed in Google Calendar" |
+| **App-icon badge** | Today's remaining planned count. Neutral, clears at shutdown, only after notification permission is granted |
+| Never used | Modal dialogs for anything other than destructive confirmations. No interstitials, no upsell popovers |
+
+---
+
+## 20. Offline and sync status — M1
+
+The sync chip lives at the bottom of the sidebar and expands on click.
+
+| State | Chip | Expanded |
+|---|---|---|
+| Synced | `⟳ Synced 12s ago` | Last sync time, calendar last-read time, `Sync now` |
+| Syncing | `⟳ Syncing…` | What's in flight, as a count |
+| Offline | `⊘ Offline · 3 changes waiting` | "Everything you do is saved on this device and will sync when you're back." A list of the pending changes |
+| Problem | `! Sync problem` | The specific reason in plain words (expired calendar access, server unreachable, storage full), one action to fix it, and the reassurance that nothing is lost |
+| Not persisted | `! Storage not protected` | "Install Sparehour to stop your browser clearing this data." Install instructions per platform |
+
+**Rules.** The app is never blocked by sync state. Writes always apply locally first. A conflict resolves last-write-wins per field, and the overwritten value is kept in the task's activity history rather than discarded. Blocks created offline carry a small "will sync" dot on the timeline.
+
+---
+
+## 21. Empty, loading and error states — M1
+
+**Principles.** Every empty state states the fact and offers the next action. No illustrations of failure, no "You're all caught up!" celebration, no blame.
+
+| Screen | Empty |
+|---|---|
+| Today, nothing planned | `ONBOARDING.md` §4 — the planning prompt with 3 pull-in suggestions |
+| Today, all done | "That's everything you planned. **2h 10m** left." + `Pull something in` · `Shutdown ▸` |
+| Inbox | "Inbox zero. Nice." |
+| Upcoming | "Nothing scheduled beyond today." + `Plan your week` |
+| Someday | "Nothing parked. That's fine too." |
+| Logbook | "Nothing completed yet." |
+| Project | "Nothing in this project yet." + `Add the first task` |
+| Timeline, no calendar | "No calendar connected — your meetings would show here." + `Connect` |
+| Search | "Nothing matched *foo*." + `Add "foo" as a task` |
+| Upcoming, empty day column | "Free." (not "empty", not "nothing to do") |
+
+**Loading.** Local data paints first, always. Remote data (calendar, sync) fills into skeletons. **There is no full-screen spinner anywhere in the app.** Skeletons match the final layout so nothing reflows. If calendar data takes longer than 4 seconds, the ribbon falls back to the working-hours-only variant with a "still loading" note and updates in place when it arrives.
+
+**Errors.**
+
+| Error | Behaviour |
+|---|---|
+| Calendar unreachable | Dismissible banner naming the last good sync time. The app keeps working from cached events |
+| Calendar access revoked | Banner + blocking disabled + `Reconnect`. Existing blocks stay, marked unsynced |
+| Write-calendar deleted | Banner + the write-calendar picker inline |
+| Sync server unreachable | The offline state, verbatim — there is no separate "server error" experience |
+| Quota / storage full | Banner with `Export your data` first, then instructions |
+| Unexpected failure | An inline, in-place message with `Try again` and `Copy details`. Never a blank screen, never a stack trace, never "Something went wrong" alone |
+
+---
+
+## 22. Mobile — PWA — M1
+
+Capture, Today and notifications are mobile-first at M1; full responsive parity is M2 (`DECISIONS.md`).
+
+```
+┌──────────────────────────┐        ┌──────────────────────────┐
+│ Fri 13 Sep          ⋯    │        │  ← Quick add             │
+│                          │        │                          │
+│ ├─┬──┬────┬──────────┤   │        │  Draft the proposal      │
+│ │▦│░░│▓▓▓▓│··········│   │        │  ⟨tomorrow 3pm⟩ ⟨~45m⟩   │
+│ └─┴──┴────┴──────────┘   │        │  ⟨#Acme⟩                 │
+│ 3h 20m spare · by 4:30pm │        │  ──────────────────────  │
+│                          │        │  Tomorrow 3:00pm · 45m   │
+│ CARRIED OVER · 2      ⌄  │        │  · Acme redesign         │
+│ ○ Reply to Dana   ~15m ×3│        │                          │
+│   ← swipe for actions    │        │  today  tmrw  evening    │
+│ ○ Update roadmap   ~1h ×1│        │  ~15m ~30m ~45m ~1h      │
+│                          │        │  #project  @tag  !1      │
+│ TODAY · 6             ⌄  │        │                          │
+│ ○ Draft proposal  ~45m ⚑ │        │  ┌────────────────────┐  │
+│ ○ Review the PRs   ~1h   │        │  │      Add task      │  │
+│ ○ Call the plumber ~15m  │        │  └────────────────────┘  │
+│ ○ Expenses        ~30m?  │        │                          │
+│ ○ Write the update ~1h30 │        │  [ keyboard ]            │
+│                          │        │                          │
+│ THIS EVENING · 2      ⌄  │        └──────────────────────────┘
+│ ○ Read the deck   ~30m   │
+│ ○ Book the dentist ~10m  │
+│                          │
+│                    ╭───╮ │
+│                    │ + │ │
+│                    ╰───╯ │
+├──────────────────────────┤
+│ Today Inbox Upcoming ⋯   │
+└──────────────────────────┘
+```
+
+| Aspect | Detail |
+|---|---|
+| Today, mobile | Single column. The ribbon sits directly under the date and is sticky on scroll — it is the reason to open the app. The timeline moves to a `Timeline` tab rather than a side pane |
+| Bottom bar | Today · Inbox · Upcoming · More. Thumb-reachable |
+| **FAB** | Bottom-right, opens quick-add |
+| **Quick-add, mobile** | The same parser, plus a **token toolbar above the keyboard**: date presets, estimate presets, `#`, `@`, `!`. Tapping inserts the token text so people learn the syntax by using the buttons |
+| Row actions | Swipe right → complete. Swipe left → a snooze/action tray (Tomorrow · This evening · Someday · Drop). Long-press → multi-select |
+| Carried over | Actions are always visible on the row (no hover to rely on) |
+| Time-blocking | Tap-to-schedule at M2; at M1 mobile is read-only on the timeline (`DECISIONS.md`: planning is desktop-first) |
+| Rituals | Morning plan and shutdown work full-screen on mobile at M1 — they are the two things people do away from a desk |
+| Install | iOS needs Add to Home Screen for notifications, offline and persistent storage; the coaching from `ONBOARDING.md` §After the reveal is repeated in Settings |
+| Landscape / tablet | Tablet gets the two-pane desktop layout at M2 |
+
+---
+
+## 23. The onboarding reveal — M2
+
+Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all seven copy variants. It reuses the production ribbon component at full width, is the only screen with an entrance animation, and its single button leads to Today.
+
+---
+
+## 24. Keyboard shortcut map — M1
+
+`?` opens this as a searchable overlay, grouped exactly as below. Custom rebinding is Later (`FEATURES.md` §11).
+
+### Global
+
+| Key | Action |
+|---|---|
+| `Cmd/Ctrl+K` | Command palette |
+| `Q` | Quick add, from anywhere |
+| `N` | Add a task in the current list |
+| `/` | Search |
+| `?` | This shortcut map |
+| `Cmd+Z` · `Cmd+Shift+Z` | Undo · Redo |
+| `Esc` | Unwind one layer |
+| `Cmd+\` | Toggle sidebar |
+| `Cmd+.` | Toggle the context pane (timeline / detail) |
+| `Cmd+,` | Settings |
+| *any character, nothing focused* | Opens quick-add and types it |
+
+### Navigation (`G` then a key)
+
+| Key | Goes to |
+|---|---|
+| `G` `T` | Today |
+| `G` `I` | Inbox |
+| `G` `U` | Upcoming (the rolling 7 days) |
+| `G` `C` | Calendar |
+| `G` `S` | Someday |
+| `G` `L` | Logbook |
+| `G` `P` | Project picker |
+| `G` `A` | Area picker |
+| `[` · `]` | Previous · next day (Today, Calendar); previous · next week (Upcoming) |
+| `Cmd+1/2/3` | Calendar: day · work week · week |
+
+### List and selection
+
+| Key | Action |
+|---|---|
+| `J` · `K` or `↓` · `↑` | Move the selection |
+| `Space` | Peek the task detail |
+| `Enter` | Edit the title inline |
+| `Cmd+Enter` | Complete / un-complete |
+| `X` | Toggle multi-select on the row |
+| `Cmd+A` | Select all in the section |
+| `.` | Open the row's `⋯` menu |
+| `Backspace` | Drop (with an undo toast) |
+| `U` | Un-complete (Logbook) |
+
+### Editing the selected task
+
+| Key | Action |
+|---|---|
+| `D` | Do-date picker |
+| `Shift+D` | Deadline |
+| `Shift+S` | Start date |
+| `E` | Estimate |
+| `#` | Move to project |
+| `@` | Add a tag |
+| `1` `2` `3` · `0` | Priority · none |
+| `R` | Repeat |
+| `M` | Move (project / area picker) |
+
+### Scheduling and snooze
+
+| Key | Action |
+|---|---|
+| `T` | Move to Today *(with a selection; with none in a dated view, jumps to today)* |
+| `Shift+T` | Tomorrow |
+| `Shift+E` | This evening |
+| `W` | This weekend |
+| `H` | In 4 hours |
+| `S` | Someday |
+| `B` | Block it — place in the next free gap that fits the estimate |
+| `F` | Start focus (M2) |
+
+### Timeline and calendar
+
+| Key | Action |
+|---|---|
+| `L` | Lock / unlock the selected block |
+| `+` · `-` | Zoom in · out |
+| `Alt+drag` | Duplicate a block |
+| `Backspace` | Remove the selected block (the task stays) |
+
+### Rituals and the day
+
+| Key | Action |
+|---|---|
+| `Cmd+Shift+M` | Morning plan |
+| `Cmd+Shift+E` | Evening shutdown |
+| `Cmd+Shift+P` | Plan my day (M2, Pro) |
+| `Cmd+Shift+R` | Weekly review (M2) |
+
+### Conflicts resolved
+
+1. `T` is context-dependent: with a task selected it means *move to today*; with no selection in Today or Calendar it means *jump to today*. Documented in the overlay under the key itself.
+2. `S` is Someday (frequent) and `Shift+S` is start date (rare), because the more common action gets the shorter key.
+3. `E` is estimate, not evening — evening is `Shift+E`, matching the shutdown's `Cmd+Shift+E` family.
+4. `M` is Move, not Morning plan; rituals all live on `Cmd+Shift+…` so they can never fire from a stray keypress in a list.
+5. Digits are priority, never snooze presets, because priority is a persistent property and snooze is a one-off.

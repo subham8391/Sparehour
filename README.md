@@ -15,6 +15,9 @@
 |---|---|
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Every product decision so far, plus the open questions |
 | [docs/FEATURES.md](docs/FEATURES.md) | Feature catalogue tagged by milestone (M1 / M2 / M3 / Later / Never) |
+| [docs/product/](docs/product/) | Product spec, onboarding flow and screen-by-screen behaviour |
+| [docs/design/DESIGN_SYSTEM.md](docs/design/DESIGN_SYSTEM.md) | The "Daylight" design system: tokens, type, components, motion; mockup sources in `docs/design/mockups/` |
+| [docs/engineering/](docs/engineering/) | System design: architecture, data model, sync, engines, integrations |
 | [docs/research/](docs/research/) | Market research: 54 competitor apps, user pain points, trends, sync-engine options |
 
 ## Roadmap

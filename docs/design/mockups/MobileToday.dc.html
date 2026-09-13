@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .card{background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden}
+    .row{display:flex;align-items:center;gap:12px;min-height:48px;padding:7px 14px;border-top:1px solid #D9E0DD;background:#FFFFFF;position:relative}
+    .row.first{border-top:0}
+    .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .row .title{font-size:15px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row .meta{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5C6661}
+    .check{width:22px;height:22px;border-radius:50%;border:1.5px solid #BEC6C2;flex:none}
+    .chip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:5px;background:#EDF1EF;color:#5C6661;font-size:11.5px;white-space:nowrap;font-family:'DM Mono','SF Mono',Menlo,monospace;font-variant-numeric:tabular-nums}
+    .chip.dashed{background:transparent;border:1px dashed #BEC6C2}
+    .chip.due{background:#FFE3DE;color:#B14F42;font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:500}
+    .chip svg{width:11px;height:11px}
+    .seg{position:absolute;top:0;bottom:0;border-radius:2px}
+    .seg.block{background:#161C19;opacity:0.86}
+    .seg.meet{background:#6586C3}
+    .seg.past{background:#EDF1EF;background-image:repeating-linear-gradient(135deg,rgba(22,28,25,0.12) 0 2px,transparent 2px 5px);border-radius:4px 0 0 4px}
+    .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;font-weight:500;color:#89928D;position:relative}
+    .tab.active{color:#161C19}
+    .tab svg{width:22px;height:22px}
+    .tab .badge{position:absolute;top:-4px;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#161C19;color:#F4F8F6;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;padding:0 20px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span class="label">Today · Week 38</span>
+        <span class="serif" style="font-size:28px;line-height:1.05">Tuesday, 15 Sept</span>
+      </div>
+      <div style="width:40px;height:40px;border-radius:12px;background:#FFFFFF;border:1px solid #D9E0DD;display:flex;align-items:center;justify-content:center;color:#5C6661">
+        <svg viewBox="0 0 20 20" style="width:18px;height:18px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="5.5"></circle><path d="M13.2 13.2L17 17"></path></svg>
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px 16px 12px">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span class="serif" style="font-size:42px;line-height:1">3h 20m</span>
+        <span class="serif" style="font-size:26px;line-height:1;font-style:italic;color:#1C7B5A">spare</span>
+      </div>
+      <div class="mono" style="margin-top:4px;font-size:11.5px;color:#5C6661">2h 20m planned · done by 16:30</div>
+      <div style="position:relative;height:16px;margin-top:10px;border-radius:4px;background:#D7F3E5;background-image:radial-gradient(rgba(36,156,116,0.35) 0.8px,transparent 0.9px);background-size:5px 5px;overflow:hidden">
+        <div class="seg past" style="left:0;width:7.59%"></div>
+        <div class="seg meet" style="left:2.78%;width:2.78%;opacity:0.5"></div>
+        <div class="seg block" style="left:8.33%;width:16.67%"></div>
+        <div class="seg meet" style="left:27.78%;width:8.33%"></div>
+        <div class="seg block" style="left:50%;width:3.7%"></div>
+        <div class="seg meet" style="left:55.56%;width:5.56%"></div>
+        <div class="seg meet" style="left:66.67%;width:5.56%"></div>
+        <div class="seg block" style="left:77.78%;width:4.63%"></div>
+        <div style="position:absolute;top:0;bottom:0;left:7.59%;width:2px;background:#161C19"></div>
+      </div>
+      <div class="mono" style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:#89928D"><span style="width:14px;text-align:center">09</span><span style="width:14px;text-align:center">10</span><span style="width:14px;text-align:center">11</span><span style="width:14px;text-align:center">12</span><span style="width:14px;text-align:center">13</span><span style="width:14px;text-align:center">14</span><span style="width:14px;text-align:center">15</span><span style="width:14px;text-align:center">16</span><span style="width:14px;text-align:center">17</span><span style="width:14px;text-align:center">18</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;padding:14px 20px 0;flex:1;min-height:0;overflow:hidden">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px"><div style="display:flex;gap:8px;align-items:center"><span class="label">Carried over</span><span class="mono" style="font-size:11.5px;color:#89928D">3</span></div><span style="font-size:12.5px;color:#5C6661">Clear the slate</span></div>
+      <div class="card">
+        <div style="position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;bottom:0;right:0;display:flex">
+            <div style="width:74px;display:flex;align-items:center;justify-content:center;background:#EDF1EF;color:#161C19;font-size:13px;font-weight:500">Tomorrow</div>
+            <div style="width:74px;display:flex;align-items:center;justify-content:center;background:#161C19;color:#F4F8F6;font-size:13px;font-weight:500">Today</div>
+          </div>
+          <div class="row first" style="transform:translateX(-148px);border-right:1px solid #D9E0DD">
+            <span class="check"></span>
+            <div class="body"><span class="title">Reply to Priya about the Q4 roadmap</span><div class="meta"><span class="chip">15m</span><span>#Acme</span><span class="mono" style="color:#89928D">×2</span></div></div>
+          </div>
+        </div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Book dentist</span><div class="meta"><span class="chip">10m</span><span>Personal</span><span class="mono" style="color:#A06F30">×3 · still want this?</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Draft onboarding email sequence</span><div class="meta"><span class="chip">1h</span><span>#Website</span><span class="mono" style="color:#89928D">×1</span></div></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Today</span><span class="mono" style="font-size:11.5px;color:#89928D">4 · 2h 20m</span></div>
+      <div class="card">
+        <div class="row first"><span class="check"></span><div class="body"><span class="title">Write proposal for Acme renewal</span><div class="meta"><span class="chip due"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17V3.5h9l-2 3.5 2 3.5H5"></path></svg>Fri</span><span class="chip">9:45</span><span class="chip">1h 30m</span><span>#Acme</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Prep 1:1 with Dana</span><div class="meta"><span class="chip">13:30</span><span class="chip">20m</span><span>#Team</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Review PR #214 — calendar sync</span><div class="meta"><span class="chip">16:00</span><span class="chip">25m</span><span>#Platform</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Pay electricity bill</span><div class="meta"><span class="chip">5m</span><span>Personal</span></div></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="label" style="color:#A06F30">This evening</span><span class="mono" style="font-size:11.5px;color:#89928D">2 · 50m</span></div>
+      <svg viewBox="0 0 20 20" style="width:16px;height:16px;color:#89928D" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"></path></svg>
+    </div>
+  </div>
+
+  <div style="position:absolute;right:20px;bottom:104px;width:56px;height:56px;border-radius:18px;background:#161C19;color:#F4F8F6;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(22,28,25,0.22)">
+    <svg viewBox="0 0 20 20" style="width:24px;height:24px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"></path></svg>
+  </div>
+
+  <div style="position:absolute;left:0;right:0;bottom:0;height:88px;padding:10px 12px 0;background:rgba(244,248,246,0.94);border-top:1px solid #D9E0DD;display:flex;align-items:flex-start">
+    <div class="tab active"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="3.2"></circle><path d="M10 3v1.6M10 15.4V17M3 10h1.6M15.4 10H17M5.05 5.05l1.13 1.13M13.82 13.82l1.13 1.13M5.05 14.95l1.13-1.13M13.82 6.18l1.13-1.13"></path></svg><span>Today</span></div>
+    <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5"></path><path d="M3 11.5l2-6.5h10l2 6.5"></path><path d="M3 11.5h4l1.2 2h3.6l1.2-2h4"></path></svg><span>Inbox</span><span class="badge">3</span></div>
+    <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="4.5" width="13" height="12" rx="2"></rect><path d="M3.5 8.5h13M7 3v3M13 3v3"></path></svg><span>Week</span></div>
+    <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H16v13H5.5A1.5 1.5 0 0 0 4 17.5z"></path><path d="M4 17.5V4.5M8 7h5"></path></svg><span>Logbook</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

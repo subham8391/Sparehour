@@ -1,6 +1,6 @@
-# Personal Work Management — feature catalogue
+# Sparehour — feature catalogue
 
-Built from `research/01–06` and the decisions in `DECISIONS.md`.
+Built from `docs/research/01–07` and the decisions in `DECISIONS.md`. The full behaviour of each feature is specified in `docs/product/PRODUCT_SPEC.md`; screens in `docs/product/SCREENS.md`.
 
 Each feature is tagged with the milestone where it fits:
 
@@ -55,7 +55,7 @@ Each feature is tagged with the milestone where it fits:
 | Feature | When | From |
 |---|---|---|
 | Today, with "Carried over" at the top and a day timeline | M1 | Sunsama, Structured |
-| Week planner with a capacity bar per day | M1 | Sunsama |
+| Upcoming = the week planner: rolling 7 days with a capacity bar per day (one view, not two) | M1 | Sunsama |
 | Inbox, Project, Area, Someday, Logbook views | M1 | Things |
 | Calendar day / week view, drag tasks into time slots | M1 | Sunsama, Akiflow |
 | Board (kanban) view per project | M2 | Trello, Lunatask |
@@ -153,7 +153,7 @@ Each feature is tagged with the milestone where it fits:
 | Free tier + Pro (~$6/mo yearly), 30-day no-card trial, founding-member price | M3 |
 | Landing page, billing | M3 |
 
-## 11. New from the Sep 2026 search — `research/07-new-feature-ideas.md`
+## 11. New from the Sep 2026 search — `docs/research/07-new-feature-ideas.md`
 Things the first catalogue missed: long-unbuilt requests on public vote boards, new mechanics from 2025–26 launches, and what a PWA can do in 2026.
 
 | Feature | When | From / evidence |

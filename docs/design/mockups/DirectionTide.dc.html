@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#0B1220}
+    a{color:#8FD3FF}a:hover{color:#FFFFFF}
+    .hand{font-family:'Architects Daughter','Comic Sans MS',cursive;color:#E6EEF8}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;color:#E6EEF8}
+    .box{border:1.5px dashed #3B4A66;border-radius:6px}
+    .task{display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed #2A3650;font-size:12.5px}
+  </style>
+</helmet>
+<div class="hand" style="width:880px;height:560px;background:#0B1220;overflow:hidden;padding:26px 30px;display:flex;flex-direction:column;gap:14px;position:relative">
+  <div style="display:flex;justify-content:space-between;align-items:baseline">
+    <span style="font-size:26px">Alternate C · “Tide”</span>
+    <span class="mono" style="font-size:12px;color:#8FD3FF">dark-first · atmospheric · timeline as a wave</span>
+  </div>
+  <div style="position:relative;height:200px;margin-top:6px">
+    <svg viewBox="0 0 820 200" style="position:absolute;inset:0;width:820px;height:200px" fill="none">
+      <defs>
+        <linearGradient id="tideGlow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FD3FF" stop-opacity="0.35"></stop><stop offset="1" stop-color="#8FD3FF" stop-opacity="0"></stop></linearGradient>
+      </defs>
+      <path d="M0 150 C 80 150, 90 40, 170 40 S 260 150, 330 150 S 400 60, 470 60 S 560 150, 620 150 S 700 70, 760 70 L 820 70 L 820 200 L 0 200 Z" fill="url(#tideGlow)"></path>
+      <path d="M0 150 C 80 150, 90 40, 170 40 S 260 150, 330 150 S 400 60, 470 60 S 560 150, 620 150 S 700 70, 760 70 L 820 70" stroke="#8FD3FF" stroke-width="2"></path>
+      <line x1="60" y1="0" x2="60" y2="200" stroke="#E6EEF8" stroke-width="1.5" stroke-dasharray="3 3"></line>
+      <text x="66" y="14" fill="#E6EEF8" font-family="DM Mono, monospace" font-size="11">now 9:41</text>
+      <text x="150" y="30" fill="#8FD3FF" font-family="DM Mono, monospace" font-size="11">deep work</text>
+      <text x="300" y="172" fill="#7F8DA6" font-family="DM Mono, monospace" font-size="11">meetings</text>
+      <text x="455" y="50" fill="#8FD3FF" font-family="DM Mono, monospace" font-size="11">spare · 3h 20m</text>
+    </svg>
+    <div class="mono" style="position:absolute;left:0;right:0;bottom:-18px;display:flex;justify-content:space-between;font-size:10px;color:#7F8DA6"><span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span></div>
+  </div>
+  <div style="display:flex;gap:22px;flex:1;min-height:0;margin-top:22px">
+    <div class="box" style="flex:1;padding:10px 12px;display:flex;flex-direction:column">
+      <div class="mono" style="font-size:11px;color:#7F8DA6;margin-bottom:4px">TODAY · 4 · 2h 20m</div>
+      <div class="task" style="border-top:0"><span>Write proposal for Acme renewal</span><span class="mono" style="color:#7F8DA6">1h30</span></div>
+      <div class="task"><span>Prep 1:1 with Dana</span><span class="mono" style="color:#7F8DA6">20m</span></div>
+      <div class="task"><span>Review PR #214</span><span class="mono" style="color:#7F8DA6">25m</span></div>
+      <div class="task"><span>Pay electricity bill</span><span class="mono" style="color:#7F8DA6">5m</span></div>
+    </div>
+    <div class="box" style="width:230px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13px">
+      <span class="mono" style="font-size:11px;color:#7F8DA6">CARRIED OVER · 3</span>
+      <span>Reply to Priya ×2</span><span>Book dentist ×3</span><span>Onboarding emails ×1</span>
+      <span style="margin-top:auto;font-size:12px;color:#7F8DA6">glowing accent = energy of the day</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:24px;font-size:13.5px;line-height:1.35">
+    <span style="flex:1"><b>Why:</b> the day reads as a landscape; the wave shows where your energy and free time are. Distinctive, cinematic.</span>
+    <span style="flex:1;color:#7F8DA6"><b>Trade-off:</b> harder to keep calm in daylight use; a wave is less precise than a ribbon when you need exact minutes.</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

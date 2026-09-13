@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#FBF8F1}
+    a{color:#7A5A2A}a:hover{color:#2B2620}
+    .hand{font-family:'Architects Daughter','Comic Sans MS',cursive;color:#2B2620}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;color:#2B2620}
+    .box{border:1.5px dashed #B9AE9A;border-radius:4px}
+    .rule{border-top:1px solid #DED6C6}
+    .cell{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #DED6C6;font-size:12px}
+  </style>
+</helmet>
+<div class="hand" style="width:880px;height:560px;background:#FBF8F1;background-image:repeating-linear-gradient(0deg,transparent 0 27px,#EDE6D6 27px 28px);overflow:hidden;padding:26px 30px;display:flex;flex-direction:column;gap:14px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline">
+    <span style="font-size:26px">Alternate B · “Ledger”</span>
+    <span class="mono" style="font-size:12px;color:#7A5A2A">typographic · ruled paper · dense</span>
+  </div>
+  <div style="display:flex;gap:22px;flex:1;min-height:0">
+    <div class="box" style="width:150px;padding:10px;display:flex;flex-direction:column;gap:8px;font-size:13px">
+      <span class="mono" style="font-size:11px">INBOX ..... 3</span><span class="mono" style="font-size:11px;font-weight:500">TODAY ..... 4</span><span class="mono" style="font-size:11px">UPCOMING</span><span class="mono" style="font-size:11px">SOMEDAY</span><span class="mono" style="font-size:11px">LOGBOOK</span>
+      <span style="margin-top:auto;font-size:12px;color:#7A5A2A">nav in mono, dotted leaders</span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:0">
+      <div class="mono" style="font-size:30px;line-height:1">TUE 15 SEP · 3H 20M SPARE</div>
+      <div style="height:14px;border:1.5px solid #2B2620;position:relative">
+        <div style="position:absolute;left:2.8%;width:2.8%;top:0;bottom:0;background:repeating-linear-gradient(90deg,#2B2620 0 2px,transparent 2px 4px)"></div>
+        <div style="position:absolute;left:66.7%;width:5.6%;top:0;bottom:0;background:repeating-linear-gradient(90deg,#2B2620 0 2px,transparent 2px 4px)"></div>
+        <div style="position:absolute;left:8%;width:17%;top:0;bottom:0;background:#2B2620"></div>
+        <div style="position:absolute;left:28%;width:8%;top:0;bottom:0;background:repeating-linear-gradient(90deg,#2B2620 0 2px,transparent 2px 4px)"></div>
+        <div style="position:absolute;left:56%;width:5%;top:0;bottom:0;background:repeating-linear-gradient(90deg,#2B2620 0 2px,transparent 2px 4px)"></div>
+        <div style="position:absolute;left:78%;width:5%;top:0;bottom:0;background:#2B2620"></div>
+      </div>
+      <div class="mono" style="font-size:10px;display:flex;justify-content:space-between"><span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span></div>
+      <div class="mono" style="display:flex;flex-direction:column;margin-top:8px">
+        <div class="cell"><span>[ ] Write proposal for Acme renewal</span><span>09:45 · 1h30 · due FRI</span></div>
+        <div class="cell"><span>[ ] Prep 1:1 with Dana</span><span>13:30 · 20m</span></div>
+        <div class="cell"><span>[ ] Review PR #214</span><span>16:00 · 25m</span></div>
+        <div class="cell"><span>[ ] Pay electricity bill</span><span>5m</span></div>
+        <div class="cell" style="color:#7A5A2A"><span>↳ carried ×2 · Reply to Priya</span><span>today / tmrw / someday / drop</span></div>
+      </div>
+    </div>
+    <div class="box" style="width:170px;padding:10px;display:flex;flex-direction:column;gap:6px">
+      <span class="mono" style="font-size:11px">09 ░ standup</span><span class="mono" style="font-size:11px">10 ▇▇ proposal</span><span class="mono" style="font-size:11px">11 ▇▇ ░ review</span><span class="mono" style="font-size:11px">12 ░ review</span><span class="mono" style="font-size:11px">13 ▇ prep</span><span class="mono" style="font-size:11px">14 ░░ 1:1</span><span class="mono" style="font-size:11px">15 ░░ acme</span><span class="mono" style="font-size:11px">16 ▇ PR</span><span class="mono" style="font-size:11px">17 ─────────</span>
+      <span style="margin-top:auto;font-size:12px;color:#7A5A2A">timeline as a typed column</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:24px;font-size:13.5px;line-height:1.35">
+    <span style="flex:1"><b>Why:</b> feels like a paper day-book — quiet, precise, keyboard-native. Numbers and text share one voice.</span>
+    <span style="flex:1;color:#7A5A2A"><b>Trade-off:</b> little visual hierarchy for the spare-time moment; harder to make it feel alive on a phone.</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
