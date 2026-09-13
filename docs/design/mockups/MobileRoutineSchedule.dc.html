@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .kv{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:0 14px;border-top:1px solid #D9E0DD;font-size:15px}
+    .kv.first{border-top:0}
+    .kv .k{color:#5C6661}
+    .pk{flex:1;height:44px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid #D9E0DD;background:#FFFFFF;font-family:'DM Mono','SF Mono',Menlo,monospace;font-size:14px;color:#5C6661}
+    .pk.on{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .seg{flex:1;height:44px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:#5C6661}
+    .seg.on{background:#FFFFFF;border-radius:9px;color:#161C19;box-shadow:0 1px 2px rgba(22,28,25,0.08),0 0 0 1px #D9E0DD}
+    .toggle{width:44px;height:26px;border-radius:13px;background:#161C19;position:relative;flex:none}
+    .toggle::after{content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#F4F8F6}
+    .btn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border-radius:12px;border:1px solid #BEC6C2;background:#FFFFFF;color:#161C19;font-size:15px;font-weight:500}
+    .btn.primary{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .ri{display:flex;align-items:center;gap:12px;min-height:50px;padding:6px 14px;border-top:1px solid #D9E0DD;font-size:15px}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative">
+  <!-- Routine behind the sheet -->
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;padding:98px 20px 0">
+    <span class="serif" style="font-size:30px;line-height:1.05">Deep-work weekday</span>
+    <span class="mono" style="font-size:11.5px;color:#5C6661">6 items · 3h 50m of each day</span>
+    <div style="background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden;margin-top:8px">
+      <div class="ri" style="border-top:0"><span class="mono" style="width:48px">09:00</span>Plan the day</div>
+      <div class="ri"><span class="mono" style="width:48px">09:30</span>Deep work</div>
+      <div class="ri"><span class="mono" style="width:48px">12:30</span>Lunch walk</div>
+    </div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(22,28,25,0.42)"></div>
+
+  <div style="position:absolute;left:0;right:0;bottom:0;height:612px;background:#F4F8F6;border-radius:20px 20px 0 0;box-shadow:0 -12px 40px rgba(22,28,25,0.18);display:flex;flex-direction:column;gap:16px;padding:10px 20px 34px">
+    <div style="width:36px;height:4px;border-radius:2px;background:#D9E0DD;align-self:center"></div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="serif" style="font-size:26px;line-height:1.1">Schedule this routine</span>
+      <span style="font-size:13.5px;color:#5C6661">Deep-work weekday · 3h 50m of each day</span>
+    </div>
+
+    <div style="background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden">
+      <div class="kv first"><span class="k">Starts</span><span style="display:flex;align-items:center;gap:6px">Mon 21 Sept<svg viewBox="0 0 20 20" style="width:16px;height:16px;color:#89928D" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l5 5-5 5"></path></svg></span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="label" style="padding:0 2px">Repeat for · days it appears</span>
+      <div style="display:flex;gap:6px"><span class="pk">7</span><span class="pk">14</span><span class="pk on">21</span><span class="pk">30</span><span class="pk" style="font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;flex:1.4">Custom</span></div>
+      <div style="display:flex;gap:16px;padding:0 2px;font-size:13px;color:#5C6661"><span>Until a date</span><span>No end</span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="label" style="padding:0 2px">On</span>
+      <div style="display:flex;gap:2px;padding:3px;border-radius:12px;background:#EDF1EF"><span class="seg">Every day</span><span class="seg on">Working days</span><span class="seg">Pick days</span></div>
+    </div>
+
+    <div style="background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden">
+      <div class="kv first"><span>Timed items on my calendar</span><span class="toggle"></span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:14px;background:#EDF1EF">
+      <span style="font-size:15px;font-weight:500">Appears on 21 days</span>
+      <span class="mono" style="font-size:12px;color:#5C6661">Mon 21 Sept → Mon 19 Oct · weekends skipped</span>
+    </div>
+
+    <span class="btn primary" style="margin-top:auto">Schedule routine</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

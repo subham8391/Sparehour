@@ -91,7 +91,7 @@ The shared vocabulary. Use these names in code, copy and conversation.
 | Object | Key fields | Notes |
 |---|---|---|
 | **Space** | id, name, type (personal/team) | Every record carries `space_id` from day one. M1 ships exactly one, "Personal". (assumed — confirm, Q20) |
-| **Task** | state, title, note (markdown), project_id, heading_id, area_id, tags[], priority 0–3, **do_date**, **do_time**, **deadline**, **start_date**, estimate_min, evening (bool), carry_count, carried_from, miss_policy, recurrence, last_touched_at, completed_at | States: `inbox`, `active`, `someday`, `done`, `dropped`, `archived` |
+| **Task** | state, title, note (markdown), project_id, heading_id, area_id, tags[], priority 0–3, **do_date**, **do_time**, **deadline**, **start_date**, estimate_min, evening (bool), carry_count, carried_from, miss_policy, recurrence, last_touched_at, completed_at, routine_run_id?, routine_item_id? (M2 — set when the task is a routine item on its day) | States: `inbox`, `active`, `someday`, `done`, `dropped`, `archived` |
 | **ChecklistItem** | task_id, title, done, order | Exactly one level. No nesting, ever (`FEATURES.md` §2 Never) |
 | **Project** | name, area_id, status (`active`/`someday`/`done`/`archived`), deadline?, notes | |
 | **Heading** | project_id, title, order | Optional grouping inside a project. Not a container for dates or estimates |
@@ -101,9 +101,12 @@ The shared vocabulary. Use these names in code, copy and conversation.
 | **CalendarEvent** | external_id, calendar_id, start, end, busy, all_day, title | **Read-only mirror.** Never edited by Sparehour |
 | **DayPlan** | date, planned_at, shutdown_at, highlights[], day_rating 1–5 | One per date, created lazily on first ritual |
 | **WorkHours** | weekday, segments[] {start, end} | Per weekday; multiple segments allowed (split days) |
+| **Routine** (M2) | name, items[] | A reusable day. Never dated itself (§11a) |
+| **RoutineItem** (M2) | routine_id, title, kind (timed / anytime), start_time + duration_min (timed) or estimate_min (anytime), project_id?, tags[], checklist[] (one level), evening, order, effective_from | A "this and following days" edit writes a new version from that date |
+| **RoutineRun** (M2) | routine_id, start_date, length (N days / until date / none), day_rule (every day / working days / weekdays[]), write_to_calendar, status (scheduled / running / paused / finished / ended), pauses[], day_overrides {date → item changes} | One scheduling of a routine. "Just this day" edits live in `day_overrides`. At most one running run per routine (assumed — confirm) |
 
 **Derived values** (never stored, always computed — see §9):
-`capacity` = work hours − meetings − buffer · **`spare time`** = capacity − planned estimates · `projected finish` · `carried over` set.
+`capacity` = work hours − meetings − buffer · **`spare time`** = capacity − planned estimates · `projected finish` · `carried over` set · a routine's `Day k of N` (M2).
 
 ---
 
@@ -272,7 +275,7 @@ The do/due split is the single most-praised idea in the research (`05` §3: "I w
 3. **The default action (`miss_policy = carry`).** Set `carried_from = carried_from ?? do_date`; set `do_date = today`; `carry_count += 1`. The task appears in the **Carried over** section of Today.
 4. **`miss_policy = skip`.** Recurring: this occurrence closes as *skipped* (not completed, no Logbook tick) and the next one is computed normally. Non-recurring: `do_date` is cleared and the task returns to its project unscheduled; `carry_count` is not incremented.
 5. **`miss_policy = expire`.** The task becomes `dropped` with reason "expired" and appears in the Logbook. A single digest line appears once on Today: "2 time-sensitive tasks expired overnight — Review".
-6. **Default policy** is `carry` for one-off tasks and `skip` for recurring tasks (assumed — confirm). This is what stops routines piling up — the #1 request on the TickTick and Akiflow boards (`07` §A5).
+6. **Default policy** is `carry` for one-off tasks and `skip` for recurring tasks (assumed — confirm). This is what stops routines piling up — the #1 request on the TickTick and Akiflow boards (`07` §A5). Routine items (M2) are always `skip`, with no setting to change it (§11a.4).
 7. **Deadlines never move.** Rollover changes `do_date` only.
 8. **Ordering** in Carried over: `carry_count` descending, then `carried_from` ascending. The thing you've avoided longest is at the top, stated as a fact, not an accusation.
 9. **Each row** offers four one-tap actions: **Today · Tomorrow · Someday · Drop**. Today is the default (it is already there); the row simply moves up into the Today list.
@@ -342,6 +345,7 @@ planned_minutes(d)   = Σ estimate_min of tasks where do_date = d
                            and state = active and evening = false
                      + Σ duration of TimeBlocks on d that have no task_id
                        ( ad-hoc blocks such as "lunch" or "deep work" )
+                       routine items (M2) are tasks for their day, so the first term counts them
 
 spare_minutes(d)     = capacity_minutes(d) − planned_minutes(d)
 ```
@@ -466,6 +470,115 @@ Suggest → preview → approve. Never full-auto (`DECISIONS.md`; `FEATURES.md` 
 
 ---
 
+## 11a. Routines — M2
+
+Added 2026-09-14 at the user's request (`DECISIONS.md`; `FEATURES.md` §4). **Build a whole day once — timed items and "anytime" items — and run it for as many days as you choose.** It is for deliberate stretches: 21 working days of deep work, a 30-day morning routine, a travel week. `DECISIONS.md` notes it could move to M1 if wanted.
+
+A routine is not a recurring task (one task on a rule, §5.2) and not a template (`FEATURES.md` §2, M2 — it stamps out a set of tasks once). It is the shape of a day, scheduled for a counted run of days.
+
+### 11a.1 Building a routine
+
+| Part | Fields | Rules |
+|---|---|---|
+| **Routine** | name, items | Any number can exist; several can run at the same time |
+| **Timed item** | title, start time, duration | Sits on the day timeline at that time. Its duration is its estimate |
+| **Anytime item** | title, estimate | No time. Listed in the routine's group; counts at its estimate |
+| Optional on any item | project, tags, one-level checklist, evening flag | Same meaning as on a task. An evening item lands in This Evening and counts against evening capacity (§9.1) |
+
+Timed items sort by start time; anytime items follow in manual order. The editor shows the daily total — "3h 50m each day" — so the routine's cost is visible before it is scheduled (P1).
+
+### 11a.2 Scheduling ("apply")
+
+| Control | Options | Default |
+|---|---|---|
+| Starts | Any date from today | The next working day (assumed — confirm) |
+| Repeat for | 7 · 14 · 21 · 30 · custom N days · until a date · no end | 21 (assumed — confirm) |
+| On | Every day · Working days · Pick weekdays | Working days (assumed — confirm) |
+| Calendar | "Put timed items on my calendar" — per routine | Off |
+
+1. **"N days" counts days the routine appears, not calendar days.** 21 on working days from Mon 21 Sept is 21 weekdays, ending Mon 19 Oct.
+2. **Working days** are the weekdays that have `WorkHours` segments, as the user's hours stand on each date (§9.5).
+3. **Until a date** includes that date if it qualifies. **No end** runs until paused or ended.
+4. The **preview** is live and always names the count and the span: *"Appears on 21 days · Mon 21 Sept → Mon 19 Oct"*. Until a date: *"Appears on 18 days · Mon 21 Sept → Wed 14 Oct"*. No end: *"Appears every working day from Mon 21 Sept · no end date"*.
+5. Scheduling creates a `RoutineRun` (§4). A routine has at most one running run; scheduling it again offers **Extend this run** or **Replace from a date** (assumed — confirm).
+6. **Calendar writes**, when the toggle is on, go to the chosen write-calendar only (§10.1), on a rolling 14-day horizon — so colleagues see the blocks ahead of time without a no-end run writing hundreds of events (assumed — confirm). Writing blocks is two-way time-blocking, and therefore Pro (§10.4, §21).
+
+### 11a.3 On a scheduled day
+
+1. **Today.** Each running routine's items appear as one group at the top of the Today section: **Routine · Deep-work weekday · Day 4 of 21**, with the group's total. Evening items appear in This Evening under the same label. Several routines give several groups, ordered by each one's first item time.
+2. **Each item is an ordinary task for that day** — checkbox, estimate chip, checklist, detail panel — linked to its run and item, with `miss_policy = skip`. It is created at that day's rollover (§8.2) or the first time the day is opened; days further ahead are computed previews, and editing one creates it early (assumed — confirm).
+3. **Timeline.** Timed items also appear on the day timeline at their times as routine blocks. They sync to the calendar only if the routine's toggle is on (then exactly like any block, §10.3); otherwise they stay in Sparehour. Plan my day (§11) treats timed routine items as fixed, like locked blocks.
+4. **Capacity.** Routine items count toward `planned_minutes` like any task (§9.1), so they reduce spare time. Projected finish treats timed items as fixed at their times and anytime items as part of the remaining queue (§9.3). Upcoming counts each future appearance in that day's bar. The morning plan's step 2 shows each running routine as one pre-included line, so its readout includes routine time.
+5. **What a routine item can't do:** move to Someday, snooze to another day, or carry over. Its day actions are **complete · Skip today · Edit…**; for a timed item, **Move** changes its time on that day only.
+
+### 11a.4 Missed items — skipped, never carried
+
+1. `miss_policy = skip` is fixed for routine items; the setting isn't offered.
+2. At rollover an undone item closes as *skipped* — the same outcome as a skipped recurring occurrence (§8.2 rule 4): not completed, no Logbook entry, **never Carried over, never red**. The run records it for progress.
+3. The evening shutdown lists them softly under step 2 — *"Skipped · Lunch walk, Read industry news"* — with no actions; nothing moves to tomorrow (§12.2).
+4. **A skipped day still counts toward N** — whether by **Skip today** on the group header (every remaining item that day) or because every item was missed. **Only a pause moves the end date** (ruled 2026-09-14).
+
+### 11a.5 Editing, pausing, extending, ending
+
+| Action | Behaviour |
+|---|---|
+| Edit an item on a day (title, time, duration, checklist, remove) | Asks **Just this day** · **This and following days** — the same model as recurrence exceptions ("just this once" vs "change the rule"). Past days never change |
+| Edit the routine in the Routines screen | Equivalent to *this and following days* from today; items already done today stay as they are |
+| **Pause** | From today or from tomorrow. Paused days don't count toward N — pause is the **only** thing that moves the end date. **Resume** picks a date and shows the shifted end — paused from Mon 5 Oct on day 10 of 21: "Resumes Mon 12 Oct · now ends Mon 26 Oct" |
+| **Extend** | Adds days to N; the preview shows the new span |
+| **End early** | Sets the end to today: "Ended after 12 of 21 days". Future calendar blocks are removed |
+| **Delete routine** | Removes the routine, its future days, today's undone items and their future calendar blocks. **Completed items stay in the Logbook**, labelled with the routine's name. The confirmation says so |
+
+### 11a.6 Progress — gentle
+
+- Group header: **Day 4 of 21**. No-end runs: **Day 4**.
+- Per item, in the Routines screen: **"done on 3 of 3 days"** — days it was done out of days it has appeared so far.
+- When a run finishes: "Finished · 21 days", with the per-item counts ("Deep work · done on 19 of 21 days").
+- **No streaks, no streak-loss messages, no "you missed", no red** (P2, §23).
+
+### 11a.7 Clashes and overlaps
+
+1. **Meeting clash.** On a day where a timed item overlaps a busy `CalendarEvent`, that day's item shows **"clashes with Standup"** and offers **Move** (a just-this-day time change) or **Skip today**. It is **never moved automatically**. Both stay drawn side by side on the timeline (§10.2).
+2. **Routine overlap.** If two running routines overlap in time, the later-created routine's items are flagged on those days — "overlaps Deep-work weekday" — with the same Move / Skip today.
+3. A task block the user drags onto a timed routine item isn't flagged; the user placed both.
+
+### 11a.8 Navigation
+
+Desktop: a **Routines** item in the sidebar, below Logbook. Phone: a **Routines** row at the top of Browse. Keyboard: `G R`. Command palette: **New routine** and **Schedule routine…** (`SCREENS.md` §8a).
+
+### 11a.9 Edge cases
+
+| Case | Behaviour |
+|---|---|
+| Work hours change mid-run (working-days mode) | Remaining appearances recompute from the new hours; the end date shifts and is shown. Past days are untouched |
+| Every-day mode on a non-working day | Appears — "every day" means every calendar day. Its items are listed; with no working hours there is no capacity maths that day (§9.4) |
+| A timed item outside the work window (e.g. 07:00 gym) | Allowed, as with any block (§10.2), and noted on the ribbon as time planned outside working hours. Use the evening flag for after-work items |
+| A task blocked inside a timed routine item (a task dragged into "Deep work") | Counts **once** (ruled): planned time is the union of scheduled intervals, so the nested task adds nothing unless it runs past the routine block. Recorded as A20 |
+| Start date is today and some times have passed | Earlier timed items appear as past and skippable — not red |
+| Time zone change | Timed items keep their wall-clock times in the new zone |
+| Offline | Scheduling, editing and completing work offline; calendar writes queue (§19.2) |
+| Pro lapses with the calendar toggle on | The routine keeps running; its blocks stop syncing but stay on the timeline (§21 rule 6) |
+
+### 11a.10 Reference example (used in the mockups)
+
+```
+Deep-work weekday                                   3h 50m each day
+  09:00    Plan the day              15m
+  09:30    Deep work                 2h
+  12:30    Lunch walk                30m
+  14:30    Inbox & Slack             30m
+  17:30    Shutdown                  15m
+  anytime  Read industry news        20m
+
+Scheduled   21 days · working days · from Mon 21 Sept · timed items on the calendar
+Preview     Appears on 21 days · Mon 21 Sept → Mon 19 Oct
+On a day    Thu 24 Sept shows "Routine · Deep-work weekday · Day 4 of 21". On the
+            canonical 9h day with 2h of meetings (§9.1), the routine is 3h 50m of
+            the day's 5h 40m capacity — 1h 50m spare before any other task.
+```
+
+---
+
 ## 12. Rituals — M1 (weekly review M2)
 
 All rituals are skippable, dismissable forever, and never block the app.
@@ -491,7 +604,7 @@ Target: **60–90 seconds.** Entered from the header, an opt-in nudge (off by de
 | Step | Content |
 |---|---|
 | 1. Done today | Today's completed tasks, with the total time |
-| 2. Carried to tomorrow | The unfinished tasks, each with Tomorrow / Someday / Drop / Keep for today; unresolved rows carry by default |
+| 2. Carried to tomorrow | The unfinished tasks, each with Tomorrow / Someday / Drop / Keep for today; unresolved rows carry by default. Undone routine items (M2) follow as one soft line — "Skipped · Lunch walk, Read industry news" — with no actions (§11a.4) |
 | 3. Day rating | 1–5, one tap, optional, no label beyond a quiet scale; a sparkline of the last 14 days appears once there are 5 ratings |
 | 4. One highlight | A single free-text line, prefilled with the completed tasks as one-tap picks. "What was worth it today?" |
 | 5. Tomorrow's first draft | Tomorrow's current load and spare time, including what step 2 moved there, with "Plan tomorrow now" and "Plan it in the morning" |
@@ -564,6 +677,7 @@ A wizard, default Friday afternoon: Inbox to zero · projects with no next actio
 | **Board per project** | M2 | Kanban over the same data |
 | **One-thing-now focus** | M2 | Single task, timer, nothing else |
 | **Saved filters** | M2 | Visual builder, pinned to the sidebar |
+| **Routines** | M2 | Routine list and editor; schedule a routine for N days (§11a) |
 | **Eisenhower, Available-now, Year heatmap** | Later | Switchable views over one model (`05` §7) |
 
 ---
@@ -643,10 +757,11 @@ Deferred by decision (Q20). Sketch, so the data model doesn't paint us into a co
 | Quick-add, search, command palette, keyboard | ✓ | ✓ |
 | Work hours, capacity, **spare time**, projected finish | ✓ | ✓ |
 | Carry-over engine, rituals, day rating | ✓ | ✓ |
+| Routines (M2) — build, schedule, see on the timeline (assumed — confirm) | ✓ | ✓ |
 | Calendar **read** (all calendars, real capacity) | ✓ | ✓ |
 | Export | ✓ | ✓ |
 | Notifications, PWA, offline | ✓ | ✓ |
-| **Two-way time-blocking** (writing blocks to the calendar) | — | ✓ |
+| **Two-way time-blocking** (writing blocks to the calendar, including routine items) | — | ✓ |
 | **Plan my day** and re-plan (M2) | — | ✓ |
 | Focus timer + planned-vs-actual insights (M2) | — | ✓ |
 | Saved filters, board view, templates (M2) | — | ✓ |
@@ -704,7 +819,7 @@ Everything below ships before the two-week sole-use test starts. Anything not on
 **Trust**
 21. One-click export: JSON, Markdown, CSV.
 
-**Explicitly out of M1:** Plan my day, AI of any kind, focus timer, actual-time tracking, weekly review, saved filters, board view, templates, attachments, waiting-for, share target, email-in, Outlook, billing, teams, the onboarding flow (a minimal first-run — working hours and a brain dump — is enough for a single user; the full flow in `ONBOARDING.md` is an **M2** deliverable, ruled 2026-09-13 — see §25 item 2).
+**Explicitly out of M1:** Plan my day, routines (M2 — `DECISIONS.md` notes they could move to M1), AI of any kind, focus timer, actual-time tracking, weekly review, saved filters, board view, templates, attachments, waiting-for, share target, email-in, Outlook, billing, teams, the onboarding flow (a minimal first-run — working hours and a brain dump — is enough for a single user; the full flow in `ONBOARDING.md` is an **M2** deliverable, ruled 2026-09-13 — see §25 item 2).
 
 ---
 
@@ -753,6 +868,11 @@ Each of these is a decision this spec had to make to be executable, and none of 
 | A15 | Day rating is a 1–5 scale; **one** highlight per day (free text, prefilled from completions) — shutdown order **ruled** | §12.2 |
 | A16 | The full onboarding flow is an M2 deliverable; M1 needs only a minimal first-run — **ruled** | §22 |
 | A17 | Plan-my-day placement is deterministic and explainable; AI writes the explanation, not the placement | §11 |
+| A18 | Routines themselves are free; writing their timed items to the calendar is Pro, because it is two-way blocking | §11a.2, §21 |
+| A19 | Routine items become ordinary tasks for their day at rollover or first open; later days are computed previews | §11a.3 |
+| A20 | **Ruled:** a task blocked inside a timed routine item counts once — planned time is the union of scheduled intervals | §11a.9 |
+| A21 | One running run per routine (scheduling again offers Extend or Replace); defaults next working day · 21 days · working days; calendar writes on a rolling 14-day horizon | §11a.2 |
+| A22 | A skipped day (Skip today, or every item missed) still counts toward N; only a pause moves the end date; Extend adds days; End early sets the end to today — **ruled** 2026-09-14 | §11a.4, §11a.5 |
 
 ---
 

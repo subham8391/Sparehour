@@ -8,7 +8,7 @@ Every screen, what it contains, and how it behaves. Companion to `PRODUCT_SPEC.m
 
 ## 0. Conventions
 
-**Wireframe key.** `▦` calendar meeting (read-only) · `▓` Sparehour time block · `░` planned, unblocked · `·` spare · `○` task checkbox · `◉` selected row · `▸` opens a flow · `⌄` disclosure · `⋯` overflow menu · `━━` now-line · `┆` projected finish.
+**Wireframe key.** `▦` calendar meeting (read-only) · `▓` Sparehour time block · `░` planned, unblocked · `·` spare · `○` task checkbox · `◉` selected row · `▸` opens a flow · `⌄` disclosure · `⋯` overflow menu · `━━` now-line · `┆` projected finish · `◇` routine item (M2).
 
 **Three interaction paths, always.** Every action in the app is reachable by (1) pointer, (2) a single key or chord, and (3) `Cmd+K`. If a feature has only two of the three, it isn't finished (P5).
 
@@ -21,7 +21,7 @@ Every screen, what it contains, and how it behaves. Companion to `PRODUCT_SPEC.m
 | **Medium** | 900–1179 px | Full sidebar, collapsible | Two panes: main + day timeline toggled from the header. Upcoming shows 5 days, weekends folded into one column |
 | **Wide** | ≥ 1180 px | Full sidebar | Three panes on Today (sidebar · main · timeline). Upcoming shows all 7 days |
 
-Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action has a tap or long-press equivalent; every drag has a tap path; horizontal scrolling only inside containers that show a scroll affordance. "Week" is the phone tab label for Upcoming · rolling 7 days. **Browse** is the phone's sidebar — a search field, then Areas and projects, Someday, Logbook, Carried over, Settings — so projects, Someday, Logbook and Settings are reached from Browse, never from a header menu.
+Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action has a tap or long-press equivalent; every drag has a tap path; horizontal scrolling only inside containers that show a scroll affordance. "Week" is the phone tab label for Upcoming · rolling 7 days. **Browse** is the phone's sidebar — a search field, then a Routines row (M2), Areas and projects, Someday, Logbook, Carried over, Settings — so routines, projects, Someday, Logbook and Settings are reached from Browse, never from a header menu.
 
 **Density.** Row height is set for one-handed scanning: title, then metadata chips, on one line. A row never wraps to two lines on desktop; it truncates with the full title in the detail panel.
 
@@ -41,13 +41,13 @@ Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action
 │ ○ Calendar       │                                                        ┆  PANE       │
 │ ○ Someday        │                                                        ┆             │
 │ ○ Logbook        │                                                        ┆  (timeline  │
-│ ──────────────── │                                                        ┆   or task   │
-│ AREAS         ⌄  │                                                        ┆   detail)   │
+│ ○ Routines       │                                                        ┆   or task   │
+│ ──────────────── │                                                        ┆   detail)   │
+│ AREAS         ⌄  │                                                        ┆             │
 │ ▸ Work           │                                                        ┆             │
 │ ▸ Personal       │                                                        ┆             │
 │ ▸ Side project   │                                                        ┆             │
 │ ──────────────── │                                                        ┆             │
-│                  │                                                        ┆             │
 │                  │                                                        ┆             │
 │ ⟳ Synced 12s ago ├──────────────────────────────────────────────────────────────────────┤
 │ ⚙ Settings    ?  │  + Quick add                                                    (Q)  │
@@ -58,7 +58,7 @@ Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action
 
 | Region | Contents | Notes |
 |---|---|---|
-| **Sidebar** | Brand + `⌘K` affordance · fixed views in this order: Inbox, Today, Upcoming, Calendar, Someday, Logbook · Areas tree with projects nested one level · sync status · Settings, `?` | Collapsible with `Cmd+\`. Collapsed shows icons with tooltips. Order is fixed at M1; drag-to-reorder Areas and projects is M1, drag-to-reorder fixed views is Later |
+| **Sidebar** | Brand + `⌘K` affordance · fixed views in this order: Inbox, Today, Upcoming, Calendar, Someday, Logbook, Routines (M2) · Areas tree with projects nested one level · sync status · Settings, `?` | Collapsible with `Cmd+\`. Collapsed shows icons with tooltips. Order is fixed at M1; drag-to-reorder Areas and projects is M1, drag-to-reorder fixed views is Later |
 | **Counts** | Today shows tasks remaining (planned, never "late"). Inbox shows untriaged count. **No other view carries a number** | The only two numbers in the sidebar, both neutral (P2) |
 | **Top command bar** | View title and date context · view-specific actions · sync indicator · avatar menu | Never scrolls away |
 | **Main pane** | The view | Max content width so lines stay scannable on wide monitors |
@@ -75,7 +75,7 @@ Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action
 6. **Restoration:** after a dialog closes, focus returns to the element that opened it.
 7. **Screen readers:** views are landmarks, lists are `listbox`, the ribbon exposes its numbers as text (`3 hours 20 minutes spare, 2 hours 20 minutes planned, 2 hours in meetings, finishing at 4:30 pm`), and every state change that matters announces politely.
 
-**Responsive.** Phone: no sidebar — the bottom tab bar (Today · Inbox · Week · **Browse**) replaces it and the FAB replaces the quick-add bar. **Browse** is the sidebar's phone form: a search field, then Areas and projects, Someday, Logbook, Carried over, Settings. Calendar's day mode is Today's Day view and its week mode is the Week tab; the full Calendar view is reachable from the ⌘K sheet. The context pane becomes a sheet. Narrow: a 56 px icon rail (labels on long-press), single pane, context pane as a right-side sheet. Medium: full collapsible sidebar, two panes, timeline toggled from the header. Wide: as drawn. The focus model is unchanged; on touch, focus rings appear only after a hardware-keyboard keypress.
+**Responsive.** Phone: no sidebar — the bottom tab bar (Today · Inbox · Week · **Browse**) replaces it and the FAB replaces the quick-add bar. **Browse** is the sidebar's phone form: a search field, then a Routines row (M2), Areas and projects, Someday, Logbook, Carried over, Settings. Calendar's day mode is Today's Day view and its week mode is the Week tab; the full Calendar view is reachable from the ⌘K sheet. The context pane becomes a sheet. Narrow: a 56 px icon rail (labels on long-press), single pane, context pane as a right-side sheet. Medium: full collapsible sidebar, two panes, timeline toggled from the header. Wide: as drawn. The focus model is unchanged; on touch, focus rings appear only after a hardware-keyboard keypress.
 
 ---
 
@@ -181,6 +181,7 @@ Row anatomy, left to right: `checkbox · title · project chip · tags · estima
 | Time | `3:00pm` chip when `do_time` is set; such rows sort to their time position |
 | Drag handle | The whole row is draggable — to the timeline (creates a block), to another section, to a sidebar project, or to an Upcoming day column |
 | Order | Manual within the section, persisted. `Sort` offers Time → Priority → Deadline → Estimate, as a view preference, non-destructive |
+| Routine groups (M2) | A running routine's items sit at the top of this section as one group — `ROUTINE · Deep-work weekday · Day 4 of 21 · 3h 50m` — ordered by time, above the loose tasks. See §8a |
 
 ### 2.5 This Evening
 
@@ -196,6 +197,7 @@ Same rows, separate section, separate budget. Evening tasks never consume workin
 | **Now-line** | A full-width line with the current time, updating each minute, auto-scrolled into view on open |
 | **Projected finish** `┆` | A marker at the projected finish time, labelled "done by 4:30pm". When it lands past the end of the day, it pins to the edge and reads "40m past the end of your day" |
 | Free gaps | Show a faint "drop a task here" affordance on drag-over |
+| Routine items `◇` (M2) | Timed routine items at their times, drawn distinct from task blocks. A clash with a meeting draws side by side and is labelled on the item (§8a) |
 | Outside work hours | Dimmed background, still usable |
 | Empty (no calendar) | "No calendar connected — your meetings would show here. Connect" |
 
@@ -265,6 +267,7 @@ One view (ruled 2026-09-13 — the Week planner and Upcoming are the same screen
 | Keyboard | `←`/`→` move the selected task a day; `J`/`K` within a column; `Tab` between columns |
 | Today's column | Marked, and always first |
 | Non-working days | Greyed, still droppable, readout "no working hours" |
+| Routine days (M2) | Each future appearance of a running routine shows as one collapsed row — `◇ Deep-work weekday · 3h 50m` — and counts in that day's capacity bar and the week total |
 | Milestone | M1. Board view and saved filters are M2 |
 
 **Responsive.** Phone: a **7-day strip** across the top, one mini capacity bar per day (tap a day to jump to it), over the days **stacked vertically as one agenda**; "Not yet planned" is a tappable strip at the bottom that opens as a sheet, and each task in it gets a **day picker** instead of a drag target; moving any task is long-press → Move to… → day picker. Narrow: 3 day columns with a horizontal scroll (affordance shown) and the rail collapsed to a `Not yet planned · 5` button that opens a sheet. Medium: 5 columns, Sat–Sun folded into one. Wide: 7 columns plus the rail, as drawn.
@@ -360,6 +363,155 @@ The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
 - Day rating and highlights from the shutdown appear as a quiet line under the day header.
 - Milestone: M1. Year heatmap and Year in Review: Later.
 - **Responsive.** Phone: reached from **Browse**; same rows; filters in a sheet behind a `Filter` button; swipe right = Reopen (the `U` action). Narrow and up: as drawn.
+
+---
+
+## 8a. Routines — M2
+
+Build a whole day once and run it for as many days as you choose (`PRODUCT_SPEC.md` §11a). Reached from the sidebar (below Logbook), from the Routines row at the top of Browse on the phone, with `G R`, or from the palette (**New routine**, **Schedule routine…**).
+
+**Layout — wide and medium.** Two panes inside the main area: the routine list, and the selected routine's editor. Shown on Thu 24 Sept, day 4 of the reference run; the app sidebar is omitted.
+
+```
+┌──────────────────────────┬─────────────────────────────────────────────────────────────┐
+│ ROUTINES           + New │ Deep-work weekday                        3h 50m each day  ⋯ │
+│                          │ Running · Day 4 of 21 · working days · 21 Sept → 19 Oct     │
+│ ◉ Deep-work weekday      │ Timed items go to your calendar (Work)                      │
+│   Running · Day 4 of 21  │                                                             │
+│                          │ TIMED                                             done on   │
+│ ○ Sunday reset           │ (09:00)  Plan the day    15m             3 of 3 days        │
+│   Not scheduled          │ (09:30)  Deep work       2h    #Acme     3 of 3 days        │
+│                          │ (12:30)  Lunch walk      30m             2 of 3 days        │
+│ ○ Travel day             │ (14:30)  Inbox & Slack   30m             3 of 3 days        │
+│   Paused · resumes 12 Oct│ (17:30)  Shutdown        15m             3 of 3 days        │
+│                          │ + Add a timed item                                          │
+│                          │                                                             │
+│                          │ ANYTIME                                                     │
+│                          │ ○ Read industry news       20m             2 of 3 days      │
+│                          │ + Add an anytime item                                       │
+│                          │                                                             │
+│                          │ [ Pause ]    [ Extend ]    [ End early ]                    │
+└──────────────────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+| Region | Contents | Interactions |
+|---|---|---|
+| Routine list | Each routine with its status line: *Running · Day 4 of 21* · *Starts Mon 21 Sept* · *Paused · resumes Mon 12 Oct* · *Not scheduled* · *Finished · 21 days* | `+ New` or **New routine**; `J`/`K` to move; `Enter` opens |
+| Header | Name (inline rename) · daily total ("3h 50m each day") · the run line — status, day count, day rule, span · the calendar line when the toggle is on | `⋯`: Duplicate · Delete routine |
+| Timed items | Time chip · title · duration · project and tags · **done on N of M days** | Click the time chip to change it; `Enter` edits inline; the checklist lives in the item's detail panel |
+| Anytime items | Title · estimate · **done on N of M days** | Drag to reorder |
+| Run actions | Not scheduled: **Schedule…** · Running: **Pause** · **Extend** · **End early** · Paused: **Resume…** · **End** · Finished: **Schedule again…** | Each opens a sheet with a live end-date preview. **Only Pause moves the end date**; **Extend** adds days; **End early** sets the end to today. A skipped day — Skip today, or a day whose items were all missed — still counts toward N |
+
+Edits made here apply as *this and following days* from today; items already done today stay as they are. The first edit on a running routine says so once: "Changes apply from today. Past days stay as they were."
+
+### Scheduling
+
+**Schedule…** (or **Schedule routine…** in the palette, which first asks which routine) opens a dialog on desktop and a bottom sheet on the phone.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Schedule "Deep-work weekday"                              ✕  │
+├──────────────────────────────────────────────────────────────┤
+│ Starts        Mon 21 Sept                                 ▾  │
+│                                                              │
+│ Repeat for    ( 7 )  ( 14 )  ( •21 )  ( 30 )  ( Custom… )    │
+│               ( Until a date… )  ( No end )                  │
+│                                                              │
+│ On            [ Every day | • Working days | Pick days ]     │
+│                                                              │
+│ Calendar      [■] Put timed items on my calendar (Work)      │
+├──────────────────────────────────────────────────────────────┤
+│ Appears on 21 days · Mon 21 Sept → Mon 19 Oct                │
+│ 3h 50m each day · 5 timed items, 1 anytime                   │
+│                                                              │
+│                          [ Cancel ]    [ Schedule routine ]  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+1. Every control updates the preview immediately. It always names the count and the span — *"Appears on 21 days · Mon 21 Sept → Mon 19 Oct"* — and the daily cost.
+2. **Custom…** takes a number of days; **Until a date…** opens a date picker; **No end** reads "Appears every working day from Mon 21 Sept · no end date". N counts the days the routine appears, not calendar days.
+3. **Pick days** reveals seven weekday toggles.
+4. The calendar toggle names the write-calendar. For free accounts it shows the Pro explainer instead of switching on (`PRODUCT_SPEC.md` §21).
+5. **Schedule routine** creates the run and closes, with a toast: *"Deep-work weekday starts Mon 21 Sept · 21 days — Undo"*. For a routine that is already running, the button becomes **Extend this run** / **Replace from…**.
+
+### On a scheduled day — Today and the timeline
+
+Thu 24 Sept, wide band; the ribbon and the other Today sections are as in §2.
+
+```
+┌───────────────────────────────────────────────────┬─────────────────────────────┐
+│ TODAY · 8 · 4h 35m                             ⌄  │  9:00 ┌──────────┐┌───────┐ │
+│                                                   │       │◇ Plan the││▦ Stand│ │
+│ ROUTINE · Deep-work weekday · Day 4 of 21  3h 50m │       │  day     ││  -up  │ │
+│   ○ Plan the day         9:00  ~15m               │  9:15 └──────────┘└───────┘ │
+│       clashes with Standup   [Move] [Skip today]  │  9:30 ┌───────────────────┐ │
+│   ○ Deep work            9:30  ~2h     #Acme      │       │◇ Deep work · 2h   │ │
+│   ○ Lunch walk          12:30  ~30m               │ 11:30 └───────────────────┘ │
+│   ○ Inbox & Slack       14:30  ~30m               │       ┌───────────────────┐ │
+│   ○ Shutdown            17:30  ~15m               │       │▦ Design review    │ │
+│   ○ Read industry news  anytime ~20m              │ 12:15 └───────────────────┘ │
+│                                                   │ 12:30 ┌───────────────────┐ │
+│   ○ Prep 1:1 with Dana    #Team 13:30  ~20m       │       │◇ Lunch walk · 30m │ │
+│   ○ Review PR #214     #Platform 16:00  ~25m      │ 13:00 └───────────────────┘ │
+│                                                   │       ·   ·   ·   ·   ·     │
+│                                                   │ 17:30 ┌───────────────────┐ │
+│                                                   │       │◇ Shutdown · 15m   │ │
+│                                                   │ 17:45 └───────────────────┘ │
+└───────────────────────────────────────────────────┴─────────────────────────────┘
+```
+
+| Element | Behaviour |
+|---|---|
+| Group header | `ROUTINE · Deep-work weekday · Day 4 of 21` + the group total. Collapsible. `⋯`: **Skip today** (every remaining item — the day still counts toward N) · **Edit routine** · **Pause** (the only way to keep a day from counting) |
+| Item rows | Ordinary task rows with the item's time chip. The checkbox completes. There is no Tomorrow / Someday / Drop: row actions are **Skip today** and **Edit…** |
+| Edit prompt | Any change to an item from Today or the timeline asks **Just this day** · **This and following days** |
+| Clash | A timed item overlapping a meeting shows *clashes with Standup* with **Move** (a time picker for that day) and **Skip today**. Never moved automatically |
+| Routine overlap | The later-created routine's item shows *overlaps Deep-work weekday* with the same two actions |
+| Timeline | Timed items drawn `◇` at their times. Dragging one asks the edit prompt. Plan my day treats them as fixed |
+| Evening items | In This Evening, with the routine label |
+| After midnight | Undone items close as skipped — never Carried over, never red — and the day still counts toward N, even if every item was missed. The evening shutdown lists them softly (§15) |
+| Several routines | One group each, ordered by first item time |
+
+### States
+
+| State | Screen |
+|---|---|
+| No routines | "Build a day once, then run it for as many days as you like." + **New routine** |
+| Not scheduled | The editor, with **Schedule…** as the primary action |
+| Scheduled, not started | Run line: "Starts Mon 21 Sept · 21 working days · ends Mon 19 Oct". Today shows nothing yet; Upcoming shows the days |
+| Running | As drawn |
+| Paused | Run line: "Paused · resumes Mon 12 Oct · now ends Mon 26 Oct". Today shows no group |
+| Finished / ended early | "Finished · 21 days" or "Ended after 12 of 21 days", with the per-item counts, and **Schedule again…** |
+| Deleted | Gone from the list; completed items stay in the Logbook with the routine's name |
+
+**Responsive.** Phone: the routine list is the first screen, opened from the **Routines row at the top of Browse**; the editor pushes in as a **list with time chips** and an **Anytime** section, and tapping a time chip opens a time-picker sheet; run actions sit in a fixed 48 px footer. Scheduling is a **bottom sheet**: a start-date row, **44 px day-count chips 7 · 14 · 21 · 30 · Custom** (Custom opens N days · Until a date · No end), an **Every day · Working days · Pick days** segmented control, the calendar toggle, the computed end date, and a full-width **Schedule routine** button. On Today the group and its Skip today / Edit… work by tap; a timed item moves by tap-to-schedule (tap the item, then a slot) and still asks Just this day / This and following days. Narrow: single pane — the list, then the editor pushes in; scheduling is a centred sheet. Medium and wide: two panes, as drawn.
+
+```
+┌──────────────────────────┐        ┌──────────────────────────┐
+│ ← Routines            ⋯  │        │ ·  ·  ·  ·  ·  ·  ·  ·   │
+│ Deep-work weekday        │        │          ─────           │
+│ 3h 50m each day          │        │ Schedule routine       ✕ │
+│ Not scheduled            │        │ Starts     Mon 21 Sept ▸ │
+│                          │        │                          │
+│ TIMED                    │        │ Repeat for               │
+│ (09:00) Plan the day  15m│        │ (7)(14)(•21)(30)(Custom) │
+│ (09:30) Deep work     2h │        │                          │
+│ (12:30) Lunch walk    30m│        │ On                       │
+│ (14:30) Inbox & Slack 30m│        │ [Every day|•Working|Pick]│
+│ (17:30) Shutdown      15m│        │                          │
+│ + Add a timed item       │        │ Put timed items on my    │
+│                          │        │ calendar (Work)      [■] │
+│ ANYTIME                  │        │                          │
+│ ○ Read industry news 20m │        │ Appears on 21 days       │
+│ + Add an anytime item    │        │ Mon 21 Sept → Mon 19 Oct │
+│                          │        │                          │
+│ ┌──────────────────────┐ │        │ ┌──────────────────────┐ │
+│ │      Schedule…       │ │        │ │   Schedule routine   │ │
+│ └──────────────────────┘ │        │ └──────────────────────┘ │
+└──────────────────────────┘        └──────────────────────────┘
+```
+
+- Milestone: M2.
 
 ---
 
@@ -502,7 +654,7 @@ Opens in the context pane (desktop) or a sheet (mobile). `Space` peeks, `Enter` 
 | **Selected task** | Complete · Un-complete · Move to Today · Tomorrow · This evening · This weekend · In 4 hours · Next week · Pick a date · Set deadline · Set start date · Set estimate · Set priority · Move to project · Add tag · Move to Someday · Drop · Duplicate · Convert to project · Block it · **Start focus** (M2) · Copy link |
 | **View** | Toggle sidebar · Toggle timeline · Show completed · Sort by… · Zoom timeline in/out · Light / Dark / System |
 | **App** | Undo · Redo · Sync now · Export data · Keyboard shortcuts · Connect calendar · Settings · Sign out |
-| **M2** | Save current filter · Open a saved filter · Start weekly review · Enter focus mode · Brain-dump with AI · Break this down · Suggest an estimate |
+| **M2** | Save current filter · Open a saved filter · Start weekly review · Enter focus mode · Brain-dump with AI · Break this down · Suggest an estimate · **New routine** · **Schedule routine…** · Go to Routines |
 
 Rules: the palette never performs a destructive action without a confirm step in the same palette; commands that need a selection are listed but disabled with the reason ("select a task first"); results are keyboard-navigable and `Enter` runs the top one.
 
@@ -599,7 +751,7 @@ Six steps in a settled order (ruled 2026-09-14, desktop and phone alike), target
 | Step | Content | Copy | Interactions |
 |---|---|---|---|
 | **1 · Done today** | Today's completed tasks with the total time | "You finished **7 things** — about **4h 20m**." | Read-only. `Next` |
-| **2 · Carried to tomorrow** | The unfinished tasks, each with an action | "5 things didn't happen. That's normal." | Each row: `Tomorrow` · `Someday` · `Drop` · `Keep for today`. `Move all to tomorrow` in the footer. `Next` works with rows unresolved — they carry by default |
+| **2 · Carried to tomorrow** | The unfinished tasks, each with an action | "5 things didn't happen. That's normal." | Each row: `Tomorrow` · `Someday` · `Drop` · `Keep for today`. `Move all to tomorrow` in the footer. `Next` works with rows unresolved — they carry by default. Undone routine items (M2) follow as one soft line — *Skipped · Lunch walk, Read industry news* — with no actions |
 | **3 · Day rating** | A 1–5 scale, one tap, unlabelled beyond the scale. A 14-day sparkline appears once 5 ratings exist | "How was the day?" | One tap, or `1`–`5`. Skippable |
 | **4 · One highlight** | A single free-text line, with today's completions offered as one-tap picks | "What was worth it today?" | Type, or tap a completion to use it. Skippable |
 | **5 · Tomorrow's first draft** | Tomorrow's current load and spare time, with what step 2 just moved there | "Tomorrow: **4h 10m** spare, 3 things already on it." | `Plan tomorrow now` · `Plan it in the morning` |
@@ -811,7 +963,7 @@ Every screen is responsive from M1 (§0 bands). This section draws the two phone
 |---|---|
 | Today, phone | Single column. The ribbon card sits directly under the date and is sticky on scroll — it is the reason to open the app. It carries the **List · Day** toggle; *Day* shows the vertical timeline in place of the list |
 | Bottom tab bar | **Today · Inbox · Week · Browse** ("Week" is the phone label for Upcoming · rolling 7 days). Thumb-reachable, safe-area aware |
-| Browse | The phone's sidebar, one tap away: a search field, then Areas and projects, Someday, Logbook, **Carried over** (every carried task in one list), Settings. Projects, Someday, Logbook and Settings are reached only from here |
+| Browse | The phone's sidebar, one tap away: a search field, then a **Routines** row (M2), Areas and projects, Someday, Logbook, **Carried over** (every carried task in one list), Settings. Routines, projects, Someday, Logbook and Settings are reached only from here |
 | **FAB** | Bottom-right, opens quick-add |
 | **Quick-add, mobile** | The same parser, plus a **token toolbar above the keyboard**: date presets, estimate presets, `#`, `@`, `!`. Tapping inserts the token text so people learn the syntax by using the buttons |
 | Row actions | Today rows: swipe right → done, swipe left → move (Tomorrow · Someday). Carried-over rows: swipe right → Today · Tomorrow, swipe left → Someday · Drop. Inbox rows: swipe right → Today, swipe left → Someday (§5). Long-press → multi-select |
@@ -863,6 +1015,7 @@ Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all s
 | `G` `C` | Calendar |
 | `G` `S` | Someday |
 | `G` `L` | Logbook |
+| `G` `R` | Routines (M2) |
 | `G` `P` | Project picker |
 | `G` `A` | Area picker |
 | `[` · `]` | Previous · next day (Today, Calendar); previous · next week (Upcoming) |

@@ -441,6 +441,7 @@ No tour. Features announce themselves **once, in context, at the moment they wou
 | 5th mouse-driven task completion | "`Cmd+Enter` completes the selected task." | M1 |
 | First use of the palette | "`Cmd+K` finds every command. `?` shows the shortcuts." | M1 |
 | 7 days of use | "You've planned 5 days. Your weekly review is ready." | M2 |
+| 3rd day in a week with a block of the same title at the same time | "Same day again? Save it as a routine and run it for as many days as you like." | M2 |
 | First recurring task completed early | "Complete early: this one only, or change the rule?" | M1 |
 | First Someday auto-file batch | "6 things you hadn't touched in a month moved to Someday. Review them?" | M1 |
 

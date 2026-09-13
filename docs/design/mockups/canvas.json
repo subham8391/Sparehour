@@ -1,38 +1,283 @@
 {
   "artboards": [
-    { "file": "Main.dc.html", "title": "Today · light", "x": 0, "y": 0, "w": 1440, "h": 900 },
-    { "file": "TodayDark.dc.html", "title": "Today · dark", "x": 1540, "y": 0, "w": 1440, "h": 900 },
-    { "file": "OnboardingReveal.dc.html", "title": "Onboarding · the reveal", "x": 0, "y": 1040, "w": 1440, "h": 900 },
-    { "file": "MorningPlan.dc.html", "title": "Morning plan · pick tasks", "x": 1540, "y": 1040, "w": 1440, "h": 900 },
-    { "file": "WeekPlanner.dc.html", "title": "Upcoming · week planner", "x": 0, "y": 2080, "w": 1440, "h": 900 },
-    { "file": "MobileToday.dc.html", "title": "Phone · Today", "x": 1540, "y": 2080, "w": 390, "h": 844 },
-    { "file": "MobileQuickAdd.dc.html", "title": "Phone · quick add", "x": 2030, "y": 2080, "w": 390, "h": 844 },
-    { "file": "MobileWeek.dc.html", "title": "Phone · Upcoming", "x": 2520, "y": 2080, "w": 390, "h": 844 },
-    { "file": "MobileMorningPlan.dc.html", "title": "Phone · morning plan", "x": 3010, "y": 2080, "w": 390, "h": 844 },
-    { "file": "MobileOnboarding.dc.html", "title": "Phone · onboarding 5 · the reveal", "x": 3500, "y": 2080, "w": 390, "h": 844 },
-    { "file": "MobileSignIn.dc.html", "title": "Phone · sign in", "x": 0, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileWorkingHours.dc.html", "title": "Phone · onboarding 1 · hours", "x": 490, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileCalendarConnect.dc.html", "title": "Phone · onboarding 2 · calendars", "x": 980, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileBrainDump.dc.html", "title": "Phone · onboarding 3 · brain dump", "x": 1470, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileEstimates.dc.html", "title": "Phone · onboarding 4 · estimates", "x": 1960, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileInbox.dc.html", "title": "Phone · Inbox", "x": 2450, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileDayTimeline.dc.html", "title": "Phone · Day timeline · placing a task", "x": 2940, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileTaskDetail.dc.html", "title": "Phone · task detail", "x": 3430, "y": 3160, "w": 390, "h": 844 },
-    { "file": "MobileProject.dc.html", "title": "Phone · project", "x": 0, "y": 4140, "w": 390, "h": 844 },
-    { "file": "MobileBrowse.dc.html", "title": "Phone · Browse", "x": 490, "y": 4140, "w": 390, "h": 844 },
-    { "file": "MobileShutdown.dc.html", "title": "Phone · evening shutdown", "x": 980, "y": 4140, "w": 390, "h": 844 },
-    { "file": "MobileSearch.dc.html", "title": "Phone · search & commands", "x": 1470, "y": 4140, "w": 390, "h": 844 },
-    { "file": "MobileSettings.dc.html", "title": "Phone · settings", "x": 1960, "y": 4140, "w": 390, "h": 844 },
-    { "file": "MobileLogbook.dc.html", "title": "Phone · logbook", "x": 2450, "y": 4140, "w": 390, "h": 844 },
-    { "file": "DirectionLedger.dc.html", "title": "Alternate B · Ledger (low-fi)", "x": 0, "y": 5120, "w": 880, "h": 560 },
-    { "file": "DirectionTide.dc.html", "title": "Alternate C · Tide (low-fi)", "x": 980, "y": 5120, "w": 880, "h": 560 }
+    {
+      "file": "Main.dc.html",
+      "title": "Today · light",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "TodayDark.dc.html",
+      "title": "Today · dark",
+      "x": 1540,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "OnboardingReveal.dc.html",
+      "title": "Onboarding · the reveal",
+      "x": 0,
+      "y": 1040,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "MorningPlan.dc.html",
+      "title": "Morning plan · pick tasks",
+      "x": 1540,
+      "y": 1040,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "WeekPlanner.dc.html",
+      "title": "Upcoming · week planner",
+      "x": 0,
+      "y": 2080,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "MobileToday.dc.html",
+      "title": "Phone · Today",
+      "x": 1540,
+      "y": 2080,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileQuickAdd.dc.html",
+      "title": "Phone · quick add",
+      "x": 2030,
+      "y": 2080,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileWeek.dc.html",
+      "title": "Phone · Upcoming",
+      "x": 2520,
+      "y": 2080,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileMorningPlan.dc.html",
+      "title": "Phone · morning plan",
+      "x": 3010,
+      "y": 2080,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileOnboarding.dc.html",
+      "title": "Phone · onboarding 5 · the reveal",
+      "x": 3500,
+      "y": 2080,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileSignIn.dc.html",
+      "title": "Phone · sign in",
+      "x": 0,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileWorkingHours.dc.html",
+      "title": "Phone · onboarding 1 · hours",
+      "x": 490,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileCalendarConnect.dc.html",
+      "title": "Phone · onboarding 2 · calendars",
+      "x": 980,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileBrainDump.dc.html",
+      "title": "Phone · onboarding 3 · brain dump",
+      "x": 1470,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileEstimates.dc.html",
+      "title": "Phone · onboarding 4 · estimates",
+      "x": 1960,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileInbox.dc.html",
+      "title": "Phone · Inbox",
+      "x": 2450,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileDayTimeline.dc.html",
+      "title": "Phone · Day timeline · placing a task",
+      "x": 2940,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileTaskDetail.dc.html",
+      "title": "Phone · task detail",
+      "x": 3430,
+      "y": 3160,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileProject.dc.html",
+      "title": "Phone · project",
+      "x": 0,
+      "y": 4140,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileBrowse.dc.html",
+      "title": "Phone · Browse",
+      "x": 490,
+      "y": 4140,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileShutdown.dc.html",
+      "title": "Phone · evening shutdown",
+      "x": 980,
+      "y": 4140,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileSearch.dc.html",
+      "title": "Phone · search & commands",
+      "x": 1470,
+      "y": 4140,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileSettings.dc.html",
+      "title": "Phone · settings",
+      "x": 1960,
+      "y": 4140,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileLogbook.dc.html",
+      "title": "Phone · logbook",
+      "x": 2450,
+      "y": 4140,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "RoutineEditor.dc.html",
+      "title": "Routines · editor & schedule",
+      "x": 0,
+      "y": 5120,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "MobileRoutine.dc.html",
+      "title": "Phone · routine",
+      "x": 1540,
+      "y": 5120,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MobileRoutineSchedule.dc.html",
+      "title": "Phone · schedule a routine",
+      "x": 2030,
+      "y": 5120,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "DirectionLedger.dc.html",
+      "title": "Alternate B · Ledger (low-fi)",
+      "x": 0,
+      "y": 6160,
+      "w": 880,
+      "h": 560
+    },
+    {
+      "file": "DirectionTide.dc.html",
+      "title": "Alternate C · Tide (low-fi)",
+      "x": 980,
+      "y": 6160,
+      "w": 880,
+      "h": 560
+    }
   ],
   "annotations": [
-    { "id": "direction", "x": 0, "y": -200, "w": 520, "text": "Direction A · “Daylight” — the working day as a strip of light.\nGreen is only ever spare time. Blue = other people's meetings. Dark = blocks you chose. Amber = gently over. Ember appears only for a real deadline.\nType: Instrument Serif (the numbers), Instrument Sans (UI), DM Mono (times).\nStatic mockups — nothing is clickable yet." },
-    { "id": "ribbon-states", "x": 1540, "y": -150, "w": 420, "text": "The spare-time ribbon has three states: spare (green), fits exactly (grey), over (amber with a soft tail). Never red, never a count of overdue tasks." },
-    { "id": "responsive", "x": 3990, "y": 2080, "w": 420, "text": "Every screen is responsive. Same data, same tokens, one layout per width: three panes ≥1180px · two panes 900–1179 · icon rail 640–899 · phone below 640 (tab bar Today · Inbox · Week · Browse, sheets, 44px targets, tap-to-schedule instead of drag)." },
-    { "id": "phone-flows", "x": 3920, "y": 3160, "w": 420, "text": "Phone · every M1 screen. This row: sign in → onboarding 1–4 (the reveal, step 5, is in the row above), then Inbox, the Day timeline placing a task by tap, and task detail.\nNext row: project, Browse (areas, Someday, Logbook, Settings), evening shutdown, search & commands, settings, logbook." },
-    { "id": "alternates", "x": 1980, "y": 5120, "w": 380, "text": "Two low-fi alternates in case Daylight isn't it. Pick one and I'll rebuild the whole set in that direction." }
+    {
+      "id": "direction",
+      "x": 0,
+      "y": -200,
+      "w": 520,
+      "text": "Direction A · “Daylight” — the working day as a strip of light.\nGreen is only ever spare time. Blue = other people's meetings. Dark = blocks you chose. Amber = gently over. Ember appears only for a real deadline.\nType: Instrument Serif (the numbers), Instrument Sans (UI), DM Mono (times).\nStatic mockups — nothing is clickable yet."
+    },
+    {
+      "id": "ribbon-states",
+      "x": 1540,
+      "y": -150,
+      "w": 420,
+      "text": "The spare-time ribbon has three states: spare (green), fits exactly (grey), over (amber with a soft tail). Never red, never a count of overdue tasks."
+    },
+    {
+      "id": "responsive",
+      "x": 3990,
+      "y": 2080,
+      "w": 420,
+      "text": "Every screen is responsive. Same data, same tokens, one layout per width: three panes ≥1180px · two panes 900–1179 · icon rail 640–899 · phone below 640 (tab bar Today · Inbox · Week · Browse, sheets, 44px targets, tap-to-schedule instead of drag)."
+    },
+    {
+      "id": "phone-flows",
+      "x": 3920,
+      "y": 3160,
+      "w": 420,
+      "text": "Phone · every M1 screen. This row: sign in → onboarding 1–4 (the reveal, step 5, is in the row above), then Inbox, the Day timeline placing a task by tap, and task detail.\nNext row: project, Browse (areas, Someday, Logbook, Settings), evening shutdown, search & commands, settings, logbook."
+    },
+    {
+      "id": "alternates",
+      "x": 1980,
+      "y": 6160,
+      "w": 380,
+      "text": "Two low-fi alternates in case Daylight isn't it. Pick one and I'll rebuild the whole set in that direction."
+    },
+    {
+      "id": "routines",
+      "x": 2520,
+      "y": 5120,
+      "w": 440,
+      "text": "Routines (M2, user request): build a full day once, schedule it for 7 · 14 · 21 · 30 · custom days, on every day / working days / picked days. Items appear in Today and on the timeline each of those days, count toward spare time, and never carry over when missed.\nExample: Deep-work weekday · 3h 50m a day · 21 working days · Mon 21 Sept → Mon 19 Oct."
+    }
   ],
-  "launch": { "view": "canvas" }
+  "launch": {
+    "view": "canvas"
+  }
 }

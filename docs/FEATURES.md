@@ -81,6 +81,9 @@ Each feature is tagged with the milestone where it fits:
 | One-click "re-plan the rest of today" | M2 | Akiflow |
 | Weekly review wizard (stalled projects, no next step, waiting-for follow-ups) | M2 | OmniFocus, FacileThings |
 | Weekly objectives | M2 | Sunsama |
+| **Routines** — build a full day once (timed items + "anytime" items), schedule it for N days (7 · 14 · 21 · 30 · custom · until a date · no end) on every day / working days / picked weekdays; it appears in Today and on the day timeline each of those days | M2 | Structured, Tiimo routines (user request) |
+| Routine behaviour — counts toward spare time; missed routine items never carry over; edit "just this day" or "this and following days"; pause, extend, end early; gentle progress ("Day 4 of 21", done on 3 of 3 days — no streaks) | M2 | — |
+| Timed routine items can be written to your calendar as blocks (opt-in per routine); a clash with a meeting is flagged, never auto-moved | M2 | — |
 | Outlook / Microsoft 365 calendar | M3 | — |
 | Learn estimate vs actual, suggest corrections | Later | Sunsama |
 | Buffers and travel time between blocks | Later | Reclaim, Morgen |

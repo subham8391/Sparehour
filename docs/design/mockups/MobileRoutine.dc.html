@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .card{background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden}
+    .ri{display:flex;align-items:center;gap:12px;min-height:50px;padding:6px 14px;border-top:1px solid #D9E0DD}
+    .ri.first{border-top:0}
+    .ri .time{width:48px;flex:none;font-family:'DM Mono','SF Mono',Menlo,monospace;font-size:13px;color:#161C19}
+    .ri .bar{width:3px;align-self:stretch;border-radius:2px;background:#161C19;flex:none}
+    .ri .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+    .ri .t{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ri .m{font-size:12px;color:#5C6661}
+    .chip{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:6px;background:#EDF1EF;color:#5C6661;font-size:12px;white-space:nowrap;font-family:'DM Mono','SF Mono',Menlo,monospace}
+    .btn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border-radius:12px;border:1px solid #BEC6C2;background:#FFFFFF;color:#161C19;font-size:15px;font-weight:500}
+    .btn.primary{background:#161C19;border-color:#161C19;color:#F4F8F6}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 8px 0 12px">
+    <span style="display:flex;align-items:center;gap:4px;font-size:15px;color:#5C6661;padding:8px"><svg viewBox="0 0 20 20" style="width:18px;height:18px" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l-5 5 5 5"></path></svg>Routines</span>
+    <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#5C6661"><svg viewBox="0 0 20 20" style="width:20px;height:20px" fill="currentColor"><circle cx="5" cy="10" r="1.6"></circle><circle cx="10" cy="10" r="1.6"></circle><circle cx="15" cy="10" r="1.6"></circle></svg></span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;padding:4px 20px 0;flex:1;min-height:0;overflow:hidden">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="serif" style="font-size:30px;line-height:1.05">Deep-work weekday</span>
+      <span class="mono" style="font-size:11.5px;color:#5C6661">6 items · 3h 50m of each day</span>
+      <span style="align-self:flex-start;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;background:#EDF1EF;color:#161C19;font-size:13px;font-weight:500">Starts Mon 21 Sept · 21 working days</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Timed</span><span class="mono" style="font-size:11.5px;color:#89928D">5 · 3h 30m</span></div>
+      <div class="card">
+        <div class="ri first"><span class="time">09:00</span><span class="bar"></span><div class="body"><span class="t">Plan the day</span><span class="m">15m</span></div></div>
+        <div class="ri"><span class="time">09:30</span><span class="bar"></span><div class="body"><span class="t">Deep work</span><span class="m">2h · notifications off</span></div></div>
+        <div class="ri"><span class="time">12:30</span><span class="bar"></span><div class="body"><span class="t">Lunch walk</span><span class="m">30m</span></div></div>
+        <div class="ri"><span class="time">14:30</span><span class="bar"></span><div class="body"><span class="t">Inbox &amp; Slack</span><span class="m">30m</span></div></div>
+        <div class="ri"><span class="time">17:30</span><span class="bar"></span><div class="body"><span class="t">Shutdown</span><span class="m">15m</span></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Anytime</span><span class="mono" style="font-size:11.5px;color:#89928D">1 · 20m</span></div>
+      <div class="card">
+        <div class="ri first"><span style="width:20px;height:20px;border-radius:50%;border:1.5px solid #BEC6C2;flex:none"></span><div class="body"><span class="t">Read industry news</span></div><span class="chip">20m</span></div>
+        <div class="ri" style="color:#89928D;min-height:46px"><svg viewBox="0 0 20 20" style="width:20px;height:20px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 4v12M4 10h12"></path></svg><span style="font-size:14px">Add an item</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:0 2px;font-size:12.5px;line-height:1.4;color:#89928D">
+      <svg viewBox="0 0 20 20" style="width:14px;height:14px;flex:none;margin-top:1px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a6 6 0 0 1 10.2-4.2L16 7.5"></path><path d="M16 3.5v4h-4"></path></svg>
+      <span>Missed routine items don't carry over — every day starts clean.</span>
+    </div>
+  </div>
+
+  <div style="padding:12px 20px 34px;display:flex;gap:10px;background:rgba(244,248,246,0.96);border-top:1px solid #D9E0DD">
+    <span class="btn" style="flex:1">Pause</span>
+    <span class="btn primary" style="flex:2">Edit schedule</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
