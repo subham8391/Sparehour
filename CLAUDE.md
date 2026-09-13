@@ -1,0 +1,17 @@
+@AGENTS.md
+
+# Sparehour
+
+A calm, time-aware personal planner (product formerly worked on as "Personal Work Management"). Core promise: a Today that knows your real free time, and a guilt-free planning loop.
+
+## Before building anything
+- Read `docs/DECISIONS.md`. It is the source of truth for product decisions and lists the open ones — don't silently decide an open question in code; ask.
+- Check a feature's milestone tag in `docs/FEATURES.md`. Build only what the current milestone needs; park the rest.
+- The data/sync layer is **not decided**. Research and recommendation: `docs/research/06-sync-engines.md` (PowerSync + Supabase recommended, Firestore fallback). Don't add a database, auth, or sync library until it's settled.
+
+## Conventions
+- Next.js 16 App Router under `src/app`, TypeScript, Tailwind CSS v4, npm. Import alias `@/*` → `src/*`.
+- Every record will carry a `space_id` (personal space for now) so team spaces can be added later without a migration.
+- Tasks have a do-date, an optional deadline and an optional start date. Only missed deadlines are shown as overdue/red.
+- AI features are optional and labeled, and run server-side only — never expose provider keys to the browser.
+- Verify changes with `npm run lint` and `npm run build`.
