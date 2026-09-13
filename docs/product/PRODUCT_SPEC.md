@@ -422,7 +422,7 @@ This is the Llama Life "running total makes time feel real" mechanic (`07` §B13
 
 | Rule | Detail |
 |---|---|
-| Creating | Drag a task from the Today list onto the timeline; drag on empty timeline space for an ad-hoc block; `B` on a selected task places it in the next free gap large enough for its estimate |
+| Creating | Drag a task from the Today list onto the timeline; drag on empty timeline space for an ad-hoc block; `B` on a selected task places it in the next free gap large enough for its estimate. On phones (M1): tap the task, then tap a slot |
 | Default length | The task's `estimate_min`, snapped to 5 minutes; an ad-hoc drag snaps to 15 |
 | A block is not a completion | Completing the task marks the block done; deleting a block never changes the task |
 | Locked blocks | `locked = true` pins a block so re-plan and Plan-my-day (M2) will not move it. Toggle with `L` or the padlock |
@@ -490,11 +490,14 @@ Target: **60–90 seconds.** Entered from the header, an opt-in nudge (off by de
 
 | Step | Content |
 |---|---|
-| 1. What you did | Today's completed tasks, with the total time; unfinished tasks listed with Tomorrow / Someday / Drop / Keep for today |
-| 2. Highlights | Up to 3 free-text lines, prefilled with the completed tasks as one-tap picks. "What was worth it today?" |
+| 1. Done today | Today's completed tasks, with the total time |
+| 2. Carried to tomorrow | The unfinished tasks, each with Tomorrow / Someday / Drop / Keep for today; unresolved rows carry by default |
 | 3. Day rating | 1–5, one tap, optional, no label beyond a quiet scale; a sparkline of the last 14 days appears once there are 5 ratings |
-| 4. Tomorrow | Tomorrow's current load and spare time, with a one-tap "Plan tomorrow morning instead" |
-| 5. Close | "That's the day. Nothing is waiting for you." |
+| 4. One highlight | A single free-text line, prefilled with the completed tasks as one-tap picks. "What was worth it today?" |
+| 5. Tomorrow's first draft | Tomorrow's current load and spare time, including what step 2 moved there, with "Plan tomorrow now" and "Plan it in the morning" |
+| 6. Close the day | "That's the day. Nothing is waiting for you." |
+
+Order ruled 2026-09-14, the same on desktop and phone.
 
 Sets `DayPlan.shutdown_at`, `highlights`, `day_rating`. The research is explicit that writing "here's what I did" is what makes people stop working (`07` §C22).
 
@@ -669,7 +672,7 @@ Everything below ships before the two-week sole-use test starts. Anything not on
 2. Local-first store, offline reads and writes, sync status indicator, `storage.persist()`.
 3. Undo for every mutating action (`Cmd+Z`), with toasts.
 4. Light and dark themes.
-5. Installable PWA; capture and Today are mobile-first.
+5. Installable PWA; **every screen responsive from M1** across the four width bands in `SCREENS.md` §0 (phone < 640 px, narrow 640–899, medium 900–1179, wide ≥ 1180), with tap-to-schedule on phones (ruled 2026-09-14; supersedes `DECISIONS.md`'s "capture and Today mobile-first, full responsive by M2").
 
 **Data and capture**
 6. Task with all fields in §4; ChecklistItem (one level); Project, Heading, Area, Tag.
@@ -747,7 +750,7 @@ Each of these is a decision this spec had to make to be executable, and none of 
 | A12 | All-day events don't count as busy unless the user opts a calendar in | §10.3 |
 | A13 | Sync conflicts resolve last-write-wins per field, with the losing value kept in activity history | §19.2 |
 | A14 | Export ships at M1 (raw), polished + import at M3 — **ruled** | §19.1 |
-| A15 | Day rating is a 1–5 scale; highlights are up to 3 free-text lines | §12.2 |
+| A15 | Day rating is a 1–5 scale; **one** highlight per day (free text, prefilled from completions) — shutdown order **ruled** | §12.2 |
 | A16 | The full onboarding flow is an M2 deliverable; M1 needs only a minimal first-run — **ruled** | §22 |
 | A17 | Plan-my-day placement is deterministic and explainable; AI writes the explanation, not the placement | §11 |
 
@@ -781,5 +784,6 @@ All of the following were raised in draft 1 and ruled on by the coordinator. The
 | 13 | "Clear the slate" placement | Also on the **Carried over section header**, not only in the Today overflow | §8.5, `SCREENS.md` §2.3 |
 | 14 | Sidebar order | Inbox → Today → Upcoming → Calendar → Someday → Logbook → Areas; no Week entry | `SCREENS.md` §1 |
 | 15 | Onboarding: spec had 8 steps, mockup 5 | **5 steps** — Sign in + hours · Calendar (write-calendar inline) · Brain dump · Estimates · Reveal — with install + notifications as a post-reveal prompt | `ONBOARDING.md` |
+| 16 | Mobile scope: `DECISIONS.md` says capture + Today mobile-first at M1, full responsive by M2, planning desktop-first | **Every screen responsive from M1** (2026-09-14), on the four width bands in `docs/design/DESIGN_SYSTEM.md` §4a; tap-to-schedule on phones from M1 | §10.2, §22 item 5, `SCREENS.md` §0 and every section's Responsive note |
 
 **Still open after the rulings:** everything in §24 not marked "ruled" — chiefly A6 (default miss policy by task type), A7 (carry-count semantics), A8 (auto-file exemptions), A11 (calendar wins on conflict), A13 (last-write-wins per field).

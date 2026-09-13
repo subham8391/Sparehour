@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .card{background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden}
+    .est{display:flex;flex-direction:column;gap:8px;padding:10px 14px 12px;border-top:1px solid #D9E0DD}
+    .est.first{border-top:0}
+    .est .t{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .picks{display:flex;gap:6px}
+    .pk{flex:1;height:44px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid #D9E0DD;background:#FFFFFF;font-family:'DM Mono','SF Mono',Menlo,monospace;font-size:13px;color:#5C6661}
+    .pk.on{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .btn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border-radius:12px;border:1px solid #BEC6C2;background:#FFFFFF;color:#161C19;font-size:15px;font-weight:500}
+    .btn.primary{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .btn svg{width:16px;height:16px}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px">
+    <div style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" style="width:20px;height:20px" fill="none"><circle cx="12" cy="12" r="9" stroke="#BEC6C2" stroke-width="2"></circle><path d="M12 3A9 9 0 0 1 19.79 16.5" stroke="#1C7B5A" stroke-width="3" stroke-linecap="round"></path></svg><span class="serif" style="font-size:19px">Sparehour</span></div>
+    <div style="display:flex;align-items:center;gap:10px"><span class="mono" style="font-size:11px;color:#5C6661">4 of 5</span><div style="display:flex;gap:3px"><span style="width:16px;height:4px;border-radius:2px;background:#161C19"></span><span style="width:16px;height:4px;border-radius:2px;background:#161C19"></span><span style="width:16px;height:4px;border-radius:2px;background:#161C19"></span><span style="width:16px;height:4px;border-radius:2px;background:#161C19"></span><span style="width:16px;height:4px;border-radius:2px;background:#D9E0DD"></span></div></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;padding:22px 20px 0;flex:1;min-height:0;overflow:hidden">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <h1 class="serif" style="margin:0;font-size:32px;line-height:1.05">Roughly how long?</h1>
+      <p style="margin:0;font-size:14.5px;line-height:1.45;color:#5C6661">A guess is enough — Sparehour learns from it. Anything you skip counts as 30 minutes.</p>
+    </div>
+    <div class="card">
+      <div class="est first"><span class="t">Write proposal for Acme renewal</span><div class="picks"><span class="pk">15m</span><span class="pk">30m</span><span class="pk">1h</span><span class="pk on">1h 30m</span></div></div>
+      <div class="est"><span class="t">Prep 1:1 with Dana</span><div class="picks"><span class="pk on">20m</span><span class="pk">30m</span><span class="pk">1h</span><span class="pk">2h</span></div></div>
+      <div class="est"><span class="t">Review PR #214 — calendar sync</span><div class="picks"><span class="pk">15m</span><span class="pk on">25m</span><span class="pk">1h</span><span class="pk">2h</span></div></div>
+      <div class="est"><span class="t">Pay electricity bill</span><div class="picks"><span class="pk on">5m</span><span class="pk">15m</span><span class="pk">30m</span><span class="pk">1h</span></div></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px;font-size:13px;color:#5C6661">
+      <span><span style="color:#161C19;font-weight:500">2h 20m</span> for today · 2 evening tasks not counted</span>
+    </div>
+  </div>
+
+  <div style="padding:12px 20px 34px;display:flex;flex-direction:column;gap:8px">
+    <span class="btn primary">Show my day<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M11 5l5 5-5 5"></path></svg></span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

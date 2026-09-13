@@ -129,7 +129,7 @@ Each feature is tagged with the milestone where it fits:
 | Instant local-first UI, works offline ⏳ Q19/Q21 stack | M1 | Linear, Things |
 | Undo for every action | M1 | Linear |
 | Light & dark themes | M1 | — |
-| Installable PWA; capture + Today mobile-first | M1 | — |
+| Installable PWA; every screen responsive and touch-friendly (mobile-first CSS, 44 px targets, tap paths for every drag) | M1 | — |
 | One-click export (JSON / Markdown / CSV) | M1 | Remember The Milk, Logseq |
 | Activity history per task | M2 | Todoist |
 | Import from Todoist / TickTick / Things (switching path) | M3 | Remember The Milk imports |

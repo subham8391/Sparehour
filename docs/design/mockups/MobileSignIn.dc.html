@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .btn{display:flex;align-items:center;justify-content:center;gap:10px;height:48px;padding:0 18px;border-radius:12px;border:1px solid #BEC6C2;background:#FFFFFF;color:#161C19;font-size:15px;font-weight:500}
+    .btn.primary{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .btn svg{width:18px;height:18px}
+    .field{display:flex;align-items:center;height:48px;padding:0 14px;border-radius:12px;border:1px solid #BEC6C2;background:#FFFFFF;color:#89928D;font-size:15px}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:28px;padding:0 24px 40px">
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" style="width:30px;height:30px" fill="none"><circle cx="12" cy="12" r="9" stroke="#BEC6C2" stroke-width="2"></circle><path d="M12 3A9 9 0 0 1 19.79 16.5" stroke="#1C7B5A" stroke-width="3" stroke-linecap="round"></path></svg>
+        <span class="serif" style="font-size:26px">Sparehour</span>
+      </div>
+      <h1 class="serif" style="margin:0;font-size:38px;line-height:1.05;text-wrap:balance">Find the <em style="font-style:italic;color:#1C7B5A">spare hours</em> in your day.</h1>
+      <p style="margin:0;font-size:15.5px;line-height:1.5;color:#5C6661;text-wrap:pretty">A calm planner that knows how much time you actually have — and never makes you feel behind.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span class="btn primary"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="7"></circle><path d="M10 6.5h4M13 10h-3v3"></path></svg>Continue with Google</span>
+      <div style="display:flex;align-items:center;gap:12px;color:#89928D;font-size:12px"><span style="flex:1;border-top:1px solid #D9E0DD"></span><span>or</span><span style="flex:1;border-top:1px solid #D9E0DD"></span></div>
+      <div class="field">you@work.com</div>
+      <span class="btn">Email me a sign-in link</span>
+    </div>
+    <p style="margin:0;font-size:12.5px;line-height:1.45;color:#89928D;text-wrap:pretty">No password to remember. Your tasks stay on your devices and sync privately; we never write to a calendar you didn't choose.</p>
+  </div>
+  <div style="padding:0 24px 30px;font-size:11.5px;color:#89928D;text-align:center">By continuing you agree to the Terms and the Privacy Policy.</div>
+</div>
+</x-dc>
+</body>
+</html>

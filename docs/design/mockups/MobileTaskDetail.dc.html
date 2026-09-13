@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .card{background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden}
+    .kv{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:46px;padding:0 14px;border-top:1px solid #D9E0DD;font-size:14.5px}
+    .kv.first{border-top:0}
+    .kv .k{color:#5C6661}
+    .kv .v{display:flex;align-items:center;gap:8px;font-size:14px}
+    .chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:6px;background:#EDF1EF;color:#161C19;font-size:12.5px;white-space:nowrap}
+    .chip.mono{font-family:'DM Mono','SF Mono',Menlo,monospace;font-variant-numeric:tabular-nums}
+    .chip.due{background:#FFE3DE;color:#B14F42;font-weight:500}
+    .chip.proj{background:#E0ECFF;color:#4868A2;font-weight:500}
+    .chip svg{width:11px;height:11px}
+    .step{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 14px;border-top:1px solid #D9E0DD;font-size:14.5px}
+    .step.first{border-top:0}
+    .sc{width:20px;height:20px;border-radius:6px;border:1.5px solid #BEC6C2;flex:none;display:flex;align-items:center;justify-content:center}
+    .sc.on{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .sc svg{width:11px;height:11px}
+    .check{width:26px;height:26px;border-radius:50%;border:1.5px solid #BEC6C2;flex:none}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 8px 0 12px">
+    <span style="display:flex;align-items:center;gap:4px;font-size:15px;color:#5C6661;padding:8px"><svg viewBox="0 0 20 20" style="width:18px;height:18px" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l-5 5 5 5"></path></svg>Today</span>
+    <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#5C6661"><svg viewBox="0 0 20 20" style="width:20px;height:20px" fill="currentColor"><circle cx="5" cy="10" r="1.6"></circle><circle cx="10" cy="10" r="1.6"></circle><circle cx="15" cy="10" r="1.6"></circle></svg></span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;padding:4px 20px 0;flex:1;min-height:0;overflow:hidden">
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <span class="check" style="margin-top:3px"></span>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+        <span style="font-size:20px;font-weight:600;line-height:1.25">Write proposal for Acme renewal</span>
+        <span style="font-size:12.5px;color:#5C6661">Work › Acme › Renewal</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="kv first"><span class="k">Do</span><span class="v">Today, Tue 15<span class="chip mono">09:45 – 11:15</span></span></div>
+      <div class="kv"><span class="k">Estimate</span><span class="v"><span class="chip mono">1h 30m</span></span></div>
+      <div class="kv"><span class="k">Deadline</span><span class="v"><span class="chip due"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17V3.5h9l-2 3.5 2 3.5H5"></path></svg>Fri 18 Sept</span></span></div>
+      <div class="kv"><span class="k">Repeat</span><span class="v" style="color:#89928D">Never</span></div>
+      <div class="kv"><span class="k">Project</span><span class="v"><span class="chip proj">#Acme</span></span></div>
+      <div class="kv"><span class="k">Priority</span><span class="v"><span class="chip">High</span></span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Steps</span><span class="mono" style="font-size:11.5px;color:#89928D">1 of 3</span></div>
+      <div class="card">
+        <div class="step first"><span class="sc on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span style="color:#89928D;text-decoration:line-through">Outline the sections</span></div>
+        <div class="step"><span class="sc"></span><span>Pricing table for the three tiers</span></div>
+        <div class="step"><span class="sc"></span><span>Send to Dana for a read</span></div>
+        <div class="step" style="color:#89928D"><svg viewBox="0 0 20 20" style="width:18px;height:18px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 4v12M4 10h12"></path></svg><span>Add a step</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <span class="label">Notes</span>
+      <span style="font-size:14px;line-height:1.45;color:#161C19">Start from last year's proposal. Priya wants the security section up front this time.</span>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0 6px;font-size:13.5px;color:#5C6661">
+      <span>Convert to project</span><span>Someday</span><span>Drop</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

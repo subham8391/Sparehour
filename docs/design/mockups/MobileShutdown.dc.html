@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .card{background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden}
+    .row{display:flex;align-items:center;gap:12px;min-height:44px;padding:5px 14px;border-top:1px solid #D9E0DD;font-size:14.5px}
+    .row.first{border-top:0}
+    .row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row .t.done{color:#89928D;text-decoration:line-through}
+    .check{width:20px;height:20px;border-radius:50%;border:1.5px solid #BEC6C2;flex:none;display:flex;align-items:center;justify-content:center}
+    .check.on{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .check svg{width:11px;height:11px}
+    .chip{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:5px;background:#EDF1EF;color:#5C6661;font-size:11.5px;white-space:nowrap;font-family:'DM Mono','SF Mono',Menlo,monospace}
+    .rate{flex:1;height:48px;border-radius:12px;border:1px solid #D9E0DD;background:#FFFFFF;display:flex;align-items:center;justify-content:center}
+    .rate span{width:12px;height:12px;border-radius:50%;background:#BEC6C2}
+    .rate.on{border-color:#161C19;background:#161C19}
+    .rate.on span{background:#F4F8F6;width:16px;height:16px}
+    .btn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border-radius:12px;border:1px solid #BEC6C2;background:#FFFFFF;color:#161C19;font-size:15px;font-weight:500}
+    .btn.primary{background:#161C19;border-color:#161C19;color:#F4F8F6}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 20px">
+    <div style="display:flex;align-items:baseline;gap:10px"><span class="serif" style="font-size:22px">Evening shutdown</span><span class="mono" style="font-size:11.5px;color:#5C6661">Tue 15</span></div>
+    <div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#5C6661"><svg viewBox="0 0 20 20" style="width:20px;height:20px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"></path></svg></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;padding:8px 20px 0;flex:1;min-height:0;overflow:hidden">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Done today</span><span class="mono" style="font-size:11.5px;color:#89928D">4 · 2h 25m</span></div>
+      <div class="card">
+        <div class="row first"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="t done">Write proposal for Acme renewal</span><span class="chip">11:12</span></div>
+        <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="t done">Prep 1:1 with Dana</span><span class="chip">13:48</span></div>
+        <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="t done">Review PR #214 — calendar sync</span><span class="chip">16:31</span></div>
+        <div class="row"><span class="check on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 6"></path></svg></span><span class="t done">Book dentist</span><span class="chip">17:05</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 2px"><span class="label">Carried to tomorrow</span><span class="mono" style="font-size:11.5px;color:#89928D">1</span></div>
+      <div class="card"><div class="row first"><span class="check"></span><span class="t">Pay electricity bill</span><span class="chip">5m</span><span style="font-size:13px;color:#5C6661">Tomorrow ▾</span></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="label" style="padding:0 2px">How was the day?</span>
+      <div style="display:flex;gap:8px"><div class="rate"><span></span></div><div class="rate"><span></span></div><div class="rate"><span></span></div><div class="rate on"><span></span></div><div class="rate"><span></span></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="label" style="padding:0 2px">One highlight</span>
+      <div style="min-height:52px;padding:14px;border-radius:14px;background:#FFFFFF;border:1px solid #D9E0DD;font-size:15px">Proposal draft finished before lunch.</div>
+    </div>
+    <div class="card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EDF1EF">
+      <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:500">Tomorrow's first draft</span><span class="mono" style="font-size:11.5px;color:#5C6661">4 tasks · 1h 50m · 1h 00m spare</span></div>
+      <span style="font-size:13px;color:#5C6661">Preview</span>
+    </div>
+  </div>
+
+  <div style="padding:12px 20px 34px;display:flex;flex-direction:column;gap:8px">
+    <span class="btn primary">Close the day</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

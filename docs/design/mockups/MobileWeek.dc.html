@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .card{background:#FFFFFF;border:1px solid #D9E0DD;border-radius:14px;overflow:hidden}
+    .row{display:flex;align-items:center;gap:12px;min-height:48px;padding:7px 14px;border-top:1px solid #D9E0DD;background:#FFFFFF}
+    .row.first{border-top:0}
+    .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .row .title{font-size:15px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row .meta{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5C6661}
+    .check{width:22px;height:22px;border-radius:50%;border:1.5px solid #BEC6C2;flex:none}
+    .chip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:5px;background:#EDF1EF;color:#5C6661;font-size:11.5px;white-space:nowrap;font-family:'DM Mono','SF Mono',Menlo,monospace;font-variant-numeric:tabular-nums}
+    .chip.dashed{background:transparent;border:1px dashed #BEC6C2}
+    .chip.due{background:#FFE3DE;color:#B14F42;font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:500}
+    .chip svg{width:11px;height:11px}
+    .day{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0 6px;border-radius:10px;background:#FFFFFF;border:1px solid #D9E0DD}
+    .day.sel{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .day.off{opacity:0.7}
+    .day .wd{font-size:9.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#89928D}
+    .day.sel .wd{color:#9EA7A3}
+    .day .n{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-size:18px;line-height:1}
+    .bar{position:relative;height:4px;width:28px;border-radius:2px;background:#D7F3E5;overflow:visible;margin-top:2px}
+    .bar .m{position:absolute;top:0;bottom:0;background:#6586C3;border-radius:2px 0 0 2px}
+    .bar .p{position:absolute;top:0;bottom:0;background:#161C19;opacity:0.86}
+    .day.sel .bar .p{background:#E8ECEA}
+    .bar .o{position:absolute;top:0;bottom:0;background:#EBB16C;border-radius:0 2px 2px 0}
+    .bar.off{background:#E5EAE7}
+    .dhead{display:flex;align-items:baseline;justify-content:space-between;padding:0 2px}
+    .sp{font-size:13px;font-weight:500;color:#1C7B5A}
+    .sp.over{color:#A06F30}
+    .dbar{position:relative;height:6px;border-radius:3px;background:#D7F3E5;overflow:visible;margin:6px 2px 8px}
+    .dbar .m{position:absolute;top:0;bottom:0;background:#6586C3;border-radius:3px 0 0 3px}
+    .dbar .p{position:absolute;top:0;bottom:0;background:#161C19;opacity:0.86}
+    .dbar .o{position:absolute;top:0;bottom:0;background:#EBB16C;border-radius:0 3px 3px 0}
+    .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;font-weight:500;color:#89928D;position:relative}
+    .tab.active{color:#161C19}
+    .tab svg{width:22px;height:22px}
+    .tab .badge{position:absolute;top:-4px;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#161C19;color:#F4F8F6;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;padding:0 20px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span class="label">Upcoming · 7 days</span>
+        <span class="serif" style="font-size:28px;line-height:1.05">Tue 15 – Mon 21</span>
+      </div>
+      <span class="mono" style="font-size:11.5px;color:#5C6661;padding-bottom:4px">11h 15m spare</span>
+    </div>
+
+    <div style="display:flex;gap:6px">
+      <div class="day sel"><span class="wd">Tue</span><span class="n">15</span><div class="bar"><div class="m" style="left:0;width:26%"></div><div class="p" style="left:26%;width:30%"></div></div></div>
+      <div class="day"><span class="wd">Wed</span><span class="n">16</span><div class="bar"><div class="m" style="left:0;width:63%"></div><div class="p" style="left:63%;width:23%"></div></div></div>
+      <div class="day"><span class="wd">Thu</span><span class="n">17</span><div class="bar"><div class="m" style="left:0;width:62%"></div><div class="p" style="left:62%;width:38%;border-radius:0"></div><div class="o" style="left:100%;width:12%"></div></div></div>
+      <div class="day"><span class="wd">Fri</span><span class="n">18</span><div class="bar"><div class="m" style="left:0;width:50%"></div><div class="p" style="left:50%;width:15%"></div></div></div>
+      <div class="day off"><span class="wd">Sat</span><span class="n">19</span><div class="bar off"></div></div>
+      <div class="day off"><span class="wd">Sun</span><span class="n">20</span><div class="bar off"></div></div>
+      <div class="day"><span class="wd">Mon</span><span class="n">21</span><div class="bar"><div class="m" style="left:0;width:26%"></div><div class="p" style="left:26%;width:20%"></div></div></div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;height:40px;padding:0 12px;border-radius:10px;background:#EDF1EF;font-size:13px;color:#5C6661">
+      <span><span style="color:#161C19;font-weight:500">4 not yet planned</span> · tap to place</span>
+      <svg viewBox="0 0 20 20" style="width:16px;height:16px;color:#89928D" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l5 5-5 5"></path></svg>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;padding:16px 20px 0;flex:1;min-height:0;overflow:hidden">
+    <div>
+      <div class="dhead"><span class="serif" style="font-size:20px">Tuesday 15</span><span class="sp">3h 20m spare</span></div>
+      <div class="dbar"><div class="m" style="left:0;width:26.1%"></div><div class="p" style="left:26.1%;width:30.4%"></div></div>
+      <div class="card">
+        <div class="row first"><span class="check"></span><div class="body"><span class="title">Write proposal for Acme renewal</span><div class="meta"><span class="chip due"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17V3.5h9l-2 3.5 2 3.5H5"></path></svg>Fri</span><span class="chip">1h 30m</span><span>#Acme</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Prep 1:1 with Dana</span><div class="meta"><span class="chip">20m</span><span>#Team</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Review PR #214 — calendar sync</span><div class="meta"><span class="chip">25m</span><span>#Platform</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Pay electricity bill</span><div class="meta"><span class="chip">5m</span><span>Personal</span></div></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="dhead"><span class="serif" style="font-size:20px">Wednesday 16</span><span class="sp">1h 05m spare</span></div>
+      <div class="dbar"><div class="m" style="left:0;width:63%"></div><div class="p" style="left:63%;width:22.8%"></div></div>
+      <div class="card">
+        <div class="row first"><span class="check"></span><div class="body"><span class="title">Draft onboarding email sequence</span><div class="meta"><span class="chip">1h</span><span>#Website</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Reply to Priya about the Q4 roadmap</span><div class="meta"><span class="chip">15m</span><span>#Acme</span></div></div></div>
+        <div class="row"><span class="check"></span><div class="body"><span class="title">Outline talk for October meetup</span><div class="meta"><span class="chip dashed">30m?</span><span>#Talks</span></div></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="dhead"><span class="serif" style="font-size:20px">Thursday 17</span><span class="sp over">20m over</span></div>
+      <div class="dbar" style="margin-right:22px"><div class="m" style="left:0;width:62%"></div><div class="p" style="left:62%;width:38%;border-radius:0"></div><div class="o" style="left:100%;width:4.3%"></div></div>
+      <div class="card">
+        <div class="row first"><span class="check"></span><div class="body"><span class="title">Acme renewal deck</span><div class="meta"><span class="chip">1h 30m</span><span>#Acme</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:absolute;right:20px;bottom:104px;width:56px;height:56px;border-radius:18px;background:#161C19;color:#F4F8F6;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(22,28,25,0.22)">
+    <svg viewBox="0 0 20 20" style="width:24px;height:24px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"></path></svg>
+  </div>
+
+  <div style="position:absolute;left:0;right:0;bottom:0;height:88px;padding:10px 12px 0;background:rgba(244,248,246,0.94);border-top:1px solid #D9E0DD;display:flex;align-items:flex-start">
+    <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="3.2"></circle><path d="M10 3v1.6M10 15.4V17M3 10h1.6M15.4 10H17M5.05 5.05l1.13 1.13M13.82 13.82l1.13 1.13M5.05 14.95l1.13-1.13M13.82 6.18l1.13-1.13"></path></svg><span>Today</span></div>
+    <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5"></path><path d="M3 11.5l2-6.5h10l2 6.5"></path><path d="M3 11.5h4l1.2 2h3.6l1.2-2h4"></path></svg><span>Inbox</span><span class="badge">3</span></div>
+    <div class="tab active"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="4.5" width="13" height="12" rx="2"></rect><path d="M3.5 8.5h13M7 3v3M13 3v3"></path></svg><span>Week</span></div>
+    <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="3" width="6" height="6" rx="1.5"></rect><rect x="11" y="3" width="6" height="6" rx="1.5"></rect><rect x="3" y="11" width="6" height="6" rx="1.5"></rect><rect x="11" y="11" width="6" height="6" rx="1.5"></rect></svg><span>Browse</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -14,4 +14,5 @@ A calm, time-aware personal planner (product formerly worked on as "Personal Wor
 - Every record will carry a `space_id` (personal space for now) so team spaces can be added later without a migration.
 - Tasks have a do-date, an optional deadline and an optional start date. Only missed deadlines are shown as overdue/red.
 - AI features are optional and labeled, and run server-side only — never expose provider keys to the browser.
+- Mobile-first, always: every screen must work at 360 px wide and on touch. Write the phone layout first and widen with `min-width` queries; 44 px targets; no hover-only actions; a tap path for every drag. Width bands and per-screen behaviour are in `docs/design/DESIGN_SYSTEM.md` §4a.
 - Verify changes with `npm run lint` and `npm run build`.

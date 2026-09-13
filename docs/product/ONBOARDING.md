@@ -16,6 +16,7 @@
 | Taxonomy asked for | **None.** No areas, no projects, no tags, no priorities (P4 — the default setup is the good setup) |
 | Never | No product tour, no feature carousel, no "what brings you here?" survey, no confetti, no fake progress bars |
 | Tone | Plain, second person, short sentences. Never "Awesome!", never exclamation marks |
+| Phone (< 640 px) | **One step per screen** — 1a/1b and 2/2b become consecutive screens — with full-width buttons and ≥ 44 px targets; the reveal keeps hero + ribbon + equation in one column. Bands per `SCREENS.md` §0; every screen is responsive from M1 |
 
 **Time budget per step** (median target, measured from `onboarding_started`):
 

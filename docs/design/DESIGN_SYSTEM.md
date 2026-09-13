@@ -82,6 +82,36 @@ Rules: `text-wrap: balance` on titles, `text-wrap: pretty` on paragraphs; `font-
 - **Layout (desktop 1440):** sidebar 236 · main pane fluid (min 640) · day pane 380. Main pane padding 28/40. Below 1180 px the day pane collapses to a toggle; below 900 px the sidebar becomes a 56 px icon rail (as on the week planner).
 - **Layout (mobile 390):** 20 px gutters, 54 px reserved at the top for the system status bar (never drawn), tab bar 88 px including the home-indicator area.
 
+## 4a. Responsive layout — every screen works on a phone
+
+Mobile-first CSS: the phone layout is the base, wider layouts are added with `min-width` queries. One data model, one token set, one layout per width band. Nothing is "desktop only".
+
+| Band | Width | App shell | What changes |
+|---|---|---|---|
+| Phone | < 640 px | Bottom tab bar (Today · Inbox · Week · Browse — Browse holds areas, projects, Someday, Logbook, carried-over and Settings), FAB for quick add, sheets instead of side panes | Single column. Today's day timeline becomes a "Day" tab on the ribbon card. Hover actions become swipe (row) or long-press (menu). Drag-to-block becomes tap-to-schedule. |
+| Narrow | 640–899 px | 56 px icon rail | Single pane. Day timeline opens as a right-side sheet. Week planner shows 3 days with a horizontal scroll. |
+| Medium | 900–1179 px | Full sidebar (collapsible) | Two panes: main + day timeline toggled from the header. Week planner shows 5 days; weekends fold into one column. |
+| Wide | ≥ 1180 px | Full sidebar | Three panes on Today (sidebar · main · day timeline). Week planner shows all 7 days. |
+
+Per-screen adaptation on the phone:
+
+| Screen | Phone behaviour |
+|---|---|
+| Today | Hero + ribbon card, then Carried over, Today, This Evening (collapsed by default). On Today rows swipe right = done, swipe left = move (Tomorrow / Someday); on Carried-over rows swipe right = Today / Tomorrow, swipe left = Someday / Drop. A List · Day toggle on the ribbon card shows the vertical timeline; a task's time is set by tapping it, then a slot. |
+| Quick add | Bottom sheet docked above the keyboard, tokens parsed live, one row of suggestion chips (36 px). |
+| Upcoming (week) | Day strip with 7 mini capacity bars → tap a day to scroll to it; days are stacked vertically as an agenda; "Not yet planned" is a tappable strip that opens a picker (choose a day) instead of drag. |
+| Morning plan | One column: sticky capacity summary, then the Easiest-move card, then the groups; step buttons fixed at the bottom (48 px). |
+| Evening shutdown | One scrolling screen (same order on desktop): done today → carried to tomorrow → day rating (five 44 px targets) → one highlight (text) → tomorrow's first draft → "Close the day". |
+| Onboarding | One step per screen, the reveal keeps the hero + ribbon + equation, buttons full-width. |
+| Inbox | Tap a row to reveal a four-button triage bar (Today · Tomorrow · Someday · Project…); swipe right = Today, left = Someday; "Select" for bulk. |
+| Projects, Someday, Logbook | Reached from Browse. Same list rows; day chips ("Today", "Thu", "Carried ×2") instead of times; bulk select via long-press; filters in a sheet. |
+| Sign-in and onboarding steps | One decision per screen; toggles and radios at 44 px; the primary button fixed at the bottom above the safe area. |
+| Task detail | Full-screen sheet with the fields in the same order as the desktop panel. |
+| Command palette | Opens as a sheet from the search icon; keyboard shortcuts are hidden on touch devices (no `kbd` hints). |
+| Settings | Grouped list; working hours as a per-day picker. |
+
+Touch rules: every target ≥ 44 × 44 px; every hover-only action has a tap or long-press equivalent; every drag has a tap path; horizontal scrolling only inside containers that show a scroll affordance (the day strip, the 3-day week); text never depends on hover to be readable. Safe areas: `env(safe-area-inset-*)` on the tab bar and sheets; 54 px reserved at the top for the system status bar, which is never drawn.
+
 ## 5. Components
 
 ### Spare-time ribbon (the hero)
@@ -108,7 +138,7 @@ Chip: 22 px, radius 6, `surface-2` / `ink-2`. Deadline chip: `deadline-soft` / `
 `kbd`: 20 px, mono 11, `surface` with a 1 px `line` border and a 2 px bottom border. Shown beside "Add a task" (Q), in the search field (⌘K) and in the command palette.
 
 ### Navigation
-Sidebar items 34 px, radius 8, `ink-2`; active = `surface` background with the 1 px ring shadow and `ink` text; counts in mono `ink-3` on the right. Areas collapse with a chevron; projects indent 38 px with a 6 px `line-strong` dot. The icon rail (56 px) uses 36 px squares with the same active treatment. Mobile tab bar: four tabs, 22 px icons, 10.5 px labels, active in `ink`; counts as a 16 px `ink` badge.
+Sidebar items 34 px, radius 8, `ink-2`; active = `surface` background with the 1 px ring shadow and `ink` text; counts in mono `ink-3` on the right. Areas collapse with a chevron; projects indent 38 px with a 6 px `line-strong` dot. The icon rail (56 px) uses 36 px squares with the same active treatment. Mobile tab bar: four tabs (Today · Inbox · Week · Browse), 22 px icons, 10.5 px labels, active in `ink`; counts as a 16 px `ink` badge. Browse is the phone's sidebar: a search field, then areas and projects, Someday, Logbook, carried-over and Settings.
 
 ### Sheet (mobile quick add)
 Docks above the keyboard, 20 px top radius, 36×4 grabber, the input outlined in 1.5 px `ink`, parsed tokens rendered inline as chips, a row of 36 px suggestion chips, a 44 px "Add" primary button. The keyboard area is left to the system.

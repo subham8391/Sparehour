@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F4F8F6}
+    a{color:#1C7B5A}a:hover{color:#161C19}
+    .root{font-family:'Instrument Sans','Helvetica Neue',Helvetica,Arial,sans-serif;color:#161C19;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+    .serif{font-family:'Instrument Serif','Iowan Old Style',Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+    .mono{font-family:'DM Mono','SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#89928D}
+    .line{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:40px;padding:6px 0;border-top:1px solid #EDF1EF;font-size:16px}
+    .line.first{border-top:0}
+    .tok{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap}
+    .tok.date{background:#EDF1EF;color:#161C19}
+    .tok.est{background:#EDF1EF;color:#161C19;font-family:'DM Mono','SF Mono',Menlo,monospace;font-weight:400}
+    .tok.proj{background:#E0ECFF;color:#4868A2}
+    .tok.due{background:#FFE3DE;color:#B14F42}
+    .tok.eve{background:#FEEBD6;color:#A06F30}
+    .sug{display:inline-flex;align-items:center;height:44px;padding:0 12px;border-radius:10px;border:1px solid #D9E0DD;background:#FFFFFF;color:#161C19;font-size:13.5px;font-weight:500;white-space:nowrap}
+    .sug.mono{font-family:'DM Mono','SF Mono',Menlo,monospace;font-weight:400}
+    .btn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 18px;border-radius:12px;border:1px solid #BEC6C2;background:#FFFFFF;color:#161C19;font-size:15px;font-weight:500}
+    .btn.primary{background:#161C19;border-color:#161C19;color:#F4F8F6}
+    .btn svg{width:16px;height:16px}
+  </style>
+</helmet>
+<div class="root" style="width:390px;height:844px;background:#F4F8F6;overflow:hidden;position:relative;display:flex;flex-direction:column">
+  <div style="height:54px;flex:none"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px">
+    <div style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" style="width:20px;height:20px" fill="none"><circle cx="12" cy="12" r="9" stroke="#BEC6C2" stroke-width="2"></circle><path d="M12 3A9 9 0 0 1 19.79 16.5" stroke="#1C7B5A" stroke-width="3" stroke-linecap="round"></path></svg><span class="serif" style="font-size:19px">Sparehour</span></div>
+    <div style="display:flex;align-items:center;gap:10px"><span class="mono" style="font-size:11px;color:#5C6661">3 of 5</span><div style="display:flex;gap:3px"><span style="width:16px;height:4px;border-radius:2px;background:#161C19"></span><span style="width:16px;height:4px;border-radius:2px;background:#161C19"></span><span style="width:16px;height:4px;border-radius:2px;background:#161C19"></span><span style="width:16px;height:4px;border-radius:2px;background:#D9E0DD"></span><span style="width:16px;height:4px;border-radius:2px;background:#D9E0DD"></span></div></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;padding:22px 20px 0;flex:1;min-height:0">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <h1 class="serif" style="margin:0;font-size:32px;line-height:1.05">What's on your plate?</h1>
+      <p style="margin:0;font-size:14.5px;line-height:1.45;color:#5C6661">One task per line. Dates, estimates and projects are picked up as you type — rough is fine.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;padding:6px 14px;border-radius:14px;border:1.5px solid #161C19;background:#FFFFFF">
+      <div class="line first"><span>Write proposal for Acme renewal</span><span class="tok est">~1h30</span><span class="tok due">{fri}</span><span class="tok proj">#acme</span></div>
+      <div class="line"><span>Prep 1:1 with Dana</span><span class="tok est">~20m</span></div>
+      <div class="line"><span>Review PR #214 — calendar sync</span><span class="tok est">~25m</span><span class="tok proj">#platform</span></div>
+      <div class="line"><span>Pay electricity bill</span><span class="tok est">~5m</span></div>
+      <div class="line"><span>Call Mum</span><span class="tok eve">evening</span><span class="tok est">~20m</span></div>
+      <div class="line"><span>Read 20 pages of Slow Productivity</span><span class="tok eve">evening</span></div>
+      <div class="line"><span style="width:2px;height:22px;background:#161C19;border-radius:1px"></span></div>
+    </div>
+    <div style="display:flex;gap:8px;overflow:hidden">
+      <span class="sug">Today</span><span class="sug">Tomorrow</span><span class="sug">Evening</span><span class="sug mono">~30m</span><span class="sug mono">{fri}</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px;font-size:13px;color:#5C6661">
+      <span><span style="color:#161C19;font-weight:500">6 tasks</span> · 2h 20m today · 50m this evening</span>
+      <span class="mono" style="font-size:11px;color:#89928D">~ = estimate · {} = deadline</span>
+    </div>
+  </div>
+
+  <div style="padding:12px 20px 34px;display:flex;flex-direction:column;gap:8px">
+    <span class="btn primary">Continue<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M11 5l5 5-5 5"></path></svg></span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

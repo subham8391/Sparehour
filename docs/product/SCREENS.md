@@ -12,6 +12,17 @@ Every screen, what it contains, and how it behaves. Companion to `PRODUCT_SPEC.m
 
 **Three interaction paths, always.** Every action in the app is reachable by (1) pointer, (2) a single key or chord, and (3) `Cmd+K`. If a feature has only two of the three, it isn't finished (P5).
 
+**Responsive from M1 — four width bands.** Every screen works on a phone from M1 (ruled 2026-09-14; supersedes `DECISIONS.md`'s "capture and Today mobile-first, full responsive by M2"). The bands are defined in `docs/design/DESIGN_SYSTEM.md` §4a and repeated here because every section below ends with a **Responsive** note against them. Wireframes in this document are drawn at the wide band unless labelled otherwise.
+
+| Band | Width | App shell | What changes |
+|---|---|---|---|
+| **Phone** | < 640 px | Bottom tab bar **Today · Inbox · Week · Browse**, FAB for quick add, sheets instead of side panes | Single column. Hover actions become swipe (row) or long-press (menu). Drag-to-block becomes **tap-to-schedule**: tap the task, then tap a slot. Today's day timeline is a **Day** toggle on the ribbon card |
+| **Narrow** | 640–899 px | 56 px icon rail | Single pane. The day timeline opens as a right-side sheet. Upcoming shows 3 days with a horizontal scroll |
+| **Medium** | 900–1179 px | Full sidebar, collapsible | Two panes: main + day timeline toggled from the header. Upcoming shows 5 days, weekends folded into one column |
+| **Wide** | ≥ 1180 px | Full sidebar | Three panes on Today (sidebar · main · timeline). Upcoming shows all 7 days |
+
+Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action has a tap or long-press equivalent; every drag has a tap path; horizontal scrolling only inside containers that show a scroll affordance. "Week" is the phone tab label for Upcoming · rolling 7 days. **Browse** is the phone's sidebar — a search field, then Areas and projects, Someday, Logbook, Carried over, Settings — so projects, Someday, Logbook and Settings are reached from Browse, never from a header menu.
+
 **Density.** Row height is set for one-handed scanning: title, then metadata chips, on one line. A row never wraps to two lines on desktop; it truncates with the full title in the detail panel.
 
 **Motion is feedback only** (Q26). Things that move: a completing checkbox, a dragged block, a panel sliding in, a toast. Things that never move on their own: the ribbon after its initial paint, the list, the timeline. The single exception is the onboarding reveal (`ONBOARDING.md` §Step 5).
@@ -62,7 +73,9 @@ Every screen, what it contains, and how it behaves. Companion to `PRODUCT_SPEC.m
 4. **Typing anywhere with no input focused** opens quick-add and inserts the character. No keystroke is ever lost.
 5. **Trapped focus** in modals and flows only; every one closes on `Esc`.
 6. **Restoration:** after a dialog closes, focus returns to the element that opened it.
-7. **Screen readers:** views are landmarks, lists are `listbox`, the ribbon exposes its numbers as text (`3 hours 20 minutes spare, 4 hours 40 minutes planned, finishing at 5:40 pm`), and every state change that matters announces politely.
+7. **Screen readers:** views are landmarks, lists are `listbox`, the ribbon exposes its numbers as text (`3 hours 20 minutes spare, 2 hours 20 minutes planned, 2 hours in meetings, finishing at 4:30 pm`), and every state change that matters announces politely.
+
+**Responsive.** Phone: no sidebar — the bottom tab bar (Today · Inbox · Week · **Browse**) replaces it and the FAB replaces the quick-add bar. **Browse** is the sidebar's phone form: a search field, then Areas and projects, Someday, Logbook, Carried over, Settings. Calendar's day mode is Today's Day view and its week mode is the Week tab; the full Calendar view is reachable from the ⌘K sheet. The context pane becomes a sheet. Narrow: a 56 px icon rail (labels on long-press), single pane, context pane as a right-side sheet. Medium: full collapsible sidebar, two panes, timeline toggled from the header. Wide: as drawn. The focus model is unchanged; on touch, focus rings appear only after a hardware-keyboard keypress.
 
 ---
 
@@ -199,6 +212,15 @@ Same rows, separate section, separate budget. Evening tasks never consume workin
 | Offline | Everything works. Sync chip reads "Offline · 3 changes waiting". Blocks show a "will sync" dot |
 | Calendar error | One dismissible line above the ribbon: "Couldn't reach Google Calendar. Showing your last sync from 9:12am." Retry |
 
+### 2.8 Responsive
+
+| Band | Today |
+|---|---|
+| **Phone** | Single column: date header, then the ribbon card (sticky on scroll) carrying a **List · Day** toggle. *Day* shows the vertical timeline in place of the list; a task's time is set by **tapping the task, then tapping a slot** (tap-to-schedule, M1 — no drag). Carried-over actions are always visible on the row. **Swipe rules:** Today rows — swipe right = done, swipe left = move (Tomorrow · Someday); Carried-over rows — swipe right = Today · Tomorrow, swipe left = Someday · Drop; long-press = multi-select. This Evening starts collapsed. Wireframe in §22 |
+| **Narrow** | Single pane; the timeline opens as a right-side sheet from the Day button or `Cmd+.` |
+| **Medium** | Two panes; the timeline is toggled from the header |
+| **Wide** | Three panes, as drawn |
+
 ---
 
 ## 3. Upcoming · rolling 7 days — M1
@@ -245,6 +267,8 @@ One view (ruled 2026-09-13 — the Week planner and Upcoming are the same screen
 | Non-working days | Greyed, still droppable, readout "no working hours" |
 | Milestone | M1. Board view and saved filters are M2 |
 
+**Responsive.** Phone: a **7-day strip** across the top, one mini capacity bar per day (tap a day to jump to it), over the days **stacked vertically as one agenda**; "Not yet planned" is a tappable strip at the bottom that opens as a sheet, and each task in it gets a **day picker** instead of a drag target; moving any task is long-press → Move to… → day picker. Narrow: 3 day columns with a horizontal scroll (affordance shown) and the rail collapsed to a `Not yet planned · 5` button that opens a sheet. Medium: 5 columns, Sat–Sun folded into one. Wide: 7 columns plus the rail, as drawn.
+
 ---
 
 ## 4. Calendar — day / week — M1
@@ -262,6 +286,8 @@ The time-first view. Same timeline component as Today's right pane, at full widt
 | Header per day | Date + the day's capacity readout |
 | Empty | "Nothing on. Drag a task in, or drag on the grid to block time." |
 | Milestone | M1 |
+
+**Responsive.** Phone: Day mode only (3-day in landscape); the task rail is a sheet behind a `Tasks` button; tap-to-schedule — tap a task in the sheet, then a slot; a block moves by long-press, then tapping its new slot, and resizes from the detail sheet; the empty copy drops "drag". Narrow: 3-day with horizontal scroll, rail as a sheet. Medium: 5-day, weekends folded. Wide: 7-day, as described.
 
 ---
 
@@ -291,6 +317,7 @@ A triage queue, not a list. The goal is to empty it.
 - Age is shown in days, factually. **No red, no "overdue" concept in the Inbox.**
 - Empty state: "Inbox zero. Nice." — one line, no graphic.
 - Milestone: M1. Share-target and email-in arrivals appear here at M2, badged with their source.
+- **Responsive.** Phone: tapping a row reveals a **four-button bar** under it — **Today · Tomorrow · Someday · Project…** (each ≥ 44 px; Project… opens the project picker as a sheet, with estimate and deadline behind it); **swipe right = Today, swipe left = Someday**; long-press = bulk select; `Triage all` is full-screen. Narrow and up: as drawn.
 
 ---
 
@@ -304,6 +331,7 @@ Not a separate view: this is what §3 shows once you scroll past day 7 — dated
 - Tasks hidden by a `start_date` show in a collapsed "Starting later · 4" group at the bottom of their start day.
 - Drag between days. `[`/`]` jump by week.
 - Milestone: M1.
+- **Responsive.** Phone: the agenda simply keeps scrolling under the 7-day strip; moves use the day picker. Narrow and up: continues below the columns.
 
 ---
 
@@ -318,6 +346,7 @@ The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
 - No counts in the sidebar, no age shaming, no badge. Ever.
 - M2 adds **backlog suggestions** — a "Worth another look" group ranked by age, reschedule count and deadline proximity (`07` §B16).
 - Milestone: M1.
+- **Responsive.** Phone: reached from **Browse**; same rows; actions on tap (sheet) or swipe; long-press for bulk; `Review` walks full-screen. All bands: same grouping.
 
 ---
 
@@ -330,6 +359,7 @@ The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
 - `U` on a row un-completes it, restoring its previous state and date (a past date lands it in Carried over).
 - Day rating and highlights from the shutdown appear as a quiet line under the day header.
 - Milestone: M1. Year heatmap and Year in Review: Later.
+- **Responsive.** Phone: reached from **Browse**; same rows; filters in a sheet behind a `Filter` button; swipe right = Reopen (the `U` action). Narrow and up: as drawn.
 
 ---
 
@@ -366,6 +396,8 @@ The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
 | Someday group | Collapsed at the bottom, so parked work stays visible without cluttering the list |
 | Empty | "Nothing in this project yet." + `Add the first task` |
 | Milestone | M1. Board view over the same data: M2 |
+
+**Responsive.** Phone: reached from **Browse**, which lists Areas with their projects; area cards stack in one column; the project view is one column with collapsible headings and the notes block collapsed by default; tapping a task opens the detail sheet; long-press for bulk. Narrow: single pane. Medium and wide: as drawn.
 
 ---
 
@@ -415,6 +447,8 @@ Opens in the context pane (desktop) or a sheet (mobile). `Space` peeks, `Enter` 
 | Recurring | Header shows "Repeats every Monday · next Mon 16". Editing a date prompts **Just this once** vs **Change the rule** |
 | Milestone | M1; attachments and links M2 |
 
+**Responsive.** Phone: a **full-screen sheet** with the fields in the same order as the panel; field popovers become sheets; the footer (Complete · Block it · ⋯) is fixed at the bottom at 48 px. Narrow: a right-side sheet. Medium and wide: the context pane, as drawn.
+
 ---
 
 ## 11. Quick-add — M1
@@ -436,6 +470,7 @@ Opens in the context pane (desktop) or a sheet (mobile). `Space` peeks, `Enter` 
 - Multi-line paste shows "12 tasks — Undo" after saving.
 - Destination line when it isn't obvious: "→ Inbox" or "→ Today".
 - Milestone: M1. Voice capture: M2.
+- **Responsive.** Phone: the FAB opens a **bottom sheet docked above the keyboard** with live parsing and one row of 36 px token chips (date presets, estimate presets, `#`, `@`, `!`); ⏎ saves and keeps going. Wireframe in §22. Narrow and up: the overlay as drawn.
 
 ---
 
@@ -471,6 +506,8 @@ Opens in the context pane (desktop) or a sheet (mobile). `Space` peeks, `Enter` 
 
 Rules: the palette never performs a destructive action without a confirm step in the same palette; commands that need a selection are listed but disabled with the reason ("select a task first"); results are keyboard-navigable and `Enter` runs the top one.
 
+**Responsive.** Phone: opens as a **sheet** from the search icon in the header or from Browse's search field, search field focused, rows 48 px, and the shortcut column is **hidden on touch devices** (no `kbd` hints). Narrow and up: as drawn.
+
 ---
 
 ## 13. Search — M1
@@ -486,6 +523,8 @@ Rules: the palette never performs a destructive action without a confirm step in
 | Actions | Every row supports the full selected-task key set without leaving search |
 | Empty | "Nothing matched *foo*." + `Add "foo" as a task` |
 | Milestone | M1. `Save this as a filter` appears here at M2 and pins the result to the sidebar |
+
+**Responsive.** Phone: entered from **Browse**'s search field (or `/` on a hardware keyboard); full-screen; the filter chips scroll horizontally in one row; results use the same rows and swipe actions. Narrow and up: the overlay as described.
 
 ---
 
@@ -549,20 +588,26 @@ Full-screen, three steps (ruled 2026-09-13), a persistent spare-time readout, an
 5. Entry: Today header · the morning nudge notification · `Cmd+Shift+M` · command palette.
 6. Progress dots are navigable — you can go back without losing anything.
 
+**Responsive.** Phone: **one column** — a **sticky capacity summary** at the top ("5h 40m fits today · 6h 20m picked"), then the Easiest-move card when over, then the three groups (collapsible); the step buttons (Back · Next) are **fixed at the bottom, 48 px**; step 3 uses tap-to-schedule. Narrow: the same column, wider. Medium and wide: as drawn.
+
 ---
 
 ## 15. Evening shutdown flow — M1
 
-Four steps, target 60–90 seconds. The point is to *stop working*, so nothing here creates new work.
+Six steps in a settled order (ruled 2026-09-14, desktop and phone alike), target 60–90 seconds. The point is to *stop working*, so nothing here creates new work.
 
 | Step | Content | Copy | Interactions |
 |---|---|---|---|
-| **1 · What you did** | Today's completed tasks with the total time; then unfinished ones | "You finished **7 things** — about **4h 20m**." / "5 things didn't happen. That's normal." | Each unfinished task: `Tomorrow` · `Someday` · `Drop` · `Keep for today`. `Move all to tomorrow` in the footer |
-| **2 · Highlights** | Up to 3 free-text lines, with today's completions offered as one-tap picks | "What was worth it today?" | Type, or tap a completion to use it as a highlight. Skippable |
-| **3 · Rating** | A 1–5 scale, one tap, unlabelled beyond the scale. A 14-day sparkline appears once 5 ratings exist | "How was the day?" | One tap, or `1`–`5`. Skippable |
-| **4 · Close** | Tomorrow's load and spare time, with `Plan tomorrow now` and `Plan it in the morning` | "That's the day. Nothing is waiting for you." | `Done` closes the flow |
+| **1 · Done today** | Today's completed tasks with the total time | "You finished **7 things** — about **4h 20m**." | Read-only. `Next` |
+| **2 · Carried to tomorrow** | The unfinished tasks, each with an action | "5 things didn't happen. That's normal." | Each row: `Tomorrow` · `Someday` · `Drop` · `Keep for today`. `Move all to tomorrow` in the footer. `Next` works with rows unresolved — they carry by default |
+| **3 · Day rating** | A 1–5 scale, one tap, unlabelled beyond the scale. A 14-day sparkline appears once 5 ratings exist | "How was the day?" | One tap, or `1`–`5`. Skippable |
+| **4 · One highlight** | A single free-text line, with today's completions offered as one-tap picks | "What was worth it today?" | Type, or tap a completion to use it. Skippable |
+| **5 · Tomorrow's first draft** | Tomorrow's current load and spare time, with what step 2 just moved there | "Tomorrow: **4h 10m** spare, 3 things already on it." | `Plan tomorrow now` · `Plan it in the morning` |
+| **6 · Close the day** | The closing line | "That's the day. Nothing is waiting for you." | `Close the day` ends the flow |
 
-**Behaviour.** Sets `DayPlan.shutdown_at`, `highlights`, `day_rating`. On completion, Today switches to a closed state for the rest of the evening: the ribbon is replaced by the day's summary line, This Evening stays visible, and the app stops showing the shutdown button. The badge clears. Entry: Today header · the opt-in shutdown nudge (off by default) · `Cmd+Shift+E`.
+**Behaviour.** Sets `DayPlan.shutdown_at`, `highlights` (one entry), `day_rating`. On completion, Today switches to a closed state for the rest of the evening: the ribbon is replaced by the day's summary line, This Evening stays visible, and the app stops showing the shutdown button. The badge clears. Entry: Today header · the opt-in shutdown nudge (off by default) · `Cmd+Shift+E`.
+
+**Responsive.** Phone: a full-screen card stack, one step per card in the order above; the rating is five 44 px targets; the footer buttons are fixed at the bottom. Narrow and up: as drawn.
 
 ---
 
@@ -581,6 +626,8 @@ A wizard, same chrome as the morning plan, default Friday afternoon, entirely sk
 | 7 · Next week | The 7-day capacity strip with one line per day, and any deadlines landing |
 
 An AI-drafted summary (labelled, editable, rejectable) appears at step 6 from M3.
+
+**Responsive.** Phone: one column per step with the morning plan's sticky summary and fixed 48 px step buttons; the Triage-all walker is full-screen; the 7-day capacity strip in step 7 is the same strip as Upcoming's. Narrow and up: as the morning plan.
 
 ---
 
@@ -616,6 +663,7 @@ One task, nothing else.
 - **Document Picture-in-Picture "Now" card** on desktop Chromium/Firefox: a small always-on-top window with the task, the remaining time, pause and done. Not available in Safari — the feature is simply absent there, never broken.
 - The checklist is the only editable thing on screen; everything else is read-only by design.
 - Milestone: M2.
+- **Responsive.** Phone: full-screen, checklist under the timer, controls ≥ 48 px, Wake Lock on, no Picture-in-Picture. Identical on every other band.
 
 ---
 
@@ -635,6 +683,8 @@ Two-column: a section list on the left, the section on the right. Every change s
 | **Billing** (M3) | Plan · trial days remaining · founding-member badge · payment method · invoices · cancel (no retention maze: one screen, one button) |
 | **Labs** (M2) | Opt-in unfinished features, each with a one-line description and a "this may change" note |
 | **About** | Version, what's new, keyboard shortcuts, the exit guarantee (M3), privacy, contact |
+
+**Responsive.** Phone: reached from **Browse**; the section list is one screen and each section pushes in (two-level navigation, Back in the header); working hours become a per-day picker; every toggle and row ≥ 44 px. Narrow: the same two-level pattern. Medium and wide: two columns, as described.
 
 ---
 
@@ -663,6 +713,8 @@ Two-column: a section list on the left, the section on the right. Every change s
 | **App-icon badge** | Today's remaining planned count. Neutral, clears at shutdown, only after notification permission is granted |
 | Never used | Modal dialogs for anything other than destructive confirmations. No interstitials, no upsell popovers |
 
+**Responsive.** Phone: toasts stack above the tab bar, safe-area aware, with the Undo target ≥ 44 px; banners sit under the header; push notifications on iOS arrive without action buttons (rules above). Same anatomy on every band.
+
 ---
 
 ## 20. Offline and sync status — M1
@@ -678,6 +730,8 @@ The sync chip lives at the bottom of the sidebar and expands on click.
 | Not persisted | `! Storage not protected` | "Install Sparehour to stop your browser clearing this data." Install instructions per platform |
 
 **Rules.** The app is never blocked by sync state. Writes always apply locally first. A conflict resolves last-write-wins per field, and the overwritten value is kept in the task's activity history rather than discarded. Blocks created offline carry a small "will sync" dot on the timeline.
+
+**Responsive.** Phone and narrow: there is no sidebar, so the chip sits in the Today header next to the date, and tapping it opens the expanded state as a sheet. Medium and wide: bottom of the sidebar, as described.
 
 ---
 
@@ -711,20 +765,23 @@ The sync chip lives at the bottom of the sidebar and expands on click.
 | Quota / storage full | Banner with `Export your data` first, then instructions |
 | Unexpected failure | An inline, in-place message with `Try again` and `Copy details`. Never a blank screen, never a stack trace, never "Something went wrong" alone |
 
+**Responsive.** Same copy on every band; skeletons match the band's layout (one column on phone) so nothing reflows when data lands; empty-state actions are full-width buttons on phone.
+
 ---
 
-## 22. Mobile — PWA — M1
+## 22. Phone layouts — Today and Quick-add — M1
 
-Capture, Today and notifications are mobile-first at M1; full responsive parity is M2 (`DECISIONS.md`).
+Every screen is responsive from M1 (§0 bands). This section draws the two phone screens that matter most; every other section carries its own Responsive note.
 
 ```
 ┌──────────────────────────┐        ┌──────────────────────────┐
-│ Fri 13 Sep          ⋯    │        │  ← Quick add             │
+│ Tue 15 Sep          ⋯    │        │  ← Quick add             │
 │                          │        │                          │
 │ ├─┬──┬────┬──────────┤   │        │  Draft the proposal      │
 │ │▦│░░│▓▓▓▓│··········│   │        │  ⟨tomorrow 3pm⟩ ⟨~45m⟩   │
 │ └─┴──┴────┴──────────┘   │        │  ⟨#Acme⟩                 │
 │ 3h 20m spare · by 4:30pm │        │  ──────────────────────  │
+│ ( List )  ( Day )        │        │                          │
 │                          │        │  Tomorrow 3:00pm · 45m   │
 │ CARRIED OVER · 2      ⌄  │        │  · Acme redesign         │
 │ ○ Reply to Dana   ~15m ×3│        │                          │
@@ -746,22 +803,23 @@ Capture, Today and notifications are mobile-first at M1; full responsive parity 
 │                    │ + │ │
 │                    ╰───╯ │
 ├──────────────────────────┤
-│ Today Inbox Upcoming ⋯   │
+│ Today Inbox Week Browse  │
 └──────────────────────────┘
 ```
 
 | Aspect | Detail |
 |---|---|
-| Today, mobile | Single column. The ribbon sits directly under the date and is sticky on scroll — it is the reason to open the app. The timeline moves to a `Timeline` tab rather than a side pane |
-| Bottom bar | Today · Inbox · Upcoming · More. Thumb-reachable |
+| Today, phone | Single column. The ribbon card sits directly under the date and is sticky on scroll — it is the reason to open the app. It carries the **List · Day** toggle; *Day* shows the vertical timeline in place of the list |
+| Bottom tab bar | **Today · Inbox · Week · Browse** ("Week" is the phone label for Upcoming · rolling 7 days). Thumb-reachable, safe-area aware |
+| Browse | The phone's sidebar, one tap away: a search field, then Areas and projects, Someday, Logbook, **Carried over** (every carried task in one list), Settings. Projects, Someday, Logbook and Settings are reached only from here |
 | **FAB** | Bottom-right, opens quick-add |
 | **Quick-add, mobile** | The same parser, plus a **token toolbar above the keyboard**: date presets, estimate presets, `#`, `@`, `!`. Tapping inserts the token text so people learn the syntax by using the buttons |
-| Row actions | Swipe right → complete. Swipe left → a snooze/action tray (Tomorrow · This evening · Someday · Drop). Long-press → multi-select |
+| Row actions | Today rows: swipe right → done, swipe left → move (Tomorrow · Someday). Carried-over rows: swipe right → Today · Tomorrow, swipe left → Someday · Drop. Inbox rows: swipe right → Today, swipe left → Someday (§5). Long-press → multi-select |
 | Carried over | Actions are always visible on the row (no hover to rely on) |
-| Time-blocking | Tap-to-schedule at M2; at M1 mobile is read-only on the timeline (`DECISIONS.md`: planning is desktop-first) |
+| Time-blocking | **Tap-to-schedule from M1:** tap a task, then tap a slot on the Day view; the ghost block sizes to the estimate and snaps to 5 minutes, exactly as a drag does on desktop |
 | Rituals | Morning plan and shutdown work full-screen on mobile at M1 — they are the two things people do away from a desk |
 | Install | iOS needs Add to Home Screen for notifications, offline and persistent storage; the coaching from `ONBOARDING.md` §After the reveal is repeated in Settings |
-| Landscape / tablet | Tablet gets the two-pane desktop layout at M2 |
+| Tablet / landscape | Falls into the narrow or medium band (§0) by width, from M1 — no separate tablet layout |
 
 ---
 
@@ -769,11 +827,15 @@ Capture, Today and notifications are mobile-first at M1; full responsive parity 
 
 Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all seven copy variants. It reuses the production ribbon component at full width, is the only screen with an entrance animation, and its single button leads to Today.
 
+**Responsive.** Phone: onboarding is **one step per screen** (1a/1b and 2/2b become consecutive screens), buttons full-width, targets ≥ 44 px; the reveal keeps the hero, the ribbon and the equation stacked in one column. Narrow and up: as described in `ONBOARDING.md`.
+
 ---
 
 ## 24. Keyboard shortcut map — M1
 
 `?` opens this as a searchable overlay, grouped exactly as below. Custom rebinding is Later (`FEATURES.md` §11).
+
+**Touch.** Every shortcut below has a tap path — swipe, long-press, a sheet, or tap-to-schedule — described in §0 and in each section's Responsive note. On touch devices the `?` overlay and inline `kbd` hints are hidden; they return the moment a hardware keyboard sends a keypress.
 
 ### Global
 

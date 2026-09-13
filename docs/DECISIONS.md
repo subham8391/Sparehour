@@ -28,8 +28,8 @@
 - AI is always optional and labeled. Included in the price (fair use); no credits, no add-ons.
 
 **Platform**
-- Mobile at M1: capture, Today and notifications are mobile-first. Full responsive by M2 (tap-to-schedule on phones). Native wrapper later for widgets, Live Activities and Watch.
-- Planning is desktop-first.
+- **Every screen is responsive and touch-friendly from M1** (user instruction, 2026-09-14) — mobile-first CSS, one layout per width band (phone / narrow / medium / wide), 44 px targets, a tap alternative for every drag and hover action. Bands and per-screen behaviour: `docs/design/DESIGN_SYSTEM.md` §4a; phone mockups on the Daylight canvas. Native wrapper later for widgets, Live Activities and Watch.
+- Capture and Today are designed phone-first; planning screens are designed on the desktop first but must work on the phone before M1 is done.
 
 ## Design and spec rulings (2026-09-13, evening)
 
