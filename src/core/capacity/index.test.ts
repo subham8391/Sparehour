@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { formatTime, instant, localDate, localTime } from "../time";
 import { capacityFor, classify, workWindowsFor, type CapacityInput } from "./index";
-import { clip, merge, round5, subtract, totalMinutes, type Interval } from "./intervals";
+import { clip, merge, round5, subtract, totalMinutes } from "./intervals";
 import { DAY, REFERENCE_DAY, SETTINGS, WORK_HOURS, block, event, task } from "./__fixtures__/reference-day";
 
 describe("the reference day", () => {
@@ -248,11 +248,11 @@ describe("interval properties", () => {
 });
 
 const arbHHMM = fc.integer({ min: 0, max: 1439 });
-const arbEvent = fc.tuple(arbHHMM, arbHHMM).map(([a, b], i) => {
+const arbEvent = fc.tuple(arbHHMM, arbHHMM).map(([a, b]: [number, number]) => {
   const s = Math.min(a, b);
   const e = Math.max(a, b) + 1;
   const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-  return event(`e${s}-${e}-${i}`, fmt(Math.min(s, 1439)), fmt(Math.min(e, 1439)));
+  return event(`e${s}-${e}`, fmt(Math.min(s, 1439)), fmt(Math.min(e, 1439)));
 });
 const arbTask = fc.record({ id: fc.uuid(), est: fc.integer({ min: 1, max: 240 }) }).map((r) => task(r.id, r.est));
 const arbBlockFor = (taskId: string) =>
