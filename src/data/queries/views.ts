@@ -49,6 +49,15 @@ export const CALENDARS_COUNT_SQL = `select count(*) as n from calendars where de
 /** One task, for the detail panel. */
 export const TASK_SQL = `select * from tasks where id = ? and deleted_at is null`;
 
+/** The day's plan row (rituals, rating, highlight). */
+export const DAY_PLAN_SQL = `select * from day_plans where deleted_at is null and date = ? limit 1`;
+
+/** Tasks completed between two instants (ISO text bounds, inclusive/exclusive); present locally while the logbook stream is subscribed. */
+export const DONE_BETWEEN_SQL = `
+  select * from tasks
+  where deleted_at is null and state = 'done' and completed_at >= ? and completed_at < ?
+  order by completed_at desc, id`;
+
 export const CHECKLIST_SQL = `select id, task_id, title, done, sort_key from checklist_items where deleted_at is null and task_id = ? order by sort_key, id`;
 
 /** The tags on one task, by name. */

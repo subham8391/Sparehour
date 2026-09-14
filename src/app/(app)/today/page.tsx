@@ -1,16 +1,24 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@/data/powersync";
 import type { Capacity } from "@/core/capacity";
 import { keyBetween } from "@/core/ordering";
-import { Temporal, formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
+import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
+import { normaliseTimestamp, toTask } from "@/data/mappers";
+import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, monthsBack } from "@/data/queries/views";
+import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import { closedLine } from "@/features/rituals/shutdown";
 import { ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday } from "@/features/today/hooks/use-today";
+
+const NOTHING_SQL = `select * from tasks where 0`;
 
 /**
  * Measures repository call → the React commit that shows the new data, for
@@ -84,6 +92,27 @@ export default function TodayPage() {
   const zone = model.settings?.timezone ?? "UTC";
   const tomorrow: LocalDate = model.today.add({ days: 1 });
 
+  // The day's ritual state (SCREENS.md §2.1, §15): once shut down, the ribbon gives way to the day's summary.
+  const todayIso = model.today.toString();
+  const { data: planRows } = useQuery<{ shutdown_at: string | null; highlights: string | null; day_rating: number | null }>(DAY_PLAN_SQL, [todayIso]);
+  const plan = planRows?.[0] ?? null;
+  const closedAt = plan?.shutdown_at ? formatTime(instant(normaliseTimestamp(plan.shutdown_at)).toZonedDateTimeISO(zone).toPlainTime()) : null;
+  const dayBounds = useMemo(() => {
+    const start = model.today.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
+    const end = tomorrow.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
+    return [start, end] as [string, string];
+  }, [model.today, tomorrow, zone]);
+  const months = useMemo(() => monthsBack(model.today, 1), [model.today]);
+  const { data: doneRows } = useQuery<TaskRowType>(closedAt ? DONE_BETWEEN_SQL : NOTHING_SQL, closedAt ? dayBounds : [], {
+    streams: closedAt ? [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] : undefined,
+  });
+  const doneToday = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
+  const nowMin = (() => {
+    const z = now.toZonedDateTimeISO(zone);
+    return z.hour * 60 + z.minute;
+  })();
+  const shutdownReady = !model.capacity || model.capacity.state === "no_work_day" || nowMin >= model.capacity.windows[model.capacity.windows.length - 1].end - 120;
+
   const move = (t: Task, dir: -1 | 1) => {
     const list = model.todayTasks;
     const i = list.findIndex((x) => x.id === t.id);
@@ -100,9 +129,27 @@ export default function TodayPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl gap-8 p-6 md:p-10">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <ViewHeader eyebrow="Today" title={formatDay(model.today, { weekday: "long", month: "long" })} />
+        <ViewHeader
+          eyebrow="Today"
+          title={formatDay(model.today, { weekday: "long", month: "long" })}
+          actions={
+            !closedAt && (
+              <Link href="/shutdown" className={`flex min-h-11 items-center px-2 text-[13.5px] font-medium ${shutdownReady ? "text-ink" : "text-ink-3"} hover:text-ink`}>
+                Shutdown ▸
+              </Link>
+            )
+          }
+        />
 
-        {model.capacity && <Ribbon c={model.capacity} />}
+        {closedAt ? (
+          <div className="rounded-2xl border border-line bg-surface p-5">
+            <p className="font-display text-2xl text-ink">That&rsquo;s the day.</p>
+            <p className="mt-1 font-mono text-[12px] text-ink-2">{closedLine(doneToday, model.settings?.defaultEstimateMin ?? 30, closedAt, plan?.day_rating ?? null)}</p>
+            {plan?.highlights && <p className="mt-2 text-[14px] text-ink-2">Worth it: {plan.highlights}</p>}
+          </div>
+        ) : (
+          model.capacity && <Ribbon c={model.capacity} />
+        )}
 
         {model.carried.length > 0 && (
           <section className="flex flex-col gap-2">
