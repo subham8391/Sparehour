@@ -27,6 +27,8 @@ export interface CommandContext {
   openShortcuts: () => void;
   setTheme: (theme: Theme) => void;
   undo: () => void;
+  /** Places the task in the next free gap that fits its estimate (only where a day is in view). */
+  blockTask: (id: string) => void;
 }
 
 export interface Command {
@@ -74,6 +76,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.priority2", title: "Priority 2", group: "Selected task", shortcut: "2", requiresSelection: true, run: priority(2) },
   { id: "task.priority3", title: "Priority 3", group: "Selected task", shortcut: "3", requiresSelection: true, run: priority(1) },
   { id: "task.priority0", title: "No priority", group: "Selected task", shortcut: "0", requiresSelection: true, run: priority(0) },
+  { id: "task.block", title: "Block it", group: "Selected task", shortcut: "b", requiresSelection: true, keywords: "schedule time slot gap", run: onSelected((ctx, id) => ctx.blockTask(id)) },
   { id: "task.do", title: "Set do-date", group: "Selected task", shortcut: "d", requiresSelection: true, keywords: "when day schedule", run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.deadline", title: "Set deadline", group: "Selected task", shortcut: "shift+d", requiresSelection: true, keywords: "due", run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: onSelected((ctx, id) => ctx.openTask(id)) },

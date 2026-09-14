@@ -1,14 +1,17 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@/data/powersync";
+import { blockLength, chooseSlot, placeAt } from "@/core/blocking";
 import { keyBetween } from "@/core/ordering";
-import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, type LocalDate } from "@/core/time";
+import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, toInstant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { normaliseTimestamp, toTask } from "@/data/mappers";
 import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, OPEN_TASKS_SQL, monthsBack } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import { useBlocking } from "@/features/blocking/blocking-provider";
+import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
 import { Ribbon } from "@/features/today/ribbon";
@@ -18,9 +21,19 @@ import { MoveActions } from "@/features/tasks/task-actions";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
-import { useToday } from "@/features/today/hooks/use-today";
+import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
 
 const NOTHING_SQL = `select * from tasks where 0`;
+const USER_SQL = `select id, personal_space_id from users limit 1`;
+
+/** The chip a blocked task carries in the list (SCREENS.md §2.6 "a small block indicator"). */
+function BlockChip({ block }: { block: TimelineBlock }) {
+  return (
+    <span className="rounded-md bg-ink px-2 py-0.5 font-mono text-xs text-paper" title={`Blocked ${formatTime(timeFromMinutes(block.start))}–${formatTime(timeFromMinutes(block.end))}`}>
+      ▪ {formatTime(timeFromMinutes(block.start))}
+    </span>
+  );
+}
 
 /**
  * Measures repository call → the React commit that shows the new data, for
@@ -57,6 +70,80 @@ export default function TodayPage() {
   const zone = model.settings?.timezone ?? "UTC";
   const tomorrow: LocalDate = model.today.add({ days: 1 });
 
+  // ---- time blocks (SCREENS.md §2.6): local for now, on the calendar with P7b.
+  const blocks = useBlockRepo();
+  const blocking = useBlocking();
+  const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "day">("list");
+  const windows = model.capacity?.windows ?? [];
+  const dayStart = windows[0]?.start ?? 9 * 60;
+  const dayEnd = windows[windows.length - 1]?.end ?? 17 * 60;
+  const defaultEstimate = model.settings?.defaultEstimateMin ?? 30;
+  const nowMinute = (() => {
+    const z = now.toZonedDateTimeISO(zone);
+    return z.hour * 60 + z.minute;
+  })();
+  const atMinute = useCallback(
+    (minute: number) => (minute >= 24 * 60 ? toInstant(tomorrow, timeFromMinutes(0), zone) : toInstant(model.today, timeFromMinutes(minute), zone)).toString(),
+    [model.today, tomorrow, zone],
+  );
+  const findTask = (id: string): Task | undefined => [...model.carried, ...model.todayTasks, ...model.eveningTasks].find((t) => t.id === id);
+  const placeTask = async (task: Task, startMin: number) => {
+    const existing = model.blockByTask.get(task.id);
+    const len = existing ? existing.end - existing.start : blockLength(task.estimateMin, defaultEstimate);
+    const at = placeAt(startMin, len);
+    if (existing) {
+      await blocks.move(existing.id, atMinute(at.start), atMinute(at.end));
+      setSelectedBlockId(existing.id);
+      return;
+    }
+    const user = users?.[0];
+    if (!user?.personal_space_id) return;
+    const id = await blocks.create({ spaceId: user.personal_space_id, userId: user.id, taskId: task.id, title: task.title, startAt: atMinute(at.start), endAt: atMinute(at.end) });
+    setSelectedBlockId(id);
+  };
+  // `B`, the palette and the detail's "Block it": the next free gap that fits, from now.
+  const blockInNextGap = (taskId: string) => {
+    const task = findTask(taskId);
+    if (!task) return;
+    setView("day");
+    const existing = model.blockByTask.get(task.id);
+    if (existing) {
+      setSelectedBlockId(existing.id);
+      return;
+    }
+    const slot = chooseSlot(model.capacity?.free ?? [], Math.max(nowMinute, dayStart), blockLength(task.estimateMin, defaultEstimate), dayEnd);
+    void placeTask(task, slot.start);
+  };
+  const blockInNextGapRef = useRef(blockInNextGap);
+  useEffect(() => {
+    blockInNextGapRef.current = blockInNextGap;
+  });
+  useEffect(() => blocking.register((id) => blockInNextGapRef.current(id)), [blocking]);
+  const selectedBlock = model.blocks.find((b) => b.id === selectedBlockId) ?? null;
+  const removeBlock = (id: string) => {
+    setSelectedBlockId((s) => (s === id ? null : s));
+    void blocks.remove(id);
+  };
+  // With a block selected: L locks, Backspace/Delete removes, Escape lets go (before the task shortcuts see the key).
+  useEffect(() => {
+    if (!selectedBlock) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      if (e.key === "l" || e.key === "L") void blocks.setLocked(selectedBlock.id, !selectedBlock.locked);
+      else if (e.key === "Backspace" || e.key === "Delete") removeBlock(selectedBlock.id);
+      else if (e.key === "Escape") setSelectedBlockId(null);
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  });
+
   // The day's ritual state (SCREENS.md §2.1, §15): once shut down, the ribbon gives way to the day's summary.
   const todayIso = model.today.toString();
   const { data: planRows } = useQuery<{ shutdown_at: string | null; planned_at: string | null; highlights: string | null; day_rating: number | null }>(DAY_PLAN_SQL, [todayIso]);
@@ -77,11 +164,7 @@ export default function TodayPage() {
     streams: closedAt ? [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] : undefined,
   });
   const doneToday = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
-  const nowMin = (() => {
-    const z = now.toZonedDateTimeISO(zone);
-    return z.hour * 60 + z.minute;
-  })();
-  const shutdownReady = !model.capacity || model.capacity.state === "no_work_day" || nowMin >= model.capacity.windows[model.capacity.windows.length - 1].end - 120;
+  const shutdownReady = !model.capacity || model.capacity.state === "no_work_day" || nowMinute >= model.capacity.windows[model.capacity.windows.length - 1].end - 120;
 
   const move = (t: Task, dir: -1 | 1) => {
     const list = model.todayTasks;
@@ -96,8 +179,16 @@ export default function TodayPage() {
 
   if (!model.ready) return <main className="p-8 text-ink-3">Loading today…</main>;
 
+  const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
+  const showDay = hasDay && view === "day";
+  const segment = (v: "list" | "day", label: string) => (
+    <button type="button" aria-pressed={view === v} onClick={() => setView(v)} className="h-9 rounded-lg px-3 text-[13px] font-medium text-ink-2 aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-sm">
+      {label}
+    </button>
+  );
+
   return (
-    <main className="mx-auto flex w-full max-w-6xl gap-8 p-6 md:p-10">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6 md:flex-row md:p-10">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
         <ViewHeader
           eyebrow="Today"
@@ -130,6 +221,16 @@ export default function TodayPage() {
           model.capacity && <Ribbon c={model.capacity} />
         )}
 
+        {hasDay && (
+          <div className="-mt-2 flex justify-end md:hidden">
+            <div role="group" aria-label="Show" className="flex gap-0.5 rounded-xl bg-surface-2 p-0.5">
+              {segment("list", "List")}
+              {segment("day", "Day")}
+            </div>
+          </div>
+        )}
+
+        <div className={`flex flex-col gap-6 ${showDay ? "hidden md:flex" : ""}`}>
         {model.carried.length > 0 && (
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between px-0.5">
@@ -148,6 +249,8 @@ export default function TodayPage() {
                 <TaskRow
                   key={t.id}
                   task={t}
+                  draggable={hasDay}
+                  meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                   onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
                   onDone={() => void time("complete", () => model.repo.complete(t.id))}
                   actions={
@@ -183,6 +286,11 @@ export default function TodayPage() {
               <TaskRow
                 key={t.id}
                 task={t}
+                draggable={hasDay}
+                meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                onOpen={() => detail.open(t.id)}
+                selected={sel.selectedId === t.id}
+                onSelect={() => sel.select(t.id)}
                 onDone={() => void time("complete", () => model.repo.complete(t.id))}
                 actions={
                   <span className="-my-2 flex shrink-0 items-center text-ink-3">
@@ -236,20 +344,56 @@ export default function TodayPage() {
             <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-over">This evening</h2>
             <TaskList>
               {model.eveningTasks.map((t) => (
-                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} onDone={() => void time("complete", () => model.repo.complete(t.id))} />
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  draggable={hasDay}
+                  meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                  onOpen={() => detail.open(t.id)}
+                  selected={sel.selectedId === t.id}
+                  onSelect={() => sel.select(t.id)}
+                  onDone={() => void time("complete", () => model.repo.complete(t.id))}
+                />
               ))}
             </TaskList>
           </section>
         )}
+        </div>
       </div>
 
-      {model.capacity && model.capacity.state !== "no_work_day" && (
-        <aside className={`w-80 shrink-0 ${detail.selectedId ? "hidden" : "hidden md:block"}`}>
+      {model.capacity && hasDay && (
+        <aside className={`shrink-0 md:w-80 ${showDay ? "block" : "hidden"} ${detail.selectedId ? "md:hidden" : "md:block"}`}>
           <h2 className="font-display text-xl">Your day</h2>
           <p className="mb-3 font-mono text-[11px] text-ink-3">
-            {formatTime(timeFromMinutes(model.capacity.windows[0].start))} – {formatTime(timeFromMinutes(model.capacity.windows[model.capacity.windows.length - 1].end))} · buffer {model.settings?.bufferPct}%
+            {formatTime(timeFromMinutes(dayStart))} – {formatTime(timeFromMinutes(dayEnd))} · buffer {model.settings?.bufferPct}%
           </p>
-          <Timeline c={model.capacity} now={now} zone={zone} />
+          <Timeline
+            c={model.capacity}
+            now={now}
+            zone={zone}
+            blocks={model.blocks}
+            defaultEstimateMin={defaultEstimate}
+            selectedBlockId={selectedBlockId}
+            onSelectBlock={setSelectedBlockId}
+            onDropTask={(taskId, startMin) => {
+              const task = findTask(taskId);
+              if (task) void placeTask(task, startMin);
+            }}
+            onMoveBlock={(id, startMin) => {
+              const b = model.blocks.find((x) => x.id === id);
+              if (!b) return;
+              const at = placeAt(startMin, b.end - b.start);
+              void blocks.move(id, atMinute(at.start), atMinute(at.end));
+            }}
+            onResizeBlock={(id, endMin) => {
+              const b = model.blocks.find((x) => x.id === id);
+              if (b && endMin !== b.end) void blocks.move(id, atMinute(b.start), atMinute(endMin));
+            }}
+            onRemoveBlock={removeBlock}
+            onToggleLock={(id, locked) => void blocks.setLocked(id, locked)}
+            onOpenTask={(taskId) => detail.open(taskId)}
+          />
+          {model.blocks.length === 0 && <p className="mt-3 text-[12.5px] text-ink-3">Drag a task here, or select one and press B, to block time for it.</p>}
         </aside>
       )}
     </main>

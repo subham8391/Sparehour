@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate, localTime, type LocalDate, type LocalTime } from "@/core/time";
@@ -185,6 +185,19 @@ describe("<TaskDetailPanel>", () => {
     expect(onDrop).toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("offers Block it only where a day is in view, and never on a done task", async () => {
+    setup();
+    expect(screen.queryByRole("button", { name: "Block it" })).not.toBeInTheDocument();
+    cleanup();
+    const onBlock = vi.fn();
+    const { user } = setup({ onBlock });
+    await user.click(screen.getByRole("button", { name: "Block it" }));
+    expect(onBlock).toHaveBeenCalled();
+    cleanup();
+    setup({ onBlock, task: { ...task, state: "done" } });
+    expect(screen.queryByRole("button", { name: "Block it" })).not.toBeInTheDocument();
   });
 
   it("checklist: Enter adds the next step and keeps the cursor there; steps toggle, rename and remove", async () => {

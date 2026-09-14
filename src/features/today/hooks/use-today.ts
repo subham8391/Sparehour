@@ -6,11 +6,21 @@ import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { capacityFor, type Capacity } from "@/core/capacity";
 import { carriedOver, shouldAsk } from "@/core/rollover";
 import { Temporal, todayFor, type LocalDate } from "@/core/time";
-import type { Task } from "@/core/types";
+import type { Task, TaskId } from "@/core/types";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
 import { TaskRepo } from "@/data/repositories/task-repo";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
+
+/** A block as the timeline draws it: minutes of the local day. */
+export interface TimelineBlock {
+  id: string;
+  taskId: TaskId | null;
+  title: string;
+  start: number;
+  end: number;
+  locked: boolean;
+}
 
 export interface TodayModel {
   ready: boolean;
@@ -20,6 +30,9 @@ export interface TodayModel {
   carried: (Task & { ask: boolean })[];
   todayTasks: Task[];
   eveningTasks: Task[];
+  /** Today's blocks, in the user's zone, with the task's title when it has one. */
+  blocks: TimelineBlock[];
+  blockByTask: ReadonlyMap<string, TimelineBlock>;
   repo: TaskRepo;
 }
 
@@ -62,6 +75,28 @@ export function useToday(now: Temporal.Instant): TodayModel {
         })
       : null;
 
+    const titles = new Map(tasks.map((t) => [t.id, t.title]));
+    const zone = settings?.timezone ?? "UTC";
+    const blocks: TimelineBlock[] = (blockRows ?? [])
+      .map((r): TimelineBlock | null => {
+        const b = toCapacityBlock(r);
+        if (!b) return null;
+        const start = b.startAt.toZonedDateTimeISO(zone);
+        const end = b.endAt.toZonedDateTimeISO(zone);
+        if (!start.toPlainDate().equals(today)) return null;
+        return {
+          id: b.id,
+          taskId: b.taskId,
+          title: r.title ?? (b.taskId ? (titles.get(b.taskId) ?? "Block") : "Block"),
+          start: start.hour * 60 + start.minute,
+          end: end.toPlainDate().equals(today) ? end.hour * 60 + end.minute : 24 * 60,
+          locked: r.locked === 1,
+        };
+      })
+      .filter((b): b is TimelineBlock => b !== null)
+      .sort((a, b) => a.start - b.start);
+    const blockByTask = new Map<string, TimelineBlock>(blocks.filter((b) => b.taskId).map((b) => [b.taskId as string, b]));
+
     return {
       ready: !isLoading && settings !== null,
       today,
@@ -70,6 +105,8 @@ export function useToday(now: Temporal.Instant): TodayModel {
       carried,
       todayTasks: onDay.filter((t) => !t.evening),
       eveningTasks: onDay.filter((t) => t.evening),
+      blocks,
+      blockByTask,
       repo,
     };
   }, [taskRows, blockRows, eventRows, calendarRows, workRows, settings, today, now, isLoading, repo]);

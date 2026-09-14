@@ -3451,6 +3451,8 @@ flowchart LR
 
 **Every M1 phase ships its phone and narrow layouts in the same phase** (DECISIONS.md: every screen responsive from M1; bands in `DESIGN_SYSTEM.md` §4a) — P4 includes the Browse tab and swipe actions, P6 the phone Today/Upcoming, P7 tap-to-schedule alongside drag, P8 the phone morning plan and shutdown. This adds roughly 6 days across P4–P8.
 
+**P7 was split (2026-09-14).** *P7a, shipped:* local blocks only — `time_blocks` rows with `push_state = 'local'`, drag-to-block and block move/resize on Today's timeline (Pragmatic drag and drop, `@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter`), `B` / "Block it" placing the task in the next free gap from now (`core/blocking.chooseSlot`: a fitting gap, else the widest remaining gap shrunk, else straight after the working day), lock / remove with undo, a block chip on the row, and the phone's List · Day toggle. The pure arithmetic lives in `src/core/blocking`; screens reach the writer through `BlockingProvider`, which only Today registers with, so "Block it" is absent wherever no day is in view. *P7b, after P5:* the write-scope upgrade, the event push queue, echo suppression, external-edit adoption, and tap-to-schedule on the phone (today the phone's tap path is the detail sheet's "Block it").
+
 **M1 total ≈ 79 developer-days** (~16 weeks at a sustainable solo pace). The three phases most likely to overrun are P5 (Google's sync semantics reward empiricism over documentation), P7 (drag interactions on a time grid are always more work than they look), and P3 (only if the corpus is written honestly).
 
 **M1 exit criteria**, stated as tests rather than feelings:

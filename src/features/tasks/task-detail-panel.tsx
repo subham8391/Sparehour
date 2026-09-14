@@ -31,6 +31,8 @@ export interface TaskDetailPanelProps {
   onReopen: () => void;
   onSomeday: () => void;
   onDrop: () => void;
+  /** Places the task on today's timeline; absent where no day is in view. */
+  onBlock?: () => void;
   onClose: () => void;
   onChecklistAdd?: (title: string) => void;
   onChecklistToggle?: (id: string, done: boolean) => void;
@@ -317,6 +319,11 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         <button type="button" onClick={done ? p.onReopen : p.onComplete} className="h-11 rounded-xl bg-ink px-4 text-[15px] font-medium text-paper sm:h-9">
           {done ? "Reopen" : "Complete"}
         </button>
+        {p.onBlock && !done && (
+          <button type="button" onClick={p.onBlock} className="h-11 rounded-xl border border-line px-4 text-[15px] font-medium text-ink hover:border-line-strong sm:h-9">
+            Block it
+          </button>
+        )}
         <span className="flex-1" />
         {task.state !== "someday" && !done && (
           <button type="button" onClick={p.onSomeday} className="flex h-11 items-center px-2 text-[13.5px] text-ink-2 hover:text-ink">

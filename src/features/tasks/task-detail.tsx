@@ -13,6 +13,7 @@ import { ChecklistRepo } from "@/data/repositories/checklist-repo";
 import { TagRepo } from "@/data/repositories/tag-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useTaskRepo } from "./use-task-repo";
@@ -48,6 +49,7 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const tagRepo = useMemo(() => new TagRepo(db), [db]);
   const now = useNow();
   const { today, zone } = useLocalDay(now);
+  const blocking = useBlockingOptional();
   const { data: rows, isLoading } = useQuery<TaskRowType>(TASK_SQL, [id]);
   const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
@@ -90,6 +92,7 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
       onReopen={() => void repo.reopen(task.id)}
       onSomeday={() => void repo.setState(task.id, "someday").then(onClose)}
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
+      onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
       onClose={onClose}
     />
   );

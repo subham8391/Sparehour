@@ -3,9 +3,11 @@
 // title, then chips — deadline in ember (the only red in the app), time, and
 // the estimate, dashed when it is a guess. Actions slot in on the right and
 // a footer can sit under the row (the carried-over ask).
-import type { ReactNode } from "react";
+import { draggable } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatMinutes, formatTime } from "@/core/time";
 import type { Task } from "@/core/types";
+import type { TaskDragData } from "@/features/blocking/drag";
 
 export function TaskRow({
   task,
@@ -16,6 +18,7 @@ export function TaskRow({
   actions,
   footer,
   meta,
+  draggable: canDrag = false,
 }: {
   task: Task;
   onDone?: () => void;
@@ -28,10 +31,29 @@ export function TaskRow({
   footer?: ReactNode;
   /** Extra chips before the estimate — a day chip in project views, "added 2d" in the inbox. */
   meta?: ReactNode;
+  /** The whole row can be dragged to the day timeline (SCREENS.md §2.4). */
+  draggable?: boolean;
 }) {
+  const ref = useRef<HTMLLIElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const dataRef = useRef<TaskDragData>({ type: "task", id: task.id, title: task.title, estimateMin: task.estimateMin });
+  useEffect(() => {
+    dataRef.current = { type: "task", id: task.id, title: task.title, estimateMin: task.estimateMin };
+  });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !canDrag) return;
+    return draggable({
+      element: el,
+      getInitialData: () => dataRef.current,
+      onDragStart: () => setDragging(true),
+      onDrop: () => setDragging(false),
+    });
+  }, [canDrag]);
   return (
     <li
-      className={`border-t border-line first:border-t-0 ${selected ? "bg-paper shadow-[inset_2px_0_0_var(--ink)]" : ""}`}
+      ref={ref}
+      className={`border-t border-line first:border-t-0 ${selected ? "bg-paper shadow-[inset_2px_0_0_var(--ink)]" : ""} ${dragging ? "opacity-40" : ""}`}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
     >

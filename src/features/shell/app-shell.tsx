@@ -7,6 +7,7 @@
 // and the command palette are mounted once here.
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
 import { PwaProvider } from "@/features/pwa/pwa-provider";
@@ -42,6 +43,7 @@ function Shell({ children }: { children: ReactNode }) {
         <TaskDetailProvider>
           <SelectionProvider>
             <PaletteProvider>
+              <BlockingProvider>
               <Keyboard>
               <div className="flex min-h-dvh">
                 <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
@@ -56,6 +58,7 @@ function Shell({ children }: { children: ReactNode }) {
               </div>
               <PaletteHost />
               </Keyboard>
+              </BlockingProvider>
             </PaletteProvider>
           </SelectionProvider>
         </TaskDetailProvider>

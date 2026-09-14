@@ -10,6 +10,7 @@ import { useSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { useUndoOptional } from "@/features/undo/undo-provider";
 import { Icon } from "@/ui/icons";
 import { chordOf, displayShortcut, resolveKey, type SequenceState } from "./keys";
@@ -52,6 +53,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   const selection = useSelection();
   const tasks = useTaskRepo();
   const undoApi = useUndoOptional();
+  const blocking = useBlockingOptional();
   const now = useNow();
   const { today, zone } = useLocalDay(now);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -77,8 +79,9 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       openShortcuts: () => setShortcutsOpen(true),
       setTheme: (theme: Theme) => applyTheme(theme),
       undo: () => void undoApi?.undo(),
+      blockTask: (id) => blocking?.blockTask(id),
     }),
-    [selection, pathname, today, now, zone, tasks, router, quickAdd, detail, onOpenPalette, undoApi],
+    [selection, pathname, today, now, zone, tasks, router, quickAdd, detail, onOpenPalette, undoApi, blocking],
   );
   const contextRef = useRef(context);
   useEffect(() => {

@@ -21,6 +21,7 @@ function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: 
     openShortcuts: vi.fn(),
     setTheme: vi.fn(),
     undo: vi.fn(),
+    blockTask: vi.fn(),
     ...over,
     // keep the typed mocks reachable
     ...({} as object),
@@ -76,6 +77,9 @@ describe("command registry", () => {
     expect(ctx.tasks.setState).toHaveBeenCalledWith("t1", "someday");
     await byId("task.open").run(ctx);
     expect(ctx.openTask).toHaveBeenCalledWith("t1");
+    await byId("task.block").run(ctx);
+    expect(ctx.blockTask).toHaveBeenCalledWith("t1");
+    expect(resolveKey({ key: "b", shift: false, mod: false, alt: false }, null, keyBindings()).match?.id).toBe("task.block");
   });
 
   it("does nothing without a selection, and says why", async () => {
