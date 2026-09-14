@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { AreaRepo } from "@/data/repositories/area-repo";
-import { usePalette } from "@/features/commands/palette-provider";
 import { BROWSE_VIEWS } from "@/features/shell/nav";
 import { VIEW_ICONS } from "@/features/shell/sidebar";
 import { useNavData } from "@/features/shell/use-nav-data";
@@ -17,7 +16,6 @@ const SPACE_SQL = `select personal_space_id from users limit 1`;
 
 export default function BrowsePage() {
   const { areas } = useNavData();
-  const palette = usePalette();
   const db = useLocalDatabase();
   const areaRepo = useMemo(() => new AreaRepo(db), [db]);
   const { data: users } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
@@ -34,10 +32,10 @@ export default function BrowsePage() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
       <ViewHeader eyebrow="Browse" title="Everything else" />
-      <button type="button" onClick={() => palette.open()} className="flex h-11 w-full items-center gap-3 rounded-xl border border-line bg-surface px-4 text-left text-[15px] text-ink-3 hover:border-line-strong">
+      <Link href="/search" className="flex h-11 w-full items-center gap-3 rounded-xl border border-line bg-surface px-4 text-left text-[15px] text-ink-3 hover:border-line-strong">
         <Icon name="search" size={18} />
-        Search tasks, projects, commands
-      </button>
+        Search tasks, notes, projects
+      </Link>
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between px-0.5">
           <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Areas</h2>
