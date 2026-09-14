@@ -1,0 +1,70 @@
+# PowerSync sync streams — SYSTEM_DESIGN.md §3.5 (M1 subset).
+# auth.user_id() is the only thing access control depends on.
+#
+# Subscription parameters can only be matched with `=` / `IN` (a row must map
+# to a finite set of buckets), so windowed streams are keyed by calendar
+# month: the client subscribes with `months: ['2026-08', '2026-09', …]`.
+# Timestamps sync as ISO 8601 UTC text ("2026-09-14T09:00:00Z"), so the
+# first seven characters are the month.
+config:
+  edition: 3
+
+streams:
+  # personal rows first: Today cannot render without settings and work hours
+  user_data:
+    auto_subscribe: true
+    priority: 0
+    queries:
+      - SELECT * FROM users         WHERE id      = auth.user_id()
+      - SELECT * FROM user_settings WHERE user_id = auth.user_id()
+      - SELECT * FROM work_hours    WHERE user_id = auth.user_id() AND deleted_at IS NULL
+      - SELECT * FROM calendars     WHERE user_id = auth.user_id() AND deleted_at IS NULL
+      - SELECT * FROM time_blocks   WHERE user_id = auth.user_id() AND deleted_at IS NULL
+      - SELECT * FROM day_plans     WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  # the working set: everything in the spaces the user belongs to, minus done tasks
+  space_data:
+    auto_subscribe: true
+    priority: 1
+    with:
+      my_spaces: |
+        SELECT space_id FROM space_members
+        WHERE user_id = auth.user_id() AND deleted_at IS NULL AND joined_at IS NOT NULL
+    queries:
+      - SELECT * FROM spaces          WHERE id       IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM space_members   WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM areas           WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM projects        WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM headings        WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM tasks           WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL AND state <> 'done'
+      - SELECT * FROM checklist_items WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM tags            WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM task_tags       WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM recurrence_exceptions
+                                      WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+
+  # calendar mirror, one bucket per month the client asks for
+  calendar_window:
+    auto_subscribe: false
+    priority: 2
+    queries:
+      - SELECT * FROM calendar_events
+        WHERE user_id = auth.user_id() AND deleted_at IS NULL
+          AND substring(start_at, 1, 7) IN subscription.parameter('months')
+
+  # the Logbook: large, cold, opened on demand, one bucket per month completed
+  logbook:
+    auto_subscribe: false
+    priority: 3
+    with:
+      my_spaces: |
+        SELECT space_id FROM space_members
+        WHERE user_id = auth.user_id() AND deleted_at IS NULL AND joined_at IS NOT NULL
+    queries:
+      - SELECT * FROM tasks
+        WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+          AND state = 'done'
+          AND substring(completed_at, 1, 7) IN subscription.parameter('months')
+      - SELECT * FROM task_completions
+        WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+          AND substring(completed_at, 1, 7) IN subscription.parameter('months')

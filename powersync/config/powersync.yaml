@@ -1,0 +1,45 @@
+# PowerSync service config — local development only.
+# Source: the local Supabase Postgres. Bucket storage: a separate database on
+# the same local Postgres (created by scripts/dev-stack.sh).
+replication:
+  connections:
+    - type: postgresql
+      uri: postgresql://powersync_role:powersync_local@host.docker.internal:54322/postgres
+      sslmode: disable
+
+storage:
+  type: postgresql
+  uri: postgresql://postgres:postgres@host.docker.internal:54322/powersync_storage
+  sslmode: disable
+
+sync_config:
+  path: /streams/streams.yaml
+
+# The spike forwards the Supabase session JWT (SYSTEM_DESIGN.md Appendix A
+# shortcut); M1 proper mints a narrow 5-minute token via /api/sync/token
+# and validates it against our own JWKS (§9.2).
+#
+# Local Supabase (CLI ≥ 2.1xx) signs access tokens with an ES256 signing key
+# (`kid` header), not the legacy HS256 secret, so the keystore needs the
+# project's JWKS endpoint. PowerSync only discovers that endpoint by itself
+# for *.supabase.co replication hosts; for host.docker.internal it must be
+# given explicitly, together with the audience Supabase puts in its tokens.
+client_auth:
+  supabase: true
+  supabase_jwt_secret: super-secret-jwt-token-with-at-least-32-characters-long
+  jwks_uri: http://host.docker.internal:54321/auth/v1/.well-known/jwks.json
+  audience: ["authenticated"]
+
+api:
+  tokens:
+    - local-dev-api-token
+
+port: 8080
+
+telemetry:
+  disable_telemetry_sharing: true
+
+system:
+  logging:
+    level: info
+    format: text
