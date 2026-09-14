@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSyncStatus } from "@/data/powersync";
 import type { Capacity } from "@/core/capacity";
 import { keyBetween } from "@/core/ordering";
 import { parse } from "@/core/quickadd";
 import { Temporal, formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
+import { ViewHeader } from "@/features/shell/view-header";
+import { MoveActions } from "@/features/tasks/task-actions";
+import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday } from "@/features/today/hooks/use-today";
 
 /**
@@ -63,24 +65,6 @@ function Ribbon({ c }: { c: Capacity }) {
   );
 }
 
-function TaskRow({ task, onDone, actions, footer }: { task: Task; onDone: () => void; actions?: React.ReactNode; footer?: React.ReactNode }) {
-  return (
-    <li className="border-t border-line first:border-t-0">
-      <div className="flex min-h-11 items-center gap-3 px-4 py-2">
-        <button aria-label={`Complete ${task.title}`} onClick={onDone} className="size-[18px] shrink-0 rounded-full border-[1.5px] border-line-strong hover:border-ink" />
-        <span className="min-w-0 flex-1 truncate text-[15px]">{task.title}</span>
-        {task.deadline && <span className="rounded-md bg-deadline-soft px-2 py-0.5 text-xs font-medium text-deadline">Due {task.deadline.toString().slice(5)}</span>}
-        {task.doTime && <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-xs text-ink-2">{formatTime(task.doTime)}</span>}
-        <span className={`rounded-md px-2 py-0.5 font-mono text-xs text-ink-2 ${task.estimateMin ? "bg-surface-2" : "border border-dashed border-line-strong"}`}>
-          {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
-        </span>
-        {actions}
-      </div>
-      {footer}
-    </li>
-  );
-}
-
 export default function TodayPage() {
   const [now, setNow] = useState(() => Temporal.Now.instant());
   useEffect(() => {
@@ -88,7 +72,6 @@ export default function TodayPage() {
     return () => clearInterval(id);
   }, []);
   const model = useToday(now);
-  const status = useSyncStatus();
   const time = useInteractionTimer();
   useEffect(() => {
     lastCommit = performance.now();
@@ -124,14 +107,9 @@ export default function TodayPage() {
   if (!model.ready) return <main className="p-8 text-ink-3">Loading today…</main>;
 
   return (
-    <main className="mx-auto flex max-w-6xl gap-8 p-6 md:p-10">
+    <main className="mx-auto flex w-full max-w-6xl gap-8 p-6 md:p-10">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <header className="flex items-end justify-between">
-          <div>
-            <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Today · {status.connected ? "synced" : "offline"}{status.dataFlowStatus.uploading ? " · uploading" : ""}</p>
-            <h1 className="font-display text-3xl leading-tight">{model.today.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</h1>
-          </div>
-        </header>
+        <ViewHeader eyebrow="Today" title={model.today.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long" })} />
 
         {model.capacity && <Ribbon c={model.capacity} />}
 
@@ -151,31 +129,33 @@ export default function TodayPage() {
             <div className="flex items-center justify-between px-0.5">
               <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Carried over <span className="ml-2 font-mono normal-case tracking-normal">{model.carried.length}</span></h2>
             </div>
-            <ul className="rounded-xl border border-line bg-surface">
+            <TaskList>
               {model.carried.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
                   onDone={() => void time("complete", () => model.repo.complete(t.id))}
                   actions={
-                    <span className="flex gap-2 text-[13px] text-ink-2">
-                      <button className="font-medium text-ink" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))}>Today</button>
-                      <button onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))}>Tomorrow</button>
-                      <button onClick={() => void time("someday", () => model.repo.setState(t.id, "someday"))}>Someday</button>
-                      <button onClick={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}>Drop</button>
-                    </span>
+                    <MoveActions
+                      onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))}
+                      onTomorrow={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))}
+                      onSomeday={() => void time("someday", () => model.repo.setState(t.id, "someday"))}
+                      onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
+                    />
                   }
                   footer={
                     t.ask && (
                       <p className="mx-4 mb-2 ml-11 rounded-lg bg-over-soft px-3 py-2 text-[13px]">
                         Carried over {t.carryCount} times — still want this?{" "}
-                        <button className="font-medium text-over" onClick={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}>Keep today</button>
+                        <button type="button" className="font-medium text-over" onClick={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}>
+                          Keep today
+                        </button>
                       </p>
                     )
                   }
                 />
               ))}
-            </ul>
+            </TaskList>
           </section>
         )}
 
@@ -183,33 +163,39 @@ export default function TodayPage() {
           <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
             Today <span className="ml-2 font-mono normal-case tracking-normal">{model.todayTasks.length} · {formatMinutes(model.todayTasks.reduce((s, t) => s + (t.estimateMin ?? model.settings?.defaultEstimateMin ?? 30), 0))}</span>
           </h2>
-          <ul className="rounded-xl border border-line bg-surface">
+          <TaskList>
             {model.todayTasks.map((t) => (
               <TaskRow
                 key={t.id}
                 task={t}
                 onDone={() => void time("complete", () => model.repo.complete(t.id))}
                 actions={
-                  <span className="flex gap-1 text-ink-3">
-                    <button aria-label="Move up" onClick={() => move(t, -1)} className="px-1">↑</button>
-                    <button aria-label="Move down" onClick={() => move(t, 1)} className="px-1">↓</button>
-                    <button aria-label="Tomorrow" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} className="px-1 text-[13px]">→ tmr</button>
+                  <span className="-my-2 flex shrink-0 items-center text-ink-3">
+                    <button type="button" aria-label="Move up" onClick={() => move(t, -1)} className="flex min-h-11 min-w-8 items-center justify-center">
+                      ↑
+                    </button>
+                    <button type="button" aria-label="Move down" onClick={() => move(t, 1)} className="flex min-h-11 min-w-8 items-center justify-center">
+                      ↓
+                    </button>
+                    <button type="button" aria-label="Tomorrow" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} className="flex min-h-11 items-center px-1.5 text-[13px]">
+                      → tmr
+                    </button>
                   </span>
                 }
               />
             ))}
             {model.todayTasks.length === 0 && <li className="px-4 py-3 text-ink-3">Nothing planned yet.</li>}
-          </ul>
+          </TaskList>
         </section>
 
         {model.eveningTasks.length > 0 && (
           <section className="flex flex-col gap-2">
             <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-over">This evening</h2>
-            <ul className="rounded-xl border border-line bg-surface">
+            <TaskList>
               {model.eveningTasks.map((t) => (
                 <TaskRow key={t.id} task={t} onDone={() => void time("complete", () => model.repo.complete(t.id))} />
               ))}
-            </ul>
+            </TaskList>
           </section>
         )}
       </div>

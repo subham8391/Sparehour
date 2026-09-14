@@ -1,0 +1,47 @@
+"use client";
+// Inbox (SCREENS.md §5): a triage queue, not a list. The goal is to empty it.
+import { useQuery } from "@/data/powersync";
+import { toTask } from "@/data/mappers";
+import { INBOX_SQL } from "@/data/queries/views";
+import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { MoveActions } from "@/features/tasks/task-actions";
+import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useTaskRepo } from "@/features/tasks/use-task-repo";
+
+export default function InboxPage() {
+  const repo = useTaskRepo();
+  const now = useNow();
+  const { today } = useLocalDay(now);
+  const tomorrow = today.add({ days: 1 });
+  const { data, isLoading } = useQuery<TaskRowType>(INBOX_SQL);
+  const tasks = (data ?? []).map(toTask);
+
+  return (
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+      <ViewHeader eyebrow="Inbox" title={tasks.length > 0 ? `${tasks.length} to triage` : "Inbox"} subtitle="A queue to empty, not a list to keep." />
+      {!isLoading && tasks.length === 0 ? (
+        <EmptyState>Inbox zero. Nice.</EmptyState>
+      ) : (
+        <TaskList>
+          {tasks.map((t) => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              onDone={() => void repo.complete(t.id)}
+              actions={
+                <MoveActions
+                  onToday={() => void repo.reschedule(t.id, today)}
+                  onTomorrow={() => void repo.reschedule(t.id, tomorrow)}
+                  onSomeday={() => void repo.setState(t.id, "someday")}
+                  onDrop={() => void repo.setState(t.id, "dropped")}
+                />
+              }
+            />
+          ))}
+        </TaskList>
+      )}
+    </main>
+  );
+}

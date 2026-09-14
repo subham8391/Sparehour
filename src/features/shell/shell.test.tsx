@@ -1,0 +1,80 @@
+// @vitest-environment jsdom
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+import { Sidebar, type NavArea } from "./sidebar";
+import { syncChipModel } from "./sync-chip";
+import { TabBar } from "./tab-bar";
+
+const sync = syncChipModel({
+  online: true,
+  connected: true,
+  uploading: false,
+  downloading: false,
+  hasError: false,
+  lastSyncedAt: new Date("2026-09-14T08:59:50Z"),
+  pending: 0,
+  now: new Date("2026-09-14T09:00:00Z"),
+});
+const areas: NavArea[] = [
+  { id: "a1", name: "Work", projects: [{ id: "p1", name: "Acme" }, { id: "p2", name: "Website" }] },
+  { id: "a2", name: "Personal", projects: [] },
+];
+
+describe("<Sidebar>", () => {
+  it("lists the fixed views in order, then areas with their projects, then sync and settings", () => {
+    render(<Sidebar pathname="/today" counts={{ inbox: 3, today: 4 }} areas={areas} sync={sync} />);
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    const links = within(nav).getAllByRole("link").map((l) => l.textContent?.trim());
+    expect(links).toEqual(["Sparehour", "Inbox3", "Today4", "Upcoming", "Calendar", "Someday", "Logbook", "Work", "Acme", "Website", "Personal", "Settings"]);
+  });
+
+  it("marks the current view and only that view", () => {
+    render(<Sidebar pathname="/project/p2" counts={{ inbox: 0, today: 0 }} areas={areas} sync={sync} />);
+    const current = screen.getAllByRole("link", { current: "page" });
+    expect(current.map((l) => l.textContent?.trim())).toEqual(["Website"]);
+  });
+
+  it("shows counts only above zero, and only on Inbox and Today", () => {
+    render(<Sidebar pathname="/today" counts={{ inbox: 0, today: 12 }} areas={[]} sync={sync} />);
+    expect(screen.getByRole("link", { name: /^Inbox$/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Today/ })).toHaveTextContent("Today12");
+    expect(screen.getByRole("link", { name: "Upcoming" })).toHaveTextContent(/^Upcoming$/);
+  });
+
+  it("collapses an area's projects without losing the area", async () => {
+    const user = userEvent.setup();
+    render(<Sidebar pathname="/today" counts={{ inbox: 0, today: 0 }} areas={areas} sync={sync} />);
+    expect(screen.getByRole("link", { name: "Acme" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Collapse Work" }));
+    expect(screen.queryByRole("link", { name: "Acme" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Work" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expand Work" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("the rail keeps every view reachable by name, with counts spoken", () => {
+    render(<Sidebar rail pathname="/inbox" counts={{ inbox: 3, today: 4 }} areas={areas} sync={sync} />);
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(nav).toHaveAttribute("data-variant", "rail");
+    expect(within(nav).getByRole("link", { name: "Inbox, 3" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Today, 4" })).toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: "Acme" })).not.toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: "Synced 10s ago" })).toBeInTheDocument();
+  });
+});
+
+describe("<TabBar>", () => {
+  it("has the four phone tabs with Browse owning the phone-sidebar routes", () => {
+    render(<TabBar pathname="/someday" counts={{ inbox: 2, today: 0 }} />);
+    const tabs = within(screen.getByRole("navigation", { name: "Primary" })).getAllByRole("link");
+    expect(tabs.map((t) => t.textContent?.trim())).toEqual(["Today", "Inbox2", "Week", "Browse"]);
+    expect(tabs[3]).toHaveAttribute("aria-current", "page");
+    expect(tabs[1]).toHaveAccessibleName("Inbox, 2 to triage");
+  });
+
+  it("drops the badge at zero", () => {
+    render(<TabBar pathname="/today" counts={{ inbox: 0, today: 5 }} />);
+    expect(screen.getByRole("link", { name: "Inbox" })).toHaveTextContent(/^Inbox$/);
+    expect(screen.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
+  });
+});

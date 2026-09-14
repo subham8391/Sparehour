@@ -93,6 +93,12 @@
   --font-display: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
   --font-sans: var(--font-instrument-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: var(--font-dm-mono), "SF Mono", Menlo, Consolas, monospace;
+  /* Width bands (DESIGN_SYSTEM.md §4a): phone < sm, narrow rail sm–md, sidebar ≥ md, three panes ≥ lg */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 900px;
+  --breakpoint-lg: 1180px;
+  --breakpoint-xl: 1440px;
+  --breakpoint-2xl: 1680px;
 }
 
 body {
