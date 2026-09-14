@@ -33,7 +33,8 @@ if [[ -f .env.local ]]; then
   echo "  exists, leaving it alone"
 else
   eval "$(npx supabase status -o env 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
-  printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\nNEXT_PUBLIC_POWERSYNC_URL=http://localhost:8080\n' \
+  # The client talks to /powersync on its own origin; next.config.ts rewrites it to the service.
+  printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\nNEXT_PUBLIC_POWERSYNC_URL=/powersync\nPOWERSYNC_INTERNAL_URL=http://localhost:8080\n' \
     "$API_URL" "$ANON_KEY" "$SERVICE_ROLE_KEY" > .env.local
   echo "  written (local keys only; never commit it)"
 fi

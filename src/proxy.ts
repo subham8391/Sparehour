@@ -39,5 +39,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:png|svg|ico|wasm|js)$).*)"],
+  // /powersync/* is the sync service behind a rewrite (next.config.ts): it authenticates its own
+  // bearer token, and a redirect to /login would hand the sync worker an HTML page instead.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|powersync/|.*\\.(?:png|svg|ico|wasm|js)$).*)"],
 };
