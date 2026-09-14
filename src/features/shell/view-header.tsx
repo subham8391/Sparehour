@@ -3,11 +3,14 @@
 // left, view actions on the right. On the phone the sync chip lives here,
 // because there is no sidebar to hold it (§20).
 import type { ReactNode } from "react";
+import { usePalette } from "@/features/commands/palette-provider";
+import { Icon } from "@/ui/icons";
 import { SyncChip } from "./sync-chip";
 import { useSyncChip } from "./use-sync-chip";
 
 export function ViewHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: ReactNode; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   const sync = useSyncChip();
+  const palette = usePalette();
   return (
     <header className="flex items-end justify-between gap-4">
       <div className="min-w-0">
@@ -15,8 +18,11 @@ export function ViewHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: Re
         <h1 className="font-display text-3xl leading-tight text-ink">{title}</h1>
         {subtitle && <p className="mt-1 text-[13px] text-ink-2">{subtitle}</p>}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1">
         {actions}
+        <button type="button" onClick={() => palette.open()} aria-label="Search and commands" className="flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink sm:hidden">
+          <Icon name="search" size={20} />
+        </button>
         <SyncChip model={sync} compact className="sm:hidden" />
       </div>
     </header>

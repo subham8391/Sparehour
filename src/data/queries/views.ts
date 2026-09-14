@@ -62,6 +62,14 @@ export const TAGS_SQL = `select id, name from tags where deleted_at is null orde
 
 export const PROJECT_HEADINGS_SQL = `select * from headings where deleted_at is null and project_id = ? order by sort_key, id`;
 
+/** Open tasks whose title or notes contain the query (two `%q%` params), planned ones first. */
+export const TASK_SEARCH_SQL = `
+  select * from tasks
+  where deleted_at is null and state in ('inbox', 'active', 'someday')
+    and (title like ? escape '\\' or notes_md like ? escape '\\')
+  order by case when do_date is null then 1 else 0 end, do_date, sort_key, id
+  limit 12`;
+
 /** Completed tasks in a project; only present locally while the logbook stream is subscribed. */
 export const PROJECT_DONE_SQL = `
   select * from tasks
