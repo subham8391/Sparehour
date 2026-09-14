@@ -15,6 +15,7 @@ const task = (over: Partial<Task> = {}): Task => ({
   spaceId: "s1" as SpaceId,
   projectId: null,
   title: "Task",
+  headingId: null,
   notes: null,
   state: "active",
   priority: 0,

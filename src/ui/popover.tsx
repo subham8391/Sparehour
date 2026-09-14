@@ -74,5 +74,54 @@ export function FieldPopover({
   );
 }
 
+/** A `⋯` button that opens a small menu panel with the same dismissal rules as a field popover. */
+export function MenuButton({ label, children, align = "right" }: { label: string; children: (close: () => void) => ReactNode; align?: "left" | "right" }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        aria-label={label}
+        className="flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink sm:size-9"
+      >
+        <span aria-hidden="true" className="text-lg leading-none">
+          ⋯
+        </span>
+      </button>
+      {open && (
+        <div id={panelId} role="menu" aria-label={label} className={`absolute top-full z-30 mt-1 flex w-64 flex-col gap-0.5 rounded-xl border border-line bg-surface p-2 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}>
+          {children(close)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export const MENU_ITEM = "flex min-h-10 w-full items-center rounded-lg px-2.5 text-left text-[14px] text-ink hover:bg-paper";
 export const CHIP_BUTTON = "h-9 rounded-full border border-line px-3 text-[13px] text-ink hover:border-line-strong aria-pressed:border-ink aria-pressed:bg-surface-2";
 export const FIELD_INPUT = "h-10 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink outline-none focus:border-ink";

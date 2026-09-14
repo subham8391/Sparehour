@@ -254,4 +254,5 @@ export type CalendarEventRow = Database["calendar_events"];
 export type WorkHoursRow = Database["work_hours"];
 export type UserSettingsRow = Database["user_settings"];
 export type ProjectRow = Database["projects"];
+export type HeadingRow = Database["headings"];
 export type AreaRow = Database["areas"];

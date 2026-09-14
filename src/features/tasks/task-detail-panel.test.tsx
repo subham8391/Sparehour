@@ -12,6 +12,7 @@ const task: Task = {
   id: "t1" as TaskId,
   spaceId: "s1" as SpaceId,
   projectId: "p1" as Task["projectId"],
+  headingId: null,
   title: "Draft the proposal",
   notes: null,
   state: "active",

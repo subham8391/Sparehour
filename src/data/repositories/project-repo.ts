@@ -1,6 +1,8 @@
 // Project writes. Like tasks: one local transaction per call, only the
 // columns that change.
 import { keyBetween } from "@/core/ordering";
+import type { LocalDate } from "@/core/time";
+import type { ProjectState } from "@/core/types";
 import type { LocalDatabase } from "../powersync";
 
 export class ProjectRepo {
@@ -21,5 +23,23 @@ export class ProjectRepo {
       );
     });
     return id;
+  }
+
+  async rename(id: string, name: string): Promise<void> {
+    await this.db.execute(`update projects set name = ?, updated_at = ? where id = ?`, [name.trim(), new Date().toISOString(), id]);
+  }
+
+  async setNotes(id: string, notes: string | null): Promise<void> {
+    await this.db.execute(`update projects set notes_md = ?, updated_at = ? where id = ?`, [notes?.trim() || null, new Date().toISOString(), id]);
+  }
+
+  async setDeadline(id: string, deadline: LocalDate | null): Promise<void> {
+    await this.db.execute(`update projects set deadline = ?, updated_at = ? where id = ?`, [deadline?.toString() ?? null, new Date().toISOString(), id]);
+  }
+
+  /** Completing sets completed_at; going back to active clears it. */
+  async setState(id: string, state: ProjectState): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.execute(`update projects set state = ?, completed_at = case when ? = 'done' then ? else null end, updated_at = ? where id = ?`, [state, state, now, now, id]);
   }
 }

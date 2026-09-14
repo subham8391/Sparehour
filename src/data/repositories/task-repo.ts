@@ -28,6 +28,8 @@ export interface NewTaskContext {
   spaceId: string;
   /** The project the task belongs to; null for the inbox / no project. */
   projectId?: string | null;
+  /** The section inside the project, if any. */
+  headingId?: string | null;
   /** Sort key of the item to place the task after in its day list; omitted = at the end. */
   afterKey?: string | null;
 }
@@ -70,14 +72,15 @@ export class TaskRepo {
       }
 
       await tx.execute(
-        `insert into tasks (id, space_id, project_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date,
+        `insert into tasks (id, space_id, project_id, heading_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date,
                             evening, estimate_min, carry_count, last_touched_at, miss_policy, recurrence_rule,
                             recurrence_mode, recurrence_series_id, sort_key, day_sort_key, source, created_at, updated_at)
-         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'quickadd', ?, ?)`,
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'quickadd', ?, ?)`,
         [
           id,
           ctx.spaceId,
           projectId,
+          ctx.headingId ?? null,
           draft.title,
           draft.notes,
           doDate ? "active" : "inbox",
@@ -178,6 +181,10 @@ export class TaskRepo {
       new Date().toISOString(),
       id,
     ]);
+  }
+
+  async setHeading(id: string, headingId: string | null): Promise<void> {
+    await this.db.execute(`update tasks set heading_id = ?, updated_at = ? where id = ?`, [headingId, new Date().toISOString(), id]);
   }
 
   async setDayOrder(id: string, daySortKey: string): Promise<void> {

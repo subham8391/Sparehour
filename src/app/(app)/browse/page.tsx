@@ -2,6 +2,9 @@
 // Browse (SCREENS.md §1 "Responsive"): the sidebar's phone form — areas and
 // projects, then Someday, Logbook and Settings. Reachable on any width.
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { AreaRepo } from "@/data/repositories/area-repo";
 import { BROWSE_VIEWS } from "@/features/shell/nav";
 import { VIEW_ICONS } from "@/features/shell/sidebar";
 import { useNavData } from "@/features/shell/use-nav-data";
@@ -9,15 +12,61 @@ import { EmptyState, ViewHeader } from "@/features/shell/view-header";
 import { Icon } from "@/ui/icons";
 
 const ROW = "flex min-h-11 items-center gap-3 border-t border-line px-4 text-[15px] text-ink first:border-t-0";
+const SPACE_SQL = `select personal_space_id from users limit 1`;
 
 export default function BrowsePage() {
   const { areas } = useNavData();
+  const db = useLocalDatabase();
+  const areaRepo = useMemo(() => new AreaRepo(db), [db]);
+  const { data: users } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
+  const spaceId = users?.[0]?.personal_space_id ?? null;
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const createArea = () => {
+    const n = name.trim();
+    setAdding(false);
+    setName("");
+    if (!n || !spaceId) return;
+    void areaRepo.create(n, { spaceId });
+  };
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
       <ViewHeader eyebrow="Browse" title="Everything else" />
       <section className="flex flex-col gap-2">
-        <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Areas</h2>
-        {areas.length === 0 ? (
+        <div className="flex items-center justify-between px-0.5">
+          <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Areas</h2>
+          {!adding && (
+            <button type="button" onClick={() => setAdding(true)} className="flex min-h-9 items-center gap-1 text-[13px] text-ink-2 hover:text-ink">
+              <Icon name="plus" size={14} /> Add area
+            </button>
+          )}
+        </div>
+        {adding && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createArea();
+            }}
+            className="flex min-h-11 items-center gap-3 rounded-xl border border-ink bg-surface px-4"
+          >
+            <input
+              autoFocus
+              aria-label="Area name"
+              placeholder="Area name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={createArea}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setName("");
+                  setAdding(false);
+                }
+              }}
+              className="h-11 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
+            />
+          </form>
+        )}
+        {areas.length === 0 && !adding ? (
           <EmptyState>No areas yet.</EmptyState>
         ) : (
           <ul className="rounded-xl border border-line bg-surface">

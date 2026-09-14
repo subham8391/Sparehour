@@ -2,8 +2,8 @@
 // (LocalDate, LocalTime, boolean). Engines never see raw rows.
 import type { CapacityBlock, CapacityEvent, CapacityTask, WorkWindow } from "@/core/capacity";
 import { instant, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
-import type { ChecklistItem, MissPolicy, Priority, RecurrenceMode, SpaceId, Task, TaskId, TaskState } from "@/core/types";
-import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "../schema.client";
+import type { ChecklistItem, Heading, MissPolicy, Priority, Project, ProjectId, ProjectState, RecurrenceMode, SpaceId, Task, TaskId, TaskState } from "@/core/types";
+import type { CalendarEventRow, HeadingRow, ProjectRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "../schema.client";
 
 const bool = (v: number | null | undefined): boolean => v === 1;
 const date = (v: string | null | undefined): LocalDate | null => (v ? localDate(v.slice(0, 10)) : null);
@@ -18,6 +18,23 @@ export function normaliseTimestamp(v: string): string {
   return s;
 }
 
+export function toProject(r: ProjectRow): Project {
+  return {
+    id: r.id as ProjectId,
+    spaceId: (r.space_id ?? "") as SpaceId,
+    areaId: r.area_id ?? null,
+    name: r.name ?? "Untitled project",
+    notes: r.notes_md ?? null,
+    state: (r.state ?? "active") as ProjectState,
+    deadline: date(r.deadline),
+    sortKey: r.sort_key ?? "",
+  };
+}
+
+export function toHeading(r: HeadingRow): Heading {
+  return { id: r.id, projectId: (r.project_id ?? "") as ProjectId, title: r.title ?? "", sortKey: r.sort_key ?? "" };
+}
+
 export function toChecklistItem(r: { id: string; task_id: string | null; title: string | null; done: number | null; sort_key: string | null }): ChecklistItem {
   return { id: r.id, taskId: (r.task_id ?? "") as TaskId, title: r.title ?? "", done: r.done === 1, sortKey: r.sort_key ?? "" };
 }
@@ -27,6 +44,7 @@ export function toTask(r: TaskRow): Task {
     id: r.id as TaskId,
     spaceId: (r.space_id ?? "") as SpaceId,
     projectId: (r.project_id as Task["projectId"]) ?? null,
+    headingId: r.heading_id ?? null,
     title: r.title ?? "",
     notes: r.notes_md ?? null,
     state: (r.state ?? "inbox") as TaskState,

@@ -17,6 +17,8 @@ export interface Task {
   id: TaskId;
   spaceId: SpaceId;
   projectId: ProjectId | null;
+  /** Section inside the project, if any. */
+  headingId: string | null;
   title: string;
   notes: string | null;
   state: TaskState;
@@ -55,6 +57,27 @@ export interface ChecklistItem {
 export interface TagRef {
   id: string;
   name: string;
+}
+
+export type ProjectState = "active" | "someday" | "done" | "archived";
+
+export interface Project {
+  id: ProjectId;
+  spaceId: SpaceId;
+  areaId: string | null;
+  name: string;
+  notes: string | null;
+  state: ProjectState;
+  deadline: LocalDate | null;
+  sortKey: string;
+}
+
+/** A section divider inside a project. Tasks point at it through heading_id. */
+export interface Heading {
+  id: string;
+  projectId: ProjectId;
+  title: string;
+  sortKey: string;
 }
 
 export type RecurrenceException =

@@ -60,6 +60,36 @@ export const TASK_TAGS_SQL = `
 
 export const TAGS_SQL = `select id, name from tags where deleted_at is null order by lower(name)`;
 
+export const PROJECT_HEADINGS_SQL = `select * from headings where deleted_at is null and project_id = ? order by sort_key, id`;
+
+/** Completed tasks in a project; only present locally while the logbook stream is subscribed. */
+export const PROJECT_DONE_SQL = `
+  select * from tasks
+  where deleted_at is null and project_id = ? and state = 'done'
+  order by completed_at desc, id
+  limit 200`;
+
+/** An area's active projects with what their open tasks add up to. `?` = default estimate, then the area id. */
+export const AREA_PROJECT_STATS_SQL = `
+  select p.id, p.name, p.deadline,
+         count(t.id) as open_count,
+         coalesce(sum(coalesce(t.estimate_min, ?)), 0) as open_min,
+         min(t.deadline) as next_deadline
+  from projects p
+  left join tasks t on t.project_id = p.id and t.deleted_at is null and t.state in ('inbox', 'active')
+  where p.deleted_at is null and p.area_id = ? and p.state = 'active'
+  group by p.id
+  order by p.sort_key, p.name`;
+
+export interface AreaProjectStatsRow {
+  id: string;
+  name: string | null;
+  deadline: string | null;
+  open_count: number;
+  open_min: number;
+  next_deadline: string | null;
+}
+
 /** Inclusive ISO date bounds for `day` and the `days - 1` days after it. */
 export function dayRangeParams(day: LocalDate, days: number): [string, string] {
   return [day.toString(), day.add({ days: Math.max(0, days - 1) }).toString()];
