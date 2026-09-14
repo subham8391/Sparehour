@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
-import type { Capacity } from "@/core/capacity";
 import { keyBetween } from "@/core/ordering";
 import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";

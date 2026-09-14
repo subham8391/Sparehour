@@ -87,7 +87,7 @@ describe("<MorningPlanFlow>", () => {
     const { user, onMoveToTomorrow } = setup({ onToday: [big, due, proj] });
     await user.click(screen.getByRole("button", { name: "Step 2: Pick today’s tasks" }));
     expect(screen.getByRole("status")).toHaveTextContent("20m over · 5h 40m fits today · 6h picked · 3 tasks");
-    expect(screen.getByText(/Easiest move/)).toHaveTextContent("Research CalDAV");
+    expect(screen.getByText(/Easiest move/).closest("p")).toHaveTextContent("Research CalDAV");
     await user.click(screen.getByRole("button", { name: "Keep it anyway" }));
     expect(screen.queryByText(/Easiest move/)).not.toBeInTheDocument();
     expect(onMoveToTomorrow).not.toHaveBeenCalled();
