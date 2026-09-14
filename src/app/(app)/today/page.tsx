@@ -108,6 +108,14 @@ export default function TodayPage() {
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between px-0.5">
               <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Carried over <span className="ml-2 font-mono normal-case tracking-normal">{model.carried.length}</span></h2>
+              <button
+                type="button"
+                onClick={() => void time("clear-the-slate", () => model.repo.archiveMany(model.carried.map((t) => t.id)))}
+                title="Archive everything carried over — one undo brings it all back"
+                className="flex min-h-9 items-center text-[13px] text-ink-2 hover:text-ink"
+              >
+                Clear the slate
+              </button>
             </div>
             <TaskList>
               {model.carried.map((t) => (

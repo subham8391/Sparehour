@@ -233,6 +233,29 @@ export class TaskRepo {
     await this.db.execute(`update tasks set day_sort_key = ?, updated_at = ? where id = ?`, [daySortKey, new Date().toISOString(), id]);
   }
 
+  /**
+   * "Clear the slate" (§5.3): archives every given task in one transaction and
+   * records one undo entry for the whole batch, so a single ⌘Z restores them
+   * all. It archives; it never deletes.
+   */
+  async archiveMany(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => "?").join(", ");
+    const before = this.history ? await this.db.getAll<{ id: string; state: string | null; do_date: string | null }>(`select id, state, do_date from tasks where id in (${placeholders})`, [...ids]) : [];
+    const now = new Date().toISOString();
+    await this.db.execute(`update tasks set state = 'archived', do_date = null, carry_count = 0, updated_at = ? where id in (${placeholders})`, [now, ...ids]);
+    if (!this.history || before.length === 0) return;
+    this.history.record({
+      label: `Cleared the slate · ${before.length} ${before.length === 1 ? "task" : "tasks"}`,
+      toast: true,
+      undo: () =>
+        this.db.writeTransaction(async (tx) => {
+          const at = new Date().toISOString();
+          for (const row of before) await tx.execute(`update tasks set state = ?, do_date = ?, updated_at = ? where id = ?`, [row.state, row.do_date, at, row.id]);
+        }),
+    });
+  }
+
   async setState(id: string, state: "someday" | "dropped" | "archived" | "active"): Promise<void> {
     const cols = ["state", "do_date"];
     const before = await this.snapshot(id, cols);

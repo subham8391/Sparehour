@@ -1794,10 +1794,10 @@ This removes the single hardest requirement from the job: it no longer has to ru
 
 #### The job
 
-Runs as `sparehour.run_rollover()` invoked by `pg_cron` every 15 minutes. It is pure SQL — no network hop, one transaction, and it cannot half-finish.
+Runs as `private.run_rollover()` invoked by `pg_cron` every 15 minutes (migration `20260914000300_rollover_job.sql`; the schema is `private`, like every other internal function). It is pure SQL — no network hop, one transaction, and it cannot half-finish. Step 2 uses `private.next_occurrence(rule, anchor, after)`, which covers the rules quick-add can write (DAILY / WEEKLY with BYDAY / MONTHLY / YEARLY with INTERVAL) and mirrors `src/core/recurrence` for them; step 6 (routines) arrives with M2.
 
 ```sql
-create or replace function sparehour.run_rollover() returns void
+create or replace function private.run_rollover() returns void
 language plpgsql security definer as $$
 declare u record; today date;
 begin
@@ -1898,6 +1898,7 @@ It archives. It never deletes. The undo entry is a single batch so one Cmd+Z res
 - Property: **monotonicity** — `carry_count` never decreases except through an explicit user action.
 - Property: **DST** — simulate every day of 2026 in `America/Santiago`, `Australia/Lord_Howe` (a 30-minute DST shift) and `Pacific/Chatham`; assert exactly one run per local date.
 - Property: **conservation** — every task in the input is in exactly one of {carried, skipped, expired, someday, untouched} in the output; none vanish.
+- The properties run against the TypeScript engine (`src/core/rollover`); the SQL job has contract tests against the real database (`src/server/db/rollover.test.ts`): once per local date, the four policies, aging, the rollover hour, the schedule, and `next_occurrence` on each rule shape.
 
 ---
 

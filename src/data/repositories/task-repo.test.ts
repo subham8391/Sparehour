@@ -3,11 +3,13 @@ import { localDate } from "@/core/time";
 import type { LocalDatabase } from "../powersync";
 import { TaskRepo, columnsTouched } from "./task-repo";
 
-function fakeDb(row: Record<string, string | number | null> | null) {
+function fakeDb(row: Record<string, string | number | null> | null, rows: Record<string, string | number | null>[] = []) {
   const execute = vi.fn().mockResolvedValue({});
   const getOptional = vi.fn().mockResolvedValue(row);
-  const db = { execute, getOptional, writeTransaction: vi.fn() } as unknown as LocalDatabase;
-  return { db, execute, getOptional };
+  const getAll = vi.fn().mockResolvedValue(rows);
+  const writeTransaction = vi.fn(async (fn: (tx: { execute: typeof execute }) => Promise<void>) => fn({ execute }));
+  const db = { execute, getOptional, getAll, writeTransaction } as unknown as LocalDatabase;
+  return { db, execute, getOptional, getAll };
 }
 
 const row = { title: "Draft the proposal", state: "active", do_date: "2026-09-14", do_time: "15:00", completed_at: null, priority: 0 };
@@ -59,6 +61,32 @@ describe("TaskRepo undo", () => {
     await new TaskRepo(db).complete("t1");
     expect(getOptional).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("clearing the slate archives the batch and one undo restores every task", async () => {
+    const { db, execute } = fakeDb(row, [
+      { id: "t1", state: "active", do_date: "2026-09-12" },
+      { id: "t2", state: "inbox", do_date: "2026-09-13" },
+    ]);
+    const history = { record: vi.fn() };
+    await new TaskRepo(db, history).archiveMany(["t1", "t2"]);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(String(execute.mock.calls[0][0])).toMatch(/set state = 'archived', do_date = null, carry_count = 0/);
+    expect(execute.mock.calls[0][1].slice(1)).toEqual(["t1", "t2"]);
+    const entry = history.record.mock.calls[0][0];
+    expect(entry).toMatchObject({ label: "Cleared the slate · 2 tasks", toast: true });
+    await entry.undo();
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(execute.mock.calls[1][1].slice(0, 2)).toEqual(["active", "2026-09-12"]);
+    expect(execute.mock.calls[2][1].slice(0, 2)).toEqual(["inbox", "2026-09-13"]);
+  });
+
+  it("clearing an empty slate does nothing", async () => {
+    const { db, execute } = fakeDb(row);
+    const history = { record: vi.fn() };
+    await new TaskRepo(db, history).archiveMany([]);
+    expect(execute).not.toHaveBeenCalled();
+    expect(history.record).not.toHaveBeenCalled();
   });
 
   it("a task that is already gone records nothing", async () => {
