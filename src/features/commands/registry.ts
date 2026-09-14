@@ -92,6 +92,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "go.logbook", title: "Go to Logbook", group: "Go to", shortcut: "g l", keywords: "done completed", run: (ctx) => ctx.go("/logbook") },
   { id: "go.browse", title: "Go to Browse", group: "Go to", keywords: "areas projects", run: (ctx) => ctx.go("/browse") },
   { id: "go.settings", title: "Settings", group: "Go to", shortcut: "mod+,", run: (ctx) => ctx.go("/settings") },
+  { id: "day.plan", title: "Start morning plan", group: "Go to", shortcut: "mod+shift+m", keywords: "plan the day ritual pick", run: (ctx) => ctx.go("/plan") },
   { id: "day.shutdown", title: "Start evening shutdown", group: "Go to", shortcut: "mod+shift+e", keywords: "close the day ritual", run: (ctx) => ctx.go("/shutdown") },
 
   // ---- list plumbing

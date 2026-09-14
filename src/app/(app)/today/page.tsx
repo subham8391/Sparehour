@@ -8,9 +8,12 @@ import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, type Loc
 import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { normaliseTimestamp, toTask } from "@/data/mappers";
-import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, monthsBack } from "@/data/queries/views";
+import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, OPEN_TASKS_SQL, monthsBack } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import { plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
+import { Ribbon } from "@/features/today/ribbon";
+import { Timeline } from "@/features/today/timeline";
 import { ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { useListSelection } from "@/features/selection/selection-provider";
@@ -38,43 +41,6 @@ function useInteractionTimer() {
   }, []);
 }
 
-function Ribbon({ c }: { c: Capacity }) {
-  if (c.state === "no_work_day") return <p className="text-ink-2">Not a working day.</p>;
-  const day = c.windows[0].start;
-  const span = c.windows[c.windows.length - 1].end - day;
-  const pct = (m: number) => `${((m - day) / span) * 100}%`;
-  const w = (a: number, b: number) => `${((b - a) / span) * 100}%`;
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-5">
-      <div className="flex items-end justify-between gap-4">
-        <div className="flex items-baseline gap-3">
-          <span className="font-display text-5xl leading-none">{c.spareMin < 0 ? formatMinutes(-c.spareMin) : formatMinutes(c.spareMin)}</span>
-          <span className={`font-display text-3xl italic leading-none ${c.spareMin < 0 ? "text-over" : "text-spare"}`}>{c.spareMin < 0 ? "over" : "spare"}</span>
-        </div>
-        <div className="text-right font-mono text-xs text-ink-2">
-          <div>{formatMinutes(c.committedMin + c.unscheduledMin, { padMinutes: true })} planned</div>
-          <div>{formatMinutes(c.busyMin, { padMinutes: true })} in meetings</div>
-          {c.projectedFinish && <div className="text-spare">done by {formatTime(c.projectedFinish)}</div>}
-          {c.overflowMin > 0 && <div className="text-over">~{formatMinutes(c.overflowMin)} spills over</div>}
-        </div>
-      </div>
-      <div className="relative mt-4 h-6 overflow-hidden rounded-md bg-spare-soft">
-        {c.busy.map((b, i) => (
-          <div key={`m${i}`} className="absolute inset-y-0 rounded-sm bg-meet-fill" style={{ left: pct(b.start), width: w(b.start, b.end) }} />
-        ))}
-        {c.blocks.map((b, i) => (
-          <div key={`b${i}`} className="absolute inset-y-0 rounded-sm bg-ink/85" style={{ left: pct(b.start), width: w(b.start, b.end) }} />
-        ))}
-      </div>
-      <div className="mt-1 flex justify-between font-mono text-[11px] text-ink-3">
-        {Array.from({ length: Math.floor(span / 60) + 1 }, (_, i) => (
-          <span key={i}>{formatTime(timeFromMinutes(day + i * 60)).slice(0, 2)}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function TodayPage() {
   const [now, setNow] = useState(() => Temporal.Now.instant());
   useEffect(() => {
@@ -94,9 +60,14 @@ export default function TodayPage() {
 
   // The day's ritual state (SCREENS.md §2.1, §15): once shut down, the ribbon gives way to the day's summary.
   const todayIso = model.today.toString();
-  const { data: planRows } = useQuery<{ shutdown_at: string | null; highlights: string | null; day_rating: number | null }>(DAY_PLAN_SQL, [todayIso]);
+  const { data: planRows } = useQuery<{ shutdown_at: string | null; planned_at: string | null; highlights: string | null; day_rating: number | null }>(DAY_PLAN_SQL, [todayIso]);
   const plan = planRows?.[0] ?? null;
-  const closedAt = plan?.shutdown_at ? formatTime(instant(normaliseTimestamp(plan.shutdown_at)).toZonedDateTimeISO(zone).toPlainTime()) : null;
+  const localTimeOf = (iso: string) => formatTime(instant(normaliseTimestamp(iso)).toZonedDateTimeISO(zone).toPlainTime());
+  const closedAt = plan?.shutdown_at ? localTimeOf(plan.shutdown_at) : null;
+  const plannedAt = plan?.planned_at ? localTimeOf(plan.planned_at) : null;
+  const emptyDay = model.ready && !closedAt && model.carried.length === 0 && model.todayTasks.length === 0;
+  const { data: openRows } = useQuery<TaskRowType>(emptyDay ? OPEN_TASKS_SQL : NOTHING_SQL);
+  const suggestions = useMemo(() => (emptyDay ? pullInSuggestions((openRows ?? []).map(toTask), model.today) : []), [emptyDay, openRows, model.today]);
   const dayBounds = useMemo(() => {
     const start = model.today.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
     const end = tomorrow.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
@@ -134,9 +105,18 @@ export default function TodayPage() {
           title={formatDay(model.today, { weekday: "long", month: "long" })}
           actions={
             !closedAt && (
-              <Link href="/shutdown" className={`flex min-h-11 items-center px-2 text-[13.5px] font-medium ${shutdownReady ? "text-ink" : "text-ink-3"} hover:text-ink`}>
-                Shutdown ▸
-              </Link>
+              <>
+                {plannedAt ? (
+                  <span className="hidden min-h-11 items-center px-2 font-mono text-[12px] text-ink-3 sm:flex">{plannedLabel(plannedAt)}</span>
+                ) : (
+                  <Link href="/plan" className="flex min-h-11 items-center px-2 text-[13.5px] font-medium text-ink hover:underline">
+                    Morning plan ▸
+                  </Link>
+                )}
+                <Link href="/shutdown" className={`flex min-h-11 items-center px-2 text-[13.5px] font-medium ${shutdownReady ? "text-ink" : "text-ink-3"} hover:text-ink`}>
+                  Shutdown ▸
+                </Link>
+              </>
             )
           }
         />
@@ -220,7 +200,35 @@ export default function TodayPage() {
                 }
               />
             ))}
-            {model.todayTasks.length === 0 && <li className="px-4 py-3 text-ink-3">Nothing planned yet.</li>}
+            {model.todayTasks.length === 0 && !emptyDay && <li className="px-4 py-3 text-ink-3">Nothing planned yet.</li>}
+            {emptyDay && (
+              <li className="flex flex-col gap-4 px-4 py-5">
+                <p className="text-[17px] text-ink">
+                  Nothing planned for today.
+                  {model.capacity && model.capacity.state !== "no_work_day" && model.capacity.spareMin > 0 && <> You have {formatMinutes(model.capacity.spareMin)}.</>}
+                </p>
+                <Link href="/plan" className="flex h-11 w-full items-center justify-center rounded-xl bg-ink px-4 text-[15px] font-medium text-paper sm:w-auto sm:self-start">
+                  Plan my day · 2 min
+                </Link>
+                {suggestions.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[13px] text-ink-2">or pull something in:</p>
+                    <TaskList>
+                      {suggestions.map(({ task: t, source }) => (
+                        <TaskRow
+                          key={t.id}
+                          task={t}
+                          onOpen={() => detail.open(t.id)}
+                          meta={<span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-xs text-ink-3">{source === "deadline" ? `due ${t.deadline?.toString().slice(5)}` : source}</span>}
+                          actions={<MoveActions onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))} />}
+                        />
+                      ))}
+                    </TaskList>
+                  </div>
+                )}
+                <p className="text-[13px] text-ink-3">Or just start typing.</p>
+              </li>
+            )}
           </TaskList>
         </section>
 
@@ -249,36 +257,3 @@ export default function TodayPage() {
   );
 }
 
-function Timeline({ c, now, zone }: { c: Capacity; now: Temporal.Instant; zone: string }) {
-  const start = c.windows[0].start;
-  const end = c.windows[c.windows.length - 1].end;
-  const px = 1.1; // px per minute
-  const y = (m: number) => (m - start) * px;
-  const z = now.toZonedDateTimeISO(zone);
-  const nowMin = z.hour * 60 + z.minute;
-  return (
-    <div className="relative" style={{ height: (end - start) * px }}>
-      {Array.from({ length: Math.floor((end - start) / 60) + 1 }, (_, i) => (
-        <div key={i} className="absolute left-12 right-0 border-t border-line" style={{ top: y(start + i * 60) }}>
-          <span className="absolute -left-12 -top-2 w-10 text-right font-mono text-[11px] text-ink-3">{formatTime(timeFromMinutes(start + i * 60))}</span>
-        </div>
-      ))}
-      {c.busy.map((b, i) => (
-        <div key={`m${i}`} className="absolute left-14 right-0 overflow-hidden rounded-md border-l-[3px] border-meet-fill bg-meet-soft px-2 text-xs text-meet" style={{ top: y(b.start) + 1, height: Math.max(12, (b.end - b.start) * px - 2) }}>
-          meeting <span className="font-mono opacity-75">{formatTime(timeFromMinutes(b.start))}</span>
-        </div>
-      ))}
-      {c.blocks.map((b, i) => (
-        <div key={`b${i}`} className="absolute left-14 right-0 overflow-hidden rounded-md border-l-[3px] border-ink bg-surface-2 px-2 text-xs" style={{ top: y(b.start) + 1, height: Math.max(12, (b.end - b.start) * px - 2) }}>
-          block <span className="font-mono opacity-75">{formatTime(timeFromMinutes(b.start))}</span>
-        </div>
-      ))}
-      {nowMin >= start && nowMin <= end && <div className="absolute left-12 right-0 border-t-[1.5px] border-ink" style={{ top: y(nowMin) }} />}
-      {c.projectedFinish && (
-        <div className="absolute left-12 right-0 border-t border-dashed border-spare" style={{ top: y(c.projectedFinish.hour * 60 + c.projectedFinish.minute) }}>
-          <span className="absolute right-0 -top-5 rounded-md bg-spare-soft px-2 font-mono text-[11px] text-spare">done by {formatTime(c.projectedFinish)}</span>
-        </div>
-      )}
-    </div>
-  );
-}

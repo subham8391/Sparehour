@@ -49,6 +49,9 @@ export const CALENDARS_COUNT_SQL = `select count(*) as n from calendars where de
 /** One task, for the detail panel. */
 export const TASK_SQL = `select * from tasks where id = ? and deleted_at is null`;
 
+/** Every open task in the space (inbox and active), for the morning plan's picker. */
+export const OPEN_TASKS_SQL = `select * from tasks where deleted_at is null and state in ('inbox', 'active', 'someday') order by sort_key, id`;
+
 /** The day's plan row (rituals, rating, highlight). */
 export const DAY_PLAN_SQL = `select * from day_plans where deleted_at is null and date = ? limit 1`;
 
