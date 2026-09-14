@@ -4,6 +4,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, type LocalDate } from "@/core/time";
+import { formatDay, weekdayName } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { toTask } from "@/data/mappers";
 import { PLANNED_BETWEEN_SQL, UNPLANNED_SQL, dayRangeParams } from "@/data/queries/views";
@@ -43,12 +44,12 @@ export default function UpcomingPage() {
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
       <ViewHeader
         eyebrow="Upcoming · rolling 7 days"
-        title={`${today.toLocaleString("en-GB", { weekday: "short", day: "numeric" })} – ${today.add({ days: DAYS - 1 }).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "long" })}`}
+        title={`${weekdayName(today)} ${today.day} – ${formatDay(today.add({ days: DAYS - 1 }), { month: "long" })}`}
       />
       {days.map(({ day, tasks }, i) => (
         <section key={day.toString()} className="flex flex-col gap-2">
           <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-            {day.toLocaleString("en-GB", { weekday: "short", day: "numeric" })}
+            {weekdayName(day)} {day.day}
             {i === 0 && <span className="ml-2 normal-case tracking-normal text-ink-2">today</span>}
             {tasks.length > 0 && (
               <span className="ml-2 font-mono normal-case tracking-normal">

@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatTime, instant, type LocalDate } from "@/core/time";
+import { weekdayName } from "@/core/time/format-day";
 import { normaliseTimestamp } from "@/data/mappers";
 import { CALENDARS_COUNT_SQL, EVENTS_BETWEEN_SQL, dayRangeParams } from "@/data/queries/views";
 import type { CalendarEventRow } from "@/data/schema.client";
@@ -60,7 +61,7 @@ export default function CalendarPage() {
         days.map(({ day, events: list }, i) => (
           <section key={day.toString()} className="flex flex-col gap-2">
             <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-              {day.toLocaleString("en-GB", { weekday: "short", day: "numeric" })}
+              {weekdayName(day)} {day.day}
               {i === 0 && <span className="ml-2 normal-case tracking-normal text-ink-2">today</span>}
             </h2>
             {list.length === 0 ? (

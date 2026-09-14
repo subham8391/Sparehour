@@ -1,0 +1,108 @@
+// What quick-add shows under the input (SCREENS.md §11): the parse restated
+// in plain English — the contract with the user — plus the helpers the
+// overlay needs to paint tokens and resolve a #project. All pure.
+import { ruleToSpec, type Span, type TaskDraft } from "@/core/quickadd";
+import { formatMinutes, formatTime, type LocalDate } from "@/core/time";
+import { formatDay } from "@/core/time/format-day";
+
+export interface QuickAddProject {
+  id: string;
+  name: string;
+}
+
+/** "Today", "Tomorrow", "Yesterday", else "Thu 17 Sep" (with the year when it differs). */
+export function dayLabel(date: LocalDate, today: LocalDate): string {
+  const days = date.since(today, { largestUnit: "days" }).days;
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days === -1) return "Yesterday";
+  return formatDay(date, { today });
+}
+
+/** `!1` is the highest priority and is stored as 3; people read "priority 1". */
+export function priorityLabel(priority: number): string | null {
+  return priority > 0 ? `priority ${4 - priority}` : null;
+}
+
+export interface Interpretation {
+  /** Each fact the parse found, in reading order. */
+  parts: string[];
+  /** The parts joined for the strip; empty when nothing beyond the title was found. */
+  strip: string;
+  /** Where the task lands: Inbox, Today or Upcoming. */
+  destination: "Inbox" | "Today" | "Upcoming";
+}
+
+export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: string | null = draft.projectName): Interpretation {
+  const parts: string[] = [];
+  if (draft.doDate) {
+    const when = dayLabel(draft.doDate, today);
+    parts.push(draft.doTime ? `${when} ${formatTime(draft.doTime)}` : draft.evening ? `${when}, evening` : when);
+  } else if (draft.evening) {
+    parts.push("This evening");
+  }
+  if (draft.estimateMin != null) parts.push(formatMinutes(draft.estimateMin));
+  if (draft.deadline) parts.push(`due ${dayLabel(draft.deadline, today)}`);
+  if (draft.startDate) parts.push(`from ${dayLabel(draft.startDate, today)}`);
+  if (draft.recurrenceRule) {
+    parts.push(`repeats every ${ruleToSpec(draft.recurrenceRule)}${draft.recurrenceMode === "after_completion" ? ", after each completion" : ""}`);
+  }
+  if (projectLabel) parts.push(projectLabel);
+  if (draft.tagNames.length) parts.push(draft.tagNames.map((t) => `@${t}`).join(" "));
+  const priority = priorityLabel(draft.priority);
+  if (priority) parts.push(priority);
+  if (draft.notes) parts.push("with a note");
+  const destination = draft.doDate ? (draft.doDate.equals(today) ? "Today" : "Upcoming") : "Inbox";
+  return { parts, strip: parts.join(" · "), destination };
+}
+
+const fold = (s: string) => s.trim().toLocaleLowerCase();
+
+/** The project a typed name means, if exactly one is named that (case-insensitive). */
+export function resolveProject(name: string | null, projects: readonly QuickAddProject[]): QuickAddProject | null {
+  if (!name) return null;
+  const key = fold(name);
+  return projects.find((p) => fold(p.name) === key) ?? null;
+}
+
+/** Suggestions while a name is still being typed: prefix matches first, then anywhere in the name. */
+export function projectMatches(name: string, projects: readonly QuickAddProject[]): QuickAddProject[] {
+  const key = fold(name);
+  if (!key) return [];
+  const starts = projects.filter((p) => fold(p.name).startsWith(key));
+  const within = projects.filter((p) => !fold(p.name).startsWith(key) && fold(p.name).includes(key));
+  return [...starts, ...within];
+}
+
+/** The `#name` token for a project, quoted when the name needs it. */
+export function projectToken(name: string): string {
+  return /^[\p{L}\p{N}_-]+$/u.test(name) && /\p{L}/u.test(name) ? `#${name}` : `#"${name}"`;
+}
+
+export interface Segment {
+  text: string;
+  kind: Span["kind"] | null;
+}
+
+/** The input text cut into plain and token runs, for painting tokens in place. */
+export function segments(value: string, spans: readonly Span[]): Segment[] {
+  const out: Segment[] = [];
+  let at = 0;
+  for (const s of [...spans].filter((s) => s.kind !== "protected").sort((a, b) => a.start - b.start)) {
+    if (s.start < at) continue; // overlapping spans never happen, but never paint twice
+    if (s.start > at) out.push({ text: value.slice(at, s.start), kind: null });
+    out.push({ text: value.slice(s.start, s.end), kind: s.kind });
+    at = s.end;
+  }
+  if (at < value.length) out.push({ text: value.slice(at), kind: null });
+  return out;
+}
+
+/** A multi-line paste is many tasks; a single line (or one line plus blanks) is not. */
+export function splitPaste(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.length >= 2 ? lines : [];
+}

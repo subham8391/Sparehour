@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, instant, type LocalDate } from "@/core/time";
+import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { normaliseTimestamp, toTask } from "@/data/mappers";
 import { LOGBOOK_SQL, monthsBack } from "@/data/queries/views";
@@ -54,7 +55,7 @@ export default function LogbookPage() {
         groups.map((g) => (
           <section key={g.day.toString()} className="flex flex-col gap-2">
             <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-              {g.day.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
+              {formatDay(g.day, { weekday: "long", today })}
               <span className="ml-2 font-mono normal-case tracking-normal">
                 {g.tasks.length} done · {formatMinutes(g.minutes)}
               </span>

@@ -1,9 +1,9 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Capacity } from "@/core/capacity";
 import { keyBetween } from "@/core/ordering";
-import { parse } from "@/core/quickadd";
 import { Temporal, formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
+import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
@@ -76,22 +76,9 @@ export default function TodayPage() {
   useEffect(() => {
     lastCommit = performance.now();
   }, [model.todayTasks, model.carried]);
-  const [draft, setDraft] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const spaceId = useMemo(() => model.todayTasks[0]?.spaceId ?? model.carried[0]?.spaceId ?? null, [model.todayTasks, model.carried]);
   const zone = model.settings?.timezone ?? "UTC";
   const tomorrow: LocalDate = model.today.add({ days: 1 });
-
-  async function onQuickAdd(e: FormEvent) {
-    e.preventDefault();
-    if (!spaceId) return;
-    const r = parse(draft, { now, zone, eveningStartsAt: model.settings?.eveningStartsAt });
-    if (!r.ok) return;
-    const last = model.todayTasks[model.todayTasks.length - 1];
-    await time("quick-add", () => model.repo.create(r.draft, { spaceId, afterKey: last?.daySortKey ?? null }).then(() => undefined));
-    setDraft("");
-  }
 
   const move = (t: Task, dir: -1 | 1) => {
     const list = model.todayTasks;
@@ -109,20 +96,9 @@ export default function TodayPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl gap-8 p-6 md:p-10">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <ViewHeader eyebrow="Today" title={model.today.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long" })} />
+        <ViewHeader eyebrow="Today" title={formatDay(model.today, { weekday: "long", month: "long" })} />
 
         {model.capacity && <Ribbon c={model.capacity} />}
-
-        <form onSubmit={onQuickAdd} className="flex gap-2">
-          <input
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Add a task — e.g. Draft proposal fri 3pm ~45m #acme !1"
-            className="h-11 flex-1 rounded-xl border border-line bg-surface px-4 text-[15px]"
-          />
-          <button className="h-11 rounded-xl bg-ink px-4 font-medium text-paper" type="submit">Add</button>
-        </form>
 
         {model.carried.length > 0 && (
           <section className="flex flex-col gap-2">

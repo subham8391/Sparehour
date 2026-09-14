@@ -1,6 +1,7 @@
 // The day chip shown on rows outside Today (DESIGN_SYSTEM.md §4a: "day chips
 // instead of times" in project, Someday and Logbook lists). Pure.
 import { compareDates, type LocalDate } from "@/core/time";
+import { formatDay, weekdayName } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 
 export type DayChipTone = "neutral" | "carried" | "parked";
@@ -18,7 +19,6 @@ export function dayChip(task: Pick<Task, "state" | "doDate" | "carryCount">, tod
   if (compareDates(task.doDate, today) < 0) return { label: task.carryCount > 0 ? `Carried ×${task.carryCount}` : "Carried", tone: "carried" };
   if (days === 0) return { label: "Today", tone: "neutral" };
   if (days === 1) return { label: "Tomorrow", tone: "neutral" };
-  if (days < 7) return { label: task.doDate.toLocaleString("en-GB", { weekday: "short" }), tone: "neutral" };
-  const sameYear = task.doDate.year === today.year;
-  return { label: task.doDate.toLocaleString("en-GB", sameYear ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" }), tone: "neutral" };
+  if (days < 7) return { label: weekdayName(task.doDate), tone: "neutral" };
+  return { label: formatDay(task.doDate, { weekday: "none", today }), tone: "neutral" };
 }
