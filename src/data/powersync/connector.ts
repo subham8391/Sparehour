@@ -7,9 +7,8 @@
 // head of the queue forever. So only genuinely retryable failures throw;
 // validation rejections complete the transaction and let the server row win.
 import type { AbstractPowerSyncDatabase, PowerSyncBackendConnector, PowerSyncCredentials } from "@powersync/web";
+import { BUILD_ID } from "../build-id";
 import { supabaseBrowser } from "../supabase-browser";
-
-export const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
 
 export interface UploadRejection {
   client_id: string;

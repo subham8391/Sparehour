@@ -5,8 +5,11 @@
 // retiring the row. Rows are written straight to push_subscriptions under
 // RLS — they are per device and never sync.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/data/supabase-browser";
 import { detectPushPlatform, permissionCopy, readPermission, subscriptionRow, urlBase64ToUint8Array, type PermissionCopy, type PermissionState, type PushPlatform } from "./push";
+
+// The Supabase client is loaded when a subscription is written, not with the
+// Settings shell (SYSTEM_DESIGN.md §11.6 budgets).
+const supabase = async () => (await import("@/data/supabase-browser")).supabaseBrowser();
 
 export interface PushApi {
   permission: PermissionState;
@@ -35,12 +38,12 @@ async function registration(): Promise<ServiceWorkerRegistration | null> {
 async function saveSubscription(sub: PushSubscription, platform: PushPlatform): Promise<void> {
   const row = subscriptionRow(sub.toJSON(), platform);
   if (!row) throw new Error("The browser gave no usable subscription.");
-  const supabase = supabaseBrowser();
+  const client = await supabase();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await client.auth.getUser();
   if (!user) throw new Error("Not signed in.");
-  const { error } = await supabase.from("push_subscriptions").upsert({ ...row, user_id: user.id, deleted_at: null, updated_at: new Date().toISOString() }, { onConflict: "endpoint" });
+  const { error } = await client.from("push_subscriptions").upsert({ ...row, user_id: user.id, deleted_at: null, updated_at: new Date().toISOString() }, { onConflict: "endpoint" });
   if (error) throw new Error(error.message);
 }
 
@@ -97,7 +100,7 @@ export function usePush(): PushApi {
       const reg = await registration();
       const sub = await reg?.pushManager.getSubscription();
       if (sub) {
-        await supabaseBrowser().from("push_subscriptions").update({ deleted_at: new Date().toISOString() }).eq("endpoint", sub.endpoint);
+        await (await supabase()).from("push_subscriptions").update({ deleted_at: new Date().toISOString() }).eq("endpoint", sub.endpoint);
         await sub.unsubscribe();
       }
       setSubscribed(false);

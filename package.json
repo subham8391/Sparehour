@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:stack": "bash scripts/dev-stack.sh",
     "build": "next build && serwist build serwist.config.mjs",
+    "size": "node scripts/size-budget.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",

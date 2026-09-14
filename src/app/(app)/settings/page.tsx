@@ -4,12 +4,11 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { supabaseBrowser } from "@/data/supabase-browser";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { applyTheme } from "@/features/commands/theme";
-import { BUILD_ID } from "@/data/powersync/connector";
+import { BUILD_ID } from "@/data/build-id";
 import { useExport } from "@/features/export/use-export";
 import { usePush } from "@/features/notifications/use-push";
 import { usePwa } from "@/features/pwa/pwa-provider";
@@ -85,6 +84,8 @@ export default function SettingsPage() {
   async function signOut() {
     setLeaving(true);
     // A shared device must not keep the last person's data: clear the local database, then the session.
+    // The auth client is loaded here rather than with the page (§11.6 budgets).
+    const { supabaseBrowser } = await import("@/data/supabase-browser");
     await db.disconnectAndClear();
     await supabaseBrowser().auth.signOut();
     router.replace("/login");

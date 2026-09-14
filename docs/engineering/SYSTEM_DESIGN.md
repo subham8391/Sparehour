@@ -3188,6 +3188,8 @@ Single-key shortcuts (Linear-style, active when no input is focused): `q` quick 
 - **Performance techniques**: React Compiler enabled (stable in Next 16) to remove hand-written memoisation; route-level code splitting with the sync SDK excluded from `(marketing)`; the SQLite wasm fetched in parallel with the shell and cached by the SW; `content-visibility: auto` on off-screen list sections; virtualised lists past 200 rows; capacity memoised per `(day, inputVersion)`; `<Activity>`-preserved route state (Next 16 with `cacheComponents` keeps component state across client navigations); View Transitions for the Today → Project move behind `prefers-reduced-motion`.
 - **Budgets are enforced**, not hoped for: `size-limit` fails the build on the `(app)` shell exceeding 320 KB gzipped or `(marketing)` exceeding 90 KB.
 
+**As built (2026-09-14).** `scripts/size-budget.mjs` (`npm run size`, after `npm run build` in CI) measures what each prerendered shell (`.next/server/app/<route>.html`) references in scripts and stylesheets, gzipped, for today, inbox, settings, search and login. Each route carries the design's `target` (320 KB for the app, 200 KB for login) and a `ceiling` that fails the job; the ceiling starts just above what ships today and only moves down. The first measurement put the app shell over the 320 KB target, mostly React, the Next runtime, PowerSync's client and the Temporal polyfill; getting under target is the remaining P11 performance work, and the script names the largest assets so the next cut is obvious. There is no marketing site yet, so the 90 KB budget has nothing to measure.
+
 ---
 
 ## 12. Repo structure, testing, CI, environments

@@ -20,6 +20,8 @@ jobs:
       - run: npx eslint .
       - run: npx vitest run --coverage
       - run: npm run build
+      # Bundle budgets (SYSTEM_DESIGN.md §11.6): the gzipped shell of each prerendered route.
+      - run: npm run size
 
   # Database contract tests (SYSTEM_DESIGN.md §12.2): RLS, apply_mutations,
   # triggers — run against a real local Supabase, migrations + seed applied.
