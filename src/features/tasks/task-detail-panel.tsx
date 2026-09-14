@@ -2,12 +2,12 @@
 // The task detail panel (SCREENS.md §10): every field saves on change, no
 // Save button, no dirty state. Presentational — the container feeds it the
 // task and handles the writes — so the whole contract is testable.
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import { ruleToSpec, specToRule } from "@/core/quickadd";
 import { occurrencesAfter } from "@/core/recurrence";
 import { formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import type { MissPolicy, Priority, Task } from "@/core/types";
+import type { ChecklistItem, MissPolicy, Priority, TagRef, Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { Icon } from "@/ui/icons";
 import { CHIP_BUTTON, FIELD_INPUT, FieldPopover } from "@/ui/popover";
@@ -19,6 +19,10 @@ export interface TaskDetailPanelProps {
   projectName: string | null;
   areaName: string | null;
   projects: readonly { id: string; name: string }[];
+  checklist?: readonly ChecklistItem[];
+  tags?: readonly TagRef[];
+  /** Every tag in the space, for suggestions. */
+  allTags?: readonly TagRef[];
   now: Instant;
   zone: string;
   today: LocalDate;
@@ -28,6 +32,12 @@ export interface TaskDetailPanelProps {
   onSomeday: () => void;
   onDrop: () => void;
   onClose: () => void;
+  onChecklistAdd?: (title: string) => void;
+  onChecklistToggle?: (id: string, done: boolean) => void;
+  onChecklistRename?: (id: string, title: string) => void;
+  onChecklistRemove?: (id: string) => void;
+  onTagAdd?: (name: string) => void;
+  onTagRemove?: (tagId: string) => void;
 }
 
 const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
@@ -276,6 +286,10 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           </FieldPopover>
         </div>
 
+        <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} />
+
+        <Tags tags={p.tags ?? []} allTags={p.allTags ?? []} onAdd={p.onTagAdd} onRemove={p.onTagRemove} />
+
         <section className="mt-4 flex flex-col gap-2">
           <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Notes</h2>
           <textarea
@@ -316,6 +330,166 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
       </div>
     </div>
+  );
+}
+
+function Checklist({
+  items,
+  onAdd,
+  onToggle,
+  onRename,
+  onRemove,
+}: {
+  items: readonly ChecklistItem[];
+  onAdd?: (title: string) => void;
+  onToggle?: (id: string, done: boolean) => void;
+  onRename?: (id: string, title: string) => void;
+  onRemove?: (id: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const done = items.filter((i) => i.done).length;
+  const add = () => {
+    const title = draft.trim();
+    if (!title) return;
+    onAdd?.(title);
+    setDraft("");
+  };
+  return (
+    <section className="mt-4 flex flex-col gap-2">
+      <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+        Checklist
+        {items.length > 0 && (
+          <span className="ml-2 font-mono normal-case tracking-normal">
+            {done} / {items.length}
+          </span>
+        )}
+      </h2>
+      <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
+        {items.map((item) => (
+          <ChecklistRow key={item.id} item={item} onToggle={onToggle} onRename={onRename} onRemove={onRemove} />
+        ))}
+        <li className="flex min-h-11 items-center gap-3 px-3.5">
+          <Icon name="plus" size={16} className="shrink-0 text-ink-3" />
+          <input
+            aria-label="Add a step"
+            placeholder="Add a step"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            onBlur={add}
+            className="h-11 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-3"
+          />
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+function ChecklistRow({
+  item,
+  onToggle,
+  onRename,
+  onRemove,
+}: {
+  item: ChecklistItem;
+  onToggle?: (id: string, done: boolean) => void;
+  onRename?: (id: string, title: string) => void;
+  onRemove?: (id: string) => void;
+}) {
+  const [title, setTitle] = useState(item.title);
+  const [seen, setSeen] = useState(item.title);
+  if (seen !== item.title) {
+    setSeen(item.title);
+    setTitle(item.title);
+  }
+  const commit = () => {
+    const next = title.trim();
+    if (!next) setTitle(item.title);
+    else if (next !== item.title) onRename?.(item.id, next);
+  };
+  return (
+    <li className="flex min-h-11 items-center gap-3 px-3.5">
+      <input
+        type="checkbox"
+        checked={item.done}
+        onChange={(e) => onToggle?.(item.id, e.target.checked)}
+        aria-label={`Done: ${item.title}`}
+        className="size-5 shrink-0 accent-ink"
+      />
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          } else if (e.key === "Backspace" && title === "") {
+            e.preventDefault();
+            onRemove?.(item.id);
+          }
+        }}
+        aria-label={`Step: ${item.title}`}
+        className={`h-11 min-w-0 flex-1 bg-transparent text-[14.5px] outline-none ${item.done ? "text-ink-3 line-through" : "text-ink"}`}
+      />
+      <button type="button" onClick={() => onRemove?.(item.id)} aria-label={`Remove step: ${item.title}`} className="-mr-2 flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-3 hover:bg-paper hover:text-ink">
+        <Icon name="close" size={14} />
+      </button>
+    </li>
+  );
+}
+
+function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; allTags: readonly TagRef[]; onAdd?: (name: string) => void; onRemove?: (tagId: string) => void }) {
+  const [draft, setDraft] = useState("");
+  const listId = useId();
+  const attached = new Set(tags.map((t) => t.id));
+  const add = () => {
+    const name = draft.trim().replace(/^@/, "");
+    if (!name) return;
+    onAdd?.(name);
+    setDraft("");
+  };
+  return (
+    <section className="mt-4 flex flex-col gap-2">
+      <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Tags</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        {tags.map((t) => (
+          <span key={t.id} className="flex h-7 items-center gap-1 rounded-md bg-meet-soft pl-2 pr-1 text-[13px] text-meet">
+            @{t.name}
+            <button type="button" onClick={() => onRemove?.(t.id)} aria-label={`Remove tag ${t.name}`} className="flex size-6 items-center justify-center rounded hover:bg-surface/60">
+              <Icon name="close" size={11} />
+            </button>
+          </span>
+        ))}
+        <input
+          list={listId}
+          aria-label="Add a tag"
+          placeholder={tags.length ? "add" : "add tag"}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          onBlur={add}
+          className="h-7 min-w-24 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
+        />
+        <datalist id={listId}>
+          {allTags
+            .filter((t) => !attached.has(t.id))
+            .map((t) => (
+              <option key={t.id} value={t.name} />
+            ))}
+        </datalist>
+      </div>
+    </section>
   );
 }
 

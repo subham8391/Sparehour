@@ -49,6 +49,17 @@ export const CALENDARS_COUNT_SQL = `select count(*) as n from calendars where de
 /** One task, for the detail panel. */
 export const TASK_SQL = `select * from tasks where id = ? and deleted_at is null`;
 
+export const CHECKLIST_SQL = `select id, task_id, title, done, sort_key from checklist_items where deleted_at is null and task_id = ? order by sort_key, id`;
+
+/** The tags on one task, by name. */
+export const TASK_TAGS_SQL = `
+  select t.id, t.name from task_tags tt
+  join tags t on t.id = tt.tag_id and t.deleted_at is null
+  where tt.deleted_at is null and tt.task_id = ?
+  order by lower(t.name)`;
+
+export const TAGS_SQL = `select id, name from tags where deleted_at is null order by lower(name)`;
+
 /** Inclusive ISO date bounds for `day` and the `days - 1` days after it. */
 export function dayRangeParams(day: LocalDate, days: number): [string, string] {
   return [day.toString(), day.add({ days: Math.max(0, days - 1) }).toString()];

@@ -2,7 +2,7 @@
 // (LocalDate, LocalTime, boolean). Engines never see raw rows.
 import type { CapacityBlock, CapacityEvent, CapacityTask, WorkWindow } from "@/core/capacity";
 import { instant, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
-import type { MissPolicy, Priority, RecurrenceMode, SpaceId, Task, TaskId, TaskState } from "@/core/types";
+import type { ChecklistItem, MissPolicy, Priority, RecurrenceMode, SpaceId, Task, TaskId, TaskState } from "@/core/types";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "../schema.client";
 
 const bool = (v: number | null | undefined): boolean => v === 1;
@@ -16,6 +16,10 @@ export function normaliseTimestamp(v: string): string {
   if (/[+-]\d{2}$/.test(s)) s = `${s}:00`;
   if (!/(Z|[+-]\d{2}:\d{2})$/.test(s)) s = `${s}Z`;
   return s;
+}
+
+export function toChecklistItem(r: { id: string; task_id: string | null; title: string | null; done: number | null; sort_key: string | null }): ChecklistItem {
+  return { id: r.id, taskId: (r.task_id ?? "") as TaskId, title: r.title ?? "", done: r.done === 1, sortKey: r.sort_key ?? "" };
 }
 
 export function toTask(r: TaskRow): Task {

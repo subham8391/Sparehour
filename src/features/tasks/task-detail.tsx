@@ -4,15 +4,20 @@
 // Where it appears (context pane, right sheet, full-screen sheet) is decided
 // by the provider below.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@/data/powersync";
-import { toTask } from "@/data/mappers";
+import { useLocalDatabase, useQuery } from "@/data/powersync";
+import type { TagRef } from "@/core/types";
+import { toChecklistItem, toTask } from "@/data/mappers";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
-import { TASK_SQL } from "@/data/queries/views";
-import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import { CHECKLIST_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL } from "@/data/queries/views";
+import { ChecklistRepo } from "@/data/repositories/checklist-repo";
+import { TagRepo } from "@/data/repositories/tag-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
+import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useTaskRepo } from "./use-task-repo";
+
+type ChecklistRow = Parameters<typeof toChecklistItem>[0];
 
 interface TaskDetailApi {
   selectedId: string | null;
@@ -37,12 +42,19 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
 }
 
 function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
+  const db = useLocalDatabase();
   const repo = useTaskRepo();
+  const checklistRepo = useMemo(() => new ChecklistRepo(db), [db]);
+  const tagRepo = useMemo(() => new TagRepo(db), [db]);
   const now = useNow();
   const { today, zone } = useLocalDay(now);
   const { data: rows, isLoading } = useQuery<TaskRowType>(TASK_SQL, [id]);
   const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
+  const { data: checklistRows } = useQuery<ChecklistRow>(CHECKLIST_SQL, [id]);
+  const { data: tagRows } = useQuery<TagRef>(TASK_TAGS_SQL, [id]);
+  const { data: allTagRows } = useQuery<TagRef>(TAGS_SQL);
+  const checklist = useMemo(() => (checklistRows ?? []).map(toChecklistItem), [checklistRows]);
   const task = rows?.[0] ? toTask(rows[0]) : null;
   const projects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", areaId: p.area_id })), [projectRows]);
   const project = projects.find((p) => p.id === task?.projectId) ?? null;
@@ -61,10 +73,19 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
       projectName={project?.name ?? null}
       areaName={area?.name ?? null}
       projects={projects}
+      checklist={checklist}
+      tags={tagRows ?? []}
+      allTags={allTagRows ?? []}
       now={now}
       zone={zone}
       today={today}
       onPatch={patch}
+      onChecklistAdd={(title) => void checklistRepo.add(task.id, task.spaceId, title)}
+      onChecklistToggle={(itemId, done) => void checklistRepo.setDone(itemId, done)}
+      onChecklistRename={(itemId, title) => void checklistRepo.rename(itemId, title)}
+      onChecklistRemove={(itemId) => void checklistRepo.remove(itemId)}
+      onTagAdd={(name) => void tagRepo.attach(task.id, task.spaceId, name)}
+      onTagRemove={(tagId) => void tagRepo.detach(task.id, tagId)}
       onComplete={() => void repo.complete(task.id)}
       onReopen={() => void repo.reopen(task.id)}
       onSomeday={() => void repo.setState(task.id, "someday").then(onClose)}

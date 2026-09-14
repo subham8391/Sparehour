@@ -186,6 +186,62 @@ describe("<TaskDetailPanel>", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("checklist: Enter adds the next step and keeps the cursor there; steps toggle, rename and remove", async () => {
+    const onChecklistAdd = vi.fn();
+    const onChecklistToggle = vi.fn();
+    const onChecklistRename = vi.fn();
+    const onChecklistRemove = vi.fn();
+    const { user } = setup({
+      checklist: [
+        { id: "c1", taskId: task.id, title: "Outline", done: true, sortKey: "a0" },
+        { id: "c2", taskId: task.id, title: "Draft", done: false, sortKey: "a1" },
+      ],
+      onChecklistAdd,
+      onChecklistToggle,
+      onChecklistRename,
+      onChecklistRemove,
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    const add = screen.getByRole("textbox", { name: "Add a step" });
+    await user.type(add, "Send to Dana{Enter}");
+    expect(onChecklistAdd).toHaveBeenCalledWith("Send to Dana");
+    expect(add).toHaveValue("");
+    expect(add).toHaveFocus();
+
+    await user.click(screen.getByRole("checkbox", { name: "Done: Draft" }));
+    expect(onChecklistToggle).toHaveBeenCalledWith("c2", true);
+
+    const step = screen.getByRole("textbox", { name: "Step: Draft" });
+    await user.clear(step);
+    await user.type(step, "Draft v2{Enter}");
+    expect(onChecklistRename).toHaveBeenCalledWith("c2", "Draft v2");
+
+    await user.clear(step);
+    await user.keyboard("{Backspace}");
+    expect(onChecklistRemove).toHaveBeenCalledWith("c2");
+    await user.click(screen.getByRole("button", { name: "Remove step: Outline" }));
+    expect(onChecklistRemove).toHaveBeenCalledWith("c1");
+  });
+
+  it("tags: shows the attached ones, adds by name and removes", async () => {
+    const onTagAdd = vi.fn();
+    const onTagRemove = vi.fn();
+    const { user } = setup({
+      tags: [{ id: "g1", name: "deep" }],
+      allTags: [
+        { id: "g1", name: "deep" },
+        { id: "g2", name: "calls" },
+      ],
+      onTagAdd,
+      onTagRemove,
+    });
+    expect(screen.getByText("@deep")).toBeInTheDocument();
+    await user.type(screen.getByRole("combobox", { name: "Add a tag" }), "@calls{Enter}");
+    expect(onTagAdd).toHaveBeenCalledWith("calls");
+    await user.click(screen.getByRole("button", { name: "Remove tag deep" }));
+    expect(onTagRemove).toHaveBeenCalledWith("g1");
+  });
+
   it("a done task shows as done and offers Reopen", async () => {
     const { user, onReopen } = setup({ task: { ...task, state: "done" } });
     expect(screen.getByRole("button", { name: "Mark not done", pressed: true })).toBeInTheDocument();

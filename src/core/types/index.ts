@@ -43,6 +43,20 @@ export interface Task {
   routineRunId: string | null;
 }
 
+/** One step of a task's one-level checklist. Nesting is impossible by design. */
+export interface ChecklistItem {
+  id: string;
+  taskId: TaskId;
+  title: string;
+  done: boolean;
+  sortKey: string;
+}
+
+export interface TagRef {
+  id: string;
+  name: string;
+}
+
 export type RecurrenceException =
   | { occurrenceDate: LocalDate; kind: "skip" }
   | { occurrenceDate: LocalDate; kind: "move"; movedTo: LocalDate };
