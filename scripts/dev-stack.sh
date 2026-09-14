@@ -39,6 +39,12 @@ else
   echo "  written (local keys only; never commit it)"
 fi
 
+# The sync token secret (SYSTEM_DESIGN.md §9.2): the app signs five-minute
+# tokens with it and the PowerSync service verifies them. Locally both sides
+# use this fixed value (docker-compose.yml carries its base64url form); a
+# real deployment sets POWERSYNC_JWT_SECRET and PS_SYNC_JWT_K itself.
+grep -q '^POWERSYNC_JWT_SECRET=' .env.local || printf 'POWERSYNC_JWT_SECRET=sparehour-local-sync-token-secret-0123456789abcdef\n' >> .env.local
+
 # Web Push (SYSTEM_DESIGN.md §7): a VAPID key pair for this machine, the
 # secret the minute tick presents, and the origin deep links are built on.
 echo "▸ push keys in .env.local"

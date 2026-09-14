@@ -1,14 +1,13 @@
-// The sync connector (SYSTEM_DESIGN.md §4.1). Credentials: the Supabase
-// session JWT (spike shortcut; M1 proper mints a narrow token at
-// /api/sync/token). Uploads: one POST per local transaction to our own
-// endpoint, which applies everything as the user under RLS.
+// The sync connector (SYSTEM_DESIGN.md §4.1). Credentials: a five-minute
+// token from /api/sync/token (§9.2), never the Supabase session itself.
+// Uploads: one POST per local transaction to our own endpoint, which applies
+// everything as the user under RLS.
 //
 // The one rule that matters: if uploadData throws, PowerSync retries from the
 // head of the queue forever. So only genuinely retryable failures throw;
 // validation rejections complete the transaction and let the server row win.
 import type { AbstractPowerSyncDatabase, PowerSyncBackendConnector, PowerSyncCredentials } from "@powersync/web";
 import { BUILD_ID } from "../build-id";
-import { supabaseBrowser } from "../supabase-browser";
 
 export interface UploadRejection {
   client_id: string;
@@ -22,15 +21,11 @@ export class SparehourConnector implements PowerSyncBackendConnector {
   ) {}
 
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
-    const { data, error } = await supabaseBrowser().auth.getSession();
-    if (error) throw error;
-    const session = data.session;
-    if (!session) return null; // signed out → the SDK stops syncing
-    return {
-      endpoint: this.endpoint,
-      token: session.access_token,
-      expiresAt: session.expires_at ? new Date(session.expires_at * 1000) : undefined,
-    };
+    const res = await fetch("/api/sync/token", { credentials: "include", cache: "no-store" });
+    if (res.status === 401) return null; // signed out → the SDK stops syncing
+    if (!res.ok) throw new Error(`sync token: ${res.status}`); // retried by the SDK
+    const { token, expires_at } = (await res.json()) as { token: string; expires_at: number };
+    return { endpoint: this.endpoint, token, expiresAt: new Date(expires_at * 1000) };
   }
 
   async uploadData(db: AbstractPowerSyncDatabase): Promise<void> {

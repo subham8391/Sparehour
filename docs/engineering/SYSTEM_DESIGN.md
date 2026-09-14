@@ -2858,6 +2858,8 @@ signed with: a dedicated RS256 key; PowerSync validates against our JWKS endpoin
 
 Why not just hand over the Supabase JWT (which PowerSync supports)? Because this token is presented to a third-party service: a 5-minute lifetime, a narrow audience, and no Supabase-role claims mean a leaked sync token cannot be replayed against PostgREST or Storage. The cost is one endpoint and a JWKS route.
 
+**As built (2026-09-14).** `GET /api/sync/token` (`src/server/sync/token.ts`) signs `{ sub, aud: "powersync", iat, exp: +5 min, app_ver }` with **HS256** and a secret shared with the service (`POWERSYNC_JWT_SECRET` on the app, the same bytes base64url as the `k` of a static `oct` key in `powersync.yaml`, fed through `PS_SYNC_JWT_K`). The connector fetches it with the session cookie and the SDK refreshes it before expiry; the Supabase session never leaves the app. HS256 rather than the RS256 key pair above because one secret on two sides is a smaller thing to run than a JWKS route the service must reach; the claims are the same, so moving to RS256 later is a config change on both ends. The `spaces` claim is not issued: the sync streams key on `request.user_id()` alone at M1.
+
 ### 9.3 Authorisation
 
 RLS is **the** boundary (§3.3), with three layers in front of it as defence in depth, not as substitutes:

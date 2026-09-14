@@ -15,20 +15,20 @@ storage:
 sync_config:
   path: /streams/streams.yaml
 
-# The spike forwards the Supabase session JWT (SYSTEM_DESIGN.md Appendix A
-# shortcut); M1 proper mints a narrow 5-minute token via /api/sync/token
-# and validates it against our own JWKS (§9.2).
-#
-# Local Supabase (CLI ≥ 2.1xx) signs access tokens with an ES256 signing key
-# (`kid` header), not the legacy HS256 secret, so the keystore needs the
-# project's JWKS endpoint. PowerSync only discovers that endpoint by itself
-# for *.supabase.co replication hosts; for host.docker.internal it must be
-# given explicitly, together with the audience Supabase puts in its tokens.
+# Client auth (SYSTEM_DESIGN.md §9.2): the app mints a five-minute HS256 token
+# at /api/sync/token with `sub` = user id and `aud` = "powersync"; the service
+# verifies it with the same secret, given here as a JWK (`k` is the secret,
+# base64url). PS_SYNC_JWT_K comes from docker-compose.yml, which defaults it
+# to the local development secret; a real deployment sets both sides itself.
+# The Supabase session is never presented to the service.
 client_auth:
-  supabase: true
-  supabase_jwt_secret: super-secret-jwt-token-with-at-least-32-characters-long
-  jwks_uri: http://host.docker.internal:54321/auth/v1/.well-known/jwks.json
-  audience: ["authenticated"]
+  jwks:
+    keys:
+      - kty: oct
+        alg: HS256
+        kid: sparehour-sync-v1
+        k: !env PS_SYNC_JWT_K
+  audience: ["powersync"]
 
 api:
   tokens:

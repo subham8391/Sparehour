@@ -7,6 +7,8 @@ services:
     environment:
       POWERSYNC_CONFIG_PATH: /config/powersync.yaml
       NODE_OPTIONS: --max-old-space-size=1000
+      # base64url of POWERSYNC_JWT_SECRET (the app's side); this default is the local development secret only
+      PS_SYNC_JWT_K: ${PS_SYNC_JWT_K:-c3BhcmVob3VyLWxvY2FsLXN5bmMtdG9rZW4tc2VjcmV0LTAxMjM0NTY3ODlhYmNkZWY}
     volumes:
       - ./config:/config
       - ../supabase/powersync:/streams:ro
