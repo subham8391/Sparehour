@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Capacity } from "@/core/capacity";
@@ -67,6 +67,22 @@ describe("<Timeline>", () => {
     expect(onOpenTask).toHaveBeenCalledWith("t1");
     await user.click(screen.getByRole("button", { name: "Remove" }));
     expect(onRemoveBlock).toHaveBeenCalledWith("b1");
+  });
+
+  it("tap-to-schedule: with a task waiting, a tap reports the snapped minute under it; otherwise a tap clears the selection", () => {
+    const onTapSlot = vi.fn();
+    const onSelectBlock = vi.fn();
+    const { rerender } = render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} placing={{ title: "Call Mum" }} onTapSlot={onTapSlot} onSelectBlock={onSelectBlock} />);
+    const timeline = screen.getByTestId("timeline");
+    expect(timeline).toHaveAttribute("aria-label", "Tap a time for Call Mum");
+    // jsdom lays the timeline out at y = 0, so 55 px down is 50 minutes into the day, snapped to five.
+    fireEvent.click(timeline, { clientY: 55 });
+    expect(onTapSlot).toHaveBeenCalledWith(590);
+    expect(onSelectBlock).not.toHaveBeenCalled();
+    rerender(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} placing={null} onTapSlot={onTapSlot} onSelectBlock={onSelectBlock} />);
+    fireEvent.click(timeline, { clientY: 55 });
+    expect(onTapSlot).toHaveBeenCalledTimes(1);
+    expect(onSelectBlock).toHaveBeenCalledWith(null);
   });
 
   it("a locked block has no resize handle; an unlocked one does", () => {

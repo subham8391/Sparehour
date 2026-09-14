@@ -5,7 +5,7 @@
 // over it shows a ghost block snapped to five minutes; dropping creates the
 // block. Blocks stay local until a write calendar exists (P7b).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { blockLength, minuteAtOffset, placeAt, resizeEnd } from "@/core/blocking";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes, type Instant } from "@/core/time";
@@ -29,6 +29,9 @@ export interface TimelineProps {
   onRemoveBlock?: (id: string) => void;
   onToggleLock?: (id: string, locked: boolean) => void;
   onOpenTask?: (taskId: string) => void;
+  /** Tap-to-schedule (SCREENS.md §2.8): a task is waiting for a time; a tap on a free spot places it. */
+  placing?: { title: string } | null;
+  onTapSlot?: (startMin: number) => void;
 }
 
 interface Ghost {
@@ -106,8 +109,25 @@ export function Timeline(p: TimelineProps) {
     target.addEventListener("pointerup", up);
   };
 
+  const onTap = (e: ReactMouseEvent<HTMLDivElement>) => {
+    const root = rootRef.current;
+    if (p.placing && p.onTapSlot && root) {
+      p.onTapSlot(minuteAtOffset(e.clientY - root.getBoundingClientRect().top, PX_PER_MIN, start));
+      return;
+    }
+    p.onSelectBlock?.(null);
+  };
+
   return (
-    <div ref={rootRef} className="relative select-none" style={{ height: (end - start) * PX_PER_MIN }} data-testid="timeline" onClick={() => p.onSelectBlock?.(null)}>
+    <div
+      ref={rootRef}
+      className={`relative select-none ${p.placing ? "cursor-crosshair" : ""}`}
+      style={{ height: (end - start) * PX_PER_MIN }}
+      data-testid="timeline"
+      data-placing={p.placing ? "true" : undefined}
+      aria-label={p.placing ? `Tap a time for ${p.placing.title}` : undefined}
+      onClick={onTap}
+    >
       {Array.from({ length: Math.floor((end - start) / 60) + 1 }, (_, i) => (
         <div key={i} className="absolute left-12 right-0 border-t border-line" style={{ top: y(start + i * 60) }}>
           <span className="absolute -left-12 -top-2 w-10 text-right font-mono text-[11px] text-ink-3">{formatTime(timeFromMinutes(start + i * 60))}</span>

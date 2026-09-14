@@ -122,6 +122,24 @@ export default function TodayPage() {
     blockInNextGapRef.current = blockInNextGap;
   });
   useEffect(() => blocking.register((id) => blockInNextGapRef.current(id)), [blocking]);
+  // Tap-to-schedule (SCREENS.md §2.8): "Block…" on a row, then a tap on the timeline; Escape lets go.
+  const [placingId, setPlacingId] = useState<string | null>(null);
+  const placingTask = placingId ? findTask(placingId) : undefined;
+  const startPlacing = (id: string) => {
+    setPlacingId(id);
+    setView("day");
+  };
+  useEffect(() => {
+    if (!placingId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setPlacingId(null);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [placingId]);
   const selectedBlock = model.blocks.find((b) => b.id === selectedBlockId) ?? null;
   const removeBlock = (id: string) => {
     setSelectedBlockId((s) => (s === id ? null : s));
@@ -320,6 +338,11 @@ export default function TodayPage() {
                     <button type="button" aria-label="Tomorrow" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} className="flex min-h-11 items-center px-1.5 text-[13px]">
                       → tmr
                     </button>
+                    {hasDay && !model.blockByTask.has(t.id) && (
+                      <button type="button" aria-label={`Block ${t.title}`} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} className="flex min-h-11 items-center px-1.5 text-[13px]">
+                        ▪ Block
+                      </button>
+                    )}
                   </span>
                 }
               />
@@ -385,6 +408,14 @@ export default function TodayPage() {
           <p className="mb-3 font-mono text-[11px] text-ink-3">
             {formatTime(timeFromMinutes(dayStart))} – {formatTime(timeFromMinutes(dayEnd))} · buffer {model.settings?.bufferPct}%
           </p>
+          {placingTask && (
+            <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-ink px-3 py-2 text-[13px] text-paper">
+              <span className="min-w-0 truncate">Tap a time for “{placingTask.title}”</span>
+              <button type="button" onClick={() => setPlacingId(null)} className="shrink-0 font-medium underline decoration-paper/50 hover:decoration-paper">
+                Cancel
+              </button>
+            </div>
+          )}
           <Timeline
             c={model.capacity}
             now={now}
@@ -410,8 +441,14 @@ export default function TodayPage() {
             onRemoveBlock={removeBlock}
             onToggleLock={(id, locked) => void blocks.setLocked(id, locked)}
             onOpenTask={(taskId) => detail.open(taskId)}
+            placing={placingTask ? { title: placingTask.title } : null}
+            onTapSlot={(min) => {
+              if (!placingTask) return;
+              void placeTask(placingTask, min);
+              setPlacingId(null);
+            }}
           />
-          {model.blocks.length === 0 && <p className="mt-3 text-[12.5px] text-ink-3">Drag a task here, or select one and press B, to block time for it.</p>}
+          {model.blocks.length === 0 && !placingTask && <p className="mt-3 text-[12.5px] text-ink-3">Drag a task here, tap “Block” on a row and then a time, or select a task and press B.</p>}
         </aside>
       )}
     </main>
