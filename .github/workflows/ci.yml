@@ -20,3 +20,20 @@ jobs:
       - run: npx eslint .
       - run: npx vitest run --coverage
       - run: npm run build
+
+  # Database contract tests (SYSTEM_DESIGN.md §12.2): RLS, apply_mutations,
+  # triggers — run against a real local Supabase, migrations + seed applied.
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,mailpit
+      - run: npx vitest run src/server/db
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          CONTRACT_TESTS: required

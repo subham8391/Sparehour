@@ -1,26 +1,103 @@
 @import "tailwindcss";
 
+/* Daylight tokens — docs/design/DESIGN_SYSTEM.md §2. Light is the base; the
+   dark set applies to the un-stamped system theme and to an explicit choice. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: #f4f8f6;
+  --surface: #ffffff;
+  --surface-2: #edf1ef;
+  --line: #d9e0dd;
+  --line-strong: #bec6c2;
+  --ink: #161c19;
+  --ink-2: #5c6661;
+  --ink-3: #89928d;
+  --spare: #1c7b5a;
+  --spare-fill: #249c74;
+  --spare-soft: #d7f3e5;
+  --meet: #4868a2;
+  --meet-fill: #6586c3;
+  --meet-soft: #e0ecff;
+  --over: #a06f30;
+  --over-fill: #ebb16c;
+  --over-soft: #feebd6;
+  --deadline: #b14f42;
+  --deadline-soft: #ffe3de;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --paper: #0c110f;
+    --surface: #151917;
+    --surface-2: #1e2320;
+    --line: #292f2c;
+    --line-strong: #3e4441;
+    --ink: #e8ecea;
+    --ink-2: #9ea7a3;
+    --ink-3: #6b7470;
+    --spare: #69d6aa;
+    --spare-fill: #37b78a;
+    --spare-soft: #103627;
+    --meet: #9ebef8;
+    --meet-fill: #7698d6;
+    --meet-soft: #202e47;
+    --over: #ebb16c;
+    --over-fill: #ebb16c;
+    --over-soft: #3e290f;
+    --deadline: #f58d7c;
+    --deadline-soft: #47211b;
   }
 }
 
+:root[data-theme="dark"] {
+  --paper: #0c110f;
+  --surface: #151917;
+  --surface-2: #1e2320;
+  --line: #292f2c;
+  --line-strong: #3e4441;
+  --ink: #e8ecea;
+  --ink-2: #9ea7a3;
+  --ink-3: #6b7470;
+  --spare: #69d6aa;
+  --spare-fill: #37b78a;
+  --spare-soft: #103627;
+  --meet: #9ebef8;
+  --meet-fill: #7698d6;
+  --meet-soft: #202e47;
+  --over: #ebb16c;
+  --over-fill: #ebb16c;
+  --over-soft: #3e290f;
+  --deadline: #f58d7c;
+  --deadline-soft: #47211b;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-spare: var(--spare);
+  --color-spare-fill: var(--spare-fill);
+  --color-spare-soft: var(--spare-soft);
+  --color-meet: var(--meet);
+  --color-meet-fill: var(--meet-fill);
+  --color-meet-soft: var(--meet-soft);
+  --color-over: var(--over);
+  --color-over-fill: var(--over-fill);
+  --color-over-soft: var(--over-soft);
+  --color-deadline: var(--deadline);
+  --color-deadline-soft: var(--deadline-soft);
+  --font-display: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-instrument-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-dm-mono), "SF Mono", Menlo, Consolas, monospace;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }

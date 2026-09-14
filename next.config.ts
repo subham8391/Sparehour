@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // The repo sits inside a folder with other projects; keep Turbopack's root here.
+  turbopack: { root: __dirname },
 };
 
 export default nextConfig;

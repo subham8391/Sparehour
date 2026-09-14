@@ -1,0 +1,49 @@
+import { describe, expect, it } from "vitest";
+import { UploadBody, sanitize, type WireOp } from "./upload";
+
+const op = (over: Partial<WireOp>): WireOp => ({
+  client_id: "1",
+  op: "PATCH",
+  table: "tasks",
+  id: "6f1e2c9a-3b4d-4e5f-8a9b-0c1d2e3f4a5b",
+  data: { title: "x" },
+  ...over,
+});
+
+describe("sanitize", () => {
+  it("drops server-owned columns and keeps the rest", () => {
+    const r = sanitize(op({ data: { title: "Call Sam", carry_count: 99, last_carried_at: "2026-09-14", updated_at: "now" } }));
+    expect(r?.data).toEqual({ title: "Call Sam" });
+  });
+
+  it("never lets a client write calendar_events", () => {
+    expect(sanitize(op({ table: "calendar_events", op: "PUT", data: { summary: "fake meeting" } }))).toBeNull();
+  });
+
+  it("returns null when a PATCH has nothing left", () => {
+    expect(sanitize(op({ data: { carry_count: 5 } }))).toBeNull();
+  });
+
+  it("passes deletes through untouched", () => {
+    const d = op({ op: "DELETE", data: undefined });
+    expect(sanitize(d)).toBe(d);
+  });
+
+  it("strips id from data (it travels separately)", () => {
+    expect(sanitize(op({ op: "PUT", data: { id: "other", title: "t" } }))?.data).toEqual({ title: "t" });
+  });
+});
+
+describe("UploadBody", () => {
+  it("accepts a well-formed batch and normalises numeric client ids", () => {
+    const r = UploadBody.safeParse({ device_id: "d1", ops: [{ client_id: 7, op: "PUT", table: "tasks", id: "6f1e2c9a-3b4d-4e5f-8a9b-0c1d2e3f4a5b", data: { title: "t" } }] });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.ops[0].client_id).toBe("7");
+  });
+
+  it("rejects bad table names, bad ids and empty batches", () => {
+    expect(UploadBody.safeParse({ device_id: "d1", ops: [] }).success).toBe(false);
+    expect(UploadBody.safeParse({ device_id: "d1", ops: [{ client_id: "1", op: "PUT", table: "tasks; drop", id: "6f1e2c9a-3b4d-4e5f-8a9b-0c1d2e3f4a5b" }] }).success).toBe(false);
+    expect(UploadBody.safeParse({ device_id: "d1", ops: [{ client_id: "1", op: "PUT", table: "tasks", id: "not-a-uuid" }] }).success).toBe(false);
+  });
+});

@@ -49,16 +49,17 @@
 
 **Product docs.** `docs/product/PRODUCT_SPEC.md`, `ONBOARDING.md` and `SCREENS.md` are the detailed spec. Where they needed an answer to an open question (Q20–Q25) they assume the recommendation below and mark it "(assumed — confirm)".
 
+**Stack ruling (2026-09-14).** **PowerSync + Supabase** (Postgres + Auth), decided by the P0 spike — results in `docs/engineering/SYSTEM_DESIGN.md` Appendix A′. Hard gates A3 and A6 pass; A1 passes provisionally (local writes 8–41 ms, foreground paint numbers still to take on a production build); **A4 (installed iOS PWA storage) is not yet run** and needs the first HTTPS preview on a real iPhone — if it fails, Firestore per §4.9, nothing built so far is wasted. Rulings that came out of the spike: sync streams are keyed by month, not date range (parameters only support `=`/`IN`); PowerSync verifies Supabase's ES256 tokens through the project JWKS; `apply_mutations` runs as the user with an RLS-protected idempotency ledger and reports refused rows per op; database contract tests run against the local stack and are required in CI.
+
 ## Deferred (decide later)
 - **Team features' shape** — after the personal app is built. Suggested: shared spaces where planning stays personal.
-- **Tech stack / sync layer** — see `research/06-sync-engines.md`. Recommendation: PowerSync + Supabase (Postgres + Auth); Firestore as fallback. Zero has no offline writes; InstantDB is sunsetting; Electric Cloud is closing.
 
 ## Open questions (round 4, unanswered)
 
 | # | Question | Recommendation |
 |---|---|---|
 | Q20 | Team timing vs the M2 beta | M2 is individuals-only; teams at M2.5. Every record carries a `space_id` from day one. |
-| Q21 | How to decide the stack | A 2–3 day spike of the real Today screen on PowerSync + Supabase, with a pass/fail checklist; Firestore as fallback. |
+| ~~Q21~~ | How to decide the stack | **Settled (2026-09-14):** the spike ran — PowerSync + Supabase, see the stack ruling above and Appendix A′. |
 | Q22 | Pricing | Generous free tier. Pro $6/mo yearly or $8 monthly; paywall at two-way time-blocking and "Plan my day". 30-day no-card trial. Founding-member price locked for beta users. No lifetime deal at launch. |
 | Q23 | Organization | Inbox → Areas → Projects (optional headings) → Tasks, with a one-level checklist. Tags, 3 priority levels + none. Someday is a state; Logbook for done tasks. |
 | Q24 | Notifications | On: block start, deadline (day before and day of), one morning nudge. Off: shutdown nudge, per-task reminders. Opt-in "urgent" repeat. Quiet hours. Never "N overdue". |

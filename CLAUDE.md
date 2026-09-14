@@ -7,7 +7,9 @@ A calm, time-aware personal planner (product formerly worked on as "Personal Wor
 ## Before building anything
 - Read `docs/DECISIONS.md`. It is the source of truth for product decisions and lists the open ones — don't silently decide an open question in code; ask.
 - Check a feature's milestone tag in `docs/FEATURES.md`. Build only what the current milestone needs; park the rest.
-- The data/sync layer is **not decided**. Research and recommendation: `docs/research/06-sync-engines.md` (PowerSync + Supabase recommended, Firestore fallback). Don't add a database, auth, or sync library until it's settled.
+- Data/sync layer: **PowerSync + Supabase**, confirmed by the P0 spike (`docs/engineering/SYSTEM_DESIGN.md` Appendix A′, 2026-09-14; A4 iOS PWA storage still pending a real iPhone). Local stack: `npm run dev:stack` (Supabase on 54321/54322, PowerSync on 8080, writes `.env.local`), then `npm run dev`; sign in as `dev@sparehour.local` / `sparehour`. `@powersync/*` is imported only under `src/data/powersync/` (ESLint enforces it); `src/core/**` stays free of React, data and server imports.
+- Sync streams can only match subscription parameters with `=` / `IN` — windowed streams are keyed by month (`months: ['2026-09', …]`), never by a date range.
+- Database contract tests (`src/server/db/contract.test.ts`) need the local stack running; they skip without it and are required in CI.
 
 ## Conventions
 - Next.js 16 App Router under `src/app`, TypeScript, Tailwind CSS v4, npm. Import alias `@/*` → `src/*`.

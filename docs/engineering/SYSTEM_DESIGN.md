@@ -1124,55 +1124,56 @@ streams:
       - SELECT * FROM agent_actions  WHERE user_id = auth.user_id()
                                        AND state IN ('proposed','applied')
 
-  # ---- calendar mirror, windowed by a client-supplied range ----
+  # ---- calendar mirror, one bucket per month the client asks for ----
+  # `calendars` itself is tiny and personal, so it lives in user_data.
   calendar_window:
-    auto_subscribe: false              # the app subscribes with an explicit window
+    auto_subscribe: false              # the app subscribes with an explicit list of months
     priority: 2
     queries:
-      - SELECT * FROM calendars
-        WHERE space_id IN (SELECT space_id FROM space_members
-                           WHERE user_id = auth.user_id() AND deleted_at IS NULL)
-          AND deleted_at IS NULL
       - SELECT * FROM calendar_events
-        WHERE space_id IN (SELECT space_id FROM space_members
-                           WHERE user_id = auth.user_id() AND deleted_at IS NULL)
-          AND deleted_at IS NULL
-          AND start_at <  subscription.parameter('to_date')::timestamptz
-          AND end_at   >  subscription.parameter('from_date')::timestamptz
+        WHERE user_id = auth.user_id() AND deleted_at IS NULL
+          AND substring(start_at, 1, 7) IN subscription.parameter('months')
 
-  # ---- the Logbook: large, cold, opened on demand ----
+  # ---- the Logbook: large, cold, opened on demand, one bucket per month completed ----
   logbook:
     auto_subscribe: false
     priority: 3
+    with:
+      my_spaces: |
+        SELECT space_id FROM space_members
+        WHERE user_id = auth.user_id() AND deleted_at IS NULL AND joined_at IS NOT NULL
     queries:
       - SELECT * FROM tasks
-        WHERE space_id IN (SELECT space_id FROM space_members
-                           WHERE user_id = auth.user_id() AND deleted_at IS NULL)
+        WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
           AND state = 'done'
-          AND completed_at >= subscription.parameter('since')::timestamptz
+          AND substring(completed_at, 1, 7) IN subscription.parameter('months')
       - SELECT * FROM task_completions
-        WHERE space_id IN (SELECT space_id FROM space_members
-                           WHERE user_id = auth.user_id() AND deleted_at IS NULL)
-          AND completed_at >= subscription.parameter('since')::timestamptz
+        WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+          AND substring(completed_at, 1, 7) IN subscription.parameter('months')
 ```
+
+**Why months, not a date range (spike finding, P0).** A stream query may only compare a subscription parameter with `=` or `IN`: every row has to map to a finite set of bucket ids, so `start_at < subscription.parameter('to')` is rejected by the sync-rules compiler (and the only casts it knows are `text`, `numeric`, `integer`, `real`, `blob` — no `::timestamptz`). Timestamps sync as ISO 8601 UTC text (`2026-09-14T09:00:00Z`, edition ≥ 2), so `substring(col, 1, 7)` is the month and one bucket per month is the natural key. A month is also the right granularity for a rolling window: widening the view is adding a key, never re-downloading.
 
 Client side:
 
 ```ts
-// src/data/powersync/streams.ts
-export async function subscribeCoreStreams(db: CommonPowerSyncDatabase, tz: string) {
-  const { from, to } = calendarWindow(Temporal.Now.plainDateISO(tz)); // −30d … +90d
-  await db.syncStream('calendar_window', { from_date: from, to_date: to })
-          .subscribe({ ttl: 60 * 60 * 24, priority: 2 });
+// src/data/queries/today.ts — the hook passes this as the stream parameter
+export function monthsAround(day: LocalDate): string[] {
+  const month = day.toPlainYearMonth();
+  return [month.subtract({ months: 1 }), month, month.add({ months: 1 })].map((m) => m.toString());
 }
-export async function openLogbook(db: CommonPowerSyncDatabase, since: string) {
-  const sub = await db.syncStream('logbook', { since }).subscribe({ ttl: 60 * 60 });
-  await sub.waitForFirstSync();
-  return sub;                    // sub.unsubscribe() on close; data stays cached for ttl
-}
+
+// src/features/today/hooks/use-today.ts — useQuery keeps the subscription alive while Today is mounted
+const { data: eventRows } = useQuery<CalendarEventRow>(EVENTS_AROUND_SQL, [from, to], {
+  streams: [{ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24 }],
+});
+
+// Logbook (M1-P8): opened on demand, most recent months first, older months added as the user scrolls
+const sub = await db.syncStream("logbook", { months: lastMonths(6) }).subscribe({ ttl: 60 * 60 });
+await sub.waitForFirstSync();
 ```
 
-**Security note on parameters.** `auth.user_id()` comes from the signed JWT and is the only thing access control may depend on. `subscription.parameter(...)` is client-controlled, so it appears **only** in the date-window and `since` predicates — never in a `space_id` or `user_id` filter. That keeps every stream out of the `accept_potentially_dangerous_queries` category.
+**Security note on parameters.** `auth.user_id()` comes from the signed JWT and is the only thing access control may depend on. `subscription.parameter(...)` is client-controlled, so it appears **only** in the month predicates — never in a `space_id` or `user_id` filter. That keeps every stream out of the `accept_potentially_dangerous_queries` category.
 
 **Why these boundaries.**
 
@@ -1180,8 +1181,8 @@ export async function openLogbook(db: CommonPowerSyncDatabase, since: string) {
 |---|---|---|---|
 | `user_data` | always, priority 0 | <2 MB | Today cannot render without settings + work hours; it must land first. Also the privacy boundary inside a team space. |
 | `space_data` | always, priority 1 | ~5–15 MB | The working set. Excludes `state='done'`, which is ~80 % of rows after a year. |
-| `calendar_window` | always, `[today−30d, today+90d]`, widened on demand | ~1–4 MB | Calendars grow fastest and almost all of it is irrelevant. A rolling window is the difference between a 3 s and a 20 s first sync. |
-| `logbook` | on open, `since = today−180d` | grows forever | Cold data. `ttl` keeps it cached after unsubscribe so re-opening is instant. |
+| `calendar_window` | always, the months around today (Today: ±1 month; Week/Calendar widen on demand) | ~1–4 MB | Calendars grow fastest and almost all of it is irrelevant. A rolling window is the difference between a 3 s and a 20 s first sync. |
+| `logbook` | on open, the last 6 months; older months added on scroll | grows forever | Cold data. `ttl` keeps it cached after unsubscribe so re-opening is instant. |
 
 `deleted_at IS NULL` in every query means a soft delete is delivered to the device as a **row removal** — the semantics we want (§4.4). The same is true of `state <> 'done'` in `space_data`: completing a task removes it from the default replica and the Logbook stream re-adds it, which is exactly the lifecycle we want and costs one extra round-trip only when the Logbook is open.
 
@@ -1195,8 +1196,8 @@ export async function openLogbook(db: CommonPowerSyncDatabase, since: string) {
 |---|---|---|---|
 | `space_data` | always | ~5–15 MB | The working set. Must be complete for offline. |
 | `user_data` | always | <2 MB | Filtered by user even inside a team space — the privacy boundary. |
-| `calendar_window` | always, `[today-30d, today+90d]`; widened on demand | ~1–4 MB | Calendars are the fastest-growing table and almost all of it is irrelevant. A rolling window keeps the replica small and the initial sync fast. |
-| `logbook` | on open, `since = today-180d` | grows forever | Completed tasks are ~80 % of rows after a year. Keeping them out of the default replica is the difference between a 3 s and a 20 s first sync. |
+| `calendar_window` | always, the months around today; widened on demand | ~1–4 MB | Calendars are the fastest-growing table and almost all of it is irrelevant. A rolling window keeps the replica small and the initial sync fast. |
+| `logbook` | on open, the last 6 months; older months on scroll | grows forever | Completed tasks are ~80 % of rows after a year. Keeping them out of the default replica is the difference between a 3 s and a 20 s first sync. |
 
 `deleted_at IS NULL` in every stream means a soft delete is delivered to the device as a **row removal**, which is exactly the semantics we want (§4.4).
 
@@ -3575,6 +3576,37 @@ One refinement that is **already settled** and should be copied back into DECISI
 **Go/no-go.** A1, A3, A4 and A6 are **hard gates** — any failure means Firestore. A2, A5, A7–A12 are soft: a failure buys a documented workaround, not a stack change. Record actual numbers, not impressions, and paste the table into this document as Appendix A′ with the decision and the date.
 
 **If it fails:** switch to Firestore per §4.9 while the codebase is still ~3 days of data-layer work. That asymmetry — 3 days now versus 2–3 weeks after M1 — is the entire reason the spike is phase zero.
+
+---
+
+## Appendix A′ — spike results (2026-09-14)
+
+**Setup.** Local Supabase (CLI 2.117, Postgres 17), self-hosted PowerSync 1.26 Open Edition (Postgres bucket storage, sync streams edition 3), `@powersync/web` 2.3.1 with `OPFSCoopSyncVFS` + multi-tab, Next 16.3 `next dev` (Turbopack), the seed of 2 000 tasks / 1 500 events / 400 blocks (3 916 rows replicated). Client: Chrome 152 on macOS, **dev build, hidden tab** — see A1. The real Today screen (`src/app/(app)/today`) with quick-add, complete, reschedule, reorder, carried-over actions, capacity ribbon and timeline.
+
+| # | Check | Result | Numbers and notes |
+|---|---|---|---|
+| A1 | Instant feel | **provisional pass** | Local write (`execute` → resolved): 8–41 ms; the Today query over 171 rows: **10 ms with a slim projection, 181 ms with `select *`** (row materialisation across the worker boundary dominates). Write → commit could not be measured honestly: the tab was hidden and Chrome aligns the SDK's 30 ms watch throttle to 1 s ticks (observed 450–1 000 ms). Two changes already follow from the numbers: hot queries project columns, never `select *`; list queries use `rowComparator` differential watches. Foreground re-measurement (200 samples, prod build, iPhone) is a P1 exit criterion. |
+| A2 | Cold open | not measured | Needs a production build + Playwright; P1. |
+| A3 | Offline edit + reconnect | **pass (single device)** | PowerSync stopped → header flips to *offline* within ~5 s; a quick-add lands locally in 41 ms and is on Today immediately; the upload path is independent of PowerSync (`/api/sync/upload` → Supabase) so the row reached Postgres while sync was down; PowerSync restarted → reconnected, `connected` true, nothing duplicated. Retry proven separately: one queued op survived seven consecutive 500s (a grant bug, below) and applied on the eighth attempt, exactly once, thanks to the ledger. The 50-edit, two-device, kill-the-tab matrix is still to run. |
+| A4 | Safari / iOS PWA storage | **not run** | Needs a real iPhone and an HTTPS deployment (OPFS and PWA install require a secure context). Runs on the first deployed preview (P1). Still the highest-risk gate. |
+| A5 | Multi-tab | partly | Two tabs opened the same OPFS database through the shared worker without errors; no convergence test yet. |
+| A6 | Server-written rows | **pass** | `update tasks set title = …, carry_count = 7` in psql → visible in the open tab within 2 s; a concurrent client edit to other columns (reschedule) was preserved, per-column LWW as designed. |
+| A7 | Upload path A/B | not run | `/api/sync/upload` measured at 70–160 ms per one-op batch in dev, of which ~40 ms is the proxy/session refresh. |
+| A8 | Stream and bucket shape | **pass, with a design change** | Range predicates on subscription parameters are not expressible in sync streams (only `=` / `IN`; casts limited to text/numeric/integer/real/blob), so `calendar_window` and `logbook` are month-keyed (§3.5). All four streams validate and replicate; `calendar_window` is subscribed from `useQuery({ streams })` and re-keys as the day moves. |
+| A9 | RLS under load | not run | P1 (`EXPLAIN` as `authenticated`). |
+| A10 | Recovery | not run | P1. |
+| A11 | Bundle | not run | P10. |
+| A12 | Turbopack integration | **pass** | `@powersync/web` workers resolve under `next dev` (Turbopack) with no configuration; `next build` passes in CI. `turbopack.root` is pinned because the repo lives beside other projects. |
+
+**Findings that changed code (all covered by tests where a test can reach them).**
+
+1. Local Supabase now signs access tokens with **ES256 signing keys** (`kid` header). PowerSync's `supabase_jwt_secret` covers HS256 only and fails with a silent 401; the service needs `client_auth.jwks_uri` (the project's `/auth/v1/.well-known/jwks.json`) and `audience: ["authenticated"]`. PowerSync discovers the JWKS URL by itself only for `*.supabase.co` hosts. (`powersync/config/powersync.yaml`)
+2. `apply_mutations` runs as the user, so the idempotency ledger needs `SELECT` as well as `INSERT`/`UPDATE` (`on conflict` and `update … where` read the key); the ledger now has row security so a user only sees their own rows. (foundations migration)
+3. **`FOUND` is not reliable after `EXECUTE`**: a cross-tenant `PATCH` was acknowledged as *applied* while touching nothing, so a device would never learn its write was refused. `GET DIAGNOSTICS ROW_COUNT` fixes it; `DELETE` gets the same check. Caught by the contract test that now guards it. (foundations migration, `src/server/db/contract.test.ts`)
+4. GoTrue rejects sign-in for manually seeded users whose token columns are NULL ("Database error querying schema"); the seed sets them to `''`.
+5. `next dev` cannot be tested in the Claude desktop app's built-in browser pane: it blocks cross-origin `fetch` from **SharedWorkers**, which is exactly how the PowerSync sync worker talks to the service. Real Chrome works. Playwright (P1) is the right tool anyway.
+
+**Decision: GO for PowerSync + Supabase** (2026-09-14), with three carried exit criteria before M1-P2 is called done: A1 measured in the foreground on a production build and a phone, A3's two-device matrix, and A4 on an installed iOS PWA from the first HTTPS preview. A4 failing still means Firestore per §4.9; nothing built so far would be wasted — the engines are stack-independent and the schema is the schema.
 
 
 
