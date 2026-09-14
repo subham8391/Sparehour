@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:stack": "bash scripts/dev-stack.sh",
-    "build": "next build",
+    "build": "next build && serwist build serwist.config.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
@@ -16,6 +16,7 @@
   "dependencies": {
     "@powersync/react": "2.0.1",
     "@powersync/web": "2.3.1",
+    "@serwist/next": "^9.5.12",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.116.0",
     "chrono-node": "2.10.1",
@@ -24,10 +25,12 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "rrule": "2.8.1",
+    "serwist": "^9.5.12",
     "temporal-polyfill": "1.0.5",
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@serwist/cli": "^9.5.12",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",
@@ -37,6 +40,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "4.1.11",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "fast-check": "4.10.0",

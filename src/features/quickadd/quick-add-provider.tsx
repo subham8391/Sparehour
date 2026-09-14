@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { PROJECTS_SQL, type ProjectRow } from "@/data/queries/nav";
 import { ProjectRepo } from "@/data/repositories/project-repo";
+import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Icon } from "@/ui/icons";
@@ -40,6 +41,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   const db = useLocalDatabase();
   const tasks = useTaskRepo();
   const projectRepo = useMemo(() => new ProjectRepo(db), [db]);
+  const pwa = usePwaOptional();
 
   const onSubmit = useCallback(
     async (s: QuickAddSubmission) => {
@@ -47,8 +49,10 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
       let projectId = s.projectId;
       if (!projectId && s.createProjectName) projectId = await projectRepo.create(s.createProjectName, { spaceId });
       await tasks.create(s.draft, { spaceId, projectId });
+      // The first meaningful action is the moment to ask the browser to keep our storage (§10.4).
+      pwa?.requestPersist();
     },
-    [spaceId, projectRepo, tasks],
+    [spaceId, projectRepo, tasks, pwa],
   );
 
   const api = useMemo(() => ({ open }), [open]);

@@ -9,6 +9,8 @@ import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { applyTheme } from "@/features/commands/theme";
+import { BUILD_ID } from "@/data/powersync/connector";
+import { usePwa } from "@/features/pwa/pwa-provider";
 import { SettingsForm, type SettingsValues } from "@/features/settings/settings-form";
 import type { Segment } from "@/features/settings/settings-rules";
 import { ViewHeader } from "@/features/shell/view-header";
@@ -20,6 +22,7 @@ export default function SettingsPage() {
   const db = useLocalDatabase();
   const settingsRepo = useMemo(() => new SettingsRepo(db), [db]);
   const hoursRepo = useMemo(() => new WorkHoursRepo(db), [db]);
+  const pwa = usePwa();
   const [leaving, setLeaving] = useState(false);
   const { data: settings } = useQuery<UserSettingsRow & { id: string }>(SETTINGS_SQL);
   const { data: hours } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
@@ -83,6 +86,7 @@ export default function SettingsPage() {
           workHours={workHours}
           detectedTimeZone={detected}
           account={{ name: user?.display_name ?? null, email: user?.email ?? null }}
+          app={{ install: pwa.install, persistence: pwa.persistence, version: BUILD_ID, onInstall: () => void pwa.promptInstall() }}
           onChange={onChange}
           onWorkHours={onWorkHours}
           onSignOut={() => void signOut()}

@@ -5,7 +5,7 @@
 import { useId, useState } from "react";
 import { Icon, type IconName } from "@/ui/icons";
 
-export type SyncChipState = "synced" | "syncing" | "offline" | "problem";
+export type SyncChipState = "synced" | "syncing" | "offline" | "problem" | "unprotected";
 
 export interface SyncChipInput {
   /** navigator.onLine — the browser's view, which wins over the socket's. */
@@ -18,6 +18,8 @@ export interface SyncChipInput {
   /** Local changes not yet acknowledged by the server. */
   pending: number;
   now: Date;
+  /** Whether the browser has exempted this origin from storage eviction (§10.4); undefined = unknown. */
+  persisted?: boolean;
 }
 
 export interface SyncChipModel {
@@ -65,6 +67,14 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
       detail: i.pending > 0 ? `${i.pending} ${i.pending === 1 ? "change" : "changes"} in flight` : "Fetching what changed elsewhere",
     };
   }
+  if (i.persisted === false) {
+    return {
+      state: "unprotected",
+      icon: "alert",
+      label: "Storage not protected",
+      detail: "Install Sparehour to stop your browser clearing this data. Everything is also safe in your account.",
+    };
+  }
   return {
     state: "synced",
     icon: "cloud-check",
@@ -78,6 +88,7 @@ const TONE: Record<SyncChipState, string> = {
   syncing: "text-ink-2",
   offline: "text-ink-2",
   problem: "text-over",
+  unprotected: "text-over",
 };
 
 /** The chip itself; click expands the plain-words detail. `compact` shows the icon only (rail, phone header). */

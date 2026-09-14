@@ -3,6 +3,7 @@
 // the local upload queue.
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQuery, useSyncStatus } from "@/data/powersync";
+import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { syncChipModel, type SyncChipModel } from "./sync-chip";
 
 const PENDING_SQL = `select count(*) as n from ps_crud`;
@@ -28,6 +29,7 @@ export function useSyncChip(): SyncChipModel {
     return () => clearInterval(id);
   }, []);
   const flow = status.dataFlowStatus;
+  const persistence = usePwaOptional()?.persistence;
   return syncChipModel({
     online,
     connected: status.connected,
@@ -37,5 +39,6 @@ export function useSyncChip(): SyncChipModel {
     lastSyncedAt: status.lastSyncedAt ?? null,
     pending: data?.[0]?.n ?? 0,
     now,
+    persisted: persistence === "protected" ? true : persistence === "unprotected" ? false : undefined,
   });
 }

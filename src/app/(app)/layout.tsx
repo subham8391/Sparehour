@@ -1,6 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
+import { RestoreGate } from "@/features/pwa/restore-gate";
 import { AppShell } from "@/features/shell/app-shell";
 
 // The local database lives in a worker; never render it on the server. The
@@ -13,7 +14,9 @@ const PowerSyncProvider = dynamic(() => import("@/data/powersync/provider").then
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <PowerSyncProvider>
-      <AppShell>{children}</AppShell>
+      <RestoreGate>
+        <AppShell>{children}</AppShell>
+      </RestoreGate>
     </PowerSyncProvider>
   );
 }

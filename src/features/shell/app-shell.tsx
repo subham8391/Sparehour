@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
+import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailPane, TaskDetailProvider } from "@/features/tasks/task-detail";
@@ -24,6 +25,14 @@ function Keyboard({ children }: { children: ReactNode }) {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <PwaProvider>
+      <Shell>{children}</Shell>
+    </PwaProvider>
+  );
+}
+
+function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { counts, areas } = useNavData();
   const sync = useSyncChip();

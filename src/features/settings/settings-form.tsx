@@ -3,6 +3,7 @@
 // "Saved". Presentational: values in, patches out.
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import type { SettingsPatch } from "@/data/repositories/settings-repo";
+import { persistenceCopy, type InstallState, type PersistenceState } from "@/features/pwa/install";
 import { Icon } from "@/ui/icons";
 import { DEFAULT_SEGMENT, ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, segmentError, timeZoneHint, timeZoneOptions, type Segment } from "./settings-rules";
 
@@ -24,6 +25,8 @@ export interface SettingsFormProps {
   workHours: readonly (Segment | null)[];
   detectedTimeZone: string | null;
   account: { name: string | null; email: string | null };
+  /** Install and storage state (SYSTEM_DESIGN.md §10.4–10.5); omitted outside the app shell. */
+  app?: { install: InstallState; persistence: PersistenceState; version: string; onInstall: () => void };
   onChange: (patch: SettingsPatch) => void;
   onWorkHours: (weekday: number, segment: Segment | null) => void;
   onSignOut: () => void;
@@ -173,6 +176,38 @@ export function SettingsForm(p: SettingsFormProps) {
           </div>
         </div>
       </Section>
+
+      {p.app && (
+        <Section title="App" saved={false}>
+          <div className={`${ROW} flex-col items-stretch`}>
+            <div className="flex items-center justify-between gap-3">
+              <span className={LABEL}>Install</span>
+              {p.app.install.kind === "installed" && <span className="font-mono text-[13px] text-ink">Installed</span>}
+              {p.app.install.kind === "prompt" && (
+                <button type="button" onClick={p.app.onInstall} className="h-9 rounded-lg bg-ink px-3 text-[13px] font-medium text-paper">
+                  Install Sparehour
+                </button>
+              )}
+              {p.app.install.kind === "browser-menu" && <span className="text-[13px] text-ink-2">Use your browser&rsquo;s Install option</span>}
+            </div>
+            {(p.app.install.kind === "coach-ios" || p.app.install.kind === "coach-safari") && (
+              <ol className="mt-1 list-decimal pl-5 text-[13.5px] text-ink-2">
+                {p.app.install.steps.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ol>
+            )}
+          </div>
+          <div className={ROW}>
+            <span className={LABEL}>Storage</span>
+            <span className={`text-right text-[13px] ${p.app.persistence === "unprotected" ? "text-over" : "text-ink-2"}`}>{persistenceCopy(p.app.persistence, p.app.install.kind === "installed")}</span>
+          </div>
+          <div className={ROW}>
+            <span className={LABEL}>Version</span>
+            <span className="font-mono text-[13px] text-ink">{p.app.version}</span>
+          </div>
+        </Section>
+      )}
 
       <section className="flex flex-col gap-2">
         <button type="button" onClick={p.onSignOut} disabled={p.signingOut} className="h-11 self-start rounded-xl border border-line bg-surface px-4 text-[15px] font-medium text-ink hover:border-line-strong disabled:opacity-60">

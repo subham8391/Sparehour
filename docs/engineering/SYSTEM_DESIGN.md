@@ -2941,6 +2941,8 @@ Rate limits (Postgres token bucket in `private.rate_limits`, atomic `UPDATE … 
 
 **Decision: `serwist@9.5.12` + `@serwist/next@9.5.12`.** The deciding factor is a build-system one: Next.js 16 uses **Turbopack by default**, and both `next-pwa` and `@ducanh2912/next-pwa` are webpack plugins (the latter's own docs now point at Serwist). Staying on them would force `next build --webpack`, which is the path Next is deprecating.
 
+**How it is wired (P10 finding).** `@serwist/next`'s default mode is itself a webpack plugin and emits nothing under Turbopack. The app uses Serwist's *configurator mode* instead: `serwist.config.mjs` (`serwist.withNextConfig` from `@serwist/next/config`) describes the build, and `npm run build` runs `next build && serwist build serwist.config.mjs` — the CLI bundles `src/app/sw.ts` with esbuild and injects the precache manifest of the built shell (69 URLs, ~2 MB at P10) into `public/sw.js`, which is gitignored. There is no worker in development, so registration lives in `PwaProvider` behind `NODE_ENV === "production"`, through `@serwist/window` (which also carries the waiting → reload flow of §10.2).
+
 ```ts
 // src/app/sw.ts  → compiled to public/sw.js with the precache manifest injected
 import { defaultCache } from '@serwist/next/worker';

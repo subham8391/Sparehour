@@ -75,6 +75,20 @@ describe("<SettingsForm>", () => {
     expect(onChange).not.toHaveBeenCalledWith({ defaultEstimateMin: 2 });
   });
 
+  it("the App section shows install coaching, the storage state and the version", async () => {
+    const onInstall = vi.fn();
+    const { user } = setup({ app: { install: { kind: "coach-ios", steps: ["Tap Share in Safari", "Choose “Add to Home Screen”"] }, persistence: "unprotected", version: "dev", onInstall } });
+    expect(screen.getByText("Tap Share in Safari")).toBeInTheDocument();
+    expect(screen.getByText(/Not protected — install the app/)).toBeInTheDocument();
+    expect(screen.getByText("dev")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Install Sparehour" })).not.toBeInTheDocument();
+    // where the browser can prompt, a button
+    setup({ app: { install: { kind: "prompt" }, persistence: "protected", version: "dev", onInstall } });
+    await user.click(screen.getByRole("button", { name: "Install Sparehour" }));
+    expect(onInstall).toHaveBeenCalled();
+    expect(screen.getByText(/protected from automatic cleanup/)).toBeInTheDocument();
+  });
+
   it("signs out", async () => {
     const { user, onSignOut } = setup();
     await user.click(screen.getByRole("button", { name: "Sign out" }));

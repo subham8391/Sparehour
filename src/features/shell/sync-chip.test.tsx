@@ -43,6 +43,15 @@ describe("syncChipModel", () => {
     expect(m.detail).toMatch(/2 changes are waiting/);
   });
 
+  it("warns when the browser has not protected the data, but only when nothing else is wrong", () => {
+    expect(syncChipModel({ ...base, persisted: false })).toMatchObject({ state: "unprotected", label: "Storage not protected" });
+    expect(syncChipModel({ ...base, persisted: false }).detail).toMatch(/Install Sparehour/);
+    expect(syncChipModel({ ...base, persisted: false, online: false }).state).toBe("offline");
+    expect(syncChipModel({ ...base, persisted: false, uploading: true }).state).toBe("syncing");
+    expect(syncChipModel({ ...base, persisted: true }).state).toBe("synced");
+    expect(syncChipModel({ ...base }).state).toBe("synced");
+  });
+
   it("never blames the user or uses a technical word", () => {
     for (const m of [syncChipModel(base), syncChipModel({ ...base, online: false }), syncChipModel({ ...base, hasError: true })]) {
       expect(`${m.label} ${m.detail}`).not.toMatch(/error|fail|exception|socket|http/i);
