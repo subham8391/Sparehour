@@ -20,6 +20,7 @@ import { ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
+import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
 
@@ -176,6 +177,21 @@ export default function TodayPage() {
     const key = keyBetween(before?.daySortKey ?? null, after?.daySortKey ?? null);
     void time("reorder", () => model.repo.setDayOrder(t.id, key));
   };
+  // A row dropped above or below another: reordered within its list, or pulled
+  // into it from Carried over / This evening (one statement either way).
+  const dropInto = (list: Task[], evening: boolean) => (sourceId: string, targetId: string, edge: Edge) => {
+    const plan = planDrop(
+      list.map((x) => ({ id: x.id, key: x.daySortKey })),
+      sourceId,
+      targetId,
+      edge,
+    );
+    if (!plan || !findTask(sourceId)) return;
+    const inList = list.some((x) => x.id === sourceId);
+    void time("reorder", () => (inList ? model.repo.setDayOrder(sourceId, plan.key) : model.repo.placeInDay(sourceId, model.today, plan.key, evening)));
+  };
+  const dropInToday = dropInto(model.todayTasks, false);
+  const dropInEvening = dropInto(model.eveningTasks, true);
 
   if (!model.ready) return <main className="p-8 text-ink-3">Loading today…</main>;
 
@@ -249,7 +265,7 @@ export default function TodayPage() {
                 <TaskRow
                   key={t.id}
                   task={t}
-                  draggable={hasDay}
+                  draggable
                   meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                   onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
                   onDone={() => void time("complete", () => model.repo.complete(t.id))}
@@ -286,7 +302,8 @@ export default function TodayPage() {
               <TaskRow
                 key={t.id}
                 task={t}
-                draggable={hasDay}
+                draggable
+                onDropTask={(src, edge) => dropInToday(src, t.id, edge)}
                 meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                 onOpen={() => detail.open(t.id)}
                 selected={sel.selectedId === t.id}
@@ -347,7 +364,8 @@ export default function TodayPage() {
                 <TaskRow
                   key={t.id}
                   task={t}
-                  draggable={hasDay}
+                  draggable
+                  onDropTask={(src, edge) => dropInEvening(src, t.id, edge)}
                   meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                   onOpen={() => detail.open(t.id)}
                   selected={sel.selectedId === t.id}

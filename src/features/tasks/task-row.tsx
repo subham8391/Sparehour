@@ -3,12 +3,13 @@
 // title, then chips — deadline in ember (the only red in the app), time, and
 // the estimate, dashed when it is a guess. Actions slot in on the right and
 // a footer can sit under the row (the carried-over ask).
-import { draggable } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
+import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { formatMinutes, formatTime } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
 import { useSelectionOptional } from "@/features/selection/selection-provider";
+import { edgeFor, type Edge } from "./reorder";
 
 const LONG_PRESS_MS = 500;
 
@@ -22,6 +23,7 @@ export function TaskRow({
   footer,
   meta,
   draggable: canDrag = false,
+  onDropTask,
 }: {
   task: Task;
   onDone?: () => void;
@@ -36,6 +38,8 @@ export function TaskRow({
   meta?: ReactNode;
   /** The whole row can be dragged to the day timeline (SCREENS.md §2.4). */
   draggable?: boolean;
+  /** Another row dropped on this one, above or below it (drag-to-reorder). */
+  onDropTask?: (sourceId: string, edge: Edge) => void;
 }) {
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -53,6 +57,29 @@ export function TaskRow({
       onDrop: () => setDragging(false),
     });
   }, [canDrag]);
+
+  // A drop target for other rows: the edge under the pointer is drawn as a line.
+  const [edge, setEdge] = useState<Edge | null>(null);
+  const dropRef = useRef(onDropTask);
+  useEffect(() => {
+    dropRef.current = onDropTask;
+  });
+  const accepts = Boolean(onDropTask);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !accepts) return;
+    const edgeAt = (clientY: number) => edgeFor(clientY, el.getBoundingClientRect());
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === "task" && source.data.id !== task.id,
+      onDrag: ({ location }) => setEdge(edgeAt(location.current.input.clientY)),
+      onDragLeave: () => setEdge(null),
+      onDrop: ({ source, location }) => {
+        setEdge(null);
+        dropRef.current?.(String(source.data.id), edgeAt(location.current.input.clientY));
+      },
+    });
+  }, [accepts, task.id]);
 
   // Multi-select (SCREENS.md §24): X on the keyboard, Shift-click, the row's
   // checkbox once any row is ticked, and a long-press on touch.
@@ -85,7 +112,7 @@ export function TaskRow({
   return (
     <li
       ref={ref}
-      className={`border-t border-line first:border-t-0 ${selected ? "bg-paper shadow-[inset_2px_0_0_var(--ink)]" : ""} ${ticked ? "bg-surface-2" : ""} ${dragging ? "opacity-40" : ""}`}
+      className={`relative border-t border-line first:border-t-0 ${selected ? "bg-paper shadow-[inset_2px_0_0_var(--ink)]" : ""} ${ticked ? "bg-surface-2" : ""} ${dragging ? "opacity-40" : ""}`}
       aria-current={selected ? "true" : undefined}
       data-ticked={ticked || undefined}
       onClick={onClick}
@@ -95,6 +122,7 @@ export function TaskRow({
       onPointerCancel={cancelPress}
       onPointerLeave={cancelPress}
     >
+      {edge && <span aria-hidden="true" data-testid="drop-edge" className={`pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-ink ${edge === "top" ? "-top-px" : "-bottom-px"}`} />}
       <div className="flex min-h-11 items-center gap-3 px-4 py-2">
         {multi && sel && (
           <input

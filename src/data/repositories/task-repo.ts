@@ -252,6 +252,23 @@ export class TaskRepo {
     await this.db.execute(`update tasks set day_sort_key = ?, updated_at = ? where id = ?`, [daySortKey, new Date().toISOString(), id]);
   }
 
+  /** Position in the project list; with `headingId`, also the section it moved into. */
+  async setOrder(id: string, sortKey: string, headingId?: string | null): Promise<void> {
+    if (headingId === undefined) await this.db.execute(`update tasks set sort_key = ?, updated_at = ? where id = ?`, [sortKey, new Date().toISOString(), id]);
+    else await this.db.execute(`update tasks set sort_key = ?, heading_id = ?, updated_at = ? where id = ?`, [sortKey, headingId, new Date().toISOString(), id]);
+  }
+
+  /** Puts the task on `day` at `daySortKey` in one statement (a drop into a day's list). */
+  async placeInDay(id: string, day: LocalDate, daySortKey: string, evening = false): Promise<void> {
+    await this.db.execute(`update tasks set do_date = ?, day_sort_key = ?, evening = ?, state = case when state in ('inbox', 'someday') then 'active' else state end, updated_at = ? where id = ?`, [
+      day.toString(),
+      daySortKey,
+      evening ? 1 : 0,
+      new Date().toISOString(),
+      id,
+    ]);
+  }
+
   /**
    * "Clear the slate" (§5.3): archives every given task in one transaction and
    * records one undo entry for the whole batch, so a single ⌘Z restores them

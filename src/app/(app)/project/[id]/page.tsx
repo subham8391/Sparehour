@@ -15,7 +15,8 @@ import { PROJECT_DONE_SQL, PROJECT_HEADINGS_SQL, PROJECT_SQL, PROJECT_TASKS_SQL,
 import { HeadingRepo } from "@/data/repositories/heading-repo";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import type { HeadingRow, ProjectRow, TaskRow as TaskRowType } from "@/data/schema.client";
-import { groupByHeading, summarise } from "@/features/projects/organise";
+import { groupByHeading, summarise, type HeadingGroup } from "@/features/projects/organise";
+import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
@@ -83,6 +84,16 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   if (!project) return <main className="p-6 text-ink-3 md:p-10">Opening…</main>;
 
   const add = (draft: TaskDraft, headingId: string | null) => void tasksRepo.create(draft, { spaceId: project.spaceId, projectId: project.id, headingId });
+  // Drag-to-reorder within a section, or into another section (the row takes that heading).
+  const dropInto = (g: HeadingGroup) => (sourceId: string, targetId: string, edge: Edge) => {
+    const plan = planDrop(
+      g.tasks.map((x) => ({ id: x.id, key: x.sortKey })),
+      sourceId,
+      targetId,
+      edge,
+    );
+    if (plan) void tasksRepo.setOrder(sourceId, plan.key, g.heading?.id ?? null);
+  };
   const addHeading = () => {
     const title = newHeading.trim();
     if (!title) return;
@@ -177,7 +188,17 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
           {g.heading && <HeadingRow heading={g.heading} onRename={(t) => void headingRepo.rename(g.heading!.id, t)} onRemove={() => void headingRepo.remove(g.heading!.id)} />}
           <TaskList>
             {g.tasks.map((t) => (
-              <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} onDone={() => void tasksRepo.complete(t.id)} meta={<DayChipTag chip={dayChip(t, today)} />} />
+              <TaskRow
+                key={t.id}
+                task={t}
+                draggable
+                onDropTask={(src, edge) => dropInto(g)(src, t.id, edge)}
+                onOpen={() => detail.open(t.id)}
+                selected={sel.selectedId === t.id}
+                onSelect={() => sel.select(t.id)}
+                onDone={() => void tasksRepo.complete(t.id)}
+                meta={<DayChipTag chip={dayChip(t, today)} />}
+              />
             ))}
             <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
           </TaskList>

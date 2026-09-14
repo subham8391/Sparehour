@@ -123,6 +123,19 @@ describe("TaskRepo undo", () => {
     expect(single.record.mock.calls[0][0].label).toBe("Dropped “Draft the proposal”");
   });
 
+  it("reorder writes touch one row: the key, the section when given, or the day with its key", async () => {
+    const { db, execute } = fakeDb(row);
+    const repo = new TaskRepo(db);
+    await repo.setOrder("t1", "a1");
+    expect(execute.mock.calls[0][0]).toBe("update tasks set sort_key = ?, updated_at = ? where id = ?");
+    await repo.setOrder("t1", "a1", "h1");
+    expect(execute.mock.calls[1][0]).toBe("update tasks set sort_key = ?, heading_id = ?, updated_at = ? where id = ?");
+    expect(execute.mock.calls[1][1].slice(0, 2)).toEqual(["a1", "h1"]);
+    await repo.placeInDay("t1", localDate("2026-09-15"), "a2");
+    expect(String(execute.mock.calls[2][0])).toMatch(/^update tasks set do_date = \?, day_sort_key = \?, evening = \?, state = case when state in \('inbox', 'someday'\) then 'active' else state end/);
+    expect(execute.mock.calls[2][1].slice(0, 3)).toEqual(["2026-09-15", "a2", 0]);
+  });
+
   it("bulk writes on nothing do nothing", async () => {
     const { db, execute } = fakeDb(row);
     const history = { record: vi.fn() };
