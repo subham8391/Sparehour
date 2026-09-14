@@ -1,9 +1,11 @@
 // The service worker (SYSTEM_DESIGN.md §10.1): caches the shell, the hashed
 // chunks and the SQLite wasm — never data, which lives in SQLite. A new
-// version waits until the person chooses to reload (§10.2). Push handlers
-// arrive with P9.
+// version waits until the person chooses to reload (§10.2). Push (§7.2):
+// the same payload Safari renders declaratively is shown here with buttons
+// where the platform has them; a tap or a button opens the deep link.
 import { defaultCache } from "@serwist/next/worker";
 import { CacheFirst, NetworkFirst, Serwist, type PrecacheEntry, type SerwistGlobalConfig } from "serwist";
+import { ACTION_LABELS, isPushAction, supportsActions, withAction } from "../features/notifications/actions";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -39,3 +41,50 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+interface PushBody {
+  notification?: { title?: string; body?: string; navigate?: string; silent?: boolean; lang?: string };
+  sh?: { kind?: string; task_id?: string | null; block_id?: string | null; actions?: string[] };
+}
+
+self.addEventListener("push", (event) => {
+  let data: PushBody | null = null;
+  try {
+    data = event.data?.json() as PushBody;
+  } catch {
+    data = null;
+  }
+  const n = data?.notification;
+  if (!n?.title) return;
+  const sh = data?.sh;
+  const actions = supportsActions(self.navigator.userAgent) ? (sh?.actions ?? []).filter(isPushAction).map((a) => ({ action: a, title: ACTION_LABELS[a] })) : [];
+  event.waitUntil(
+    self.registration.showNotification(n.title, {
+      body: n.body ?? "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      lang: n.lang,
+      silent: n.silent ?? false,
+      tag: sh?.kind ? `${sh.kind}:${sh.block_id ?? sh.task_id ?? ""}` : undefined,
+      data: { navigate: n.navigate ?? "/today?src=push", sh },
+      ...(actions.length > 0 ? { actions } : {}),
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const data = event.notification.data as { navigate?: string } | undefined;
+  const url = withAction(data?.navigate ?? "/today?src=push", event.action);
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (list) => {
+      const client = list[0];
+      if (client) {
+        await client.focus();
+        if ("navigate" in client) await client.navigate(url);
+        return;
+      }
+      await self.clients.openWindow(url);
+    }),
+  );
+});

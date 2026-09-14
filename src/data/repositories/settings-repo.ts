@@ -11,6 +11,15 @@ export interface SettingsPatch {
   autoSomedayDays?: number;
   eveningStartsAt?: string; // "18:00"
   theme?: "system" | "light" | "dark";
+  // notifications (SYSTEM_DESIGN.md §7.1); a null time turns that nudge off
+  notifyBlockStart?: boolean;
+  notifyDeadline?: boolean;
+  notifyMorning?: boolean;
+  notifyShutdown?: boolean;
+  morningNudgeTime?: string | null;
+  shutdownNudgeTime?: string | null;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
 }
 
 const COLUMNS: Record<keyof SettingsPatch, string> = {
@@ -23,17 +32,29 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   autoSomedayDays: "auto_someday_days",
   eveningStartsAt: "evening_starts_at",
   theme: "theme",
+  notifyBlockStart: "notify_block_start",
+  notifyDeadline: "notify_deadline",
+  notifyMorning: "notify_morning",
+  notifyShutdown: "notify_shutdown",
+  morningNudgeTime: "morning_nudge_time",
+  shutdownNudgeTime: "shutdown_nudge_time",
+  quietHoursStart: "quiet_hours_start",
+  quietHoursEnd: "quiet_hours_end",
 };
 
 export class SettingsRepo {
   constructor(private readonly db: LocalDatabase) {}
 
-  /** Writes only the keys present. */
+  /** Writes only the keys present; booleans as 0/1, null clears. */
   async update(id: string, patch: SettingsPatch): Promise<void> {
     const keys = (Object.keys(patch) as (keyof SettingsPatch)[]).filter((k) => patch[k] !== undefined);
     if (keys.length === 0) return;
     const sets = keys.map((k) => `${COLUMNS[k]} = ?`).join(", ");
-    await this.db.execute(`update user_settings set ${sets}, updated_at = ? where id = ?`, [...keys.map((k) => patch[k] as string | number), new Date().toISOString(), id]);
+    const values = keys.map((k) => {
+      const v = patch[k];
+      return typeof v === "boolean" ? (v ? 1 : 0) : (v ?? null);
+    });
+    await this.db.execute(`update user_settings set ${sets}, updated_at = ? where id = ?`, [...values, new Date().toISOString(), id]);
   }
 }
 

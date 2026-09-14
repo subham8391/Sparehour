@@ -10,6 +10,8 @@ import type { ReactNode } from "react";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
+import { PushDeepLink } from "@/features/notifications/push-actions";
+import { useAppBadge } from "@/features/notifications/use-app-badge";
 import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { BulkBar } from "@/features/selection/bulk-bar";
@@ -38,6 +40,7 @@ function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { counts, areas } = useNavData();
   const sync = useSyncChip();
+  useAppBadge(counts.today);
   return (
     <UndoProvider>
       <QuickAddProvider>
@@ -59,6 +62,7 @@ function Shell({ children }: { children: ReactNode }) {
                 <BulkBar />
               </div>
               <PaletteHost />
+              <PushDeepLink />
               </Keyboard>
               </BlockingProvider>
             </PaletteProvider>

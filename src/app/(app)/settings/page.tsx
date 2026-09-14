@@ -10,6 +10,7 @@ import { SettingsRepo, WorkHoursRepo, type SettingsPatch } from "@/data/reposito
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { applyTheme } from "@/features/commands/theme";
 import { BUILD_ID } from "@/data/powersync/connector";
+import { usePush } from "@/features/notifications/use-push";
 import { usePwa } from "@/features/pwa/pwa-provider";
 import { SettingsForm, type SettingsValues } from "@/features/settings/settings-form";
 import type { Segment } from "@/features/settings/settings-rules";
@@ -23,6 +24,8 @@ export default function SettingsPage() {
   const settingsRepo = useMemo(() => new SettingsRepo(db), [db]);
   const hoursRepo = useMemo(() => new WorkHoursRepo(db), [db]);
   const pwa = usePwa();
+  const push = usePush();
+  const [testResult, setTestResult] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const { data: settings } = useQuery<UserSettingsRow & { id: string }>(SETTINGS_SQL);
   const { data: hours } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
@@ -41,6 +44,14 @@ export default function SettingsPage() {
         autoSomedayDays: s.auto_someday_days ?? 30,
         eveningStartsAt: (s.evening_starts_at ?? "18:00").slice(0, 5),
         theme: (s.theme === "light" || s.theme === "dark" ? s.theme : "system") as SettingsValues["theme"],
+        notifyBlockStart: (s.notify_block_start ?? 1) === 1,
+        notifyDeadline: (s.notify_deadline ?? 1) === 1,
+        notifyMorning: (s.notify_morning ?? 1) === 1,
+        notifyShutdown: (s.notify_shutdown ?? 0) === 1,
+        morningNudgeTime: (s.morning_nudge_time ?? "").slice(0, 5),
+        shutdownNudgeTime: (s.shutdown_nudge_time ?? "").slice(0, 5),
+        quietHoursStart: (s.quiet_hours_start ?? "").slice(0, 5),
+        quietHoursEnd: (s.quiet_hours_end ?? "").slice(0, 5),
       }
     : null;
   const workHours = useMemo(() => {
@@ -87,6 +98,16 @@ export default function SettingsPage() {
           detectedTimeZone={detected}
           account={{ name: user?.display_name ?? null, email: user?.email ?? null }}
           app={{ install: pwa.install, persistence: pwa.persistence, version: BUILD_ID, onInstall: () => void pwa.promptInstall() }}
+          notifications={{
+            copy: push.copy,
+            subscribed: push.subscribed,
+            busy: push.busy,
+            error: push.error,
+            onEnable: () => void push.enable(),
+            onDisable: () => void push.disable(),
+            onTest: () => void push.sendTest().then((n) => setTestResult(n > 0 ? `Sent to ${n} ${n === 1 ? "device" : "devices"}.` : "Nothing was reached — is this device subscribed?")),
+            testResult,
+          }}
           onChange={onChange}
           onWorkHours={onWorkHours}
           onSignOut={() => void signOut()}

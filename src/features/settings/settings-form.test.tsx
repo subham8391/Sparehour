@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsForm, type SettingsFormProps } from "./settings-form";
@@ -9,7 +9,25 @@ function setup(over: Partial<SettingsFormProps> = {}) {
   const onWorkHours = vi.fn();
   const onSignOut = vi.fn();
   const props: SettingsFormProps = {
-    values: { timezone: "Europe/London", weekStart: 0, dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, carryAskAfter: 3, autoSomedayDays: 30, eveningStartsAt: "18:00", theme: "system" },
+    values: {
+      timezone: "Europe/London",
+      weekStart: 0,
+      dayRolloverHour: 4,
+      bufferPct: 15,
+      defaultEstimateMin: 30,
+      carryAskAfter: 3,
+      autoSomedayDays: 30,
+      eveningStartsAt: "18:00",
+      theme: "system",
+      notifyBlockStart: true,
+      notifyDeadline: true,
+      notifyMorning: true,
+      notifyShutdown: false,
+      morningNudgeTime: "08:30",
+      shutdownNudgeTime: "",
+      quietHoursStart: "21:30",
+      quietHoursEnd: "07:30",
+    },
     workHours: [{ start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, null, null],
     detectedTimeZone: "Asia/Kolkata",
     account: { name: "Dev User", email: "dev@sparehour.local" },
@@ -62,6 +80,46 @@ describe("<SettingsForm>", () => {
     expect(onChange).toHaveBeenLastCalledWith({ theme: "dark" });
     await user.click(screen.getByText("Detected Asia/Kolkata — use it"));
     expect(onChange).toHaveBeenLastCalledWith({ timezone: "Asia/Kolkata" });
+  });
+
+  it("notification switches, nudge times and quiet hours save as their own columns", async () => {
+    const { user, onChange } = setup();
+    await user.click(screen.getByRole("switch", { name: "A time block is starting" }));
+    expect(onChange).toHaveBeenLastCalledWith({ notifyBlockStart: false });
+    fireEvent.change(screen.getByLabelText("Morning nudge time"), { target: { value: "07:45" } });
+    expect(onChange).toHaveBeenLastCalledWith({ morningNudgeTime: "07:45" });
+    expect(screen.getByLabelText("Shutdown nudge time")).toBeDisabled();
+    await user.click(screen.getByRole("switch", { name: "Evening shutdown nudge" }));
+    expect(onChange).toHaveBeenLastCalledWith({ notifyShutdown: true, shutdownNudgeTime: "17:30" });
+    fireEvent.change(screen.getByLabelText("Quiet hours end"), { target: { value: "08:00" } });
+    expect(onChange).toHaveBeenLastCalledWith({ quietHoursEnd: "08:00" });
+    await user.click(screen.getByRole("button", { name: "None" }));
+    expect(onChange).toHaveBeenLastCalledWith({ quietHoursStart: null, quietHoursEnd: null });
+    expect(screen.getByText("Never a count of what’s late.")).toBeInTheDocument();
+  });
+
+  it("the device row states the permission honestly and offers the one useful action", async () => {
+    const onEnable = vi.fn();
+    const onDisable = vi.fn();
+    const onTest = vi.fn();
+    const base = { subscribed: false, busy: false, error: null, onEnable, onDisable, onTest, testResult: null };
+    const { user } = setup({ notifications: { ...base, copy: { headline: "Reminders are off.", detail: "Your browser will ask once.", steps: [], action: "enable" } } });
+    expect(screen.getByText("Reminders are off.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Turn on reminders" }));
+    expect(onEnable).toHaveBeenCalled();
+    cleanup();
+
+    setup({ notifications: { ...base, subscribed: true, testResult: "Sent to 2 devices.", copy: { headline: "Reminders are on for this device.", detail: null, steps: [], action: "disable" } } });
+    await user.click(screen.getByRole("button", { name: "Send a test" }));
+    expect(onTest).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Turn off" }));
+    expect(onDisable).toHaveBeenCalled();
+    expect(screen.getByText("Sent to 2 devices.")).toBeInTheDocument();
+    cleanup();
+
+    setup({ notifications: { ...base, copy: { headline: "Blocked in your browser.", detail: null, steps: ["Click the icon left of the address bar", "Notifications → Allow"], action: null } } });
+    expect(screen.queryByRole("button", { name: "Turn on reminders" })).not.toBeInTheDocument();
+    expect(screen.getByText("Notifications → Allow")).toBeInTheDocument();
   });
 
   it("numbers stay inside their range", async () => {

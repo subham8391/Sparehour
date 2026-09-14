@@ -9,7 +9,8 @@ A calm, time-aware personal planner (product formerly worked on as "Personal Wor
 - Check a feature's milestone tag in `docs/FEATURES.md`. Build only what the current milestone needs; park the rest.
 - Data/sync layer: **PowerSync + Supabase**, confirmed by the P0 spike (`docs/engineering/SYSTEM_DESIGN.md` Appendix A′, 2026-09-14; A4 iOS PWA storage still pending a real iPhone). Local stack: `npm run dev:stack` (Supabase on 54321/54322, PowerSync on 8080, writes `.env.local`), then `npm run dev`; sign in as `dev@sparehour.local` / `sparehour`. `@powersync/*` is imported only under `src/data/powersync/` (ESLint enforces it); `src/core/**` stays free of React, data and server imports.
 - Sync streams can only match subscription parameters with `=` / `IN` — windowed streams are keyed by month (`months: ['2026-09', …]`), never by a date range.
-- Database contract tests (`src/server/db/contract.test.ts`) need the local stack running; they skip without it and are required in CI.
+- Database contract tests (`src/server/db/*.test.ts`) need the local stack running; they skip without it and are required in CI. New migrations: `npx supabase migration up --local`.
+- Web Push needs `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `PUSH_TICK_SECRET` and `NEXT_PUBLIC_APP_URL` (`dev-stack.sh` writes local ones). The service worker only registers in production builds, so reminders are tested on `npm run build && npm start`, not `npm run dev`.
 
 ## Conventions
 - Next.js 16 App Router under `src/app`, TypeScript, Tailwind CSS v4, npm. Import alias `@/*` → `src/*`.

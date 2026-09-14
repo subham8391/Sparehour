@@ -3,6 +3,7 @@
 // "Saved". Presentational: values in, patches out.
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import type { SettingsPatch } from "@/data/repositories/settings-repo";
+import type { PermissionCopy } from "@/features/notifications/push";
 import { persistenceCopy, type InstallState, type PersistenceState } from "@/features/pwa/install";
 import { Icon } from "@/ui/icons";
 import { DEFAULT_SEGMENT, ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, segmentError, timeZoneHint, timeZoneOptions, type Segment } from "./settings-rules";
@@ -17,6 +18,27 @@ export interface SettingsValues {
   autoSomedayDays: number;
   eveningStartsAt: string;
   theme: "system" | "light" | "dark";
+  notifyBlockStart: boolean;
+  notifyDeadline: boolean;
+  notifyMorning: boolean;
+  notifyShutdown: boolean;
+  /** "HH:MM"; empty when that nudge has no time. */
+  morningNudgeTime: string;
+  shutdownNudgeTime: string;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+}
+
+/** This device's push state (SYSTEM_DESIGN.md §7.3), owned by the page. */
+export interface NotificationsPanel {
+  copy: PermissionCopy;
+  subscribed: boolean;
+  busy: boolean;
+  error: string | null;
+  onEnable: () => void;
+  onDisable: () => void;
+  onTest: () => void;
+  testResult: string | null;
 }
 
 export interface SettingsFormProps {
@@ -27,6 +49,8 @@ export interface SettingsFormProps {
   account: { name: string | null; email: string | null };
   /** Install and storage state (SYSTEM_DESIGN.md §10.4–10.5); omitted outside the app shell. */
   app?: { install: InstallState; persistence: PersistenceState; version: string; onInstall: () => void };
+  /** Push state for this device; omitted where there is no browser. */
+  notifications?: NotificationsPanel;
   onChange: (patch: SettingsPatch) => void;
   onWorkHours: (weekday: number, segment: Segment | null) => void;
   onSignOut: () => void;
@@ -157,6 +181,73 @@ export function SettingsForm(p: SettingsFormProps) {
         <NumberRow id="someday" label="Move an untouched task to Someday after" unit="days" value={values.autoSomedayDays} min={7} max={120} step={1} onChange={(v) => change({ autoSomedayDays: v })} />
       </Section>
 
+      <Section title="Notifications" saved={saved}>
+        {p.notifications && (
+          <div className={`${ROW} flex-col items-stretch gap-2`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="flex flex-col">
+                <span className={LABEL}>Reminders on this device</span>
+                <span className="text-[13px] text-ink-2">{p.notifications.copy.headline}</span>
+              </span>
+              {p.notifications.copy.action === "enable" && (
+                <button type="button" onClick={p.notifications.onEnable} disabled={p.notifications.busy} className="h-9 rounded-lg bg-ink px-3 text-[13px] font-medium text-paper disabled:opacity-60">
+                  Turn on reminders
+                </button>
+              )}
+              {p.notifications.copy.action === "disable" && (
+                <span className="flex items-center gap-2">
+                  <button type="button" onClick={p.notifications.onTest} disabled={p.notifications.busy} className="h-9 rounded-lg border border-line px-3 text-[13px] text-ink hover:border-line-strong disabled:opacity-60">
+                    Send a test
+                  </button>
+                  <button type="button" onClick={p.notifications.onDisable} disabled={p.notifications.busy} className="h-9 rounded-lg px-3 text-[13px] text-ink-2 hover:text-ink disabled:opacity-60">
+                    Turn off
+                  </button>
+                </span>
+              )}
+            </div>
+            {p.notifications.copy.detail && <p className="text-[13px] text-ink-3">{p.notifications.copy.detail}</p>}
+            {p.notifications.copy.steps.length > 0 && (
+              <ol className="list-decimal pl-5 text-[13.5px] text-ink-2">
+                {p.notifications.copy.steps.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ol>
+            )}
+            {p.notifications.testResult && (
+              <p role="status" className="text-[13px] text-ink-2">
+                {p.notifications.testResult}
+              </p>
+            )}
+            {p.notifications.error && <p className="text-[13px] text-over">{p.notifications.error}</p>}
+          </div>
+        )}
+        <SwitchRow id="n-block" label="A time block is starting" checked={values.notifyBlockStart} onChange={(v) => change({ notifyBlockStart: v })} />
+        <SwitchRow id="n-deadline" label="A deadline, the day before and the day of" checked={values.notifyDeadline} onChange={(v) => change({ notifyDeadline: v })} />
+        <SwitchRow id="n-morning" label="Morning nudge" checked={values.notifyMorning} onChange={(v) => change({ notifyMorning: v })}>
+          <input type="time" aria-label="Morning nudge time" value={values.morningNudgeTime} onChange={(e) => e.target.value && change({ morningNudgeTime: e.target.value })} disabled={!values.notifyMorning} className={`${INPUT} disabled:opacity-50`} />
+        </SwitchRow>
+        <SwitchRow id="n-shutdown" label="Evening shutdown nudge" checked={values.notifyShutdown} onChange={(v) => change({ notifyShutdown: v, ...(v && !values.shutdownNudgeTime ? { shutdownNudgeTime: "17:30" } : {}) })}>
+          <input type="time" aria-label="Shutdown nudge time" value={values.shutdownNudgeTime} onChange={(e) => e.target.value && change({ shutdownNudgeTime: e.target.value })} disabled={!values.notifyShutdown} className={`${INPUT} disabled:opacity-50`} />
+        </SwitchRow>
+        <div className={ROW}>
+          <span className="flex flex-col">
+            <span className={LABEL}>Quiet hours</span>
+            <span className="text-[13px] text-ink-3">Block starts are dropped; the rest waits until morning.</span>
+          </span>
+          <span className="flex items-center gap-2">
+            <input type="time" aria-label="Quiet hours start" value={values.quietHoursStart} onChange={(e) => e.target.value && change({ quietHoursStart: e.target.value })} className={INPUT} />
+            <span className="text-ink-3">–</span>
+            <input type="time" aria-label="Quiet hours end" value={values.quietHoursEnd} onChange={(e) => e.target.value && change({ quietHoursEnd: e.target.value })} className={INPUT} />
+            {(values.quietHoursStart || values.quietHoursEnd) && (
+              <button type="button" onClick={() => change({ quietHoursStart: null, quietHoursEnd: null })} className="text-[12px] text-ink-3 underline decoration-line-strong hover:text-ink">
+                None
+              </button>
+            )}
+          </span>
+        </div>
+        <p className="px-4 py-2 text-[12.5px] text-ink-3">Never a count of what&rsquo;s late.</p>
+      </Section>
+
       <Section title="Appearance" saved={saved}>
         <div className={ROW}>
           <span className={LABEL}>Theme</span>
@@ -250,6 +341,18 @@ function WorkDayRow({ name, segment, onChange }: { name: string; segment: Segmen
       ) : (
         <span className="font-mono text-[13px] text-ink-3">Off</span>
       )}
+    </div>
+  );
+}
+
+function SwitchRow({ id, label, checked, onChange, children }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; children?: ReactNode }) {
+  return (
+    <div className={ROW}>
+      <label htmlFor={id} className={`${LABEL} flex items-center gap-3`}>
+        <input id={id} type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="size-5 accent-ink" />
+        {label}
+      </label>
+      {children}
     </div>
   );
 }
