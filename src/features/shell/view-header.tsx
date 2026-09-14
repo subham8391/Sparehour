@@ -8,14 +8,26 @@ import { Icon } from "@/ui/icons";
 import { SyncChip } from "./sync-chip";
 import { useSyncChip } from "./use-sync-chip";
 
-export function ViewHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: ReactNode; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
+export function ViewHeader({
+  eyebrow,
+  title,
+  subtitle,
+  actions,
+}: {
+  eyebrow?: ReactNode;
+  /** Plain text becomes the view's `<h1>`; an element (an editable `InlineTitle`) is the heading itself and is placed as it comes. */
+  title: ReactNode;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+}) {
   const sync = useSyncChip();
   const palette = usePalette();
+  const plain = typeof title === "string" || typeof title === "number";
   return (
     <header className="flex items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{eyebrow}</p>}
-        <h1 className="font-display text-3xl leading-tight text-ink">{title}</h1>
+        {plain ? <h1 className="font-display text-3xl leading-tight text-ink">{title}</h1> : title}
         {subtitle && <p className="mt-1 text-[13px] text-ink-2">{subtitle}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-1">
