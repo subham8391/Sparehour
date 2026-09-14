@@ -11,14 +11,21 @@ vi.mock("@/data/powersync", () => ({
   useSyncStatus: () => ({ connected: false, dataFlowStatus: { uploading: false, downloading: false } }),
 }));
 
-import { QuickAddBar, QuickAddFab, QuickAddProvider } from "./quick-add-provider";
+import { QuickAddBar, QuickAddFab, QuickAddProvider, useQuickAdd } from "./quick-add-provider";
+
+function Opener() {
+  const { open } = useQuickAdd();
+  return (
+    <button type="button" onClick={() => open("Prefilled")}>
+      open prefilled
+    </button>
+  );
+}
 
 function setup() {
   render(
     <QuickAddProvider>
-      <label>
-        Somewhere else <input aria-label="Other field" />
-      </label>
+      <Opener />
       <QuickAddBar />
       <QuickAddFab />
     </QuickAddProvider>,
@@ -27,36 +34,22 @@ function setup() {
 }
 
 describe("<QuickAddProvider>", () => {
-  it("opens on Q with nothing focused", async () => {
+  it("opens from the API with a prefill, focused, and Escape closes it", async () => {
     const user = setup();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await user.keyboard("q");
-    expect(screen.getByRole("dialog", { name: "Add a task" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("");
-  });
-
-  it("any printable key opens it and types the character", async () => {
-    const user = setup();
-    await user.keyboard("D");
-    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("D");
-    expect(screen.getByRole("textbox", { name: "Task" })).toHaveFocus();
-  });
-
-  it("leaves other inputs alone", async () => {
-    const user = setup();
-    await user.click(screen.getByRole("textbox", { name: "Other field" }));
-    await user.keyboard("quick");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Other field" })).toHaveValue("quick");
-  });
-
-  it("Escape closes it and a second Q opens a fresh one", async () => {
-    const user = setup();
-    await user.keyboard("q");
-    await user.keyboard("Draft");
+    await user.click(screen.getByRole("button", { name: "open prefilled" }));
+    const input = screen.getByRole("textbox", { name: "Task" });
+    expect(input).toHaveValue("Prefilled");
+    expect(input).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await user.keyboard("q");
+  });
+
+  it("a second open starts fresh", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: "open prefilled" }));
+    await user.keyboard(" more{Escape}");
+    await user.click(screen.getByRole("button", { name: /Add a task Q/ }));
     expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("");
   });
 

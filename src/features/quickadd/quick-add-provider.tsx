@@ -1,8 +1,8 @@
 "use client";
-// Mounts quick-add once for the whole app and wires the ways in: `Q`, any
-// printable key when nothing is focused (SCREENS.md §1 focus model, rule 4),
-// the desktop bottom bar and the phone FAB. Never navigates.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+// Mounts quick-add once for the whole app and wires the ways in: the desktop
+// bottom bar and the phone FAB here; `Q` and "any printable key when nothing
+// is focused" in the keyboard layer. Never navigates.
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { PROJECTS_SQL, type ProjectRow } from "@/data/queries/nav";
 import { ProjectRepo } from "@/data/repositories/project-repo";
@@ -25,12 +25,6 @@ export function useQuickAdd(): QuickAddApi {
   return api;
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  if (!el || typeof el.closest !== "function") return false;
-  return Boolean(el.closest("input, textarea, select, [contenteditable=''], [contenteditable='true'], [role='dialog']"));
-}
-
 export function QuickAddProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState({ open: false, initial: "", key: 0 });
   const open = useCallback((prefill = "") => setState((s) => ({ open: true, initial: prefill, key: s.key + 1 })), []);
@@ -46,23 +40,6 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   const db = useLocalDatabase();
   const tasks = useTaskRepo();
   const projectRepo = useMemo(() => new ProjectRepo(db), [db]);
-
-  useEffect(() => {
-    if (state.open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
-      if (isTypingTarget(e.target)) return;
-      if (e.key === "q" || e.key === "Q") {
-        e.preventDefault();
-        open("");
-      } else if (e.key.length === 1 && !/\s/.test(e.key)) {
-        e.preventDefault();
-        open(e.key);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, state.open]);
 
   const onSubmit = useCallback(
     async (s: QuickAddSubmission) => {

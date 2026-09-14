@@ -7,6 +7,7 @@ import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
+import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday } from "@/features/today/hooks/use-today";
@@ -74,6 +75,7 @@ export default function TodayPage() {
   }, []);
   const model = useToday(now);
   const detail = useTaskDetail();
+  const sel = useListSelection([...model.carried, ...model.todayTasks, ...model.eveningTasks].map((t) => t.id));
   const time = useInteractionTimer();
   useEffect(() => {
     lastCommit = performance.now();
@@ -112,7 +114,7 @@ export default function TodayPage() {
                 <TaskRow
                   key={t.id}
                   task={t}
-                  onOpen={() => detail.open(t.id)}
+                  onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
                   onDone={() => void time("complete", () => model.repo.complete(t.id))}
                   actions={
                     <MoveActions
@@ -172,7 +174,7 @@ export default function TodayPage() {
             <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-over">This evening</h2>
             <TaskList>
               {model.eveningTasks.map((t) => (
-                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} onDone={() => void time("complete", () => model.repo.complete(t.id))} />
+                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} onDone={() => void time("complete", () => model.repo.complete(t.id))} />
               ))}
             </TaskList>
           </section>

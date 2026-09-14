@@ -8,6 +8,7 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
@@ -19,6 +20,7 @@ export default function InboxPage() {
   const tomorrow = today.add({ days: 1 });
   const { data, isLoading } = useQuery<TaskRowType>(INBOX_SQL);
   const tasks = (data ?? []).map(toTask);
+  const sel = useListSelection(tasks.map((t) => t.id));
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
@@ -31,7 +33,7 @@ export default function InboxPage() {
             <TaskRow
               key={t.id}
               task={t}
-              onOpen={() => detail.open(t.id)}
+              onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
               onDone={() => void repo.complete(t.id)}
               actions={
                 <MoveActions

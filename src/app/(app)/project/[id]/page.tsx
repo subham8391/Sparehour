@@ -16,6 +16,7 @@ import { HeadingRepo } from "@/data/repositories/heading-repo";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import type { HeadingRow, ProjectRow, TaskRow as TaskRowType } from "@/data/schema.client";
 import { groupByHeading, summarise } from "@/features/projects/organise";
+import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
 import { dayChip } from "@/features/tasks/day-chip";
@@ -64,6 +65,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   const groups = useMemo(() => groupByHeading(open, headings), [open, headings]);
   const summary = summarise(tasks, settings?.defaultEstimateMin ?? 30);
   const notesShown = notesOpen ?? Boolean(project?.notes);
+  const sel = useListSelection([...groups.flatMap((g) => g.tasks.map((t) => t.id)), ...done.map((t) => t.id), ...someday.map((t) => t.id)]);
 
   if (!isLoading && !project) {
     return (
@@ -175,7 +177,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
           {g.heading && <HeadingRow heading={g.heading} onRename={(t) => void headingRepo.rename(g.heading!.id, t)} onRemove={() => void headingRepo.remove(g.heading!.id)} />}
           <TaskList>
             {g.tasks.map((t) => (
-              <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} onDone={() => void tasksRepo.complete(t.id)} meta={<DayChipTag chip={dayChip(t, today)} />} />
+              <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} onDone={() => void tasksRepo.complete(t.id)} meta={<DayChipTag chip={dayChip(t, today)} />} />
             ))}
             <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
           </TaskList>
@@ -211,7 +213,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
           ) : (
             <TaskList>
               {done.map((t) => (
-                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} />
+                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} />
               ))}
             </TaskList>
           ))}
@@ -229,7 +231,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
                 <TaskRow
                   key={t.id}
                   task={t}
-                  onOpen={() => detail.open(t.id)}
+                  onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
                   onDone={() => void tasksRepo.complete(t.id)}
                   actions={<MoveActions onToday={() => void tasksRepo.reschedule(t.id, today)} onTomorrow={() => void tasksRepo.reschedule(t.id, today.add({ days: 1 }))} />}
                 />

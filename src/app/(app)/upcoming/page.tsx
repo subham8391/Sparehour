@@ -13,6 +13,7 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
@@ -40,6 +41,7 @@ export default function UpcomingPage() {
     });
   }, [planned, today]);
   const unplanned = (unplannedRows ?? []).map(toTask);
+  const sel = useListSelection([...days.flatMap((d) => d.tasks.map((t) => t.id)), ...unplanned.map((t) => t.id)]);
   const estimate = (t: Task) => t.estimateMin ?? settings?.defaultEstimateMin ?? 30;
 
   return (
@@ -64,7 +66,7 @@ export default function UpcomingPage() {
           ) : (
             <TaskList>
               {tasks.map((t) => (
-                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} onDone={() => void repo.complete(t.id)} />
+                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} onDone={() => void repo.complete(t.id)} />
               ))}
             </TaskList>
           )}
@@ -82,7 +84,7 @@ export default function UpcomingPage() {
               <TaskRow
                 key={t.id}
                 task={t}
-                onOpen={() => detail.open(t.id)}
+                onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
                 onDone={() => void repo.complete(t.id)}
                 actions={<MoveActions onToday={() => void repo.reschedule(t.id, today)} onTomorrow={() => void repo.reschedule(t.id, today.add({ days: 1 }))} onSomeday={() => void repo.setState(t.id, "someday")} />}
               />

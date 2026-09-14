@@ -11,6 +11,8 @@ export function TaskRow({
   task,
   onDone,
   onOpen,
+  selected = false,
+  onSelect,
   actions,
   footer,
   meta,
@@ -19,13 +21,20 @@ export function TaskRow({
   onDone?: () => void;
   /** Opens the task's detail; the title becomes the target. */
   onOpen?: () => void;
+  /** The keyboard selection (J/K); one row per view. */
+  selected?: boolean;
+  onSelect?: () => void;
   actions?: ReactNode;
   footer?: ReactNode;
   /** Extra chips before the estimate — a day chip in project views, "added 2d" in the inbox. */
   meta?: ReactNode;
 }) {
   return (
-    <li className="border-t border-line first:border-t-0">
+    <li
+      className={`border-t border-line first:border-t-0 ${selected ? "bg-paper shadow-[inset_2px_0_0_var(--ink)]" : ""}`}
+      aria-current={selected ? "true" : undefined}
+      onClick={onSelect}
+    >
       <div className="flex min-h-11 items-center gap-3 px-4 py-2">
         {onDone ? (
           <button
