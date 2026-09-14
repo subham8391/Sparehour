@@ -5,6 +5,42 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // src/core is pure: no React, no I/O, no data or server imports.
+    // The engines must stay unit-testable and reusable server-side (SYSTEM_DESIGN §12.1).
+    files: ["src/core/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["react", "react-dom", "react/*", "next", "next/*", "@/data", "@/data/*", "@/server", "@/server/*", "@/ui", "@/ui/*", "@/features", "@/features/*", "**/data/**", "**/server/**"],
+              message: "src/core must stay pure — no React, data, server or feature imports.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Only the sync adapter may know which sync engine we use (SYSTEM_DESIGN §12.1).
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/data/powersync/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@powersync/*"],
+              message: "@powersync/* may only be imported from src/data/powersync/**.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
