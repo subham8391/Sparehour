@@ -74,8 +74,24 @@ export function FieldPopover({
   );
 }
 
-/** A `⋯` button that opens a small menu panel with the same dismissal rules as a field popover. */
-export function MenuButton({ label, children, align = "right" }: { label: string; children: (close: () => void) => ReactNode; align?: "left" | "right" }) {
+/**
+ * A `⋯` button — or, with `text`, a plain labelled button — that opens a small
+ * menu panel with the same dismissal rules as a field popover.
+ */
+export function MenuButton({
+  label,
+  children,
+  align = "right",
+  text,
+  className = "",
+}: {
+  label: string;
+  children: (close: () => void) => ReactNode;
+  align?: "left" | "right";
+  /** Shown instead of the `⋯` glyph. */
+  text?: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
@@ -107,14 +123,16 @@ export function MenuButton({ label, children, align = "right" }: { label: string
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         aria-label={label}
-        className="flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink sm:size-9"
+        className={text ? className || "flex h-9 items-center rounded-lg px-2.5 text-[13px] text-ink-2 hover:bg-paper hover:text-ink" : "flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink sm:size-9"}
       >
-        <span aria-hidden="true" className="text-lg leading-none">
-          ⋯
-        </span>
+        {text ?? (
+          <span aria-hidden="true" className="text-lg leading-none">
+            ⋯
+          </span>
+        )}
       </button>
       {open && (
-        <div id={panelId} role="menu" aria-label={label} className={`absolute top-full z-30 mt-1 flex w-64 flex-col gap-0.5 rounded-xl border border-line bg-surface p-2 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}>
+        <div id={panelId} role="menu" aria-label={label} className={`absolute z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-line bg-surface p-2 shadow-lg ${text ? "bottom-full mb-1" : "top-full mt-1"} ${align === "right" ? "right-0" : "left-0"}`}>
           {children(close)}
         </div>
       )}

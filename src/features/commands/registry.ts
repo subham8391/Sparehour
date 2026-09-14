@@ -3,7 +3,7 @@
 // which shows them beside each command.
 import type { Instant, LocalDate } from "@/core/time";
 import type { Priority } from "@/core/types";
-import type { TaskRepo } from "@/data/repositories/task-repo";
+import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import { snoozePresets } from "@/features/tasks/snooze";
 import type { Binding } from "./keys";
 
@@ -14,6 +14,11 @@ export type Theme = "light" | "dark" | "system";
 
 export interface CommandContext {
   selectedTaskId: string | null;
+  /** Rows ticked for a bulk edit (X, Shift-click, long-press). While any are ticked, the selected-task edits act on all of them. */
+  checkedTaskIds: readonly string[];
+  toggleCheck: (id: string) => void;
+  checkAll: () => void;
+  clearChecks: () => void;
   pathname: string;
   today: LocalDate;
   now: Instant;
@@ -45,33 +50,53 @@ export interface Command {
   run: (ctx: CommandContext) => void | Promise<void>;
 }
 
+/** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
 const onSelected =
   (fn: (ctx: CommandContext, id: string) => void | Promise<void>) =>
   (ctx: CommandContext): void | Promise<void> => {
     if (ctx.selectedTaskId) return fn(ctx, ctx.selectedTaskId);
   };
 
+/** The tasks an edit applies to: every ticked row, or else the keyboard selection. */
+export function targets(ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds">): string[] {
+  if (ctx.checkedTaskIds.length > 0) return [...ctx.checkedTaskIds];
+  return ctx.selectedTaskId ? [ctx.selectedTaskId] : [];
+}
+
+const onTargets =
+  (fn: (ctx: CommandContext, ids: string[]) => void | Promise<void>) =>
+  (ctx: CommandContext): void | Promise<void> => {
+    const ids = targets(ctx);
+    if (ids.length > 0) return fn(ctx, ids);
+  };
+
+const applyPatch = (ctx: CommandContext, ids: string[], patch: TaskPatch, note?: string) => {
+  if (ids.length === 1) return note === undefined ? ctx.tasks.update(ids[0], patch) : ctx.tasks.update(ids[0], patch, note);
+  return note === undefined ? ctx.tasks.updateMany(ids, patch) : ctx.tasks.updateMany(ids, patch, note);
+};
+const applyState = (ctx: CommandContext, ids: string[], state: TaskState) => (ids.length === 1 ? ctx.tasks.setState(ids[0], state) : ctx.tasks.setStateMany(ids, state));
+
 const snooze = (presetId: "evening" | "tomorrow" | "in4h" | "weekend" | "nextweek") =>
-  onSelected((ctx, id) => {
+  onTargets((ctx, ids) => {
     const preset = snoozePresets(ctx.now, ctx.zone, ctx.today).find((p) => p.id === presetId);
-    if (preset) return ctx.tasks.update(id, preset.patch, `Moved {title} to ${preset.label.toLowerCase()}`);
+    if (preset) return applyPatch(ctx, ids, preset.patch, `Moved {title} to ${preset.label.toLowerCase()}`);
   });
 
-const priority = (value: Priority) => onSelected((ctx, id) => ctx.tasks.update(id, { priority: value }));
+const priority = (value: Priority) => onTargets((ctx, ids) => applyPatch(ctx, ids, { priority: value }));
 
 export const COMMANDS: readonly Command[] = [
-  // ---- selected task
+  // ---- selected task (or every ticked row)
   { id: "task.open", title: "Open", group: "Selected task", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.peek", title: "Peek", group: "Selected task", shortcut: "space", requiresSelection: true, hidden: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.complete", title: "Complete", group: "Selected task", shortcut: "mod+enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.tasks.complete(id)) },
-  { id: "task.today", title: "Move to Today", group: "Selected task", shortcut: "t", requiresSelection: true, run: onSelected((ctx, id) => ctx.tasks.update(id, { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today")) },
+  { id: "task.complete", title: "Complete", group: "Selected task", shortcut: "mod+enter", requiresSelection: true, run: onTargets((ctx, ids) => (ids.length === 1 ? ctx.tasks.complete(ids[0]) : ctx.tasks.completeMany(ids))) },
+  { id: "task.today", title: "Move to Today", group: "Selected task", shortcut: "t", requiresSelection: true, run: onTargets((ctx, ids) => applyPatch(ctx, ids, { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today")) },
   { id: "task.tomorrow", title: "Tomorrow", group: "Selected task", shortcut: "shift+t", requiresSelection: true, run: snooze("tomorrow") },
   { id: "task.evening", title: "This evening", group: "Selected task", shortcut: "shift+e", requiresSelection: true, run: snooze("evening") },
   { id: "task.weekend", title: "This weekend", group: "Selected task", shortcut: "w", requiresSelection: true, run: snooze("weekend") },
   { id: "task.in4h", title: "In 4 hours", group: "Selected task", shortcut: "h", requiresSelection: true, run: snooze("in4h") },
   { id: "task.nextweek", title: "Next week", group: "Selected task", requiresSelection: true, run: snooze("nextweek") },
-  { id: "task.someday", title: "Move to Someday", group: "Selected task", shortcut: "s", requiresSelection: true, run: onSelected((ctx, id) => ctx.tasks.setState(id, "someday")) },
-  { id: "task.drop", title: "Drop", group: "Selected task", shortcut: "backspace", requiresSelection: true, run: onSelected((ctx, id) => ctx.tasks.setState(id, "dropped")) },
+  { id: "task.someday", title: "Move to Someday", group: "Selected task", shortcut: "s", requiresSelection: true, run: onTargets((ctx, ids) => applyState(ctx, ids, "someday")) },
+  { id: "task.drop", title: "Drop", group: "Selected task", shortcut: "backspace", requiresSelection: true, run: onTargets((ctx, ids) => applyState(ctx, ids, "dropped")) },
   { id: "task.priority1", title: "Priority 1", group: "Selected task", shortcut: "1", requiresSelection: true, run: priority(3) },
   { id: "task.priority2", title: "Priority 2", group: "Selected task", shortcut: "2", requiresSelection: true, run: priority(2) },
   { id: "task.priority3", title: "Priority 3", group: "Selected task", shortcut: "3", requiresSelection: true, run: priority(1) },
@@ -103,6 +128,19 @@ export const COMMANDS: readonly Command[] = [
   { id: "list.up", title: "Select previous", group: "List", shortcut: "k", hidden: true, run: (ctx) => ctx.moveSelection(-1) },
   { id: "list.down-arrow", title: "Select next", group: "List", shortcut: "arrowdown", hidden: true, run: (ctx) => ctx.moveSelection(1) },
   { id: "list.up-arrow", title: "Select previous", group: "List", shortcut: "arrowup", hidden: true, run: (ctx) => ctx.moveSelection(-1) },
+  {
+    id: "list.check",
+    title: "Tick the row for a bulk edit",
+    group: "List",
+    shortcut: "x",
+    requiresSelection: true,
+    keywords: "multi select",
+    run: (ctx) => {
+      if (ctx.selectedTaskId) ctx.toggleCheck(ctx.selectedTaskId);
+    },
+  },
+  { id: "list.check-all", title: "Select all", group: "List", shortcut: "mod+a", keywords: "multi bulk every", run: (ctx) => ctx.checkAll() },
+  { id: "list.clear-checks", title: "Clear the selection", group: "List", keywords: "deselect none", run: (ctx) => ctx.clearChecks() },
 
   // ---- view
   { id: "view.theme-light", title: "Light theme", group: "View", keywords: "appearance", run: (ctx) => ctx.setTheme("light") },
@@ -127,7 +165,7 @@ export interface Availability {
 }
 
 /** Commands that need a selection are listed but disabled with the reason (§12 rules). */
-export function availability(command: Command, ctx: Pick<CommandContext, "selectedTaskId">): Availability {
-  if (command.requiresSelection && !ctx.selectedTaskId) return { enabled: false, reason: "select a task first" };
+export function availability(command: Command, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds">): Availability {
+  if (command.requiresSelection && targets(ctx).length === 0) return { enabled: false, reason: "select a task first" };
   return { enabled: true };
 }

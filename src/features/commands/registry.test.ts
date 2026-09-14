@@ -4,10 +4,16 @@ import type { TaskRepo } from "@/data/repositories/task-repo";
 import { parseShortcut, resolveKey } from "./keys";
 import { COMMANDS, availability, keyBindings, type CommandContext } from "./registry";
 
-function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: { update: ReturnType<typeof vi.fn>; complete: ReturnType<typeof vi.fn>; setState: ReturnType<typeof vi.fn> } } {
-  const tasks = { update: vi.fn(), complete: vi.fn(), setState: vi.fn() };
+type Mocked = { update: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn>; complete: ReturnType<typeof vi.fn>; completeMany: ReturnType<typeof vi.fn>; setState: ReturnType<typeof vi.fn>; setStateMany: ReturnType<typeof vi.fn> };
+
+function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: Mocked } {
+  const tasks: Mocked = { update: vi.fn(), updateMany: vi.fn(), complete: vi.fn(), completeMany: vi.fn(), setState: vi.fn(), setStateMany: vi.fn() };
   return {
     selectedTaskId: "t1",
+    checkedTaskIds: [],
+    toggleCheck: vi.fn(),
+    checkAll: vi.fn(),
+    clearChecks: vi.fn(),
     pathname: "/today",
     today: localDate("2026-09-14"),
     now: instant("2026-09-14T08:03:00Z"),
@@ -88,6 +94,43 @@ describe("command registry", () => {
     expect(ctx.tasks.update).not.toHaveBeenCalled();
     expect(availability(byId("task.today"), ctx)).toEqual({ enabled: false, reason: "select a task first" });
     expect(availability(byId("go.inbox"), ctx)).toEqual({ enabled: true });
+  });
+
+  it("with rows ticked, the edits go to all of them in one bulk write; open and the pickers keep to the selection", async () => {
+    const ctx = ctxWith({ selectedTaskId: "t1", checkedTaskIds: ["t2", "t3"] });
+    expect(availability(byId("task.today"), { selectedTaskId: null, checkedTaskIds: ["t2"] })).toEqual({ enabled: true });
+    await byId("task.today").run(ctx);
+    expect(ctx.tasks.updateMany).toHaveBeenCalledWith(["t2", "t3"], { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today");
+    expect(ctx.tasks.update).not.toHaveBeenCalled();
+    await byId("task.tomorrow").run(ctx);
+    expect(ctx.tasks.updateMany.mock.lastCall?.[2]).toBe("Moved {title} to tomorrow");
+    await byId("task.priority2").run(ctx);
+    expect(ctx.tasks.updateMany).toHaveBeenLastCalledWith(["t2", "t3"], { priority: 2 });
+    await byId("task.complete").run(ctx);
+    expect(ctx.tasks.completeMany).toHaveBeenCalledWith(["t2", "t3"]);
+    await byId("task.someday").run(ctx);
+    expect(ctx.tasks.setStateMany).toHaveBeenCalledWith(["t2", "t3"], "someday");
+    await byId("task.drop").run(ctx);
+    expect(ctx.tasks.setStateMany).toHaveBeenLastCalledWith(["t2", "t3"], "dropped");
+    await byId("task.open").run(ctx);
+    expect(ctx.openTask).toHaveBeenCalledWith("t1");
+    // A single ticked row takes the single-row path, so its toast names the task.
+    const one = ctxWith({ selectedTaskId: null, checkedTaskIds: ["t2"] });
+    await byId("task.drop").run(one);
+    expect(one.tasks.setState).toHaveBeenCalledWith("t2", "dropped");
+  });
+
+  it("X ticks the selected row, Cmd+A ticks the view, and the clear command empties it", () => {
+    const ctx = ctxWith();
+    byId("list.check").run(ctx);
+    expect(ctx.toggleCheck).toHaveBeenCalledWith("t1");
+    byId("list.check-all").run(ctx);
+    expect(ctx.checkAll).toHaveBeenCalled();
+    byId("list.clear-checks").run(ctx);
+    expect(ctx.clearChecks).toHaveBeenCalled();
+    const bindings = keyBindings();
+    expect(resolveKey({ key: "x", shift: false, mod: false, alt: false }, null, bindings).match?.id).toBe("list.check");
+    expect(resolveKey({ key: "a", shift: false, mod: true, alt: false }, null, bindings).match?.id).toBe("list.check-all");
   });
 
   it("navigation and app commands reach their targets", () => {

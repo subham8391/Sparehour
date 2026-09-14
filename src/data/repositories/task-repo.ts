@@ -34,6 +34,8 @@ export interface NewTaskContext {
   afterKey?: string | null;
 }
 
+export type TaskState = "someday" | "dropped" | "archived" | "active";
+
 type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0];
 
 /** Where the inverse of each write goes (the undo stack); optional so scripts and tests can skip it. */
@@ -154,6 +156,28 @@ export class TaskRepo {
     });
   }
 
+  private async snapshotMany(ids: readonly string[], columns: readonly string[]): Promise<RowSnapshot[]> {
+    if (!this.history || columns.length === 0) return [];
+    return this.db.getAll<RowSnapshot>(`select id, title, ${columns.join(", ")} from tasks where id in (${placeholders(ids)})`, [...ids]);
+  }
+
+  /** One undo entry for a batch: "Moved 4 tasks to tomorrow" (or the title when it is one). */
+  private rememberMany(before: readonly RowSnapshot[], columns: readonly string[], label: string, toast: boolean): void {
+    if (!this.history || before.length === 0) return;
+    const what = before.length === 1 ? `“${String(before[0].title ?? "")}”` : `${before.length} tasks`;
+    this.history.record({
+      label: label.includes("{title}") ? label.replace("{title}", what) : `${label} ${what}`,
+      toast,
+      undo: () =>
+        this.db.writeTransaction(async (tx) => {
+          const at = new Date().toISOString();
+          for (const row of before) {
+            await tx.execute(`update tasks set ${columns.map((c) => `${c} = ?`).join(", ")}, updated_at = ? where id = ?`, [...columns.map((c) => row[c] ?? null), at, row.id]);
+          }
+        }),
+    });
+  }
+
   /**
    * Writes exactly the columns in the patch (per-column last-writer-wins,
    * §4.3). Giving an inbox or Someday task a day makes it active; giving a
@@ -164,38 +188,24 @@ export class TaskRepo {
   async update(id: string, patch: TaskPatch, note?: string): Promise<void> {
     const touched = columnsTouched(patch);
     const before = touched.length ? await this.snapshot(id, touched) : null;
-    const sets: string[] = [];
-    const args: (string | number | null)[] = [];
-    const set = (column: string, value: string | number | null) => {
-      sets.push(`${column} = ?`);
-      args.push(value);
-    };
-    if ("title" in patch && patch.title !== undefined) set("title", patch.title.trim());
-    if ("notes" in patch) set("notes_md", patch.notes?.trim() || null);
-    if ("doDate" in patch) {
-      set("do_date", patch.doDate?.toString() ?? null);
-      if (patch.doDate) sets.push(`state = case when state in ('inbox', 'someday') then 'active' else state end`);
-      else set("do_time", null);
-    }
-    if ("doTime" in patch) set("do_time", patch.doTime ? patch.doTime.toString({ smallestUnit: "minute" }) : null);
-    if ("evening" in patch && patch.evening !== undefined) set("evening", patch.evening ? 1 : 0);
-    if ("deadline" in patch) set("deadline", patch.deadline?.toString() ?? null);
-    if ("startDate" in patch) set("start_date", patch.startDate?.toString() ?? null);
-    if ("estimateMin" in patch) set("estimate_min", patch.estimateMin ?? null);
-    if ("priority" in patch && patch.priority !== undefined) set("priority", patch.priority);
-    if ("missPolicy" in patch && patch.missPolicy !== undefined) set("miss_policy", patch.missPolicy);
-    if ("projectId" in patch) set("project_id", patch.projectId ?? null);
-    if ("recurrenceRule" in patch) {
-      set("recurrence_rule", patch.recurrenceRule ?? null);
-      set("recurrence_mode", patch.recurrenceRule ? (patch.recurrenceMode ?? "fixed") : null);
-      sets.push(patch.recurrenceRule ? `recurrence_series_id = coalesce(recurrence_series_id, id)` : `recurrence_series_id = null`);
-    } else if ("recurrenceMode" in patch) {
-      set("recurrence_mode", patch.recurrenceMode ?? null);
-    }
+    const { sets, args } = buildSets(patch);
     if (sets.length === 0) return;
-    set("updated_at", new Date().toISOString());
-    await this.db.execute(`update tasks set ${sets.join(", ")} where id = ?`, [...args, id]);
+    await this.db.execute(`update tasks set ${sets.join(", ")}, updated_at = ? where id = ?`, [...args, new Date().toISOString(), id]);
     this.remember(id, before, touched, note ?? "Changed", Boolean(note));
+  }
+
+  /**
+   * The same patch on several tasks at once (multi-select + bulk edit) in one
+   * statement, with one undo entry for the lot.
+   */
+  async updateMany(ids: readonly string[], patch: TaskPatch, note?: string): Promise<void> {
+    if (ids.length === 0) return;
+    const touched = columnsTouched(patch);
+    const { sets, args } = buildSets(patch);
+    if (sets.length === 0) return;
+    const before = await this.snapshotMany(ids, touched);
+    await this.db.execute(`update tasks set ${sets.join(", ")}, updated_at = ? where id in (${placeholders(ids)})`, [...args, new Date().toISOString(), ...ids]);
+    this.rememberMany(before, touched, note ?? "Changed", Boolean(note));
   }
 
   async complete(id: string): Promise<void> {
@@ -204,6 +214,15 @@ export class TaskRepo {
     const now = new Date().toISOString();
     await this.db.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, id]);
     this.remember(id, before, cols, "Completed", true);
+  }
+
+  async completeMany(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const cols = ["state", "completed_at"];
+    const before = await this.snapshotMany(ids, cols);
+    const now = new Date().toISOString();
+    await this.db.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id in (${placeholders(ids)})`, [now, now, ...ids]);
+    this.rememberMany(before, cols, "Completed", true);
   }
 
   async reopen(id: string): Promise<void> {
@@ -240,10 +259,9 @@ export class TaskRepo {
    */
   async archiveMany(ids: readonly string[]): Promise<void> {
     if (ids.length === 0) return;
-    const placeholders = ids.map(() => "?").join(", ");
-    const before = this.history ? await this.db.getAll<{ id: string; state: string | null; do_date: string | null }>(`select id, state, do_date from tasks where id in (${placeholders})`, [...ids]) : [];
+    const before = this.history ? await this.db.getAll<{ id: string; state: string | null; do_date: string | null }>(`select id, state, do_date from tasks where id in (${placeholders(ids)})`, [...ids]) : [];
     const now = new Date().toISOString();
-    await this.db.execute(`update tasks set state = 'archived', do_date = null, carry_count = 0, updated_at = ? where id in (${placeholders})`, [now, ...ids]);
+    await this.db.execute(`update tasks set state = 'archived', do_date = null, carry_count = 0, updated_at = ? where id in (${placeholders(ids)})`, [now, ...ids]);
     if (!this.history || before.length === 0) return;
     this.history.record({
       label: `Cleared the slate · ${before.length} ${before.length === 1 ? "task" : "tasks"}`,
@@ -256,22 +274,62 @@ export class TaskRepo {
     });
   }
 
-  async setState(id: string, state: "someday" | "dropped" | "archived" | "active"): Promise<void> {
+  async setState(id: string, state: TaskState): Promise<void> {
     const cols = ["state", "do_date"];
     const before = await this.snapshot(id, cols);
-    await this.db.execute(`update tasks set state = ?, do_date = case when ? in ('someday','archived') then null else do_date end, carry_count = case when ? in ('someday','archived','dropped') then 0 else carry_count end, updated_at = ? where id = ?`, [
-      state,
-      state,
-      state,
-      new Date().toISOString(),
-      id,
-    ]);
-    const label = { dropped: "Dropped", someday: "Moved {title} to Someday", archived: "Archived", active: "Brought back" }[state];
-    this.remember(id, before, cols, label, state !== "active");
+    await this.db.execute(`update tasks set ${STATE_SETS} where id = ?`, [state, state, state, new Date().toISOString(), id]);
+    this.remember(id, before, cols, STATE_LABELS[state], state !== "active");
+  }
+
+  async setStateMany(ids: readonly string[], state: TaskState): Promise<void> {
+    if (ids.length === 0) return;
+    const cols = ["state", "do_date"];
+    const before = await this.snapshotMany(ids, cols);
+    await this.db.execute(`update tasks set ${STATE_SETS} where id in (${placeholders(ids)})`, [state, state, state, new Date().toISOString(), ...ids]);
+    this.rememberMany(before, cols, STATE_LABELS[state], state !== "active");
   }
 }
 
 type Snapshot = Record<string, string | number | null>;
+type RowSnapshot = Snapshot & { id: string };
+
+const STATE_SETS = `state = ?, do_date = case when ? in ('someday','archived') then null else do_date end, carry_count = case when ? in ('someday','archived','dropped') then 0 else carry_count end, updated_at = ?`;
+const STATE_LABELS: Record<TaskState, string> = { dropped: "Dropped", someday: "Moved {title} to Someday", archived: "Archived", active: "Brought back" };
+
+const placeholders = (ids: readonly string[]) => ids.map(() => "?").join(", ");
+
+/** The SET clause a patch writes, shared by the single and the bulk update. */
+function buildSets(patch: TaskPatch): { sets: string[]; args: (string | number | null)[] } {
+  const sets: string[] = [];
+  const args: (string | number | null)[] = [];
+  const set = (column: string, value: string | number | null) => {
+    sets.push(`${column} = ?`);
+    args.push(value);
+  };
+  if ("title" in patch && patch.title !== undefined) set("title", patch.title.trim());
+  if ("notes" in patch) set("notes_md", patch.notes?.trim() || null);
+  if ("doDate" in patch) {
+    set("do_date", patch.doDate?.toString() ?? null);
+    if (patch.doDate) sets.push(`state = case when state in ('inbox', 'someday') then 'active' else state end`);
+    else set("do_time", null);
+  }
+  if ("doTime" in patch) set("do_time", patch.doTime ? patch.doTime.toString({ smallestUnit: "minute" }) : null);
+  if ("evening" in patch && patch.evening !== undefined) set("evening", patch.evening ? 1 : 0);
+  if ("deadline" in patch) set("deadline", patch.deadline?.toString() ?? null);
+  if ("startDate" in patch) set("start_date", patch.startDate?.toString() ?? null);
+  if ("estimateMin" in patch) set("estimate_min", patch.estimateMin ?? null);
+  if ("priority" in patch && patch.priority !== undefined) set("priority", patch.priority);
+  if ("missPolicy" in patch && patch.missPolicy !== undefined) set("miss_policy", patch.missPolicy);
+  if ("projectId" in patch) set("project_id", patch.projectId ?? null);
+  if ("recurrenceRule" in patch) {
+    set("recurrence_rule", patch.recurrenceRule ?? null);
+    set("recurrence_mode", patch.recurrenceRule ? (patch.recurrenceMode ?? "fixed") : null);
+    sets.push(patch.recurrenceRule ? `recurrence_series_id = coalesce(recurrence_series_id, id)` : `recurrence_series_id = null`);
+  } else if ("recurrenceMode" in patch) {
+    set("recurrence_mode", patch.recurrenceMode ?? null);
+  }
+  return { sets, args };
+}
 
 const PATCH_COLUMNS: Record<keyof TaskPatch, readonly string[]> = {
   title: ["title"],

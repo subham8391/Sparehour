@@ -66,6 +66,10 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   const context = useCallback(
     (): CommandContext => ({
       selectedTaskId: selection.selectedId,
+      checkedTaskIds: selection.checkedIds,
+      toggleCheck: selection.toggleCheck,
+      checkAll: selection.checkAll,
+      clearChecks: selection.clearChecks,
       pathname,
       today,
       now,

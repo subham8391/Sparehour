@@ -81,6 +81,59 @@ describe("TaskRepo undo", () => {
     expect(execute.mock.calls[2][1].slice(0, 2)).toEqual(["inbox", "2026-09-13"]);
   });
 
+  it("a bulk edit is one statement and one undo entry that restores every row", async () => {
+    const { db, execute, getAll } = fakeDb(row, [
+      { id: "t1", title: "Draft the proposal", do_date: "2026-09-14", do_time: "15:00", state: "active" },
+      { id: "t2", title: "Call Mum", do_date: null, do_time: null, state: "inbox" },
+    ]);
+    const history = { record: vi.fn() };
+    const repo = new TaskRepo(db, history);
+    await repo.updateMany(["t1", "t2"], { doDate: localDate("2026-09-15"), doTime: null, evening: false }, "Moved {title} to tomorrow");
+    expect(String(getAll.mock.calls[0][0])).toMatch(/select id, title, do_date, do_time, state, evening from tasks where id in \(\?, \?\)/);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(String(execute.mock.calls[0][0])).toMatch(/^update tasks set do_date = \?, state = case .* where id in \(\?, \?\)$/);
+    expect(execute.mock.calls[0][1].slice(-2)).toEqual(["t1", "t2"]);
+    const entry = history.record.mock.calls[0][0];
+    expect(entry).toMatchObject({ label: "Moved 2 tasks to tomorrow", toast: true });
+    await entry.undo();
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(execute.mock.calls[1][1].slice(0, 3)).toEqual(["2026-09-14", "15:00", "active"]);
+    expect(execute.mock.calls[2][1].slice(0, 3)).toEqual([null, null, "inbox"]);
+  });
+
+  it("bulk complete, drop and park use the batch words; one row keeps its title", async () => {
+    const { db, execute } = fakeDb(row, [
+      { id: "t1", title: "Draft the proposal", state: "active", do_date: "2026-09-14", completed_at: null },
+      { id: "t2", title: "Call Mum", state: "inbox", do_date: null, completed_at: null },
+    ]);
+    const history = { record: vi.fn() };
+    const repo = new TaskRepo(db, history);
+    await repo.completeMany(["t1", "t2"]);
+    expect(String(execute.mock.calls[0][0])).toMatch(/set state = 'done', completed_at = \?, updated_at = \? where id in \(\?, \?\)/);
+    await repo.setStateMany(["t1", "t2"], "dropped");
+    await repo.setStateMany(["t1", "t2"], "someday");
+    expect(history.record.mock.calls.map((c) => [c[0].label, c[0].toast])).toEqual([
+      ["Completed 2 tasks", true],
+      ["Dropped 2 tasks", true],
+      ["Moved 2 tasks to Someday", true],
+    ]);
+    const one = fakeDb(row, [{ id: "t1", title: "Draft the proposal", state: "active", do_date: "2026-09-14" }]);
+    const single = { record: vi.fn() };
+    await new TaskRepo(one.db, single).setStateMany(["t1"], "dropped");
+    expect(single.record.mock.calls[0][0].label).toBe("Dropped “Draft the proposal”");
+  });
+
+  it("bulk writes on nothing do nothing", async () => {
+    const { db, execute } = fakeDb(row);
+    const history = { record: vi.fn() };
+    const repo = new TaskRepo(db, history);
+    await repo.updateMany([], { priority: 2 });
+    await repo.completeMany([]);
+    await repo.setStateMany([], "someday");
+    expect(execute).not.toHaveBeenCalled();
+    expect(history.record).not.toHaveBeenCalled();
+  });
+
   it("clearing an empty slate does nothing", async () => {
     const { db, execute } = fakeDb(row);
     const history = { record: vi.fn() };

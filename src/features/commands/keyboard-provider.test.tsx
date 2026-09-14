@@ -17,16 +17,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { QuickAddProvider } from "@/features/quickadd/quick-add-provider";
-import { useListSelection, SelectionProvider } from "@/features/selection/selection-provider";
+import { useListSelection, useSelection, SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { KeyboardProvider } from "./keyboard-provider";
 
 function List() {
   const { selectedId } = useListSelection(["t1", "t2", "t3"]);
+  const { checkedIds } = useSelection();
   const detail = useTaskDetail();
   return (
     <div>
       <p>selected: {selectedId ?? "none"}</p>
+      <p>checked: {checkedIds.length ? checkedIds.join(",") : "none"}</p>
       <p>open: {detail.selectedId ?? "none"}</p>
       <label>
         Other field <input />
@@ -99,13 +101,29 @@ describe("<KeyboardProvider>", () => {
     await user.keyboard("q");
     expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("");
     await user.keyboard("{Escape}");
-    await user.keyboard("x");
-    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("x");
+    await user.keyboard("y");
+    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("y");
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("textbox", { name: "Other field" }));
     await user.keyboard("jt");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("selected: none")).toBeInTheDocument();
+  });
+
+  it("X ticks rows, Ctrl+A ticks them all, and T then moves every ticked row in one write", async () => {
+    const { user } = setup();
+    await user.keyboard("jx");
+    expect(screen.getByText("checked: t1")).toBeInTheDocument();
+    await user.keyboard("jx");
+    expect(screen.getByText("checked: t1,t2")).toBeInTheDocument();
+    await user.keyboard("x");
+    expect(screen.getByText("checked: t1")).toBeInTheDocument();
+    await user.keyboard("{Control>}a{/Control}");
+    expect(screen.getByText("checked: t1,t2,t3")).toBeInTheDocument();
+    await user.keyboard("t");
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(String(execute.mock.calls[0][0])).toMatch(/where id in \(\?, \?, \?\)$/);
+    expect(execute.mock.calls[0][1]?.slice(-3)).toEqual(["t1", "t2", "t3"]);
   });
 
   it("while quick-add is open, list keys are not intercepted", async () => {

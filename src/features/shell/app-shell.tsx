@@ -12,6 +12,7 @@ import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
 import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
+import { BulkBar } from "@/features/selection/bulk-bar";
 import { SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailPane, TaskDetailProvider } from "@/features/tasks/task-detail";
 import { UndoProvider } from "@/features/undo/undo-provider";
@@ -55,6 +56,7 @@ function Shell({ children }: { children: ReactNode }) {
                 <TaskDetailPane />
                 <TabBar pathname={pathname} counts={counts} className="sm:hidden" />
                 <QuickAddFab />
+                <BulkBar />
               </div>
               <PaletteHost />
               </Keyboard>

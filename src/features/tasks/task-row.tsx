@@ -4,10 +4,13 @@
 // the estimate, dashed when it is a guess. Actions slot in on the right and
 // a footer can sit under the row (the carried-over ask).
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { formatMinutes, formatTime } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
+import { useSelectionOptional } from "@/features/selection/selection-provider";
+
+const LONG_PRESS_MS = 500;
 
 export function TaskRow({
   task,
@@ -50,14 +53,59 @@ export function TaskRow({
       onDrop: () => setDragging(false),
     });
   }, [canDrag]);
+
+  // Multi-select (SCREENS.md §24): X on the keyboard, Shift-click, the row's
+  // checkbox once any row is ticked, and a long-press on touch.
+  const sel = useSelectionOptional();
+  const ticked = sel?.checkedIds.includes(task.id) ?? false;
+  const multi = (sel?.checkedIds.length ?? 0) > 0;
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+  useEffect(() => cancelPress, []);
+  const onPointerDown = (e: ReactPointerEvent<HTMLLIElement>) => {
+    if (!sel || e.pointerType !== "touch") return;
+    cancelPress();
+    pressTimer.current = setTimeout(() => {
+      pressTimer.current = null;
+      sel.toggleCheck(task.id);
+    }, LONG_PRESS_MS);
+  };
+  const onClick = (e: ReactMouseEvent<HTMLLIElement>) => {
+    if (sel && e.shiftKey) {
+      e.preventDefault();
+      sel.checkRange(task.id);
+      return;
+    }
+    onSelect?.();
+  };
+
   return (
     <li
       ref={ref}
-      className={`border-t border-line first:border-t-0 ${selected ? "bg-paper shadow-[inset_2px_0_0_var(--ink)]" : ""} ${dragging ? "opacity-40" : ""}`}
+      className={`border-t border-line first:border-t-0 ${selected ? "bg-paper shadow-[inset_2px_0_0_var(--ink)]" : ""} ${ticked ? "bg-surface-2" : ""} ${dragging ? "opacity-40" : ""}`}
       aria-current={selected ? "true" : undefined}
-      onClick={onSelect}
+      data-ticked={ticked || undefined}
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      onPointerUp={cancelPress}
+      onPointerMove={cancelPress}
+      onPointerCancel={cancelPress}
+      onPointerLeave={cancelPress}
     >
       <div className="flex min-h-11 items-center gap-3 px-4 py-2">
+        {multi && sel && (
+          <input
+            type="checkbox"
+            checked={ticked}
+            aria-label={`Select ${task.title}`}
+            onChange={() => sel.toggleCheck(task.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="size-[18px] shrink-0 accent-ink"
+          />
+        )}
         {onDone ? (
           <button
             type="button"
