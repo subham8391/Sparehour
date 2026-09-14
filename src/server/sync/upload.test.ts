@@ -32,6 +32,17 @@ describe("sanitize", () => {
   it("strips id from data (it travels separately)", () => {
     expect(sanitize(op({ op: "PUT", data: { id: "other", title: "t" } }))?.data).toEqual({ title: "t" });
   });
+
+  it("a soft delete is a client write: deleted_at survives on ordinary rows and is dropped only where a client may never delete", () => {
+    const at = "2026-09-14T12:41:00.000Z";
+    expect(sanitize(op({ table: "time_blocks", data: { deleted_at: at, updated_at: at } }))?.data).toEqual({ deleted_at: at });
+    expect(sanitize(op({ table: "headings", data: { deleted_at: at } }))?.data).toEqual({ deleted_at: at });
+    expect(sanitize(op({ table: "task_tags", data: { deleted_at: at } }))?.data).toEqual({ deleted_at: at });
+    expect(sanitize(op({ table: "calendars", data: { deleted_at: at, read: 0 } }))?.data).toEqual({ read: 0 });
+    expect(sanitize(op({ table: "user_settings", data: { deleted_at: at } }))).toBeNull();
+    expect(sanitize(op({ table: "spaces", data: { deleted_at: at } }))).toBeNull();
+    expect(sanitize(op({ table: "users", data: { display_name: "x" } }))).toBeNull();
+  });
 });
 
 describe("UploadBody", () => {

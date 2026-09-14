@@ -120,6 +120,20 @@ describe.skipIf(admin === null)("database contract (local Supabase)", () => {
       expect((await c.query("select title from public.tasks where id = $1", [taskId])).rows[0].title).toBe("second");
     }));
 
+  it("apply_mutations soft-deletes a block when the client patches deleted_at (a removal must survive sync)", () =>
+    inTx(async (c) => {
+      const a = await newUser(c, "soft-delete@contract.test");
+      const sidA = await spaceOf(c, a);
+      const blockId = uuid();
+      await asUser(c, a);
+      const created = await apply(c, "device-1", [put("1", blockId, { space_id: sidA, user_id: a, start_at: "2026-09-14T13:40:00Z", end_at: "2026-09-14T14:40:00Z", push_state: "local" }, "time_blocks")]);
+      expect(created).toEqual({ applied: ["1"], rejected: [] });
+      const removed = await apply(c, "device-1", [patch("2", blockId, { deleted_at: "2026-09-14T13:00:00Z" }, "time_blocks")]);
+      expect(removed).toEqual({ applied: ["2"], rejected: [] });
+      const row = await c.query<{ deleted_at: string | null }>("select deleted_at from public.time_blocks where id = $1", [blockId]);
+      expect(row.rows[0].deleted_at).not.toBeNull();
+    }));
+
   it("apply_mutations rejects cross-tenant writes per op and applies the rest of the batch", () =>
     inTx(async (c) => {
       const a = await newUser(c, "a@contract.test");

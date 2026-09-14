@@ -21,15 +21,23 @@ export const UploadBody = z.object({
 export type WireOp = z.infer<typeof WireOp>;
 export type UploadBody = z.infer<typeof UploadBody>;
 
-/** Columns the server owns. A client value for any of these is dropped, never trusted. */
+/**
+ * Columns the server owns. A client value for any of these is dropped, never
+ * trusted. `deleted_at` is deliberately NOT here for ordinary rows: a soft
+ * delete (a removed block, heading, step or tag link) is a client write like
+ * any other — stripping it once made every removal reappear after sync.
+ * Rows a client may never delete list it explicitly.
+ */
 export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
   tasks: ["carry_count", "last_carried_at", "last_touched_at", "assignee_id", "created_at", "updated_at"],
   time_blocks: ["external_event_id", "external_etag", "push_state", "created_at", "updated_at"],
-  calendars: ["sync_token", "last_synced_at", "calendar_account_id", "external_id", "access_role", "created_at", "updated_at"],
+  calendars: ["sync_token", "last_synced_at", "calendar_account_id", "external_id", "access_role", "deleted_at", "created_at", "updated_at"],
   calendar_events: ["*"],
-  user_settings: ["user_id", "space_id", "created_at", "updated_at"],
-  spaces: ["owner_id", "kind", "created_at", "updated_at"],
-  "*": ["created_at", "updated_at", "deleted_at"],
+  user_settings: ["user_id", "space_id", "deleted_at", "created_at", "updated_at"],
+  spaces: ["owner_id", "kind", "deleted_at", "created_at", "updated_at"],
+  users: ["*"],
+  space_members: ["*"],
+  "*": ["created_at", "updated_at"],
 };
 
 /** Returns the op with server-owned columns removed, or null when nothing is left to apply. */
