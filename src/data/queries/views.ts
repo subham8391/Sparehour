@@ -46,6 +46,9 @@ export const EVENTS_BETWEEN_SQL = `
 
 export const CALENDARS_COUNT_SQL = `select count(*) as n from calendars where deleted_at is null`;
 
+/** One task, for the detail panel. */
+export const TASK_SQL = `select * from tasks where id = ? and deleted_at is null`;
+
 /** Inclusive ISO date bounds for `day` and the `days - 1` days after it. */
 export function dayRangeParams(day: LocalDate, days: number): [string, string] {
   return [day.toString(), day.add({ days: Math.max(0, days - 1) }).toString()];

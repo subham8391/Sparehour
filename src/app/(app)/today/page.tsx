@@ -7,6 +7,7 @@ import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
+import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday } from "@/features/today/hooks/use-today";
 
@@ -72,6 +73,7 @@ export default function TodayPage() {
     return () => clearInterval(id);
   }, []);
   const model = useToday(now);
+  const detail = useTaskDetail();
   const time = useInteractionTimer();
   useEffect(() => {
     lastCommit = performance.now();
@@ -110,6 +112,7 @@ export default function TodayPage() {
                 <TaskRow
                   key={t.id}
                   task={t}
+                  onOpen={() => detail.open(t.id)}
                   onDone={() => void time("complete", () => model.repo.complete(t.id))}
                   actions={
                     <MoveActions
@@ -169,7 +172,7 @@ export default function TodayPage() {
             <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-over">This evening</h2>
             <TaskList>
               {model.eveningTasks.map((t) => (
-                <TaskRow key={t.id} task={t} onDone={() => void time("complete", () => model.repo.complete(t.id))} />
+                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} onDone={() => void time("complete", () => model.repo.complete(t.id))} />
               ))}
             </TaskList>
           </section>
@@ -177,7 +180,7 @@ export default function TodayPage() {
       </div>
 
       {model.capacity && model.capacity.state !== "no_work_day" && (
-        <aside className="hidden w-80 shrink-0 md:block">
+        <aside className={`w-80 shrink-0 ${detail.selectedId ? "hidden" : "hidden md:block"}`}>
           <h2 className="font-display text-xl">Your day</h2>
           <p className="mb-3 font-mono text-[11px] text-ink-3">
             {formatTime(timeFromMinutes(model.capacity.windows[0].start))} – {formatTime(timeFromMinutes(model.capacity.windows[model.capacity.windows.length - 1].end))} · buffer {model.settings?.bufferPct}%

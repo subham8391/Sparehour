@@ -1,0 +1,78 @@
+"use client";
+// A field row that opens a small panel: the task detail's "each field opens a
+// popover" (SCREENS.md §10). Closes on Escape and on a click outside; hands
+// focus back to the row.
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+
+export function FieldPopover({
+  label,
+  value,
+  children,
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  /** The panel's contents; call `close` when a choice has been made. */
+  children: (close: () => void) => ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  const panelId = useId();
+
+  useEffect(() => {
+    if (!open) {
+      // Hand focus back to the row when the panel has just closed.
+      if (wasOpen.current) {
+        wasOpen.current = false;
+        buttonRef.current?.focus();
+      }
+      return;
+    }
+    wasOpen.current = true;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+
+  const close = useCallback(() => setOpen(false), []);
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        className="flex min-h-[46px] w-full items-center justify-between gap-3 px-3.5 text-left text-[14.5px] hover:bg-paper"
+      >
+        <span className="text-ink-2">{label}</span>
+        <span className="flex min-w-0 items-center gap-2 text-ink">{value}</span>
+      </button>
+      {open && (
+        <div id={panelId} role="dialog" aria-label={label} className="absolute right-2 top-full z-30 mt-1 w-[calc(100%-1rem)] max-w-80 rounded-xl border border-line bg-surface p-3 shadow-lg">
+          {children(close)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export const CHIP_BUTTON = "h-9 rounded-full border border-line px-3 text-[13px] text-ink hover:border-line-strong aria-pressed:border-ink aria-pressed:bg-surface-2";
+export const FIELD_INPUT = "h-10 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink outline-none focus:border-ink";

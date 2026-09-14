@@ -18,6 +18,7 @@ export interface Task {
   spaceId: SpaceId;
   projectId: ProjectId | null;
   title: string;
+  notes: string | null;
   state: TaskState;
   priority: Priority;
   doDate: LocalDate | null;

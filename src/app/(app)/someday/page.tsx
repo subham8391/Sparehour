@@ -9,10 +9,12 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
 export default function SomedayPage() {
   const repo = useTaskRepo();
+  const detail = useTaskDetail();
   const now = useNow();
   const { today } = useLocalDay(now);
   const { data, isLoading } = useQuery<TaskRowType>(SOMEDAY_SQL);
@@ -29,6 +31,7 @@ export default function SomedayPage() {
             <TaskRow
               key={t.id}
               task={t}
+              onOpen={() => detail.open(t.id)}
               onDone={() => void repo.complete(t.id)}
               actions={<MoveActions onToday={() => void repo.reschedule(t.id, today)} onTomorrow={() => void repo.reschedule(t.id, today.add({ days: 1 }))} onDrop={() => void repo.setState(t.id, "dropped")} />}
             />

@@ -12,11 +12,13 @@ import { EmptyState, ViewHeader } from "@/features/shell/view-header";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
 export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   const { id } = use(params);
   const repo = useTaskRepo();
+  const detail = useTaskDetail();
   const now = useNow();
   const { today } = useLocalDay(now);
   const { data: projects, isLoading } = useQuery<ProjectRow>(PROJECT_SQL, [id]);
@@ -46,7 +48,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
       ) : (
         <TaskList>
           {tasks.map((t) => (
-            <TaskRow key={t.id} task={t} onDone={() => void repo.complete(t.id)} meta={<DayChipTag chip={dayChip(t, today)} />} />
+            <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} onDone={() => void repo.complete(t.id)} meta={<DayChipTag chip={dayChip(t, today)} />} />
           ))}
         </TaskList>
       )}

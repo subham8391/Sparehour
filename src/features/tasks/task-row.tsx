@@ -10,12 +10,15 @@ import type { Task } from "@/core/types";
 export function TaskRow({
   task,
   onDone,
+  onOpen,
   actions,
   footer,
   meta,
 }: {
   task: Task;
   onDone?: () => void;
+  /** Opens the task's detail; the title becomes the target. */
+  onOpen?: () => void;
   actions?: ReactNode;
   footer?: ReactNode;
   /** Extra chips before the estimate — a day chip in project views, "added 2d" in the inbox. */
@@ -36,7 +39,13 @@ export function TaskRow({
         ) : (
           <span className="size-[18px] shrink-0 rounded-full border-[1.5px] border-line-strong" aria-hidden="true" />
         )}
-        <span className="min-w-0 flex-1 truncate text-[15px]">{task.title}</span>
+        {onOpen ? (
+          <button type="button" onClick={onOpen} className="min-w-0 flex-1 truncate py-2 text-left text-[15px] text-ink hover:underline hover:decoration-line-strong">
+            {task.title}
+          </button>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-[15px]">{task.title}</span>
+        )}
         {meta}
         {task.deadline && <span className="rounded-md bg-deadline-soft px-2 py-0.5 text-xs font-medium text-deadline">Due {task.deadline.toString().slice(5)}</span>}
         {task.doTime && <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-xs text-ink-2">{formatTime(task.doTime)}</span>}

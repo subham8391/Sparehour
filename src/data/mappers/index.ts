@@ -24,6 +24,7 @@ export function toTask(r: TaskRow): Task {
     spaceId: (r.space_id ?? "") as SpaceId,
     projectId: (r.project_id as Task["projectId"]) ?? null,
     title: r.title ?? "",
+    notes: r.notes_md ?? null,
     state: (r.state ?? "inbox") as TaskState,
     priority: (r.priority ?? 0) as Priority,
     doDate: date(r.do_date),

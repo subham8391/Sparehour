@@ -3,8 +3,26 @@
 // is what makes per-column last-writer-wins work (§4.3).
 import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
-import type { LocalDate } from "@/core/time";
+import type { LocalDate, LocalTime } from "@/core/time";
+import type { MissPolicy, Priority, RecurrenceMode } from "@/core/types";
 import type { LocalDatabase } from "../powersync";
+
+/** The fields a person edits in the detail panel. Only the keys present are written. */
+export interface TaskPatch {
+  title?: string;
+  notes?: string | null;
+  doDate?: LocalDate | null;
+  doTime?: LocalTime | null;
+  evening?: boolean;
+  deadline?: LocalDate | null;
+  startDate?: LocalDate | null;
+  estimateMin?: number | null;
+  priority?: Priority;
+  missPolicy?: MissPolicy;
+  projectId?: string | null;
+  recurrenceRule?: string | null;
+  recurrenceMode?: RecurrenceMode | null;
+}
 
 export interface NewTaskContext {
   spaceId: string;
@@ -103,6 +121,45 @@ export class TaskRepo {
     const id = crypto.randomUUID();
     await tx.execute(`insert into tags (id, space_id, name, created_at, updated_at) values (?, ?, ?, ?, ?)`, [id, spaceId, name, now, now]);
     return id;
+  }
+
+  /**
+   * Writes exactly the columns in the patch (per-column last-writer-wins,
+   * §4.3). Giving an inbox or Someday task a day makes it active; giving a
+   * task its first repeat rule makes it the head of its own series.
+   */
+  async update(id: string, patch: TaskPatch): Promise<void> {
+    const sets: string[] = [];
+    const args: (string | number | null)[] = [];
+    const set = (column: string, value: string | number | null) => {
+      sets.push(`${column} = ?`);
+      args.push(value);
+    };
+    if ("title" in patch && patch.title !== undefined) set("title", patch.title.trim());
+    if ("notes" in patch) set("notes_md", patch.notes?.trim() || null);
+    if ("doDate" in patch) {
+      set("do_date", patch.doDate?.toString() ?? null);
+      if (patch.doDate) sets.push(`state = case when state in ('inbox', 'someday') then 'active' else state end`);
+      else set("do_time", null);
+    }
+    if ("doTime" in patch) set("do_time", patch.doTime ? patch.doTime.toString({ smallestUnit: "minute" }) : null);
+    if ("evening" in patch && patch.evening !== undefined) set("evening", patch.evening ? 1 : 0);
+    if ("deadline" in patch) set("deadline", patch.deadline?.toString() ?? null);
+    if ("startDate" in patch) set("start_date", patch.startDate?.toString() ?? null);
+    if ("estimateMin" in patch) set("estimate_min", patch.estimateMin ?? null);
+    if ("priority" in patch && patch.priority !== undefined) set("priority", patch.priority);
+    if ("missPolicy" in patch && patch.missPolicy !== undefined) set("miss_policy", patch.missPolicy);
+    if ("projectId" in patch) set("project_id", patch.projectId ?? null);
+    if ("recurrenceRule" in patch) {
+      set("recurrence_rule", patch.recurrenceRule ?? null);
+      set("recurrence_mode", patch.recurrenceRule ? (patch.recurrenceMode ?? "fixed") : null);
+      sets.push(patch.recurrenceRule ? `recurrence_series_id = coalesce(recurrence_series_id, id)` : `recurrence_series_id = null`);
+    } else if ("recurrenceMode" in patch) {
+      set("recurrence_mode", patch.recurrenceMode ?? null);
+    }
+    if (sets.length === 0) return;
+    set("updated_at", new Date().toISOString());
+    await this.db.execute(`update tasks set ${sets.join(", ")} where id = ?`, [...args, id]);
   }
 
   async complete(id: string): Promise<void> {

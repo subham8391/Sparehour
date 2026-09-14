@@ -13,12 +13,14 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
 const DAYS = 7;
 
 export default function UpcomingPage() {
   const repo = useTaskRepo();
+  const detail = useTaskDetail();
   const now = useNow();
   const { today, settings } = useLocalDay(now);
   const [from, to] = dayRangeParams(today, DAYS);
@@ -62,7 +64,7 @@ export default function UpcomingPage() {
           ) : (
             <TaskList>
               {tasks.map((t) => (
-                <TaskRow key={t.id} task={t} onDone={() => void repo.complete(t.id)} />
+                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} onDone={() => void repo.complete(t.id)} />
               ))}
             </TaskList>
           )}
@@ -80,6 +82,7 @@ export default function UpcomingPage() {
               <TaskRow
                 key={t.id}
                 task={t}
+                onOpen={() => detail.open(t.id)}
                 onDone={() => void repo.complete(t.id)}
                 actions={<MoveActions onToday={() => void repo.reschedule(t.id, today)} onTomorrow={() => void repo.reschedule(t.id, today.add({ days: 1 }))} onSomeday={() => void repo.setState(t.id, "someday")} />}
               />
