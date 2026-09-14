@@ -68,7 +68,8 @@ describe("properties", () => {
     fc.assert(
       fc.property(arbItem, arbItem, arbItem, (a, b, c) => {
         expect(compare(a, a)).toBe(0);
-        expect(compare(a, b)).toBe(-compare(b, a));
+        // `|| 0` folds the -0 that negating 0 produces: two equal items compare 0 both ways.
+        expect(compare(a, b)).toBe(-compare(b, a) || 0);
         if (compare(a, b) < 0 && compare(b, c) < 0) expect(compare(a, c)).toBe(-1);
       }),
     );
