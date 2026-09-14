@@ -3445,7 +3445,9 @@ flowchart LR
 | P10 | PWA shell | Serwist SW, manifest, install coaching (iOS + Android), `navigator.storage.persist`, offline banner via `useOffline`, eviction-recovery path, update flow | P1 | 4 |
 | P11 | Exit | JSON/MD/CSV export, light/dark polish, a11y pass + axe, perf budgets, Sentry + PostHog, 2 weeks of sole use | P9 | 6 |
 
-**M1 total ≈ 73 developer-days** (~15 weeks at a sustainable solo pace). The three phases most likely to overrun are P5 (Google's sync semantics reward empiricism over documentation), P7 (drag interactions on a time grid are always more work than they look), and P3 (only if the corpus is written honestly).
+**Every M1 phase ships its phone and narrow layouts in the same phase** (DECISIONS.md: every screen responsive from M1; bands in `DESIGN_SYSTEM.md` §4a) — P4 includes the Browse tab and swipe actions, P6 the phone Today/Upcoming, P7 tap-to-schedule alongside drag, P8 the phone morning plan and shutdown. This adds roughly 6 days across P4–P8.
+
+**M1 total ≈ 79 developer-days** (~16 weeks at a sustainable solo pace). The three phases most likely to overrun are P5 (Google's sync semantics reward empiricism over documentation), P7 (drag interactions on a time grid are always more work than they look), and P3 (only if the corpus is written honestly).
 
 **M1 exit criteria**, stated as tests rather than feelings:
 - 14 consecutive days of sole use with no fallback to another todo app.
@@ -3463,12 +3465,12 @@ flowchart LR
 | M2-C | AI module — provider interface, Anthropic + OpenRouter adapters, caps and cost tracking, `parseBrainDump`, `breakDownTask`, `suggestEstimates`, `explainPlan`, eval harness | 9 |
 | M2-D | Weekly review wizard, weekly objectives, daily scratchpad | 5 |
 | M2-E | Focus timer + actual time, planned-vs-actual insights, activity history per task | 6 |
-| M2-F | Full responsive/tap-to-schedule on phones, board view, saved filters, waiting-for, templates | 8 |
+| M2-F | Board view, saved filters, waiting-for, templates (responsive layouts and tap-to-schedule already shipped in M1) | 5 |
 | M2-G | Share target (Android), email-in capture, voice brain-dump, backlog suggestions, urgent repeat reminders | 6 |
 | M2-H | Beta ops: feature flags, support inbox, weekly metrics review, week-4 retention instrumentation | 3 |
 | M2-I | **Routines** (§5.7) — five tables + streams, `core/routines` (schedule, end date, materialise) with the golden fixture and property tests, `routine-materialise` Edge Function + queue, builder (timed / anytime items), schedule sheet (7 · 14 · 21 · 30 · custom · until · no end; every / working / weekdays), Today "Routine" group + timeline, just-this-day / this-and-following edits, pause / extend / end early, progress, clash flag, calendar write through the existing push queue. Depends only on M1 (P6–P8), so it can move into M1 — DECISIONS.md allows that — at +8 days. | 8 |
 
-**M2 ≈ 58 days.** Exit test is week-4 retention (DECISIONS.md), which is a product gate, not an engineering one.
+**M2 ≈ 55 days.** Exit test is week-4 retention (DECISIONS.md), which is a product gate, not an engineering one.
 
 ### 14.4 M2.5 — teams
 
