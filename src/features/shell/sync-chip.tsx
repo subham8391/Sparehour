@@ -5,7 +5,7 @@
 import { useId, useState } from "react";
 import { Icon, type IconName } from "@/ui/icons";
 
-export type SyncChipState = "synced" | "syncing" | "offline" | "problem" | "unprotected";
+export type SyncChipState = "connecting" | "synced" | "syncing" | "offline" | "problem" | "unprotected";
 
 export interface SyncChipInput {
   /** navigator.onLine — the browser's view, which wins over the socket's. */
@@ -42,6 +42,15 @@ export function relativeTime(from: Date, now: Date): string {
 
 export function syncChipModel(i: SyncChipInput): SyncChipModel {
   const waiting = i.pending > 0 ? ` · ${i.pending} ${i.pending === 1 ? "change" : "changes"} waiting` : "";
+  // First launch: nothing has synced yet and the socket is still opening — that is not "offline".
+  if (i.online && !i.connected && !i.lastSyncedAt) {
+    return {
+      state: "connecting",
+      icon: "cloud-check",
+      label: "Connecting…",
+      detail: "Getting this device its copy of your account.",
+    };
+  }
   // A server we cannot reach is the offline state, verbatim — no separate "server error" experience.
   if (!i.online || !i.connected) {
     return {
@@ -84,6 +93,7 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
 }
 
 const TONE: Record<SyncChipState, string> = {
+  connecting: "text-ink-2",
   synced: "text-ink-3",
   syncing: "text-ink-2",
   offline: "text-ink-2",
@@ -107,7 +117,7 @@ export function SyncChip({ model, compact = false, className = "" }: { model: Sy
         data-state={model.state}
         className={`flex h-9 min-w-9 items-center gap-2 rounded-lg px-2 font-mono text-[11px] ${TONE[model.state]} hover:bg-surface`}
       >
-        <Icon name={model.icon} size={14} className={model.state === "syncing" ? "animate-pulse" : undefined} />
+        <Icon name={model.icon} size={14} className={model.state === "syncing" || model.state === "connecting" ? "animate-pulse" : undefined} />
         {!compact && <span aria-live="polite">{model.label}</span>}
       </button>
       {open && (

@@ -10,17 +10,18 @@
   --line-strong: #bec6c2;
   --ink: #161c19;
   --ink-2: #5c6661;
-  --ink-3: #89928d;
-  --spare: #1c7b5a;
+  /* Text tokens hold WCAG AA (≥ 4.5:1) on paper, surface and their soft tints — checked by axe in e2e. */
+  --ink-3: #66706c;
+  --spare: #1a7455;
   --spare-fill: #249c74;
   --spare-soft: #d7f3e5;
   --meet: #4868a2;
   --meet-fill: #6586c3;
   --meet-soft: #e0ecff;
-  --over: #a06f30;
+  --over: #8f6329;
   --over-fill: #ebb16c;
   --over-soft: #feebd6;
-  --deadline: #b14f42;
+  --deadline: #a8493d;
   --deadline-soft: #ffe3de;
 }
 
@@ -33,7 +34,7 @@
     --line-strong: #3e4441;
     --ink: #e8ecea;
     --ink-2: #9ea7a3;
-    --ink-3: #6b7470;
+    --ink-3: #8a948f;
     --spare: #69d6aa;
     --spare-fill: #37b78a;
     --spare-soft: #103627;
@@ -56,7 +57,7 @@
   --line-strong: #3e4441;
   --ink: #e8ecea;
   --ink-2: #9ea7a3;
-  --ink-3: #6b7470;
+  --ink-3: #8a948f;
   --spare: #69d6aa;
   --spare-fill: #37b78a;
   --spare-soft: #103627;

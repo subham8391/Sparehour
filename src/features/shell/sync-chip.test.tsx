@@ -21,6 +21,14 @@ describe("syncChipModel", () => {
     expect(syncChipModel(base)).toMatchObject({ state: "synced", label: "Synced 12s ago" });
   });
 
+  it("before anything has synced, an opening socket is connecting, not offline", () => {
+    expect(syncChipModel({ ...base, connected: false, lastSyncedAt: null })).toMatchObject({ state: "connecting", label: "Connecting…" });
+    expect(syncChipModel({ ...base, connected: false, lastSyncedAt: null, hasError: true }).state).toBe("connecting");
+    // Once it has synced, losing the socket is the offline state; a browser offline is offline from the start.
+    expect(syncChipModel({ ...base, connected: false }).state).toBe("offline");
+    expect(syncChipModel({ ...base, connected: false, lastSyncedAt: null, online: false }).state).toBe("offline");
+  });
+
   it("the browser being offline wins, and counts the changes waiting", () => {
     expect(syncChipModel({ ...base, online: false, pending: 3 })).toMatchObject({ state: "offline", label: "Offline · 3 changes waiting" });
     expect(syncChipModel({ ...base, online: false, pending: 1 }).label).toBe("Offline · 1 change waiting");

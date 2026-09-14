@@ -139,7 +139,7 @@ export function TaskRow({
             type="button"
             aria-label={`Complete ${task.title}`}
             onClick={onDone}
-            className="flex size-11 -m-3 shrink-0 items-center justify-center"
+            className="-my-3 -ml-3 flex size-11 shrink-0 items-center justify-center"
           >
             <span className="size-[18px] rounded-full border-[1.5px] border-line-strong hover:border-ink" />
           </button>

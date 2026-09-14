@@ -115,19 +115,22 @@ export function SearchView(p: SearchViewProps) {
         </button>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {active.map((key) => {
-          const label = filterLabel(key, filters, names);
-          if (!label) return null;
-          return (
-            <span key={key} className={CHIP}>
-              {label}
-              <button type="button" aria-label={`Remove filter ${label}`} onClick={() => remove(key)} className="flex size-6 items-center justify-center rounded-full text-ink-3 hover:bg-paper hover:text-ink">
-                <Icon name="close" size={11} />
-              </button>
-            </span>
-          );
-        })}
+      {/* The chips scroll sideways on a phone; the menu sits outside that scroller so its panel is never clipped. */}
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto py-1">
+          {active.map((key) => {
+            const label = filterLabel(key, filters, names);
+            if (!label) return null;
+            return (
+              <span key={key} className={CHIP}>
+                {label}
+                <button type="button" aria-label={`Remove filter ${label}`} onClick={() => remove(key)} className="flex size-6 items-center justify-center rounded-full text-ink-3 hover:bg-paper hover:text-ink">
+                  <Icon name="close" size={11} />
+                </button>
+              </span>
+            );
+          })}
+        </div>
         <MenuButton label="Add filter" text="+ Filter" align="left" className="flex h-8 shrink-0 items-center rounded-full border border-dashed border-line-strong px-3 text-[13px] text-ink-2 hover:border-ink hover:text-ink">
           {(close) => (
             <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">

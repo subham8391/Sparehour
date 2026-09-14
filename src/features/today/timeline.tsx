@@ -135,7 +135,7 @@ export function Timeline(p: TimelineProps) {
       ))}
       {c.busy.map((b, i) => (
         <div key={`m${i}`} className="absolute left-14 right-0 overflow-hidden rounded-md border-l-[3px] border-meet-fill bg-meet-soft px-2 text-xs text-meet" style={{ top: y(b.start) + 1, height: Math.max(12, (b.end - b.start) * PX_PER_MIN - 2) }}>
-          meeting <span className="font-mono opacity-75">{formatTime(timeFromMinutes(b.start))}</span>
+          meeting <span className="font-mono">{formatTime(timeFromMinutes(b.start))}</span>
         </div>
       ))}
       {(p.blocks ?? []).map((b) => (
@@ -217,8 +217,8 @@ function Block({
       >
         {block.locked && <Icon name="lock" size={10} className="shrink-0" />}
         <span className="truncate">{block.title}</span>
-        <span className="font-mono opacity-75">{formatTime(timeFromMinutes(start))}</span>
-        {height > 28 && <span className="font-mono opacity-60">· {formatMinutes(end - start)}</span>}
+        <span className="font-mono text-ink-2">{formatTime(timeFromMinutes(start))}</span>
+        {height > 28 && <span className="font-mono text-ink-2">· {formatMinutes(end - start)}</span>}
       </button>
       {selected && (
         <div className="absolute -top-9 right-0 z-10 flex gap-1 rounded-lg border border-line bg-surface p-1 shadow-md" onClick={(e) => e.stopPropagation()}>

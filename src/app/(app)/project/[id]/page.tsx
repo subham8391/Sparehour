@@ -106,7 +106,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
       <ViewHeader
         eyebrow={
           area ? (
-            <Link href={`/area/${area.id}`} className="hover:text-ink">
+            <Link href={`/area/${area.id}`} className="inline-flex min-h-6 items-center hover:text-ink">
               {area.name}
             </Link>
           ) : (

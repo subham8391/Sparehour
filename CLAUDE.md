@@ -20,3 +20,4 @@ A calm, time-aware personal planner (product formerly worked on as "Personal Wor
 - AI features are optional and labeled, and run server-side only — never expose provider keys to the browser.
 - Mobile-first, always: every screen must work at 360 px wide and on touch. Write the phone layout first and widen with `min-width` queries; 44 px targets; no hover-only actions; a tap path for every drag. Width bands and per-screen behaviour are in `docs/design/DESIGN_SYSTEM.md` §4a.
 - Verify changes with `npm run lint` and `npm run build`.
+- End-to-end: `npm run e2e` (Playwright, `e2e/`) builds and starts the production server on port 3100 against the running local stack and signs in as the dev account; it needs `npm run dev:stack` up. Rows it creates start with "E2E " and are removed afterwards. `npm run e2e:ui` for the inspector; set `E2E_SKIP_BUILD=1` to reuse an existing build.

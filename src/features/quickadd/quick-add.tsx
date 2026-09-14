@@ -4,7 +4,7 @@
 // English, ⏎ saves and keeps going, ⌘⏎ saves and closes, esc discards. On a
 // phone it is a bottom sheet docked above the keyboard; from the narrow band
 // up, an overlay. Presentational and testable: data arrives as props.
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import { parse, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Icon } from "@/ui/icons";
@@ -71,6 +71,8 @@ export function QuickAdd({
   const [value, setValue] = useState(initial);
   const [createProject, setCreateProject] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Why the last save failed; the words stay in the box so nothing is lost. */
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const paintRef = useRef<HTMLDivElement>(null);
@@ -125,26 +127,28 @@ export function QuickAdd({
     inputRef.current?.focus();
   };
 
-  const submit = useCallback(
-    async (close: boolean) => {
-      if (!draft || busy) return;
-      setBusy(true);
-      try {
-        await onSubmit({
-          draft: { ...draft, projectCreate: willCreate },
-          projectId: match?.id ?? null,
-          createProjectName: willCreate ? projectName : null,
-        });
-        setValue("");
-        setCreateProject(false);
-        setNotice(`Added “${draft.title}”`);
-        if (close) onClose();
-      } finally {
-        setBusy(false);
-      }
-    },
-    [draft, busy, onSubmit, willCreate, match?.id, projectName, onClose],
-  );
+  // No manual memo: the compiler handles it, and its view of the dependencies is the right one.
+  const submit = async (close: boolean) => {
+    if (!draft || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSubmit({
+        draft: { ...draft, projectCreate: willCreate },
+        projectId: match?.id ?? null,
+        createProjectName: willCreate ? projectName : null,
+      });
+      setValue("");
+      setCreateProject(false);
+      setNotice(`Added “${draft.title}”`);
+      if (close) onClose();
+    } catch (e) {
+      setNotice(null);
+      setError(e instanceof Error && e.message ? e.message : "Couldn't save that — try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -294,6 +298,11 @@ export function QuickAdd({
           {notice && (
             <p role="status" className="flex items-center gap-1.5 text-[12px] text-spare">
               <Icon name="check" size={12} /> {notice}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-[12px] text-deadline">
+              {error}
             </p>
           )}
         </div>

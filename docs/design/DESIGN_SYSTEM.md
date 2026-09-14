@@ -27,20 +27,20 @@ Derived in OKLCH so both themes share the same chroma and lightness logic: every
 | `line-strong` | Checkbox rings, button borders, drag handles | `#BEC6C2` | `#3E4441` |
 | `ink` | Primary text, primary buttons, planned blocks, the now-line | `#161C19` | `#E8ECEA` |
 | `ink-2` | Secondary text (project names, summaries) | `#5C6661` | `#9EA7A3` |
-| `ink-3` | Tertiary text (labels, hour ticks). Decorative only — never the sole carrier of essential information | `#89928D` | `#6B7470` |
-| `spare` (accent) | Spare-time text, "done by", the logo arc — nothing else | `#1C7B5A` | `#69D6AA` |
+| `ink-3` | Tertiary text (labels, hour ticks). Decorative only — never the sole carrier of essential information | `#66706C` | `#8A948F` |
+| `spare` (accent) | Spare-time text, "done by", the logo arc — nothing else | `#1A7455` | `#69D6AA` |
 | `spare-fill` | Ribbon dots / progress, focus ring | `#249C74` | `#37B78A` |
 | `spare-soft` | Ribbon track, "planned" status chip | `#D7F3E5` | `#103627` |
 | `meet` | Calendar-event text | `#4868A2` | `#9EBEF8` |
 | `meet-fill` | Calendar segments, event left border | `#6586C3` | `#7698D6` |
 | `meet-soft` | Calendar event background, `#project` token | `#E0ECFF` | `#202E47` |
-| `over` (amber) | Over-capacity text, evening label, gentle-ask actions | `#A06F30` | `#EBB16C` |
+| `over` (amber) | Over-capacity text, evening label, gentle-ask actions | `#8F6329` | `#EBB16C` |
 | `over-fill` | Over-capacity tail on bars | `#EBB16C` | `#EBB16C` |
 | `over-soft` | Gentle-ask panel, "easiest move" card | `#FEEBD6` | `#3E290F` |
-| `deadline` (ember) | Deadline chip text — the only warm-red in the product | `#B14F42` | `#F58D7C` |
+| `deadline` (ember) | Deadline chip text — the only warm-red in the product | `#A8493D` | `#F58D7C` |
 | `deadline-soft` | Deadline chip background | `#FFE3DE` | `#47211B` |
 
-Measured contrast on `paper` (light / dark): ink 16.2 / 16.0 · ink-2 5.6 / 7.7 · spare 4.9 / 10.7 · meet 5.2 / 10.1 · over 4.1 / 10.0 · deadline 4.8 / 8.2. All essential text passes WCAG AA; `ink-3` (3.0 / 4.0) is reserved for labels that repeat information available elsewhere.
+Measured contrast (light / dark), text on `surface`: ink 17.4 / 15.6 · ink-2 6.0 / 7.2 · ink-3 5.1 / 5.7 · spare 5.7 / 10.0 · meet 5.6 / 9.4 · over 5.3 / 9.3 · deadline 5.7 / 8.1; on their own soft tints: spare 4.9, meet 4.7, over 4.5, deadline 4.7 (dark ≥ 6). Every text token clears WCAG AA (4.5:1) on every background it is used on, `ink-3` included — the end-to-end suite runs axe's colour-contrast check on the real pages, so a token that slips below AA fails CI. (Tightened 2026-09-14: `ink-3`, `spare`, `over` and `deadline` were darkened a step in the light theme; the earlier `ink-3` sat at 3.0.)
 
 **Never:** pure `#000`/`#fff` text, a red anywhere except the deadline chip, gradients on controls. The only gradient in the product is the daylight tint behind the day timeline: `linear-gradient(180deg, rgba(101,134,195,0.07) 0%, transparent 42%, rgba(160,111,48,0.08) 100%)` — cool at 9:00, warm at 18:00, at most 8% opacity.
 

@@ -45,14 +45,16 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 
   const onSubmit = useCallback(
     async (s: QuickAddSubmission) => {
-      if (!spaceId) throw new Error("no space yet");
+      // Right after the first sync the watch query can lag the data by a beat; read the row directly rather than fail.
+      const sid = spaceId ?? (await db.getOptional<{ personal_space_id: string | null }>(SPACE_SQL))?.personal_space_id ?? null;
+      if (!sid) throw new Error("Your account is still loading — try again in a moment.");
       let projectId = s.projectId;
-      if (!projectId && s.createProjectName) projectId = await projectRepo.create(s.createProjectName, { spaceId });
-      await tasks.create(s.draft, { spaceId, projectId });
+      if (!projectId && s.createProjectName) projectId = await projectRepo.create(s.createProjectName, { spaceId: sid });
+      await tasks.create(s.draft, { spaceId: sid, projectId });
       // The first meaningful action is the moment to ask the browser to keep our storage (§10.4).
       pwa?.requestPersist();
     },
-    [spaceId, projectRepo, tasks, pwa],
+    [spaceId, db, projectRepo, tasks, pwa],
   );
 
   const api = useMemo(() => ({ open }), [open]);

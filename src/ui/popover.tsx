@@ -82,12 +82,15 @@ export function MenuButton({
   label,
   children,
   align = "right",
+  direction = "down",
   text,
   className = "",
 }: {
   label: string;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
+  /** `up` for a trigger that sits at the bottom of the screen (the bulk bar). */
+  direction?: "up" | "down";
   /** Shown instead of the `⋯` glyph. */
   text?: string;
   className?: string;
@@ -132,7 +135,7 @@ export function MenuButton({
         )}
       </button>
       {open && (
-        <div id={panelId} role="menu" aria-label={label} className={`absolute z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-line bg-surface p-2 shadow-lg ${text ? "bottom-full mb-1" : "top-full mt-1"} ${align === "right" ? "right-0" : "left-0"}`}>
+        <div id={panelId} role="menu" aria-label={label} className={`absolute z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-line bg-surface p-2 shadow-lg ${direction === "up" ? "bottom-full mb-1" : "top-full mt-1"} ${align === "right" ? "right-0" : "left-0"}`}>
           {children(close)}
         </div>
       )}

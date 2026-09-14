@@ -19,6 +19,22 @@ function setup(over: Partial<React.ComponentProps<typeof QuickAdd>> = {}) {
 }
 
 describe("<QuickAdd>", () => {
+  it("a save that fails keeps the words in the box and says why; the next save clears the message", async () => {
+    const onSubmit = vi
+      .fn<(s: QuickAddSubmission) => Promise<void>>()
+      .mockRejectedValueOnce(new Error("Your account is still loading — try again in a moment."))
+      .mockResolvedValueOnce();
+    const { user, input } = setup({ onSubmit });
+    await user.type(input, "Call Dana{Enter}");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Your account is still loading — try again in a moment."));
+    expect(input).toHaveValue("Call Dana");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Added “Call Dana”"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(input).toHaveValue("");
+  });
+
   it("restates the parse as you type and paints the tokens", async () => {
     const { user, input } = setup();
     await user.type(input, "Draft proposal tomorrow 3pm ~45m #acme !1");
