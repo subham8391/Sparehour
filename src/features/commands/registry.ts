@@ -151,6 +151,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "app.undo", title: "Undo", group: "App", shortcut: "mod+z", run: (ctx) => ctx.undo() },
   { id: "app.palette", title: "Command palette", group: "App", shortcut: "mod+k", hidden: true, run: (ctx) => ctx.openPalette() },
   { id: "app.search", title: "Search", group: "App", shortcut: "/", keywords: "find filter", run: (ctx) => ctx.go("/search") },
+  { id: "app.export", title: "Export your data", group: "App", keywords: "download backup json markdown csv", run: (ctx) => ctx.go("/settings") },
   { id: "app.shortcuts", title: "Keyboard shortcuts", group: "App", shortcut: "?", keywords: "help keys", run: (ctx) => ctx.openShortcuts() },
 ];
 

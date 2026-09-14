@@ -122,6 +122,20 @@ describe("<SettingsForm>", () => {
     expect(screen.getByText("Notifications → Allow")).toBeInTheDocument();
   });
 
+  it("the Data section exports in three formats and reports the file it saved", async () => {
+    const onExport = vi.fn();
+    const { user } = setup({ data: { onExport, busy: null, error: null, lastFile: "sparehour-export-2026-09-14.json" } });
+    await user.click(screen.getByRole("button", { name: "Markdown" }));
+    expect(onExport).toHaveBeenCalledWith("markdown");
+    await user.click(screen.getByRole("button", { name: "CSV" }));
+    expect(onExport).toHaveBeenLastCalledWith("csv");
+    expect(screen.getByText("Saved sparehour-export-2026-09-14.json")).toBeInTheDocument();
+    cleanup();
+    setup({ data: { onExport, busy: "json", error: null, lastFile: null } });
+    expect(screen.getByRole("button", { name: "Preparing…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "CSV" })).toBeDisabled();
+  });
+
   it("numbers stay inside their range", async () => {
     const { user, onChange } = setup();
     const estimate = screen.getByLabelText("Default estimate");

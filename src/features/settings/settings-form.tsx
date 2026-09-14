@@ -2,6 +2,7 @@
 // Settings (SCREENS.md §18): every change saves immediately with an inline
 // "Saved". Presentational: values in, patches out.
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import type { ExportFormat } from "@/core/export";
 import type { SettingsPatch } from "@/data/repositories/settings-repo";
 import type { PermissionCopy } from "@/features/notifications/push";
 import { persistenceCopy, type InstallState, type PersistenceState } from "@/features/pwa/install";
@@ -51,6 +52,8 @@ export interface SettingsFormProps {
   app?: { install: InstallState; persistence: PersistenceState; version: string; onInstall: () => void };
   /** Push state for this device; omitted where there is no browser. */
   notifications?: NotificationsPanel;
+  /** One-click export (PRODUCT_SPEC.md §19.1); omitted outside the app shell. */
+  data?: { onExport: (format: ExportFormat) => void; busy: ExportFormat | null; error: string | null; lastFile: string | null };
   onChange: (patch: SettingsPatch) => void;
   onWorkHours: (weekday: number, segment: Segment | null) => void;
   onSignOut: () => void;
@@ -296,6 +299,39 @@ export function SettingsForm(p: SettingsFormProps) {
           <div className={ROW}>
             <span className={LABEL}>Version</span>
             <span className="font-mono text-[13px] text-ink">{p.app.version}</span>
+          </div>
+        </Section>
+      )}
+
+      {p.data && (
+        <Section title="Data" saved={false}>
+          <div className={`${ROW} flex-col items-stretch gap-2`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="flex flex-col">
+                <span className={LABEL}>Export everything</span>
+                <span className="text-[13px] text-ink-2">Tasks, checklists, projects, areas, tags, blocks, day plans and settings, from this device — no server needed.</span>
+              </span>
+              <span className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["json", "JSON"],
+                    ["markdown", "Markdown"],
+                    ["csv", "CSV"],
+                  ] as const
+                ).map(([format, label]) => (
+                  <button key={format} type="button" onClick={() => p.data?.onExport(format)} disabled={p.data?.busy !== null} className="h-9 rounded-lg border border-line px-3 text-[13px] text-ink hover:border-line-strong disabled:opacity-60">
+                    {p.data?.busy === format ? "Preparing…" : label}
+                  </button>
+                ))}
+              </span>
+            </div>
+            <p className="text-[12.5px] text-ink-3">JSON is complete and re-importable. Markdown is one file per project, zipped. CSV is the flat task table.</p>
+            {p.data.lastFile && (
+              <p role="status" className="text-[13px] text-ink-2">
+                Saved {p.data.lastFile}
+              </p>
+            )}
+            {p.data.error && <p className="text-[13px] text-over">{p.data.error}</p>}
           </div>
         </Section>
       )}

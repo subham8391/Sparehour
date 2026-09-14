@@ -10,6 +10,7 @@ import { SettingsRepo, WorkHoursRepo, type SettingsPatch } from "@/data/reposito
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { applyTheme } from "@/features/commands/theme";
 import { BUILD_ID } from "@/data/powersync/connector";
+import { useExport } from "@/features/export/use-export";
 import { usePush } from "@/features/notifications/use-push";
 import { usePwa } from "@/features/pwa/pwa-provider";
 import { SettingsForm, type SettingsValues } from "@/features/settings/settings-form";
@@ -25,6 +26,7 @@ export default function SettingsPage() {
   const hoursRepo = useMemo(() => new WorkHoursRepo(db), [db]);
   const pwa = usePwa();
   const push = usePush();
+  const exporter = useExport();
   const [testResult, setTestResult] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const { data: settings } = useQuery<UserSettingsRow & { id: string }>(SETTINGS_SQL);
@@ -108,6 +110,7 @@ export default function SettingsPage() {
             onTest: () => void push.sendTest().then((n) => setTestResult(n > 0 ? `Sent to ${n} ${n === 1 ? "device" : "devices"}.` : "Nothing was reached — is this device subscribed?")),
             testResult,
           }}
+          data={{ onExport: (format) => void exporter.exportData(format), busy: exporter.busy, error: exporter.error, lastFile: exporter.lastFile }}
           onChange={onChange}
           onWorkHours={onWorkHours}
           onSignOut={() => void signOut()}
