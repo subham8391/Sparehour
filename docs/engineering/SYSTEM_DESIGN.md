@@ -3179,6 +3179,8 @@ Single-key shortcuts (Linear-style, active when no input is focused): `q` quick 
 - Targets: WCAG 2.2 AA. Contrast is checked at the token level; `prefers-reduced-motion` disables the completion animation and view transitions; focus rings are never removed; every icon-only control has a label.
 - `axe-core` runs in Playwright against Today, Inbox, Project, quick-add and settings on every CI run.
 
+**As built (2026-09-14).** There is no Playwright yet, so the sweep runs in Vitest's jsdom: `src/features/a11y.test.tsx` renders every presentational M1 surface with realistic content — task rows (with multi-select), the detail panel, ribbon and timeline with blocks, quick-add, the palette, search, sidebar, rail and tab bar, Settings with every panel, the two rituals, the notification sheet, inline add — and `src/test/axe.ts` asserts zero violations with the layout-dependent rules off (`color-contrast`, checked at the token level; the landmark rules, meaningless for a fragment). It is part of the ordinary `check` job. `globals.css` carries the always-visible `:focus-visible` ring and the `prefers-reduced-motion` override. Page-level runs against the real routes move to Playwright with the M1 exit E2E suite.
+
 ### 11.6 Time, locale, performance
 
 - **Timezone** comes from `user_settings.timezone`, seeded from `Intl.DateTimeFormat().resolvedOptions().timeZone` and **changeable** — a traveller keeps planning in their home zone unless they switch. A mismatch between device and setting shows a one-time "You seem to be in Tokyo — switch?" prompt. All formatting goes through `Intl.DateTimeFormat` with the user's locale; all arithmetic through `src/core/time`.

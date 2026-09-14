@@ -90,7 +90,7 @@ export function SearchView(p: SearchViewProps) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6 md:p-10">
       <div className="flex items-center gap-2">
-        <label className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface px-4 focus-within:border-ink">
+        <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface px-4 focus-within:border-ink">
           <Icon name="search" size={18} className="shrink-0 text-ink-3" />
           <input
             ref={inputRef}
@@ -109,7 +109,7 @@ export function SearchView(p: SearchViewProps) {
               <Icon name="close" size={14} />
             </button>
           )}
-        </label>
+        </div>
         <button type="button" onClick={p.onClose} aria-label="Close search" title="Close (Esc)" className="flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink">
           <Icon name="close" size={18} />
         </button>

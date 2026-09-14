@@ -180,33 +180,26 @@ function Block({
   }, [movable, id, start, end]);
   const height = Math.max(14, (end - start) * PX_PER_MIN - 2);
   const range = `${formatTime(timeFromMinutes(start))} to ${formatTime(timeFromMinutes(end))}`;
+  // The block is a real button; the toolbar and the resize handle sit beside
+  // it, never inside it, so nothing interactive is nested (§11.5).
   return (
-    <div
-      ref={ref}
-      role="button"
-      tabIndex={0}
-      aria-label={`Block: ${block.title}, ${range}${block.locked ? ", locked" : ""}`}
-      aria-pressed={selected}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
-      onDoubleClick={onOpenTask}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
+    <div ref={ref} className={`absolute left-14 right-0 rounded-md border-l-[3px] border-ink bg-surface-2 text-xs text-ink ${movable ? "cursor-grab" : ""} ${selected ? "ring-2 ring-spare-fill ring-offset-1" : ""}`} style={{ top: top(start) + 1, height }}>
+      <button
+        type="button"
+        aria-label={`Block: ${block.title}, ${range}${block.locked ? ", locked" : ""}`}
+        aria-pressed={selected}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelect();
-        }
-      }}
-      className={`absolute left-14 right-0 rounded-md border-l-[3px] border-ink bg-surface-2 px-2 text-xs text-ink ${movable ? "cursor-grab" : ""} ${selected ? "ring-2 ring-spare-fill ring-offset-1" : ""}`}
-      style={{ top: top(start) + 1, height }}
-    >
-      <div className="flex items-center gap-1 overflow-hidden whitespace-nowrap leading-[14px]">
+        }}
+        onDoubleClick={onOpenTask}
+        className="flex h-full w-full items-center gap-1 overflow-hidden whitespace-nowrap px-2 text-left leading-[14px]"
+      >
         {block.locked && <Icon name="lock" size={10} className="shrink-0" />}
         <span className="truncate">{block.title}</span>
         <span className="font-mono opacity-75">{formatTime(timeFromMinutes(start))}</span>
         {height > 28 && <span className="font-mono opacity-60">· {formatMinutes(end - start)}</span>}
-      </div>
+      </button>
       {selected && (
         <div className="absolute -top-9 right-0 z-10 flex gap-1 rounded-lg border border-line bg-surface p-1 shadow-md" onClick={(e) => e.stopPropagation()}>
           {onOpenTask && (

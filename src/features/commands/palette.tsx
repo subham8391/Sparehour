@@ -152,9 +152,11 @@ export function Palette(p: PaletteProps) {
         <div id={listId} role="listbox" aria-label="Results" className="flex-1 overflow-y-auto p-2">
           {rows.length === 0 && <p className="px-3 py-6 text-[14px] text-ink-3">Nothing matched.</p>}
           {sections.map((s) => (
-            <section key={s.label} className="mb-2">
-              <h3 className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{s.label}</h3>
-              <ul>
+            <section key={s.label} role="group" aria-label={s.label} className="mb-2">
+              <h3 aria-hidden="true" className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+                {s.label}
+              </h3>
+              <ul role="presentation">
                 {s.rows.map((row) => {
                   const index = rows.indexOf(row);
                   const active = index === highlight;
