@@ -38,6 +38,18 @@ else
   echo "  written (local keys only; never commit it)"
 fi
 
+# Web Push (SYSTEM_DESIGN.md §7): a VAPID key pair for this machine, the
+# secret the minute tick presents, and the origin deep links are built on.
+echo "▸ push keys in .env.local"
+if grep -q '^VAPID_PRIVATE_KEY=' .env.local; then
+  echo "  present"
+else
+  eval "$(npx web-push generate-vapid-keys --json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const k=JSON.parse(s);console.log('VAPID_PUB='+k.publicKey);console.log('VAPID_PRIV='+k.privateKey)})")"
+  printf 'NEXT_PUBLIC_VAPID_PUBLIC_KEY=%s\nVAPID_PUBLIC_KEY=%s\nVAPID_PRIVATE_KEY=%s\nVAPID_SUBJECT=mailto:dev@sparehour.local\nPUSH_TICK_SECRET=%s\nNEXT_PUBLIC_APP_URL=http://localhost:3000\n' \
+    "$VAPID_PUB" "$VAPID_PUB" "$VAPID_PRIV" "$(openssl rand -hex 24)" >> .env.local
+  echo "  generated (local only; never commit it)"
+fi
+
 echo "▸ powersync (docker compose)"
 docker compose -f powersync/docker-compose.yml up -d
 
