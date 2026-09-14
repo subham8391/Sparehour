@@ -44,7 +44,7 @@ export default function UpcomingPage() {
     });
   }, [planned, today]);
   const unplanned = (unplannedRows ?? []).map(toTask);
-  const sel = useListSelection([...days.flatMap((d) => d.tasks.map((t) => t.id)), ...unplanned.map((t) => t.id)]);
+  const sel = useListSelection([...days.map((d) => d.tasks.map((t) => t.id)), unplanned.map((t) => t.id)]);
   const estimate = (t: Task) => t.estimateMin ?? settings?.defaultEstimateMin ?? 30;
 
   // Drag a row onto a day (its list, or a row in it for a place) or back onto "Not yet planned".

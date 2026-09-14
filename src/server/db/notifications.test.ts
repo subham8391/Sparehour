@@ -101,7 +101,7 @@ describe.skipIf(admin === null)("materialise_notifications", () => {
       expect((await rows(c, uid, "block_start")).every((r) => r.status === "cancelled")).toBe(true);
     }));
 
-  it("deadlines: 18:00 local the day before and the morning nudge on the day; a changed deadline replaces the rows", () =>
+  it("deadlines: 17:00 local the day before and the morning nudge on the day; a changed deadline replaces the rows", () =>
     inTx(async (c) => {
       const uid = await newUser(c, "notif-c@contract.test", "Asia/Kolkata");
       const sid = await spaceOf(c, uid);
@@ -111,12 +111,12 @@ describe.skipIf(admin === null)("materialise_notifications", () => {
       const task = await addTask(c, sid, "Send the invoice", { deadline: inTwo, estimate: 20 });
       await materialise(c);
       const eve = (await rows(c, uid, "deadline_eve"))[0];
-      expect(eve).toMatchObject({ entity_id: task, status: "pending", local_time: "18:00:00" });
+      expect(eve).toMatchObject({ entity_id: task, status: "pending", local_time: "17:00:00" });
       expect(eve.dedupe_key.endsWith(`:${tomorrow}`)).toBe(true);
       expect(eve.payload.notification.title).toBe("Due tomorrow: Send the invoice");
       expect(eve.payload.notification.body).toBe("Not planned yet — want to put it somewhere?");
       const local = await c.query<{ l: string }>("select to_char(timezone('Asia/Kolkata', fire_at), 'YYYY-MM-DD HH24:MI') as l from private.scheduled_notifications where id = $1", [eve.id]);
-      expect(local.rows[0].l).toBe(`${tomorrow} 18:00`);
+      expect(local.rows[0].l).toBe(`${tomorrow} 17:00`);
 
       // The day-of row lands at the morning nudge; with a deadline in two days it may sit past the 48h horizon, so bring it in.
       await c.query("update public.tasks set deadline = $2::date, do_date = $2::date where id = $1", [task, tomorrow]);
@@ -125,7 +125,7 @@ describe.skipIf(admin === null)("materialise_notifications", () => {
       expect(day.local_time).toBe("08:30:00");
       expect(day.payload.notification.title).toBe("Due today: Send the invoice");
       expect(day.payload.notification.body).toBe("~20m · planned for today");
-      // The old eve row (for the day before the original deadline) is gone; a new one may exist if 18:00 today is still ahead.
+      // The old eve row (for the day before the original deadline) is gone; a new one may exist if 17:00 today is still ahead.
       const eves = await rows(c, uid, "deadline_eve");
       expect(eves.find((r) => r.id === eve.id)?.status).toBe("cancelled");
       expect(eves.filter((r) => r.status === "pending").every((r) => r.dedupe_key.endsWith(`:${today}`))).toBe(true);

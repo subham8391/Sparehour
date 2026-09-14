@@ -62,7 +62,7 @@ export default function TodayPage() {
   }, []);
   const model = useToday(now);
   const detail = useTaskDetail();
-  const sel = useListSelection([...model.carried, ...model.todayTasks, ...model.eveningTasks].map((t) => t.id));
+  const sel = useListSelection([model.carried.map((t) => t.id), model.todayTasks.map((t) => t.id), model.eveningTasks.map((t) => t.id)]);
   const time = useInteractionTimer();
   useEffect(() => {
     lastCommit = performance.now();

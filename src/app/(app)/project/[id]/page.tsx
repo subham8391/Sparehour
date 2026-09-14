@@ -66,7 +66,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   const groups = useMemo(() => groupByHeading(open, headings), [open, headings]);
   const summary = summarise(tasks, settings?.defaultEstimateMin ?? 30);
   const notesShown = notesOpen ?? Boolean(project?.notes);
-  const sel = useListSelection([...groups.flatMap((g) => g.tasks.map((t) => t.id)), ...done.map((t) => t.id), ...someday.map((t) => t.id)]);
+  const sel = useListSelection([...groups.map((g) => g.tasks.map((t) => t.id)), done.map((t) => t.id), someday.map((t) => t.id)]);
 
   if (!isLoading && !project) {
     return (

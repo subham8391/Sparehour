@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { checkAll, checkRange, clearChecks, move, reconcile, select, toggleCheck, type SelectionState } from "./selection";
 
 const ids = ["a", "b", "c"];
-const at = (selectedId: string | null, checked: string[] = [], rows = ids): SelectionState => ({ ids: rows, selectedId, checked });
+const at = (selectedId: string | null, checked: string[] = [], rows = ids): SelectionState => ({ ids: rows, selectedId, checked, groups: [rows] });
 
 describe("selection", () => {
   it("J from nothing selects the first, K the last, and both stop at the ends", () => {
@@ -59,5 +59,17 @@ describe("selection", () => {
 
   it("ticks on rows that left the view are dropped on re-render", () => {
     expect(reconcile(at("a", ["a", "b", "c"]), ["a", "c"]).checked).toEqual(["a", "c"]);
+  });
+
+  it("Cmd+A ticks the section under the selection, then the whole view; without sections or a selection, the view", () => {
+    const rows = ["a", "b", "c", "d", "e"];
+    const sectioned: SelectionState = { ids: rows, selectedId: "d", checked: [], groups: [["a", "b"], ["c", "d", "e"]] };
+    const once = checkAll(sectioned);
+    expect(once.checked).toEqual(["c", "d", "e"]);
+    expect(checkAll(once).checked).toEqual(["a", "b", "c", "d", "e"]);
+    expect(checkAll({ ...sectioned, selectedId: null }).checked).toEqual(rows);
+    expect(checkAll({ ...sectioned, groups: [] }).checked).toEqual(rows);
+    expect(reconcile(sectioned, ["a", "c"]).groups).toEqual([["a", "c"]]);
+    expect(reconcile(sectioned, ["a", "c"], [["a"], ["c"]]).groups).toEqual([["a"], ["c"]]);
   });
 });

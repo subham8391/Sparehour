@@ -139,7 +139,7 @@ export const COMMANDS: readonly Command[] = [
       if (ctx.selectedTaskId) ctx.toggleCheck(ctx.selectedTaskId);
     },
   },
-  { id: "list.check-all", title: "Select all", group: "List", shortcut: "mod+a", keywords: "multi bulk every", run: (ctx) => ctx.checkAll() },
+  { id: "list.check-all", title: "Select all in this section", group: "List", shortcut: "mod+a", keywords: "multi bulk every", run: (ctx) => ctx.checkAll() },
   { id: "list.clear-checks", title: "Clear the selection", group: "List", keywords: "deselect none", run: (ctx) => ctx.clearChecks() },
 
   // ---- view

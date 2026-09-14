@@ -127,10 +127,10 @@ begin
               where b.id = n.entity_id and b.deleted_at is null and b.start_at > now()
                 and (b.task_id is null or (t.id is not null and t.state in ('inbox', 'active')))));
 
-    -- ---- deadlines: 18:00 local the day before, and at the morning nudge on the day
+    -- ---- deadlines: 17:00 local the day before, and at the morning nudge on the day
     if u.notify_deadline then
       insert into private.scheduled_notifications (user_id, kind, entity_id, fire_at, local_time, timezone, dedupe_key, payload)
-      select u.user_id, 'deadline_eve', t.id, timezone(u.timezone, (t.deadline - 1) + time '18:00'), time '18:00', u.timezone,
+      select u.user_id, 'deadline_eve', t.id, timezone(u.timezone, (t.deadline - 1) + time '17:00'), time '17:00', u.timezone,
              u.user_id || ':deadline_eve:' || t.id || ':' || to_char(t.deadline - 1, 'YYYY-MM-DD'),
              jsonb_build_object(
                'web_push', 8030,
@@ -142,8 +142,8 @@ begin
                'sh', jsonb_build_object('kind', 'deadline_eve', 'task_id', t.id, 'actions', jsonb_build_array('today', 'tomorrow', 'plan')))
         from public.tasks t
        where t.space_id = u.space_id and t.deleted_at is null and t.state in ('inbox', 'active', 'someday') and t.deadline is not null
-         and timezone(u.timezone, (t.deadline - 1) + time '18:00') > now()
-         and timezone(u.timezone, (t.deadline - 1) + time '18:00') <= now() + p_horizon
+         and timezone(u.timezone, (t.deadline - 1) + time '17:00') > now()
+         and timezone(u.timezone, (t.deadline - 1) + time '17:00') <= now() + p_horizon
       on conflict (dedupe_key) do update set fire_at = excluded.fire_at, payload = excluded.payload
         where scheduled_notifications.status = 'pending';
 

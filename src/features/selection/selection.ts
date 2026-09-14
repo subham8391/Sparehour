@@ -10,9 +10,11 @@ export interface SelectionState {
   selectedId: string | null;
   /** Rows ticked for a bulk edit, in display order. */
   checked: readonly string[];
+  /** The view's sections (Carried over, Today, a heading, a day…), each a run of ids; Cmd+A works on one. */
+  groups: readonly (readonly string[])[];
 }
 
-export const EMPTY_SELECTION: SelectionState = { ids: [], selectedId: null, checked: [] };
+export const EMPTY_SELECTION: SelectionState = { ids: [], selectedId: null, checked: [], groups: [] };
 
 export function select(state: SelectionState, id: string | null): SelectionState {
   if (id !== null && !state.ids.includes(id)) return state;
@@ -34,13 +36,13 @@ export function move(state: SelectionState, delta: 1 | -1): SelectionState {
  * the next keystroke keeps working; clear when the list is empty. Ticks on
  * rows that left are dropped.
  */
-export function reconcile(state: SelectionState, ids: readonly string[]): SelectionState {
+export function reconcile(state: SelectionState, ids: readonly string[], groups: readonly (readonly string[])[] = [ids]): SelectionState {
   const checked = state.checked.filter((id) => ids.includes(id));
-  if (state.selectedId && ids.includes(state.selectedId)) return { ids, selectedId: state.selectedId, checked };
-  if (!state.selectedId || ids.length === 0) return { ids, selectedId: null, checked };
+  if (state.selectedId && ids.includes(state.selectedId)) return { ids, selectedId: state.selectedId, checked, groups };
+  if (!state.selectedId || ids.length === 0) return { ids, selectedId: null, checked, groups };
   const oldIndex = state.ids.indexOf(state.selectedId);
-  if (oldIndex === -1) return { ids, selectedId: null, checked };
-  return { ids, selectedId: ids[Math.min(oldIndex, ids.length - 1)], checked };
+  if (oldIndex === -1) return { ids, selectedId: null, checked, groups };
+  return { ids, selectedId: ids[Math.min(oldIndex, ids.length - 1)], checked, groups };
 }
 
 const inDisplayOrder = (state: SelectionState, set: ReadonlySet<string>): string[] => state.ids.filter((id) => set.has(id));
@@ -54,9 +56,16 @@ export function toggleCheck(state: SelectionState, id: string): SelectionState {
   return { ...state, checked: inDisplayOrder(state, set) };
 }
 
-/** Cmd+A: every row in the view. */
+/**
+ * Cmd+A (SCREENS.md §24 "select all in the section"): the section holding
+ * the selected row; pressed again with that section already ticked, or with
+ * nothing selected, the whole view.
+ */
 export function checkAll(state: SelectionState): SelectionState {
-  return { ...state, checked: [...state.ids] };
+  const section = state.selectedId ? state.groups.find((g) => g.includes(state.selectedId as string)) : undefined;
+  const sectionDone = section !== undefined && section.every((id) => state.checked.includes(id));
+  const target = section && !sectionDone ? new Set(section) : new Set(state.ids);
+  return { ...state, checked: inDisplayOrder(state, target) };
 }
 
 export function clearChecks(state: SelectionState): SelectionState {

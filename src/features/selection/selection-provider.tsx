@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { EMPTY_SELECTION, checkAll, checkRange, clearChecks, move, reconcile, select, toggleCheck, type SelectionState } from "./selection";
 
 type Action =
-  | { type: "register"; ids: readonly string[] }
+  | { type: "register"; ids: readonly string[]; groups?: readonly (readonly string[])[] }
   | { type: "select"; id: string | null }
   | { type: "move"; delta: 1 | -1 }
   | { type: "toggle"; id: string }
@@ -17,7 +17,7 @@ type Action =
 function reducer(state: SelectionState, action: Action): SelectionState {
   switch (action.type) {
     case "register":
-      return reconcile(state, action.ids);
+      return reconcile(state, action.ids, action.groups);
     case "select":
       return select(state, action.id);
     case "move":
@@ -43,7 +43,7 @@ interface SelectionApi {
   checkRange: (id: string) => void;
   checkAll: () => void;
   clearChecks: () => void;
-  register: (ids: readonly string[]) => void;
+  register: (ids: readonly string[], groups?: readonly (readonly string[])[]) => void;
 }
 
 const SelectionContext = createContext<SelectionApi | null>(null);
@@ -58,7 +58,7 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
   const range = useCallback((id: string) => dispatch({ type: "range", id }), []);
   const all = useCallback(() => dispatch({ type: "all" }), []);
   const clear = useCallback(() => dispatch({ type: "clear" }), []);
-  const register = useCallback((ids: readonly string[]) => dispatch({ type: "register", ids }), []);
+  const register = useCallback((ids: readonly string[], groups?: readonly (readonly string[])[]) => dispatch({ type: "register", ids, groups }), []);
   const api = useMemo<SelectionApi>(
     () => ({ selectedId: state.selectedId, checkedIds: state.checked, select, moveSelection, toggleCheck: toggle, checkRange: range, checkAll: all, clearChecks: clear, register }),
     [state.selectedId, state.checked, select, moveSelection, toggle, range, all, clear, register],
@@ -78,15 +78,18 @@ export function useSelectionOptional(): SelectionApi | null {
 }
 
 /**
- * A view calls this with its row ids in display order. Returns the selected
- * id and a selector for rows. Registration is keyed on the joined ids so an
- * unchanged list does not re-dispatch.
+ * A view calls this with its row ids in display order — as one list, or as
+ * its sections (each a run of ids, in order) so Cmd+A can work on one.
+ * Returns the selected id and a selector for rows. Registration is keyed on
+ * the joined ids so an unchanged list does not re-dispatch.
  */
-export function useListSelection(ids: readonly string[]): { selectedId: string | null; select: (id: string | null) => void } {
+export function useListSelection(idsOrGroups: readonly string[] | readonly (readonly string[])[]): { selectedId: string | null; select: (id: string | null) => void } {
   const { selectedId, select: choose, register } = useSelection();
-  const key = ids.join(" ");
+  const groups = (idsOrGroups.length > 0 && Array.isArray(idsOrGroups[0]) ? idsOrGroups : [idsOrGroups]) as readonly (readonly string[])[];
+  const key = groups.map((g) => g.join(" ")).join("|");
   useEffect(() => {
-    register(key === "" ? [] : key.split(" "));
+    const parsed = key === "" ? [] : key.split("|").map((g) => (g === "" ? [] : g.split(" ")));
+    register(parsed.flat(), parsed);
   }, [key, register]);
   useEffect(() => () => register([]), [register]);
   const select = useCallback((id: string | null) => choose(id), [choose]);
