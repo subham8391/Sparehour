@@ -1,7 +1,10 @@
 // What quick-add shows under the input (SCREENS.md §11): the parse restated
 // in plain English — the contract with the user — plus the helpers the
 // overlay needs to paint tokens and resolve a #project. All pure.
-import { ruleToSpec, type Span, type TaskDraft } from "@/core/quickadd";
+// The recurrence helpers come straight from their module: the package index
+// would drag the parser (and chrono) into whatever imports this.
+import { ruleToSpec } from "@/core/quickadd/recurrence";
+import type { Span, TaskDraft } from "@/core/quickadd";
 import { formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 

@@ -3,6 +3,7 @@
 // project and area names for the breadcrumb, and the repository for writes.
 // Where it appears (context pane, right sheet, full-screen sheet) is decided
 // by the provider below.
+import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
@@ -14,9 +15,19 @@ import { TagRepo } from "@/data/repositories/tag-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { TaskDetailPanel } from "./task-detail-panel";
 import { useTaskRepo } from "./use-task-repo";
+
+// The panel brings the recurrence engine with it, so it stays out of the
+// shell's first download (SYSTEM_DESIGN.md §11.6): fetched in idle time after
+// the first paint, mounted when a task is opened.
+const loadPanel = () => import("./task-detail-panel");
+const TaskDetailPanel = dynamic(() => loadPanel().then((m) => m.TaskDetailPanel), { ssr: false, loading: Opening });
+
+function Opening() {
+  return <div className="p-5 text-ink-3">Opening…</div>;
+}
 
 type ChecklistRow = Parameters<typeof toChecklistItem>[0];
 
@@ -39,6 +50,7 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
   const open = useCallback((id: string) => setSelectedId(id), []);
   const close = useCallback(() => setSelectedId(null), []);
   const api = useMemo(() => ({ selectedId, open, close }), [selectedId, open, close]);
+  useEffect(() => preloadOnIdle(loadPanel), []);
   return <TaskDetailContext.Provider value={api}>{children}</TaskDetailContext.Provider>;
 }
 
@@ -67,7 +79,7 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
     if (!isLoading && rows && rows.length === 0) onClose();
   }, [isLoading, rows, onClose]);
 
-  if (!task) return <div className="p-5 text-ink-3">Opening…</div>;
+  if (!task) return <Opening />;
   const patch = (p: TaskPatch) => void repo.update(task.id, p);
   return (
     <TaskDetailPanel

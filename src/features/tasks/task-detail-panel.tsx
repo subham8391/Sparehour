@@ -3,7 +3,7 @@
 // Save button, no dirty state. Presentational — the container feeds it the
 // task and handles the writes — so the whole contract is testable.
 import { useId, useMemo, useState, type KeyboardEvent } from "react";
-import { ruleToSpec, specToRule } from "@/core/quickadd";
+import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
 import { formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";

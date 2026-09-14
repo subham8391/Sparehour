@@ -4,35 +4,14 @@
 // the app opens even if the job never ran. The job (`rollover`) only maintains
 // what a view cannot compute: carry_count, auto-Someday aging and the
 // skip/expire miss policies. This module is the pure decision logic; the SQL
-// job in the database mirrors it exactly.
+// job in the database mirrors it exactly. The view lives in ./carried so the
+// shell can import it without the job (and its recurrence engine).
 import { compareDates, todayFor, type DaySettings, type Instant, type LocalDate } from "../time";
 import { nextOccurrence } from "../recurrence";
 import type { RecurrenceException, Task } from "../types";
+import type { RolloverSettings } from "./carried";
 
-export interface RolloverSettings extends DaySettings {
-  /** Show "Still want this?" once a task has been carried this many times. */
-  carryAskAfter: number;
-  /** Untouched for this many days → Someday. */
-  autoSomedayDays: number;
-}
-
-/** The Carried-over section: due before today, still open, visible, and not a routine occurrence. */
-export function carriedOver(tasks: readonly Task[], today: LocalDate): Task[] {
-  return tasks
-    .filter(
-      (t) =>
-        (t.state === "inbox" || t.state === "active") &&
-        t.doDate !== null &&
-        compareDates(t.doDate, today) < 0 &&
-        (t.startDate === null || compareDates(t.startDate, today) <= 0) &&
-        t.routineRunId === null,
-    )
-    .sort((a, b) => b.carryCount - a.carryCount || (a.daySortKey ?? "").localeCompare(b.daySortKey ?? "") || a.id.localeCompare(b.id));
-}
-
-/** Not a stored flag: evaluated live, so changing the setting applies instantly. */
-export const shouldAsk = (task: Task, settings: Pick<RolloverSettings, "carryAskAfter">): boolean =>
-  task.carryCount >= settings.carryAskAfter;
+export { carriedOver, shouldAsk, type RolloverSettings } from "./carried";
 
 export type RolloverOutcome = "carried" | "skipped" | "expired" | "someday" | "routine_dropped" | "untouched";
 

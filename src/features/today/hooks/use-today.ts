@@ -4,7 +4,7 @@
 import { useMemo } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { capacityFor, type Capacity } from "@/core/capacity";
-import { carriedOver, shouldAsk } from "@/core/rollover";
+import { carriedOver, shouldAsk } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
 import { Temporal, todayFor, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";

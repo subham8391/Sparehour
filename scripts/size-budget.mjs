@@ -7,10 +7,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 
 const ROUTES = [
-  { route: "today", target: 320, ceiling: 380 },
-  { route: "inbox", target: 320, ceiling: 380 },
-  { route: "settings", target: 320, ceiling: 380 },
-  { route: "search", target: 320, ceiling: 380 },
+  { route: "today", target: 320, ceiling: 320 },
+  { route: "inbox", target: 320, ceiling: 320 },
+  { route: "settings", target: 320, ceiling: 320 },
+  { route: "search", target: 320, ceiling: 320 },
   { route: "login", target: 200, ceiling: 270 },
 ];
 

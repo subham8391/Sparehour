@@ -38,7 +38,8 @@ describe("<QuickAddProvider>", () => {
     const user = setup();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "open prefilled" }));
-    const input = screen.getByRole("textbox", { name: "Task" });
+    // The sheet is code-split: the first open waits for its module.
+    const input = await screen.findByRole("textbox", { name: "Task" });
     expect(input).toHaveValue("Prefilled");
     expect(input).toHaveFocus();
     await user.keyboard("{Escape}");
@@ -48,17 +49,24 @@ describe("<QuickAddProvider>", () => {
   it("a second open starts fresh", async () => {
     const user = setup();
     await user.click(screen.getByRole("button", { name: "open prefilled" }));
+    await screen.findByRole("textbox", { name: "Task" });
     await user.keyboard(" more{Escape}");
     await user.click(screen.getByRole("button", { name: /Add a task Q/ }));
-    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("");
+    expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue("");
   });
 
   it("the bar and the FAB open it too", async () => {
     const user = setup();
     await user.click(screen.getByRole("button", { name: /Add a task Q/ }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Add a task" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("nothing of the sheet is mounted before the first open", () => {
+    setup();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

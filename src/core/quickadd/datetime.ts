@@ -2,7 +2,9 @@
 // tmr, fri, next fri, eow…) is hand-written so it is deterministic and
 // zone-safe; chrono-node in strict mode adds absolute dates ("15 sept",
 // "in 3 days"). Chrono's Date objects are never kept — only calendar fields.
-import * as chrono from "chrono-node";
+// The English entry point only: the package root would carry every locale
+// into the bundle (SYSTEM_DESIGN.md §11.6).
+import * as chrono from "chrono-node/en";
 import { Temporal, type LocalDate, type LocalTime } from "../time";
 
 export interface DateMatch {

@@ -99,10 +99,11 @@ describe("<KeyboardProvider>", () => {
   it("Q opens quick-add empty; an unbound letter opens it and types itself; typing elsewhere is untouched", async () => {
     const { user } = setup();
     await user.keyboard("q");
-    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("");
+    // The sheet is code-split: the first open waits for its module.
+    expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue("");
     await user.keyboard("{Escape}");
     await user.keyboard("y");
-    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("y");
+    expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue("y");
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("textbox", { name: "Other field" }));
     await user.keyboard("jt");
@@ -129,6 +130,7 @@ describe("<KeyboardProvider>", () => {
   it("while quick-add is open, list keys are not intercepted", async () => {
     const { user } = setup();
     await user.keyboard("q");
+    await screen.findByRole("textbox", { name: "Task" });
     await user.keyboard("jjj");
     expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("jjj");
     expect(screen.getByText("selected: none")).toBeInTheDocument();

@@ -2,15 +2,23 @@
 // Mounts quick-add once for the whole app and wires the ways in: the desktop
 // bottom bar and the phone FAB here; `Q` and "any printable key when nothing
 // is focused" in the keyboard layer. Never navigates.
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { PROJECTS_SQL, type ProjectRow } from "@/data/queries/nav";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import { usePwaOptional } from "@/features/pwa/pwa-provider";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Icon } from "@/ui/icons";
-import { QuickAdd, type QuickAddSubmission } from "./quick-add";
+import type { QuickAddSubmission } from "./quick-add";
+
+// The sheet carries the natural-language parser, so it stays out of the
+// shell's first download (SYSTEM_DESIGN.md §11.6): fetched in idle time
+// after the first paint, mounted on the first open.
+const loadQuickAdd = () => import("./quick-add");
+const QuickAdd = dynamic(() => loadQuickAdd().then((m) => m.QuickAdd), { ssr: false });
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
 
@@ -30,6 +38,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState({ open: false, initial: "", key: 0 });
   const open = useCallback((prefill = "") => setState((s) => ({ open: true, initial: prefill, key: s.key + 1 })), []);
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
+  useEffect(() => preloadOnIdle(loadQuickAdd), []);
 
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);
@@ -61,15 +70,17 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   return (
     <QuickAddContext.Provider value={api}>
       {children}
-      <QuickAdd
-        key={state.key}
-        open={state.open}
-        initial={state.initial}
-        projects={projects}
-        ctx={{ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }}
-        onClose={close}
-        onSubmit={onSubmit}
-      />
+      {state.key > 0 && (
+        <QuickAdd
+          key={state.key}
+          open={state.open}
+          initial={state.initial}
+          projects={projects}
+          ctx={{ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }}
+          onClose={close}
+          onSubmit={onSubmit}
+        />
+      )}
     </QuickAddContext.Provider>
   );
 }
