@@ -20,6 +20,7 @@ function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: 
     openPalette: vi.fn(),
     openShortcuts: vi.fn(),
     setTheme: vi.fn(),
+    undo: vi.fn(),
     ...over,
     // keep the typed mocks reachable
     ...({} as object),
@@ -62,7 +63,7 @@ describe("command registry", () => {
   it("selected-task commands act on the selection through the repository", async () => {
     const ctx = ctxWith();
     await byId("task.today").run(ctx);
-    expect(ctx.tasks.update).toHaveBeenCalledWith("t1", { doDate: ctx.today, doTime: null, evening: false });
+    expect(ctx.tasks.update).toHaveBeenCalledWith("t1", { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today");
     await byId("task.tomorrow").run(ctx);
     expect((ctx.tasks.update.mock.lastCall?.[1] as { doDate: { toString(): string } }).doDate.toString()).toBe("2026-09-15");
     await byId("task.evening").run(ctx);

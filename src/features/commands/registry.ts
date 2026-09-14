@@ -26,6 +26,7 @@ export interface CommandContext {
   openPalette: (query?: string) => void;
   openShortcuts: () => void;
   setTheme: (theme: Theme) => void;
+  undo: () => void;
 }
 
 export interface Command {
@@ -51,7 +52,7 @@ const onSelected =
 const snooze = (presetId: "evening" | "tomorrow" | "in4h" | "weekend" | "nextweek") =>
   onSelected((ctx, id) => {
     const preset = snoozePresets(ctx.now, ctx.zone, ctx.today).find((p) => p.id === presetId);
-    if (preset) return ctx.tasks.update(id, preset.patch);
+    if (preset) return ctx.tasks.update(id, preset.patch, `Moved {title} to ${preset.label.toLowerCase()}`);
   });
 
 const priority = (value: Priority) => onSelected((ctx, id) => ctx.tasks.update(id, { priority: value }));
@@ -61,7 +62,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.open", title: "Open", group: "Selected task", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.peek", title: "Peek", group: "Selected task", shortcut: "space", requiresSelection: true, hidden: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.complete", title: "Complete", group: "Selected task", shortcut: "mod+enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.tasks.complete(id)) },
-  { id: "task.today", title: "Move to Today", group: "Selected task", shortcut: "t", requiresSelection: true, run: onSelected((ctx, id) => ctx.tasks.update(id, { doDate: ctx.today, doTime: null, evening: false })) },
+  { id: "task.today", title: "Move to Today", group: "Selected task", shortcut: "t", requiresSelection: true, run: onSelected((ctx, id) => ctx.tasks.update(id, { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today")) },
   { id: "task.tomorrow", title: "Tomorrow", group: "Selected task", shortcut: "shift+t", requiresSelection: true, run: snooze("tomorrow") },
   { id: "task.evening", title: "This evening", group: "Selected task", shortcut: "shift+e", requiresSelection: true, run: snooze("evening") },
   { id: "task.weekend", title: "This weekend", group: "Selected task", shortcut: "w", requiresSelection: true, run: snooze("weekend") },
@@ -104,6 +105,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "view.theme-system", title: "Follow the system theme", group: "View", keywords: "appearance auto", run: (ctx) => ctx.setTheme("system") },
 
   // ---- app
+  { id: "app.undo", title: "Undo", group: "App", shortcut: "mod+z", run: (ctx) => ctx.undo() },
   { id: "app.palette", title: "Command palette", group: "App", shortcut: "mod+k", hidden: true, run: (ctx) => ctx.openPalette() },
   { id: "app.search", title: "Search", group: "App", shortcut: "/", keywords: "find", run: (ctx) => ctx.openPalette("") },
   { id: "app.shortcuts", title: "Keyboard shortcuts", group: "App", shortcut: "?", keywords: "help keys", run: (ctx) => ctx.openShortcuts() },

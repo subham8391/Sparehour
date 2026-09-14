@@ -12,6 +12,7 @@ import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/pa
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailPane, TaskDetailProvider } from "@/features/tasks/task-detail";
+import { UndoProvider } from "@/features/undo/undo-provider";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
 import { useNavData } from "./use-nav-data";
@@ -27,11 +28,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { counts, areas } = useNavData();
   const sync = useSyncChip();
   return (
-    <QuickAddProvider>
-      <TaskDetailProvider>
-        <SelectionProvider>
-          <PaletteProvider>
-            <Keyboard>
+    <UndoProvider>
+      <QuickAddProvider>
+        <TaskDetailProvider>
+          <SelectionProvider>
+            <PaletteProvider>
+              <Keyboard>
               <div className="flex min-h-dvh">
                 <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
                 <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
@@ -44,10 +46,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <QuickAddFab />
               </div>
               <PaletteHost />
-            </Keyboard>
-          </PaletteProvider>
-        </SelectionProvider>
-      </TaskDetailProvider>
-    </QuickAddProvider>
+              </Keyboard>
+            </PaletteProvider>
+          </SelectionProvider>
+        </TaskDetailProvider>
+      </QuickAddProvider>
+    </UndoProvider>
   );
 }

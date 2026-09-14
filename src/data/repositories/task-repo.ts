@@ -36,8 +36,16 @@ export interface NewTaskContext {
 
 type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0];
 
+/** Where the inverse of each write goes (the undo stack); optional so scripts and tests can skip it. */
+export interface UndoRecorder {
+  record: (entry: { label: string; toast: boolean; undo: () => Promise<void> }) => void;
+}
+
 export class TaskRepo {
-  constructor(private readonly db: LocalDatabase) {}
+  constructor(
+    private readonly db: LocalDatabase,
+    private readonly history?: UndoRecorder,
+  ) {}
 
   /**
    * Creates the task from a quick-add draft: last in its list and, when it has
@@ -126,12 +134,36 @@ export class TaskRepo {
     return id;
   }
 
+  // ---- undo: each write below snapshots the columns it touches and records the inverse
+
+  private async snapshot(id: string, columns: readonly string[]): Promise<Snapshot | null> {
+    if (!this.history) return null;
+    return (await this.db.getOptional<Snapshot>(`select title, ${columns.join(", ")} from tasks where id = ?`, [id])) ?? null;
+  }
+
+  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean): void {
+    if (!this.history || !before) return;
+    const title = `“${String(before.title ?? "")}”`;
+    this.history.record({
+      label: label.includes("{title}") ? label.replace("{title}", title) : `${label} ${title}`,
+      toast,
+      undo: () =>
+        this.db
+          .execute(`update tasks set ${columns.map((c) => `${c} = ?`).join(", ")}, updated_at = ? where id = ?`, [...columns.map((c) => before[c] ?? null), new Date().toISOString(), id])
+          .then(() => undefined),
+    });
+  }
+
   /**
    * Writes exactly the columns in the patch (per-column last-writer-wins,
    * §4.3). Giving an inbox or Someday task a day makes it active; giving a
-   * task its first repeat rule makes it the head of its own series.
+   * task its first repeat rule makes it the head of its own series. `note`
+   * names the change for the undo toast ("Moved {title} to tomorrow");
+   * without one the change is undoable but silent.
    */
-  async update(id: string, patch: TaskPatch): Promise<void> {
+  async update(id: string, patch: TaskPatch, note?: string): Promise<void> {
+    const touched = columnsTouched(patch);
+    const before = touched.length ? await this.snapshot(id, touched) : null;
     const sets: string[] = [];
     const args: (string | number | null)[] = [];
     const set = (column: string, value: string | number | null) => {
@@ -163,24 +195,34 @@ export class TaskRepo {
     if (sets.length === 0) return;
     set("updated_at", new Date().toISOString());
     await this.db.execute(`update tasks set ${sets.join(", ")} where id = ?`, [...args, id]);
+    this.remember(id, before, touched, note ?? "Changed", Boolean(note));
   }
 
   async complete(id: string): Promise<void> {
+    const cols = ["state", "completed_at"];
+    const before = await this.snapshot(id, cols);
     const now = new Date().toISOString();
     await this.db.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, id]);
+    this.remember(id, before, cols, "Completed", true);
   }
 
   async reopen(id: string): Promise<void> {
+    const cols = ["state", "completed_at"];
+    const before = await this.snapshot(id, cols);
     await this.db.execute(`update tasks set state = 'active', completed_at = null, updated_at = ? where id = ?`, [new Date().toISOString(), id]);
+    this.remember(id, before, cols, "Reopened", false);
   }
 
   async reschedule(id: string, doDate: LocalDate | null): Promise<void> {
+    const cols = ["do_date", "do_time", "state"];
+    const before = await this.snapshot(id, cols);
     await this.db.execute(`update tasks set do_date = ?, do_time = case when ? is null then null else do_time end, state = 'active', updated_at = ? where id = ?`, [
       doDate?.toString() ?? null,
       doDate?.toString() ?? null,
       new Date().toISOString(),
       id,
     ]);
+    this.remember(id, before, cols, doDate ? "Moved" : "Unscheduled", true);
   }
 
   async setHeading(id: string, headingId: string | null): Promise<void> {
@@ -192,6 +234,8 @@ export class TaskRepo {
   }
 
   async setState(id: string, state: "someday" | "dropped" | "archived" | "active"): Promise<void> {
+    const cols = ["state", "do_date"];
+    const before = await this.snapshot(id, cols);
     await this.db.execute(`update tasks set state = ?, do_date = case when ? in ('someday','archived') then null else do_date end, carry_count = case when ? in ('someday','archived','dropped') then 0 else carry_count end, updated_at = ? where id = ?`, [
       state,
       state,
@@ -199,5 +243,32 @@ export class TaskRepo {
       new Date().toISOString(),
       id,
     ]);
+    const label = { dropped: "Dropped", someday: "Moved {title} to Someday", archived: "Archived", active: "Brought back" }[state];
+    this.remember(id, before, cols, label, state !== "active");
   }
+}
+
+type Snapshot = Record<string, string | number | null>;
+
+const PATCH_COLUMNS: Record<keyof TaskPatch, readonly string[]> = {
+  title: ["title"],
+  notes: ["notes_md"],
+  doDate: ["do_date", "do_time", "state"],
+  doTime: ["do_time"],
+  evening: ["evening"],
+  deadline: ["deadline"],
+  startDate: ["start_date"],
+  estimateMin: ["estimate_min"],
+  priority: ["priority"],
+  missPolicy: ["miss_policy"],
+  projectId: ["project_id"],
+  recurrenceRule: ["recurrence_rule", "recurrence_mode", "recurrence_series_id"],
+  recurrenceMode: ["recurrence_mode"],
+};
+
+/** The columns a patch writes, for the snapshot that undoes it. */
+export function columnsTouched(patch: TaskPatch): string[] {
+  const out = new Set<string>();
+  for (const key of Object.keys(patch) as (keyof TaskPatch)[]) for (const c of PATCH_COLUMNS[key] ?? []) out.add(c);
+  return [...out];
 }
