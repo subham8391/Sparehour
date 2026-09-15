@@ -122,3 +122,70 @@ describe("<TaskRow> multi-select", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });
+
+describe("<TaskRow> completion feedback (DESIGN_SYSTEM.md §7)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("fills the ring and strikes the title at once; the write lands 400 ms later, once", () => {
+    const onDone = vi.fn();
+    render(
+      <TaskList>
+        <TaskRow task={tasks[0]} onDone={onDone} />
+      </TaskList>,
+    );
+    const button = screen.getByRole("button", { name: "Complete Draft the proposal" });
+    fireEvent.click(button);
+    expect(button.closest("li")).toHaveAttribute("data-completing", "true");
+    expect(screen.getByText("Draft the proposal")).toHaveClass("line-through");
+    expect(onDone).not.toHaveBeenCalled();
+    fireEvent.click(button); // pressing again while it settles does nothing
+    act(() => vi.advanceTimersByTime(399));
+    expect(onDone).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("a row that leaves before the wait is over still completes, exactly once", () => {
+    const onDone = vi.fn();
+    const { unmount } = render(
+      <TaskList>
+        <TaskRow task={tasks[1]} onDone={onDone} />
+      </TaskList>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Complete Call Mum" }));
+    unmount();
+    expect(onDone).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("with reduced motion the write is immediate", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce"), media: query, addEventListener() {}, removeEventListener() {} }));
+    const onDone = vi.fn();
+    render(
+      <TaskList>
+        <TaskRow task={tasks[2]} onDone={onDone} />
+      </TaskList>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Complete Water the plants" }));
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Complete Water the plants" }).closest("li")).not.toHaveAttribute("data-completing");
+  });
+
+  it("a done task shows a filled ring, and stays plain when nothing can complete it", () => {
+    render(
+      <TaskList>
+        <TaskRow task={{ ...tasks[0], state: "done" }} />
+      </TaskList>,
+    );
+    const row = screen.getByText("Draft the proposal").closest("li")!;
+    expect(row.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});

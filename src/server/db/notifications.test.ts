@@ -177,6 +177,9 @@ describe.skipIf(admin === null)("claim_due_notifications", () => {
     );
     return rows[0].id;
   }
+  // The claim runs across every user; inside the rolled-back transaction, other
+  // pending rows (the dev account's real reminders) would otherwise leak in.
+  const isolate = (c: Client) => c.query("delete from private.scheduled_notifications where status = 'pending'");
   const status = async (c: Client, id: string) => (await c.query<{ status: string; attempts: number }>("select status, attempts from private.scheduled_notifications where id = $1", [id])).rows[0];
   const quietNow = (c: Client, uid: string, on: boolean) =>
     c.query(
@@ -189,6 +192,7 @@ describe.skipIf(admin === null)("claim_due_notifications", () => {
   it("returns what is due, marks it sent, and leaves the future alone", () =>
     inTx(async (c) => {
       const uid = await newUser(c, "claim-a@contract.test");
+      await isolate(c);
       await quietNow(c, uid, false);
       const now = await due(c, uid, "block_start");
       const later = await due(c, uid, "deadline_eve", -60);
@@ -202,6 +206,7 @@ describe.skipIf(admin === null)("claim_due_notifications", () => {
   it("inside quiet hours a block start is skipped and a deadline waits until they end", () =>
     inTx(async (c) => {
       const uid = await newUser(c, "claim-b@contract.test");
+      await isolate(c);
       await quietNow(c, uid, true);
       const block = await due(c, uid, "block_start");
       const deadline = await due(c, uid, "deadline_day");
@@ -222,6 +227,7 @@ describe.skipIf(admin === null)("claim_due_notifications", () => {
     inTx(async (c) => {
       const uid = await newUser(c, "claim-c@contract.test");
       const sid = await spaceOf(c, uid);
+      await isolate(c);
       await quietNow(c, uid, false);
       const today = await localToday(c, uid);
       await c.query("insert into public.day_plans (space_id, user_id, date, planned_at, shutdown_at) values ($1, $2, $3::date, now(), now())", [sid, uid, today]);
@@ -237,6 +243,7 @@ describe.skipIf(admin === null)("claim_due_notifications", () => {
   it("delivery verdicts: 410 retires the subscription, success resets its failures, a retry hands the row back three times at most", () =>
     inTx(async (c) => {
       const uid = await newUser(c, "claim-d@contract.test");
+      await isolate(c);
       await quietNow(c, uid, false);
       const n = await due(c, uid, "block_start");
       const sub = (await c.query<{ id: string }>("insert into public.push_subscriptions (user_id, endpoint, p256dh, auth, failure_count) values ($1, 'https://push.test/1', 'k', 'a', 2) returning id", [uid])).rows[0].id;

@@ -100,6 +100,18 @@
   --breakpoint-lg: 1180px;
   --breakpoint-xl: 1440px;
   --breakpoint-2xl: 1680px;
+  /* Check-off (DESIGN_SYSTEM.md §7): the ring fills in 120 ms. */
+  --animate-check-fill: check-fill 120ms ease-out both;
+  @keyframes check-fill {
+    from {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
 }
 
 body {
