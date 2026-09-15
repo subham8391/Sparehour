@@ -6,6 +6,7 @@ import type { ExportFormat } from "@/core/export";
 import type { SettingsPatch } from "@/data/repositories/settings-repo";
 import type { PermissionCopy } from "@/features/notifications/push";
 import { persistenceCopy, type InstallState, type PersistenceState } from "@/features/pwa/install";
+import { CalendarSettings, type CalendarPanel } from "@/features/calendar/calendar-section";
 import { Icon } from "@/ui/icons";
 import { DEFAULT_SEGMENT, ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, segmentError, timeZoneHint, timeZoneOptions, type Segment } from "./settings-rules";
 
@@ -52,6 +53,8 @@ export interface SettingsFormProps {
   app?: { install: InstallState; persistence: PersistenceState; version: string; onInstall: () => void };
   /** Push state for this device; omitted where there is no browser. */
   notifications?: NotificationsPanel;
+  /** Connected calendars (SCREENS.md §18); omitted outside the app shell. */
+  calendar?: CalendarPanel;
   /** One-click export (PRODUCT_SPEC.md §19.1); omitted outside the app shell. */
   data?: { onExport: (format: ExportFormat) => void; busy: ExportFormat | null; error: string | null; lastFile: string | null };
   onChange: (patch: SettingsPatch) => void;
@@ -177,6 +180,14 @@ export function SettingsForm(p: SettingsFormProps) {
           </select>
         </div>
       </Section>
+
+      {p.calendar && (
+        <div id="calendar">
+          <Section title="Calendar" saved={saved}>
+            <CalendarSettings panel={p.calendar} onChanged={flash} />
+          </Section>
+        </div>
+      )}
 
       <Section title="Planning" saved={saved}>
         <NumberRow id="estimate" label="Default estimate" unit="minutes" value={values.defaultEstimateMin} min={5} max={480} step={5} onChange={(v) => change({ defaultEstimateMin: v })} />

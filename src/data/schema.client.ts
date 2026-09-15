@@ -158,9 +158,22 @@ export const calendars = new Table({
   color: column.text,
   access_role: column.text,
   read: column.integer,
+  private: column.integer,
   write_target: column.integer,
   sync_token: column.text,
   last_synced_at: column.text,
+});
+
+// What the server tells the client about each connected account (SYSTEM_DESIGN.md §6.2): read-only here.
+export const calendar_connections = new Table({
+  ...base,
+  user_id: column.text,
+  provider: column.text,
+  email: column.text,
+  status: column.text,
+  can_write: column.integer,
+  last_synced_at: column.text,
+  last_error: column.text,
 });
 
 export const calendar_events = new Table(
@@ -242,6 +255,7 @@ export const AppSchema = new Schema({
   task_completions,
   recurrence_exceptions,
   calendars,
+  calendar_connections,
   calendar_events,
   time_blocks,
   day_plans,
@@ -251,6 +265,7 @@ export type Database = (typeof AppSchema)["types"];
 export type TaskRow = Database["tasks"];
 export type TimeBlockRow = Database["time_blocks"];
 export type CalendarEventRow = Database["calendar_events"];
+export type CalendarConnectionRow = Database["calendar_connections"];
 export type WorkHoursRow = Database["work_hours"];
 export type UserSettingsRow = Database["user_settings"];
 export type ProjectRow = Database["projects"];

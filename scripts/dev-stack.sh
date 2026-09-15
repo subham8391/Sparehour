@@ -45,6 +45,12 @@ fi
 # real deployment sets POWERSYNC_JWT_SECRET and PS_SYNC_JWT_K itself.
 grep -q '^POWERSYNC_JWT_SECRET=' .env.local || printf 'POWERSYNC_JWT_SECRET=sparehour-local-sync-token-secret-0123456789abcdef\n' >> .env.local
 
+# Calendar token key (SYSTEM_DESIGN.md §6.2): seals Google refresh tokens at
+# rest. 32 random bytes, base64, made once per machine. Google itself needs
+# GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET from a Cloud project —
+# see CLAUDE.md; without them the Settings panel says the calendar is not set up.
+grep -q '^CALENDAR_TOKEN_KEY=' .env.local || printf 'CALENDAR_TOKEN_KEY=%s\n' "$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64"))')" >> .env.local
+
 # Web Push (SYSTEM_DESIGN.md §7): a VAPID key pair for this machine, the
 # secret the minute tick presents, and the origin deep links are built on.
 echo "▸ push keys in .env.local"

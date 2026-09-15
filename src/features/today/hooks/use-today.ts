@@ -9,6 +9,7 @@ import { Temporal, todayFor, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
+import { CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow } from "@/data/queries/calendar";
 import { TaskRepo } from "@/data/repositories/task-repo";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 
@@ -34,6 +35,10 @@ export interface TodayModel {
   blocks: TimelineBlock[];
   blockByTask: ReadonlyMap<string, TimelineBlock>;
   repo: TaskRepo;
+  /** False until a calendar is connected: the ribbon offers to connect one (PRODUCT_SPEC.md §9.4). */
+  calendarConnected: boolean;
+  /** The one line above the ribbon when an account needs attention (SCREENS.md §2.7). */
+  calendarIssue: CalendarIssue | null;
 }
 
 export function useToday(now: Temporal.Instant): TodayModel {
@@ -55,6 +60,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
     streams: [{ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24 }],
   });
   const { data: calendarRows } = useQuery<{ id: string; read: number | null }>(CALENDARS_SQL);
+  const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
 
   return useMemo(() => {
     const tasks = (taskRows ?? []).map(toTask);
@@ -108,6 +114,23 @@ export function useToday(now: Temporal.Instant): TodayModel {
       blocks,
       blockByTask,
       repo,
+      // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: one line when the calendar has a problem.
+      calendarConnected: (calendarRows ?? []).length > 0,
+      calendarIssue: calendarIssueFrom(connectionRows ?? []),
     };
-  }, [taskRows, blockRows, eventRows, calendarRows, workRows, settings, today, now, isLoading, repo]);
+  }, [taskRows, blockRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
+}
+
+export interface CalendarIssue {
+  kind: "reauth" | "error";
+  message: string;
+}
+
+/** The first account that needs attention: lapsed access first, then a sync that failed (its events are still the last good ones). */
+export function calendarIssueFrom(rows: readonly CalendarConnectionRow[]): CalendarIssue | null {
+  const reauth = rows.find((r) => r.status === "needs_reauth" || r.status === "revoked");
+  if (reauth) return { kind: "reauth", message: `Google Calendar${reauth.email ? ` (${reauth.email})` : ""} needs reconnecting.` };
+  const failed = rows.find((r) => r.last_error);
+  if (failed) return { kind: "error", message: failed.last_synced_at ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(failed.last_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Couldn't reach Google Calendar yet." };
+  return null;
 }

@@ -33,6 +33,7 @@ export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
   time_blocks: ["external_event_id", "external_etag", "push_state", "created_at", "updated_at"],
   calendars: ["sync_token", "last_synced_at", "calendar_account_id", "external_id", "access_role", "deleted_at", "created_at", "updated_at"],
   calendar_events: ["*"],
+  calendar_connections: ["*"],
   user_settings: ["user_id", "space_id", "deleted_at", "created_at", "updated_at"],
   spaces: ["owner_id", "kind", "deleted_at", "created_at", "updated_at"],
   users: ["*"],

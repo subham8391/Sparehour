@@ -1,10 +1,12 @@
 "use client";
 // The spare-time ribbon (DESIGN_SYSTEM.md §5): the hero number, the day as a
 // track — meetings in blue, blocks in ink, spare in green — and the hour ticks.
+import Link from "next/link";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 
-export function Ribbon({ c, compact = false }: { c: Capacity; compact?: boolean }) {
+/** `connected` false is the no-calendar variant (PRODUCT_SPEC.md §9.4): the meetings line becomes the way to get one. */
+export function Ribbon({ c, compact = false, connected = true }: { c: Capacity; compact?: boolean; connected?: boolean }) {
   if (c.state === "no_work_day") return <p className="text-ink-2">Not a working day.</p>;
   const day = c.windows[0].start;
   const span = c.windows[c.windows.length - 1].end - day;
@@ -19,7 +21,13 @@ export function Ribbon({ c, compact = false }: { c: Capacity; compact?: boolean 
         </div>
         <div className="text-right font-mono text-xs text-ink-2">
           <div>{formatMinutes(c.committedMin + c.unscheduledMin, { padMinutes: true })} planned</div>
-          <div>{formatMinutes(c.busyMin, { padMinutes: true })} in meetings</div>
+          {connected ? (
+            <div>{formatMinutes(c.busyMin, { padMinutes: true })} in meetings</div>
+          ) : (
+            <Link href="/settings#calendar" className="text-ink-2 underline decoration-line-strong underline-offset-2 hover:text-ink">
+              connect a calendar to see real free time
+            </Link>
+          )}
           {c.projectedFinish && <div className="text-spare">done by {formatTime(c.projectedFinish)}</div>}
           {c.overflowMin > 0 && <div className="text-over">~{formatMinutes(c.overflowMin)} spills over</div>}
         </div>

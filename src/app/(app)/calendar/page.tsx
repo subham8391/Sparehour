@@ -8,6 +8,7 @@ import { formatTime, instant, type LocalDate } from "@/core/time";
 import { weekdayName } from "@/core/time/format-day";
 import { normaliseTimestamp } from "@/data/mappers";
 import { CALENDARS_COUNT_SQL, EVENTS_BETWEEN_SQL, dayRangeParams } from "@/data/queries/views";
+import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
 import type { CalendarEventRow } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
@@ -25,11 +26,16 @@ export default function CalendarPage() {
   const [from, to] = dayRangeParams(today, 7);
   const { data: calendars } = useQuery<{ n: number }>(CALENDARS_COUNT_SQL);
   const { data: events } = useQuery<CalendarEventRow>(EVENTS_BETWEEN_SQL, [from, to]);
+  const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   const connected = (calendars?.[0]?.n ?? 0) > 0;
 
   const days = useMemo(() => {
     const byDay = new Map<string, Shown[]>();
+    // PRODUCT_SPEC.md §10.3 rule 7: a private calendar shows its events as "Busy"; a calendar switched off does not show at all.
+    const privateIds = new Set((calendarRows ?? []).filter((c) => c.private === 1).map((c) => c.id));
+    const hiddenIds = new Set((calendarRows ?? []).filter((c) => c.read === 0).map((c) => c.id));
     for (const e of events ?? []) {
+      if (e.calendar_id && hiddenIds.has(e.calendar_id)) continue;
       let day: LocalDate;
       let when: string;
       if (e.start_date) {
@@ -44,13 +50,13 @@ export default function CalendarPage() {
         continue;
       }
       const key = day.toString();
-      byDay.set(key, [...(byDay.get(key) ?? []), { id: e.id, summary: e.summary ?? "(no title)", when, busy: e.busy !== 0 }]);
+      byDay.set(key, [...(byDay.get(key) ?? []), { id: e.id, summary: e.calendar_id && privateIds.has(e.calendar_id) ? "Busy" : (e.summary ?? "Busy"), when, busy: e.busy !== 0 }]);
     }
     return Array.from({ length: 7 }, (_, i) => {
       const day = today.add({ days: i });
       return { day, events: byDay.get(day.toString()) ?? [] };
     });
-  }, [events, today, zone]);
+  }, [events, calendarRows, today, zone]);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">

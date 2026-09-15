@@ -20,6 +20,7 @@ streams:
       - SELECT * FROM work_hours    WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM calendars     WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM time_blocks   WHERE user_id = auth.user_id() AND deleted_at IS NULL
+      - SELECT * FROM calendar_connections WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM day_plans     WHERE user_id = auth.user_id() AND deleted_at IS NULL
 
   # the working set: everything in the spaces the user belongs to, minus done tasks

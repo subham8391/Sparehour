@@ -252,7 +252,19 @@ export default function TodayPage() {
             {plan?.highlights && <p className="mt-2 text-[14px] text-ink-2">Worth it: {plan.highlights}</p>}
           </div>
         ) : (
-          model.capacity && <Ribbon c={model.capacity} />
+          model.capacity && (
+            <>
+              {model.calendarIssue && (
+                <p role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-[13.5px] text-ink-2">
+                  <span>{model.calendarIssue.message}</span>
+                  <Link href="/settings#calendar" className="text-ink underline decoration-line-strong underline-offset-2">
+                    {model.calendarIssue.kind === "reauth" ? "Reconnect" : "Retry"}
+                  </Link>
+                </p>
+              )}
+              <Ribbon c={model.capacity} connected={model.calendarConnected} />
+            </>
+          )
         )}
 
         {hasDay && (
