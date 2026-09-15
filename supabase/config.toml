@@ -159,7 +159,8 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Any local port: the dev server picks a free one and the e2e suite uses 3100. Both may host /auth/callback.
+additional_redirect_urls = ["https://127.0.0.1:3000", "http://localhost:**", "http://127.0.0.1:**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -195,7 +196,8 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Local only: the e2e suite signs in by emailed code on every run.
+email_sent = 100
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -241,6 +243,13 @@ otp_expiry = 3600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# The magic link email carries the link and a six-digit code (ONBOARDING.md step 1):
+# the code works on any device, the link on the one that asked. A hosted project
+# needs the same template pasted into Authentication → Email Templates → Magic Link.
+[auth.email.template.magic_link]
+subject = "Your Sparehour sign-in code"
+content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -318,6 +327,18 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# Google sign-in (DECISIONS.md Q25): identity only — calendar scopes are asked for later, in
+# Settings. Off until a client exists: create an OAuth client (Web) in Google Cloud with the
+# redirect URI http://127.0.0.1:54321/auth/v1/callback, export
+# SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID / _SECRET, set enabled = true and restart the stack.
+# The login page shows the Google button only when the auth server reports it enabled.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+skip_nonce_check = false
+
 [auth.external.apple]
 enabled = false
 client_id = ""

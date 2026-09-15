@@ -54,7 +54,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,mailpit
+      # Mailpit stays up here: the magic-link test reads its sign-in code from it.
+      - run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api
       - name: Write .env.local from the local stack
         run: |
           eval "$(npx supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"

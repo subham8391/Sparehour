@@ -9,6 +9,8 @@ export default async function teardown(): Promise<void> {
       await c.query("delete from public.time_blocks where task_id in (select id from public.tasks where title like $1)", [`${E2E_PREFIX}%`]);
       await c.query("delete from public.tasks where title like $1", [`${E2E_PREFIX}%`]);
       await c.query("delete from public.headings where title like $1", [`${E2E_PREFIX}%`]);
+      // Accounts the magic-link test created; auth.users cascades through public.users and their space.
+      await c.query("delete from auth.users where email like 'e2e-magic-%@sparehour.local'");
     });
   } catch (e) {
     console.warn("e2e teardown skipped:", e instanceof Error ? e.message : e);
