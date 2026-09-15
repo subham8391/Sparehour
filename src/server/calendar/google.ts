@@ -151,6 +151,20 @@ interface RawEvent {
   extendedProperties?: { private?: Record<string, string> };
 }
 
+/** What we write (§6.5). `colorId` is deliberately absent: the colour map is not fetched yet, and hardcoding one is a bug waiting to happen. */
+export interface EventBody {
+  id?: string;
+  summary: string;
+  description: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  transparency: "opaque";
+  reminders: { useDefault: false; overrides: [] };
+  extendedProperties: { private: Record<string, string> };
+}
+
+export type WriteResult = { outcome: "written"; eventId: string; etag: string | null } | { outcome: "exists" } | { outcome: "conflict" } | { outcome: "gone" };
+
 /** The frozen parameter set (§6.3): every request in a sync series must match. */
 export const EVENT_LIST_PARAMS = { singleEvents: "true", showDeleted: "true", maxResults: "250", eventTypes: ["default", "focusTime", "outOfOffice"] } as const;
 
@@ -243,6 +257,56 @@ export class GoogleCalendar implements CalendarProvider {
   async stop(channelId: string, resourceId: string): Promise<void> {
     const res = await this.post(`${API}/channels/stop`, { id: channelId, resourceId });
     if (!res.ok && res.status !== 404) throw new Error(`google channels.stop: ${res.status}`);
+  }
+
+  // ---- writing (§6.5) ----------------------------------------------------
+
+  private async send(method: "POST" | "PUT" | "DELETE", url: string, body?: unknown, headers: Record<string, string> = {}): Promise<Response> {
+    const res = await googleFetch(this.fetchImpl, this.accessToken, url, { method, headers: { ...(body ? { "content-type": "application/json" } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined }, this.backoff);
+    if (res.status === 401) throw new NeedsReauth("google answered 401");
+    return res;
+  }
+
+  /** events.insert with our own id; `sendUpdates=none` so a personal block never emails anyone. */
+  async insertEvent(externalCalendarId: string, body: EventBody): Promise<WriteResult> {
+    const url = `${API}/calendars/${encodeURIComponent(externalCalendarId)}/events?sendUpdates=none`;
+    const res = await this.send("POST", url, body);
+    if (res.status === 409) return { outcome: "exists" };
+    if (!res.ok) throw new Error(`google events.insert: ${res.status}`);
+    const json = (await res.json()) as { id: string; etag?: string };
+    return { outcome: "written", eventId: json.id, etag: json.etag ?? null };
+  }
+
+  /** events.update guarded by If-Match; a 412 means someone else changed it (§6.6, external edit). */
+  async updateEvent(externalCalendarId: string, eventId: string, body: EventBody, ifMatch: string | null): Promise<WriteResult> {
+    const url = `${API}/calendars/${encodeURIComponent(externalCalendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=none`;
+    const res = await this.send("PUT", url, body, ifMatch ? { "if-match": ifMatch } : {});
+    if (res.status === 412) return { outcome: "conflict" };
+    if (res.status === 404 || res.status === 410) return { outcome: "gone" };
+    if (!res.ok) throw new Error(`google events.update: ${res.status}`);
+    const json = (await res.json()) as { id: string; etag?: string };
+    return { outcome: "written", eventId: json.id, etag: json.etag ?? null };
+  }
+
+  /** events.delete; 404 and 410 count as done (§6.5). */
+  async deleteEvent(externalCalendarId: string, eventId: string): Promise<void> {
+    const url = `${API}/calendars/${encodeURIComponent(externalCalendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=none`;
+    const res = await this.send("DELETE", url);
+    if (!res.ok && res.status !== 404 && res.status !== 410) throw new Error(`google events.delete: ${res.status}`);
+  }
+
+  async getEvent(externalCalendarId: string, eventId: string): Promise<ProviderEvent | null> {
+    const res = await this.get(`${API}/calendars/${encodeURIComponent(externalCalendarId)}/events/${encodeURIComponent(eventId)}`);
+    if (res.status === 404 || res.status === 410) return null;
+    if (!res.ok) throw new Error(`google events.get: ${res.status}`);
+    return toProviderEvent((await res.json()) as RawEvent);
+  }
+
+  /** The privacy option (§6.1): an app-owned calendar under calendar.app.created. */
+  async createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> {
+    const res = await this.send("POST", `${API}/calendars`, { summary, ...(timezone ? { timeZone: timezone } : {}) });
+    if (!res.ok) throw new Error(`google calendars.insert: ${res.status}`);
+    return toProviderCalendar({ ...((await res.json()) as RawCalendar), accessRole: "owner" });
   }
 
   async listEvents(externalCalendarId: string, cursor: { syncToken?: string | null; pageToken?: string | null }): Promise<EventPage> {

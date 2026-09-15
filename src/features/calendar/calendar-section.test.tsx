@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CalendarSettings, relativeTime, type CalendarPanel } from "./calendar-section";
-import { consentOutcome, toAccountView, toCalendarView } from "./use-calendar";
+import { consentOutcome, declinedWrite, toAccountView, toCalendarView } from "./use-calendar";
 
 const panel = (over: Partial<CalendarPanel> = {}): CalendarPanel => ({
   configured: true,
@@ -12,6 +12,7 @@ const panel = (over: Partial<CalendarPanel> = {}): CalendarPanel => ({
   notice: null,
   busy: false,
   onConnect: vi.fn(),
+  onAllowWrite: vi.fn(),
   onSyncNow: vi.fn(),
   onDisconnect: vi.fn(),
   onRead: vi.fn(),
@@ -82,7 +83,27 @@ describe("<CalendarSettings>", () => {
     await user.click(radios[1]);
     expect(p.onWriteTarget).toHaveBeenCalledWith(null);
     expect(onChanged).toHaveBeenCalledTimes(3);
-    expect(screen.getByText(/needs one more permission/)).toBeInTheDocument();
+  });
+
+  it("with a write calendar chosen but no write permission, offers to allow writing — and the separate calendar after a decline", async () => {
+    const user = userEvent.setup();
+    const p = panel({ accounts: [account], calendars });
+    const { unmount } = render(<CalendarSettings panel={p} />);
+    await user.click(screen.getByRole("button", { name: "Allow writing to Google" }));
+    expect(p.onAllowWrite).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole("button", { name: /separate Sparehour calendar/ })).not.toBeInTheDocument();
+    unmount();
+
+    const q = panel({ accounts: [account], calendars, offerFallback: true });
+    const second = render(<CalendarSettings panel={q} />);
+    await user.click(screen.getByRole("button", { name: "Use a separate Sparehour calendar" }));
+    expect(q.onAllowWrite).toHaveBeenCalledWith(true);
+    second.unmount();
+
+    // Once the account can write, neither offer shows.
+    render(<CalendarSettings panel={panel({ accounts: [{ ...account, canWrite: true }], calendars, offerFallback: true })} />);
+    expect(screen.queryByRole("button", { name: "Allow writing to Google" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /separate Sparehour calendar/ })).not.toBeInTheDocument();
   });
 });
 
@@ -101,6 +122,9 @@ describe("helpers", () => {
     expect(consentOutcome("?calendar=denied")).toMatch(/No problem/);
     expect(consentOutcome("?calendar=error&reason=Google+did+not+send+a+code+back.")).toBe("Google did not send a code back.");
     expect(consentOutcome("?calendar=read_only")).toMatch(/one more permission/);
+    expect(consentOutcome("?calendar=write_denied&reason=access_denied")).toMatch(/separate Sparehour calendar/);
+    expect(declinedWrite("?calendar=write_denied")).toBe(true);
+    expect(declinedWrite("?calendar=denied")).toBe(false);
     expect(consentOutcome("?x=1")).toBeNull();
   });
 

@@ -1,6 +1,8 @@
-// Time-block writes (PRODUCT_SPEC.md §10.2). Blocks stay local
-// (push_state 'local') until a write calendar exists (P7b); removing a block
-// never touches the task.
+// Time-block writes (PRODUCT_SPEC.md §10.2). push_state is the server's
+// column (the upload drops it): a new block lands as 'pending' there and is
+// written to Google once a write calendar exists (SYSTEM_DESIGN.md §6.5);
+// a moved or deleted block is re-queued by a trigger. Removing a block never
+// touches the task.
 import type { LocalDatabase } from "../powersync";
 import type { UndoRecorder } from "./task-repo";
 

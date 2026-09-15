@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { defaultRead, syncAccount, type AccountStore, type AccountSyncDeps, type CalendarRow, type CalendarUpsert, type ClaimedAccount, type WatchPort } from "./account-sync";
+import { APP_CREATED_SCOPE, defaultRead, syncAccount, type AccountStore, type AccountSyncDeps, type CalendarRow, type CalendarUpsert, type ClaimedAccount, type WatchPort } from "./account-sync";
 import { openFromBase64, sealToBase64 } from "./crypto";
 import { NeedsReauth, type CalendarProvider, type ProviderCalendar, type ProviderEvent } from "./provider";
 import type { CalendarRef, MirrorStore } from "./sync";
@@ -52,6 +52,10 @@ function fakes(opts: { remote?: ProviderCalendar[]; existing?: CalendarRow[]; ev
       rows = rows.map((r) => (ids.includes(r.id) ? { ...r, deleted_at: "now" } : r));
       log.push(`softDelete ${ids.join(",")}`);
     }),
+    setWriteTarget: vi.fn(async (_user: string, id: string) => {
+      rows = rows.map((r) => ({ ...r, write_target: r.id === id }));
+      log.push(`writeTarget ${id}`);
+    }),
     mirror,
     channels: {
       due: vi.fn(async () => rows.filter((r) => r.read && !r.deleted_at).map((r) => ({ calendar_id: r.id, channel_id: null, resource_id: null }))),
@@ -59,12 +63,18 @@ function fakes(opts: { remote?: ProviderCalendar[]; existing?: CalendarRow[]; ev
       remove: vi.fn(async () => undefined),
     },
   };
+  const created: ProviderCalendar[] = [];
   const provider = {
-    listCalendars: vi.fn(async (): Promise<ProviderCalendar[]> => opts.remote ?? []),
+    listCalendars: vi.fn(async (): Promise<ProviderCalendar[]> => [...(opts.remote ?? []), ...created]),
     listEvents: vi.fn<CalendarProvider["listEvents"]>(async (externalId) => ({ items: opts.events?.[externalId] ?? [], nextPageToken: null, nextSyncToken: `T-${externalId}` })),
     watch: vi.fn<WatchPort["watch"]>(async () => ({ resourceId: "res", expiresAt: new Date(NOW.getTime() + 604_800_000) })),
     stop: vi.fn<WatchPort["stop"]>(async () => undefined),
-  } satisfies CalendarProvider & WatchPort;
+    createCalendar: vi.fn(async (summary: string, timezone: string | null): Promise<ProviderCalendar> => {
+      const made = { externalId: "app-cal", summary, timezone, color: null, accessRole: "owner", primary: false };
+      created.push(made);
+      return made;
+    }),
+  } satisfies CalendarProvider & WatchPort & { createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> };
   const deps: AccountSyncDeps = {
     key,
     store,
@@ -148,5 +158,20 @@ describe("syncAccount", () => {
     expect(withHook.provider.watch).toHaveBeenCalledTimes(1);
     expect(withHook.provider.watch).toHaveBeenCalledWith("primary", { id: "chan-1", address: "https://app.example/api/webhooks/google-calendar", token: "tok:id-primary:chan-1", ttlSeconds: 604_800 });
     expect(withHook.store.channels.put).toHaveBeenCalledWith(expect.objectContaining({ id: "chan-1", calendarId: "id-primary", resourceId: "res" }));
+  });
+
+  it("with the app-created scope and no write calendar, a 'Sparehour' calendar is created once and takes the blocks", async () => {
+    const f = fakes({ remote: [cal("primary", { primary: true })] });
+    await syncAccount(account({ scopes: [APP_CREATED_SCOPE] }), f.deps);
+    expect(f.provider.createCalendar).toHaveBeenCalledWith("Sparehour", null);
+    expect(f.log).toContain("writeTarget id-app-cal");
+    expect(f.rows().find((r) => r.external_id === "app-cal")).toMatchObject({ write_target: true, read: true });
+    // Next pass: it exists and is the target; nothing is created again.
+    await syncAccount(account({ scopes: [APP_CREATED_SCOPE] }), f.deps);
+    expect(f.provider.createCalendar).toHaveBeenCalledTimes(1);
+    // Without the scope, or with a write target already chosen, nothing happens.
+    const g = fakes({ remote: [cal("primary", { primary: true })] });
+    await syncAccount(account(), g.deps);
+    expect(g.provider.createCalendar).not.toHaveBeenCalled();
   });
 });

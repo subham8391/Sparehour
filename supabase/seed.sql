@@ -70,8 +70,9 @@ begin
 
   -- calendar: one account, one calendar, 1 500 events over three years (about two a workday)
   insert into private.calendar_accounts (id, user_id, space_id, provider, external_account) values (acct, uid, sid, 'google', 'dev@sparehour.local');
-  insert into public.calendars (id, space_id, user_id, calendar_account_id, external_id, summary, read, write_target)
-  values (cal, sid, uid, acct, 'primary', 'Work', true, true);
+  insert into public.calendar_connections (id, space_id, user_id, provider, email, status) values (acct, sid, uid, 'google', 'dev@sparehour.local', 'ok');
+  insert into public.calendars (id, space_id, user_id, calendar_account_id, external_id, summary, access_role, read, write_target)
+  values (cal, sid, uid, acct, 'primary', 'Work', 'owner', true, true);
   insert into public.calendar_events (space_id, user_id, calendar_id, external_id, summary, start_at, end_at, busy, status, self_response, event_type)
   select sid, uid, cal, 'evt-' || g,
     (array['Standup', 'Design review', '1:1 with Dana', 'Acme sync', 'Planning', 'Interview'])[1 + (g % 6)],

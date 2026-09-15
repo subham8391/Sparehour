@@ -3,6 +3,7 @@
 // and writes only the window; incremental follows the sync token; a 410
 // drops the token, wipes the calendar's mirror and starts again.
 import { FullSyncRequired, type EventSource, type ProviderEvent } from "./provider";
+import { looksOurs } from "./push";
 
 export interface CalendarRef {
   id: string;
@@ -24,7 +25,12 @@ export interface MirrorStore {
   upsertEvents(calendar: CalendarRef, rows: ProviderEvent[]): Promise<void>;
   removeEvents(calendar: CalendarRef, externalIds: string[]): Promise<void>;
   setSyncToken(calendarId: string, token: string | null): Promise<void>;
+  /** §6.6: inbound copies of our own events (moved, renamed, deleted in Google). Optional: a mirror without blocks skips it. */
+  reconcileOurs?(calendar: CalendarRef, rows: ProviderEvent[]): Promise<void>;
 }
+
+/** Cancelled copies of our events reach the echo rules too (a block deleted in Google), so they are picked from the raw page. */
+const oursIn = (items: ProviderEvent[]): ProviderEvent[] => items.filter(looksOurs);
 
 export interface SyncOutcome {
   mode: "full" | "incremental";
@@ -51,18 +57,21 @@ const MAX_PAGES = 400; // a decade of a busy calendar; past this something is wr
 
 async function fullSync(source: EventSource, store: MirrorStore, calendar: CalendarRef, window: SyncWindow): Promise<SyncOutcome> {
   const keep: ProviderEvent[] = [];
+  const ours: ProviderEvent[] = [];
   let pageToken: string | null = null;
   let syncToken: string | null = null;
   let pages = 0;
   do {
     const page = await source.listEvents(calendar.externalId, { pageToken });
     pages++;
+    ours.push(...oursIn(page.items));
     for (const e of page.items) if (e.status !== "cancelled" && inWindow(e, window)) keep.push(e);
     pageToken = page.nextPageToken;
     syncToken = page.nextSyncToken ?? syncToken;
     if (pages > MAX_PAGES) throw new Error(`full sync of ${calendar.externalId} exceeded ${MAX_PAGES} pages`);
   } while (pageToken);
   await store.replaceEvents(calendar, keep);
+  if (ours.length && store.reconcileOurs) await store.reconcileOurs(calendar, ours);
   await store.setSyncToken(calendar.id, syncToken);
   return { mode: "full", upserted: keep.length, removed: 0, pages };
 }
@@ -80,6 +89,8 @@ async function incrementalSync(source: EventSource, store: MirrorStore, calendar
     const changed = page.items.filter((e) => e.status !== "cancelled" && inWindow(e, window));
     if (gone.length) await store.removeEvents(calendar, gone);
     if (changed.length) await store.upsertEvents(calendar, changed);
+    const ours = oursIn(page.items);
+    if (ours.length && store.reconcileOurs) await store.reconcileOurs(calendar, ours);
     removed += gone.length;
     upserted += changed.length;
     pageToken = page.nextPageToken;

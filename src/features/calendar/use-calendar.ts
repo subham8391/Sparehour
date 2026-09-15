@@ -12,6 +12,7 @@ const OUTCOME_COPY: Record<string, string> = {
   connected: "Connected. Your meetings are on their way.",
   read_only: "Connected for reading. Writing blocks to Google needs one more permission — grant it when you're ready.",
   denied: "No problem. You can connect later from here.",
+  write_denied: "Blocks stay in Sparehour for now. If you'd rather keep them off your own calendar, a separate Sparehour calendar can take them.",
   unavailable: "Google Calendar isn't set up on this server yet.",
   error: "Google didn't answer. Try again.",
 };
@@ -44,6 +45,9 @@ export const toCalendarView = (r: CalendarFullRow): CalendarView => ({
   writeTarget: r.write_target === 1,
 });
 
+/** True when the person just declined writing to their own calendar: the panel offers the separate-calendar option (§6.1 fallback). */
+export const declinedWrite = (search: string): boolean => new URLSearchParams(search).get("calendar") === "write_denied";
+
 export function useCalendar(): CalendarPanel {
   const db = useLocalDatabase();
   const repo = useMemo(() => new CalendarRepo(db), [db]);
@@ -53,6 +57,7 @@ export function useCalendar(): CalendarPanel {
   const [busy, setBusy] = useState(false);
   // The outcome of a consent that just finished is in the URL when the page opens (never on the server: this tree renders client-side only).
   const [notice, setNotice] = useState<string | null>(() => (typeof window === "undefined" ? null : consentOutcome(window.location.search)));
+  const [offerFallback] = useState<boolean>(() => (typeof window === "undefined" ? false : declinedWrite(window.location.search)));
 
   useEffect(() => {
     let live = true;
@@ -87,9 +92,13 @@ export function useCalendar(): CalendarPanel {
     calendars: (calendarRows ?? []).map(toCalendarView),
     notice,
     busy,
+    offerFallback,
     onConnect: () => {
       // A full navigation: the route answers with a redirect to Google, which client routing cannot follow.
       window.location.assign(new URL(`/api/calendar/google/start?next=${encodeURIComponent("/settings")}`, window.location.origin).toString());
+    },
+    onAllowWrite: (fallback) => {
+      window.location.assign(new URL(`/api/calendar/google/start?purpose=write${fallback ? "&fallback=1" : ""}&next=${encodeURIComponent("/settings")}`, window.location.origin).toString());
     },
     onSyncNow: () => {
       void post("/api/calendar/sync").then(async (res) => {

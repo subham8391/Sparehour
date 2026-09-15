@@ -5,6 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AccountStore, CalendarRow, CalendarUpsert, ChannelPort, ClaimedAccount } from "./account-sync";
 import type { ProviderEvent } from "./provider";
+import { reconcileOurs, type OurEventStore, type PushBlock, type PushStore } from "./push";
 import type { CalendarRef, MirrorStore } from "./sync";
 
 const CHUNK = 400;
@@ -43,7 +44,15 @@ export function toEventRow(cal: CalendarRef, e: ProviderEvent) {
 type Db = SupabaseClient<any, "public", any>;
 
 export class SupabaseMirrorStore implements MirrorStore {
-  constructor(private readonly db: Db) {}
+  constructor(
+    private readonly db: Db,
+    private readonly ours?: OurEventStore,
+  ) {}
+
+  /** §6.6 on the sync path: inbound copies of our own events, matched to their blocks. */
+  async reconcileOurs(cal: CalendarRef, rows: ProviderEvent[]): Promise<void> {
+    if (this.ours) await reconcileOurs(this.ours, cal.id, rows);
+  }
 
   async replaceEvents(cal: CalendarRef, rows: ProviderEvent[]): Promise<void> {
     const { data, error } = await this.db.from("calendar_events").select("external_id").eq("calendar_id", cal.id).is("deleted_at", null);
@@ -74,12 +83,12 @@ export class SupabaseMirrorStore implements MirrorStore {
   }
 }
 
-export class SupabaseAccountStore implements AccountStore {
+export class SupabaseAccountStore implements AccountStore, PushStore, OurEventStore {
   readonly mirror: MirrorStore;
   readonly channels: ChannelPort;
 
   constructor(private readonly db: Db) {
-    this.mirror = new SupabaseMirrorStore(db);
+    this.mirror = new SupabaseMirrorStore(db, this);
     this.channels = {
       due: async (accountId) => {
         const { data, error } = await db.rpc("calendar_channels_due", { p_account: accountId });
@@ -175,5 +184,52 @@ export class SupabaseAccountStore implements AccountStore {
     fail("calendars soft delete", error);
     const events = await this.db.from("calendar_events").update({ deleted_at: at }).in("calendar_id", ids).is("deleted_at", null);
     fail("calendar_events soft delete", events.error);
+  }
+
+  // ---- the push queue (§6.5) and echo rules (§6.6) ------------------------
+
+  async claimBlocks(userId: string | null, limit: number): Promise<PushBlock[]> {
+    const { data, error } = await this.db.rpc("time_blocks_claim_push", { p_user: userId, p_limit: limit });
+    fail("time_blocks_claim_push", error);
+    return (data ?? []) as PushBlock[];
+  }
+
+  async pushed(id: string, calendarId: string, eventId: string, etag: string | null): Promise<void> {
+    const { error } = await this.db.rpc("time_block_pushed", { p_id: id, p_calendar: calendarId, p_event_id: eventId, p_etag: etag });
+    fail("time_block_pushed", error);
+  }
+
+  async failed(id: string, message: string): Promise<void> {
+    const { error } = await this.db.rpc("time_block_push_failed", { p_id: id, p_error: message });
+    fail("time_block_push_failed", error);
+  }
+
+  async detached(id: string): Promise<void> {
+    const { error } = await this.db.rpc("time_block_detached", { p_id: id });
+    fail("time_block_detached", error);
+  }
+
+  async adopt(id: string, startAt: string, endAt: string, title: string | null, etag: string | null): Promise<void> {
+    const { error } = await this.db.rpc("time_block_adopt", { p_id: id, p_start: startAt, p_end: endAt, p_title: title, p_etag: etag });
+    fail("time_block_adopt", error);
+  }
+
+  async etag(id: string, etag: string | null): Promise<void> {
+    const { error } = await this.db.rpc("time_block_etag", { p_id: id, p_etag: etag });
+    fail("time_block_etag", error);
+  }
+
+  async blockForEvent(calendarId: string, eventId: string): Promise<{ id: string; start_at: string; end_at: string; external_etag: string | null; deleted_at: string | null } | null> {
+    const { data, error } = await this.db.from("time_blocks").select("id, start_at, end_at, external_etag, deleted_at").eq("calendar_id", calendarId).eq("external_event_id", eventId).limit(1);
+    fail("time_blocks by event", error);
+    return ((data ?? []) as { id: string; start_at: string; end_at: string; external_etag: string | null; deleted_at: string | null }[])[0] ?? null;
+  }
+
+  /** The app-created calendar becomes the one write target (§6.1 fallback). */
+  async setWriteTarget(userId: string, calendarId: string): Promise<void> {
+    const cleared = await this.db.from("calendars").update({ write_target: false }).eq("user_id", userId).eq("write_target", true).neq("id", calendarId);
+    fail("calendars clear write_target", cleared.error);
+    const { error } = await this.db.from("calendars").update({ write_target: true }).eq("id", calendarId);
+    fail("calendars set write_target", error);
   }
 }

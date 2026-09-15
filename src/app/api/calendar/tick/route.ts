@@ -3,7 +3,7 @@
 // Push is an optimisation; this is the source of truth.
 import { NextResponse, type NextRequest } from "next/server";
 import { googleConfigured, jobSecret } from "@/server/calendar/config";
-import { syncDue } from "@/server/calendar/run";
+import { pushDue, syncDue } from "@/server/calendar/run";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
   if (!googleConfigured()) return NextResponse.json({ skipped: "calendar_not_configured" });
   try {
     const report = await syncDue(10);
-    return NextResponse.json({ accounts: Object.keys(report).length, report });
+    const push = await pushDue();
+    return NextResponse.json({ accounts: Object.keys(report).length, report, push });
   } catch (e) {
     console.error("calendar tick failed", e);
     return NextResponse.json({ error: "server" }, { status: 500 });

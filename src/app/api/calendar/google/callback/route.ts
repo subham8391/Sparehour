@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   if (!user || user.id !== state.userId) return back(url.origin, next, "error", "Sign in first, then connect the calendar.");
 
   const denied = url.searchParams.get("error");
-  if (denied) return back(url.origin, next, "denied", denied);
+  if (denied) return back(url.origin, next, state.purpose === "write" ? "write_denied" : "denied", denied);
   const code = url.searchParams.get("code");
   const oauth = googleOAuth();
   if (!code || !oauth) return back(url.origin, next, "error", "Google did not send a code back.");

@@ -15,7 +15,7 @@ vi.mock("@/server/auth/supabase", () => ({
 }));
 
 // vi.mock is hoisted above every other statement, so the handles it closes over must be too.
-const { store, after, syncAccountById, syncUser, syncDue, exchangeCode, revokeToken } = vi.hoisted(() => ({
+const { store, after, syncAccountById, syncUser, syncDue, pushUser, pushDue, exchangeCode, revokeToken } = vi.hoisted(() => ({
   store: {
     connect: vi.fn(async () => "acct-1"),
     claim: vi.fn(async () => []),
@@ -27,6 +27,8 @@ const { store, after, syncAccountById, syncUser, syncDue, exchangeCode, revokeTo
   syncAccountById: vi.fn(async () => ({ status: "ok", calendars: 1, events: 2, error: null })),
   syncUser: vi.fn(async () => ({ "acct-1": { status: "ok", calendars: 1, events: 2, error: null } })),
   syncDue: vi.fn(async () => ({})),
+  pushUser: vi.fn(async () => ({ written: 1, deleted: 0, adopted: 0, failed: 0 })),
+  pushDue: vi.fn(async () => ({ written: 0, deleted: 0, adopted: 0, failed: 0 })),
   exchangeCode: vi.fn(async () => ({
     accessToken: "at",
     refreshToken: "rt",
@@ -44,13 +46,14 @@ vi.mock("@/server/calendar/store", () => ({
   },
 }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after }));
-vi.mock("@/server/calendar/run", () => ({ buildDeps: () => ({ store }), syncAccountById, syncUser, syncDue }));
+vi.mock("@/server/calendar/run", () => ({ buildDeps: () => ({ store }), syncAccountById, syncUser, syncDue, pushUser, pushDue }));
 vi.mock("@/server/calendar/google", async (orig) => ({ ...(await orig<typeof import("@/server/calendar/google")>()), exchangeCode, revokeToken }));
 
 import { GET as config } from "./config/route";
 import { POST as disconnect } from "./disconnect/route";
 import { GET as callback } from "./google/callback/route";
 import { GET as start } from "./google/start/route";
+import { POST as push } from "./push/route";
 import { POST as sync } from "./sync/route";
 import { POST as tick } from "./tick/route";
 import { POST as webhook } from "../webhooks/google-calendar/route";
@@ -119,7 +122,7 @@ describe("calendar routes", () => {
     const other = signState({ userId: "u2", purpose: "read", next: "/settings", nonce: "n", exp: Math.floor(Date.now() / 1000) + 60 }, KEY);
     expect((await callback(req(`/api/calendar/google/callback?code=x&state=${encodeURIComponent(other)}`))).headers.get("location")).toContain("calendar=error");
     const fine = signState({ userId: "u1", purpose: "write", next: "/settings", nonce: "n", exp: Math.floor(Date.now() / 1000) + 60 }, KEY);
-    expect((await callback(req(`/api/calendar/google/callback?error=access_denied&state=${encodeURIComponent(fine)}`))).headers.get("location")).toBe("http://localhost:3000/settings?calendar=denied&reason=access_denied");
+    expect((await callback(req(`/api/calendar/google/callback?error=access_denied&state=${encodeURIComponent(fine)}`))).headers.get("location")).toBe("http://localhost:3000/settings?calendar=write_denied&reason=access_denied");
     // Write asked for, only read granted: the picker stays hidden and the page says so.
     expect((await callback(req(`/api/calendar/google/callback?code=x&state=${encodeURIComponent(fine)}`))).headers.get("location")).toBe("http://localhost:3000/settings?calendar=read_only");
     expect(store.connect).toHaveBeenCalledTimes(1);
@@ -127,8 +130,9 @@ describe("calendar routes", () => {
 
   it("sync now runs every account of the signed-in person", async () => {
     const res = await sync();
-    expect(await res.json()).toEqual({ accounts: 1, report: { "acct-1": { status: "ok", calendars: 1, events: 2, error: null } } });
+    expect(await res.json()).toEqual({ accounts: 1, report: { "acct-1": { status: "ok", calendars: 1, events: 2, error: null } }, push: { written: 1, deleted: 0, adopted: 0, failed: 0 } });
     expect(syncUser).toHaveBeenCalledWith("u1");
+    expect(pushUser).toHaveBeenCalledWith("u1");
     sessionUser = null;
     expect((await sync()).status).toBe(401);
   });
@@ -138,6 +142,16 @@ describe("calendar routes", () => {
     const ok = await tick(req("/api/calendar/tick", { method: "POST", headers: { "x-push-secret": "jobs" } }));
     expect(ok.status).toBe(200);
     expect(syncDue).toHaveBeenCalledWith(10);
+    expect(pushDue).toHaveBeenCalledTimes(1);
+  });
+
+  it("push writes the signed-in person's pending blocks, and says so when the calendar is not set up", async () => {
+    expect(await (await push()).json()).toEqual({ written: 1, deleted: 0, adopted: 0, failed: 0 });
+    expect(pushUser).toHaveBeenCalledWith("u1");
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "");
+    expect(await (await push()).json()).toMatchObject({ skipped: "calendar_not_configured" });
+    sessionUser = null;
+    expect((await push()).status).toBe(401);
   });
 
   it("disconnect drops the account for its owner and revokes the grant", async () => {

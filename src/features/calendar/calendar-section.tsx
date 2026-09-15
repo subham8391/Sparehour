@@ -33,7 +33,11 @@ export interface CalendarPanel {
   calendars: CalendarView[];
   notice: string | null;
   busy: boolean;
+  /** The person just declined writing to their own calendar: offer the separate-calendar option. */
+  offerFallback?: boolean;
   onConnect: () => void;
+  /** Ask Google for the write scope — to their own calendar, or (fallback) to an app-created "Sparehour" calendar. */
+  onAllowWrite: (fallback: boolean) => void;
   onSyncNow: () => void;
   onDisconnect: (accountId: string) => void;
   onRead: (id: string, read: boolean) => void;
@@ -202,7 +206,22 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                 </label>
               </div>
             )}
-            {!panel.accounts.some((a) => a.canWrite) && writeTarget && <p className={SMALL}>Writing blocks to Google needs one more permission; your choice is kept until then.</p>}
+            {!panel.accounts.some((a) => a.canWrite) && writeTarget && (
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" className={PRIMARY} onClick={() => panel.onAllowWrite(false)} disabled={panel.busy || panel.configured !== true}>
+                  Allow writing to Google
+                </button>
+                <span className={SMALL}>One more permission: blocks then appear on {writeTarget.summary}, and nowhere else.</span>
+              </div>
+            )}
+            {panel.offerFallback && !panel.accounts.some((a) => a.canWrite) && (
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" className={BUTTON} onClick={() => panel.onAllowWrite(true)} disabled={panel.busy || panel.configured !== true}>
+                  Use a separate Sparehour calendar
+                </button>
+                <span className={SMALL}>It keeps your blocks out of your colleagues&rsquo; view; they won&rsquo;t show as busy to others.</span>
+              </div>
+            )}
           </div>
         </>
       )}

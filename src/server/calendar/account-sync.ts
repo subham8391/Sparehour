@@ -61,9 +61,14 @@ export interface AccountStore {
   calendarsOf(accountId: string): Promise<CalendarRow[]>;
   upsertCalendars(rows: CalendarUpsert[]): Promise<void>;
   softDeleteCalendars(ids: string[]): Promise<void>;
+  /** The §6.1 fallback: an app-created calendar becomes the one write target. */
+  setWriteTarget(userId: string, calendarId: string): Promise<void>;
   mirror: MirrorStore;
   channels: ChannelPort;
 }
+
+export const APP_CREATED_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
+export const APP_CALENDAR_NAME = "Sparehour";
 
 export interface WatchPort {
   watch(externalCalendarId: string, channel: { id: string; address: string; token: string; ttlSeconds: number }): Promise<{ resourceId: string; expiresAt: Date }>;
@@ -73,7 +78,7 @@ export interface WatchPort {
 export interface AccountSyncDeps {
   key: Buffer;
   store: AccountStore;
-  providerFor: (accessToken: string) => CalendarProvider & Partial<WatchPort>;
+  providerFor: (accessToken: string) => CalendarProvider & Partial<WatchPort> & Partial<{ createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> }>;
   refresh: (refreshToken: string) => Promise<TokenGrant>;
   /** null when push channels cannot be used (no public HTTPS address, §6.4). */
   webhook: { address: string; channelToken: (calendarId: string, channelId: string) => string } | null;
@@ -132,6 +137,24 @@ async function reconcileCalendars(acct: ClaimedAccount, provider: CalendarProvid
   return (await deps.store.calendarsOf(acct.id)).filter((c) => !c.deleted_at);
 }
 
+/**
+ * The person declined writing to their own calendar and granted the app-created
+ * scope instead (§6.1): make sure a "Sparehour" calendar exists and takes the
+ * blocks. Reuses one already named so; never creates twice.
+ */
+async function ensureAppCalendar(acct: ClaimedAccount, provider: AccountSyncDeps["providerFor"] extends (t: string) => infer P ? P : never, calendars: CalendarRow[], deps: AccountSyncDeps): Promise<CalendarRow[]> {
+  if (!(acct.scopes ?? []).includes(APP_CREATED_SCOPE) || !provider.createCalendar) return calendars;
+  if (calendars.some((c) => c.write_target)) return calendars;
+  let own = calendars.find((c) => c.summary === APP_CALENDAR_NAME);
+  if (!own) {
+    const made = await provider.createCalendar(APP_CALENDAR_NAME, null);
+    await deps.store.upsertCalendars([{ space_id: acct.space_id, user_id: acct.user_id, calendar_account_id: acct.id, external_id: made.externalId, summary: made.summary, timezone: made.timezone, color: made.color, access_role: "owner", read: true, deleted_at: null }]);
+    own = (await deps.store.calendarsOf(acct.id)).find((c) => c.external_id === made.externalId);
+  }
+  if (own) await deps.store.setWriteTarget(acct.user_id, own.id);
+  return (await deps.store.calendarsOf(acct.id)).filter((c) => !c.deleted_at);
+}
+
 async function keepChannels(acct: ClaimedAccount, provider: CalendarProvider & Partial<WatchPort>, calendars: CalendarRow[], deps: AccountSyncDeps): Promise<void> {
   if (!deps.webhook || !provider.watch || !provider.stop) return;
   const byId = new Map(calendars.map((c) => [c.id, c]));
@@ -157,7 +180,7 @@ export async function syncAccount(acct: ClaimedAccount, deps: AccountSyncDeps): 
   try {
     const accessToken = await goodAccessToken(acct, deps);
     const provider = deps.providerFor(accessToken);
-    const calendars = await reconcileCalendars(acct, provider, deps);
+    const calendars = await ensureAppCalendar(acct, provider, await reconcileCalendars(acct, provider, deps), deps);
     const window = windowAround(deps.today());
     let events = 0;
     for (const c of calendars) {

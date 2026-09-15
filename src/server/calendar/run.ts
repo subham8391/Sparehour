@@ -5,7 +5,9 @@ import { createHmac, randomUUID } from "node:crypto";
 import { serviceRoleClient } from "@/server/auth/supabase";
 import { syncAccount, type AccountSyncDeps, type AccountSyncResult, type ClaimedAccount } from "./account-sync";
 import { googleOAuth, tokenKey, webhook } from "./config";
+import { openFromBase64, sealToBase64 } from "./crypto";
 import { GoogleCalendar, refreshAccessToken } from "./google";
+import { pushBlocks, type EventWriter, type PushReport } from "./push";
 import { SupabaseAccountStore } from "./store";
 
 export const channelToken = (secret: string, calendarId: string, channelId: string): string =>
@@ -51,4 +53,38 @@ export async function syncAccountById(accountId: string, userId: string, deps = 
   const claimed = (await deps.store.claim(userId, 20, true)).filter((a) => a.id === accountId);
   if (!claimed.length) return null;
   return (await syncClaimed(claimed, deps))[accountId] ?? null;
+}
+
+/**
+ * A Google client for the account behind a block's write calendar, with a
+ * token that is good for the next few minutes (§6.2).
+ */
+async function writerFor(accountId: string, deps: AccountSyncDeps & { store: SupabaseAccountStore }): Promise<EventWriter> {
+  const oauth = googleOAuth();
+  if (!oauth) throw new Error("Google Calendar is not configured");
+  const [acct] = (await deps.store.claim(null, 50, true)).filter((a) => a.id === accountId);
+  if (!acct) throw new Error("the calendar account is gone or busy");
+  try {
+    const expiresAt = acct.token_expires_at ? new Date(acct.token_expires_at).getTime() : 0;
+    let accessToken = acct.access_b64 && expiresAt - Date.now() > 5 * 60 * 1000 ? openFromBase64(acct.access_b64, deps.key) : null;
+    if (!accessToken) {
+      if (!acct.refresh_b64) throw new Error("no calendar access on file");
+      const grant = await deps.refresh(openFromBase64(acct.refresh_b64, deps.key));
+      await deps.store.saveTokens(acct.id, sealToBase64(grant.accessToken, deps.key), grant.expiresAt, grant.refreshToken ? sealToBase64(grant.refreshToken, deps.key) : null);
+      accessToken = grant.accessToken;
+    }
+    return new GoogleCalendar(accessToken);
+  } finally {
+    // The claim above only served to read the tokens; release it without touching the sync bookkeeping.
+    await deps.store.finish(acct.id, "ok", null).catch(() => undefined);
+  }
+}
+
+/** Blocks Google is behind on — one person's (after a block changes, or "Sync now") or everyone's (the tick). */
+export async function pushUser(userId: string, deps = buildDeps()): Promise<PushReport> {
+  return pushBlocks({ store: deps.store, writerFor: (id) => writerFor(id, deps) }, userId);
+}
+
+export async function pushDue(deps = buildDeps()): Promise<PushReport> {
+  return pushBlocks({ store: deps.store, writerFor: (id) => writerFor(id, deps) }, null);
 }
