@@ -4,14 +4,14 @@
 import { NextResponse } from "next/server";
 import { BUILD_ID } from "@/data/build-id";
 import { createUserScopedClient } from "@/server/auth/supabase";
-import { signSyncToken } from "@/server/sync/token";
+import { secretUsable, signSyncToken } from "@/server/sync/token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const secret = process.env.POWERSYNC_JWT_SECRET;
-  if (!secret) return NextResponse.json({ error: "sync_not_configured" }, { status: 503 });
+  if (!secretUsable(secret)) return NextResponse.json({ error: "sync_not_configured" }, { status: 503 });
   const supabase = await createUserScopedClient();
   const {
     data: { user },

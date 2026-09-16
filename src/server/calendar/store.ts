@@ -106,10 +106,16 @@ export class SupabaseAccountStore implements AccountStore, PushStore, OurEventSt
     };
   }
 
-  async claim(userId: string | null, limit: number, force: boolean): Promise<ClaimedAccount[]> {
-    const { data, error } = await this.db.rpc("calendar_accounts_claim", { p_user: userId, p_limit: limit, p_force: force });
+  async claim(userId: string | null, limit: number, force: boolean, accountId: string | null = null): Promise<ClaimedAccount[]> {
+    const { data, error } = await this.db.rpc("calendar_accounts_claim", { p_user: userId, p_limit: limit, p_force: force, p_account: accountId });
     fail("calendar_accounts_claim", error);
     return (data ?? []) as ClaimedAccount[];
+  }
+
+  /** Lets a claim go without recording a sync (the writer only needed the tokens). */
+  async release(id: string): Promise<void> {
+    const { error } = await this.db.rpc("calendar_account_release", { p_id: id });
+    fail("calendar_account_release", error);
   }
 
   async connect(input: { userId: string; provider: string; external: string; email: string | null; refreshB64: string | null; accessB64: string; expiresAt: Date; scopes: string[]; keyVersion: number }): Promise<string> {

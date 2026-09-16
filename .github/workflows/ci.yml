@@ -59,7 +59,7 @@ jobs:
       - name: Write .env.local from the local stack
         run: |
           eval "$(npx supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
-          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\nNEXT_PUBLIC_POWERSYNC_URL=/powersync\nPOWERSYNC_INTERNAL_URL=http://localhost:8080\nNEXT_PUBLIC_APP_URL=http://localhost:3100\nPOWERSYNC_JWT_SECRET=sparehour-local-sync-token-secret-0123456789abcdef\n' \
+          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\nNEXT_PUBLIC_POWERSYNC_URL=/powersync\nPOWERSYNC_INTERNAL_URL=http://localhost:8080\nNEXT_PUBLIC_APP_URL=http://localhost:3100\nPOWERSYNC_JWT_SECRET=sparehour-local-sync-token-secret-0123456789abcdef\nALLOW_DEV_SECRETS=1\n' \
             "$API_URL" "$ANON_KEY" "$SERVICE_ROLE_KEY" > .env.local
       - name: Start PowerSync against the local Postgres
         run: |

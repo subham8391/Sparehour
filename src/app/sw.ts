@@ -72,10 +72,19 @@ self.addEventListener("push", (event) => {
   );
 });
 
+/** A payload may only send the app to itself (defence in depth: the payload is ours, but the key could leak). */
+function sameOrigin(url: string): string {
+  try {
+    return new URL(url, self.location.origin).origin === self.location.origin ? url : "/today?src=push";
+  } catch {
+    return "/today?src=push";
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data as { navigate?: string } | undefined;
-  const url = withAction(data?.navigate ?? "/today?src=push", event.action);
+  const url = withAction(sameOrigin(data?.navigate ?? "/today?src=push"), event.action);
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (list) => {
       const client = list[0];

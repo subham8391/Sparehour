@@ -50,3 +50,13 @@ export function verifySyncToken(token: string, secret: string, now = Math.floor(
   if (typeof claims.iat !== "number" || typeof claims.exp !== "number" || claims.exp <= now || claims.iat > now + 60) return null;
   return claims;
 }
+
+/** The value dev-stack.sh, docker-compose and CI share. A real deployment must never mint with it. */
+export const LOCAL_DEV_SYNC_SECRET = "sparehour-local-sync-token-secret-0123456789abcdef";
+
+/** True when this server may sign sync tokens with `secret`: not the shared development value in production, unless explicitly allowed (CI). */
+export function secretUsable(secret: string | undefined, env: Record<string, string | undefined> = process.env): secret is string {
+  if (!secret || secret.length < 32) return false;
+  if (secret === LOCAL_DEV_SYNC_SECRET && env.NODE_ENV === "production" && env.ALLOW_DEV_SECRETS !== "1") return false;
+  return true;
+}

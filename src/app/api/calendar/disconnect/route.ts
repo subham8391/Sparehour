@@ -4,7 +4,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serviceRoleClient, createUserScopedClient } from "@/server/auth/supabase";
 import { openFromBase64 } from "@/server/calendar/crypto";
-import { tokenKey } from "@/server/calendar/config";
+import { isUuid, tokenKey } from "@/server/calendar/config";
 import { revokeToken } from "@/server/calendar/google";
 import { SupabaseAccountStore } from "@/server/calendar/store";
 
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as { id?: string };
-  if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  if (!isUuid(body.id)) return NextResponse.json({ error: "id required" }, { status: 400 });
   const store = new SupabaseAccountStore(serviceRoleClient());
   const sealed = await store.disconnect(body.id, user.id);
   if (sealed === null) return NextResponse.json({ error: "not_found" }, { status: 404 });

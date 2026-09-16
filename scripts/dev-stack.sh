@@ -44,6 +44,8 @@ fi
 # use this fixed value (docker-compose.yml carries its base64url form); a
 # real deployment sets POWERSYNC_JWT_SECRET and PS_SYNC_JWT_K itself.
 grep -q '^POWERSYNC_JWT_SECRET=' .env.local || printf 'POWERSYNC_JWT_SECRET=sparehour-local-sync-token-secret-0123456789abcdef\n' >> .env.local
+# A production build on this machine (npm run build && npm start, the e2e suite) may still use the shared secret.
+grep -q '^ALLOW_DEV_SECRETS=' .env.local || printf 'ALLOW_DEV_SECRETS=1\n' >> .env.local
 
 # Calendar token key (SYSTEM_DESIGN.md §6.2): seals Google refresh tokens at
 # rest. 32 random bytes, base64, made once per machine. Google itself needs

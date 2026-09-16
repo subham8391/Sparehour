@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     });
     after(async () => {
       try {
-        await syncAccountById(accountId, user.id, deps);
+        await syncAccountById(accountId, deps);
       } catch (e) {
         console.error("first calendar sync failed", e);
       }

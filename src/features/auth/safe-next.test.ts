@@ -10,5 +10,12 @@ describe("safeNext", () => {
     expect(safeNext("https://evil.example/")).toBe("/today");
     expect(safeNext("//evil.example/")).toBe("/today");
     expect(safeNext("/\\evil.example")).toBe("/today");
+    // The URL parser strips tabs and newlines, so these would resolve to another origin.
+    expect(safeNext("/\t/evil.example")).toBe("/today");
+    expect(safeNext("/\n/evil.example")).toBe("/today");
+    expect(safeNext("/\r\n//evil.example")).toBe("/today");
+    // Percent-encoded control characters stay a literal path on this origin.
+    expect(safeNext("/%09/evil.example")).toBe("/%09/evil.example");
+    expect(safeNext("/today#calendar")).toBe("/today#calendar");
   });
 });

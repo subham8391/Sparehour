@@ -4,6 +4,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import webPush from "web-push";
 import { serviceRoleClient } from "@/server/auth/supabase";
+import { secretMatches } from "@/server/calendar/config";
 import { sendDue, type DueNotification, type PushSubscriptionRow, type SenderDeps } from "@/server/push/sender";
 
 export const runtime = "nodejs";
@@ -11,7 +12,7 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const secret = process.env.PUSH_TICK_SECRET;
-  if (!secret || req.headers.get("x-push-secret") !== secret) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!secretMatches(req.headers.get("x-push-secret"), secret)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const publicKey = process.env.VAPID_PUBLIC_KEY ?? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   const subject = process.env.VAPID_SUBJECT;

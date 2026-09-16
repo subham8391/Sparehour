@@ -111,7 +111,8 @@ describe.skipIf(admin === null)("database contract (local Supabase)", () => {
       const replay = await apply(c, "device-1", [put("1", taskId, { space_id: sidA, title: "second", sort_key: "a0" })]);
       expect(replay).toEqual({ applied: ["1"], rejected: [] });
       expect((await c.query("select title from public.tasks where id = $1", [taskId])).rows[0].title).toBe("first");
-      const ledger = await c.query("select result from private.mutations where mutation_id = 'device-1:1'");
+      // The ledger is keyed per user (hardening migration): another person's device-1:1 is not this one.
+      const ledger = await c.query("select result from private.mutations where mutation_id = $1", [`${a}:device-1:1`]);
       expect(ledger.rows).toEqual([{ result: "applied" }]);
 
       // another device reusing the client_id is a different mutation
@@ -158,11 +159,11 @@ describe.skipIf(admin === null)("database contract (local Supabase)", () => {
         { client_id: "1", code: "42501" },
         { client_id: "3", code: "42501" },
       ]);
-      const ledger = await c.query("select mutation_id, result from private.mutations where mutation_id like 'device-b:%' order by 1");
+      const ledger = await c.query("select mutation_id, result from private.mutations where mutation_id like $1 order by 1", [`${b}:device-b:%`]);
       expect(ledger.rows).toEqual([
-        { mutation_id: "device-b:1", result: "rejected" },
-        { mutation_id: "device-b:2", result: "applied" },
-        { mutation_id: "device-b:3", result: "rejected" },
+        { mutation_id: `${b}:device-b:1`, result: "rejected" },
+        { mutation_id: `${b}:device-b:2`, result: "applied" },
+        { mutation_id: `${b}:device-b:3`, result: "rejected" },
       ]);
 
       await asUser(c, a);

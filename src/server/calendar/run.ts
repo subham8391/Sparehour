@@ -47,10 +47,10 @@ export async function syncDue(limit = 10, deps = buildDeps()): Promise<SyncRepor
   return syncClaimed(await deps.store.claim(null, limit, false), deps);
 }
 
-/** After a connect or a webhook: this account, now. */
-export async function syncAccountById(accountId: string, userId: string, deps = buildDeps()): Promise<AccountSyncResult | null> {
+/** After a connect or a webhook: this account, now — and only this account is claimed. */
+export async function syncAccountById(accountId: string, deps = buildDeps()): Promise<AccountSyncResult | null> {
   await deps.store.requestSync(accountId);
-  const claimed = (await deps.store.claim(userId, 20, true)).filter((a) => a.id === accountId);
+  const claimed = await deps.store.claim(null, 1, true, accountId);
   if (!claimed.length) return null;
   return (await syncClaimed(claimed, deps))[accountId] ?? null;
 }
@@ -62,7 +62,7 @@ export async function syncAccountById(accountId: string, userId: string, deps = 
 async function writerFor(accountId: string, deps: AccountSyncDeps & { store: SupabaseAccountStore }): Promise<EventWriter> {
   const oauth = googleOAuth();
   if (!oauth) throw new Error("Google Calendar is not configured");
-  const [acct] = (await deps.store.claim(null, 50, true)).filter((a) => a.id === accountId);
+  const [acct] = await deps.store.claim(null, 1, true, accountId);
   if (!acct) throw new Error("the calendar account is gone or busy");
   try {
     const expiresAt = acct.token_expires_at ? new Date(acct.token_expires_at).getTime() : 0;
@@ -75,8 +75,8 @@ async function writerFor(accountId: string, deps: AccountSyncDeps & { store: Sup
     }
     return new GoogleCalendar(accessToken);
   } finally {
-    // The claim above only served to read the tokens; release it without touching the sync bookkeeping.
-    await deps.store.finish(acct.id, "ok", null).catch(() => undefined);
+    // The claim above only served to read the tokens; let it go without recording a sync.
+    await deps.store.release(acct.id).catch(() => undefined);
   }
 }
 

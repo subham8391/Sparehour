@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_KID, signSyncToken, verifySyncToken } from "./token";
+import { LOCAL_DEV_SYNC_SECRET, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_KID, secretUsable, signSyncToken, verifySyncToken } from "./token";
 
 const secret = "sparehour-local-sync-token-secret-0123456789abcdef";
 const now = 1_789_400_000;
@@ -26,5 +26,13 @@ describe("sync token", () => {
 
   it("never signs with a short secret", () => {
     expect(() => signSyncToken({ userId: "u1", secret: "short", now })).toThrow(/32 characters/);
+  });
+
+  it("the shared development secret is refused in production unless CI says otherwise", () => {
+    expect(secretUsable(LOCAL_DEV_SYNC_SECRET, { NODE_ENV: "development" })).toBe(true);
+    expect(secretUsable(LOCAL_DEV_SYNC_SECRET, { NODE_ENV: "production" })).toBe(false);
+    expect(secretUsable(LOCAL_DEV_SYNC_SECRET, { NODE_ENV: "production", ALLOW_DEV_SECRETS: "1" })).toBe(true);
+    expect(secretUsable("a-real-secret-that-is-at-least-32-chars-long", { NODE_ENV: "production" })).toBe(true);
+    expect(secretUsable("short", { NODE_ENV: "production" })).toBe(false);
   });
 });

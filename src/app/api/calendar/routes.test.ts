@@ -113,7 +113,7 @@ describe("calendar routes", () => {
     expect(call[0].refreshB64).not.toContain("rt"); // sealed, never plain
     expect(call[0].accessB64).not.toContain("at");
     expect(after).toHaveBeenCalledTimes(1);
-    expect(syncAccountById).toHaveBeenCalledWith("acct-1", "u1", expect.anything());
+    expect(syncAccountById).toHaveBeenCalledWith("acct-1", expect.anything());
   });
 
   it("callback refuses a stale state, a state for someone else, and reports a decline", async () => {
@@ -156,21 +156,26 @@ describe("calendar routes", () => {
 
   it("disconnect drops the account for its owner and revokes the grant", async () => {
     store.disconnect.mockResolvedValueOnce(sealToBase64("rt", Buffer.from(KEY, "base64")));
-    const res = await disconnect(req("/api/calendar/disconnect", { method: "POST", body: JSON.stringify({ id: "acct-1" }), headers: { "content-type": "application/json" } }));
+    const res = await disconnect(req("/api/calendar/disconnect", { method: "POST", body: JSON.stringify({ id: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" }), headers: { "content-type": "application/json" } }));
     expect(await res.json()).toEqual({ ok: true });
-    expect(store.disconnect).toHaveBeenCalledWith("acct-1", "u1");
+    expect(store.disconnect).toHaveBeenCalledWith("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d", "u1");
     expect(revokeToken).toHaveBeenCalledWith("rt");
+    expect((await disconnect(req("/api/calendar/disconnect", { method: "POST", body: JSON.stringify({ id: "nope" }) }))).status).toBe(400);
     store.disconnect.mockResolvedValueOnce(null);
-    expect((await disconnect(req("/api/calendar/disconnect", { method: "POST", body: JSON.stringify({ id: "nope" }) }))).status).toBe(404);
+    expect((await disconnect(req("/api/calendar/disconnect", { method: "POST", body: JSON.stringify({ id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301" }) }))).status).toBe(404);
   });
 
   it("the webhook checks the channel token, ignores the first sync message, and otherwise asks for a sync", async () => {
     const hit = (headers: Record<string, string>) => webhook(req("/api/webhooks/google-calendar", { method: "POST", headers }));
-    expect((await hit({ "x-goog-channel-id": "ch", "x-goog-channel-token": "bad", "x-goog-resource-state": "exists" })).status).toBe(404);
-    expect((await hit({ "x-goog-channel-id": "ch", "x-goog-channel-token": "good", "x-goog-resource-state": "sync" })).status).toBe(200);
+    const ch = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+    expect((await hit({ "x-goog-channel-id": "not-a-uuid", "x-goog-channel-token": "good", "x-goog-resource-state": "exists" })).status).toBe(404);
+    expect(store.channelAccount).not.toHaveBeenCalled(); // no database round-trip for rubbish
+    expect((await hit({ "x-goog-channel-id": ch, "x-goog-channel-token": "bad", "x-goog-resource-state": "exists" })).status).toBe(404);
+    expect((await hit({ "x-goog-channel-id": ch, "x-goog-channel-token": "good", "x-goog-resource-state": "sync" })).status).toBe(200);
     expect(store.requestSync).not.toHaveBeenCalled();
-    expect((await hit({ "x-goog-channel-id": "ch", "x-goog-channel-token": "good", "x-goog-resource-state": "exists" })).status).toBe(200);
+    expect((await hit({ "x-goog-channel-id": ch, "x-goog-channel-token": "good", "x-goog-resource-state": "exists" })).status).toBe(200);
     expect(store.requestSync).toHaveBeenCalledWith("acct-1");
     expect(after).toHaveBeenCalledTimes(1);
+    expect(syncAccountById).toHaveBeenCalledWith("acct-1", expect.anything());
   });
 });
