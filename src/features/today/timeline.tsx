@@ -5,6 +5,7 @@
 // over it shows a ghost block snapped to five minutes; dropping creates the
 // block. Blocks stay local until a write calendar exists (P7b).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
+import { layoutLanes, type Lane } from "./overlap";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { blockLength, minuteAtOffset, placeAt, resizeEnd } from "@/core/blocking";
 import type { Capacity } from "@/core/capacity";
@@ -45,6 +46,8 @@ export function Timeline(p: TimelineProps) {
   const start = c.windows[0].start;
   const end = c.windows[c.windows.length - 1].end;
   const y = (m: number) => (m - start) * PX_PER_MIN;
+  // Overlapping blocks share the width side by side (SCREENS.md §4), so each stays reachable.
+  const lanes = layoutLanes(p.blocks ?? []);
   const z = now.toZonedDateTimeISO(zone);
   const nowMin = z.hour * 60 + z.minute;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -89,7 +92,7 @@ export function Timeline(p: TimelineProps) {
     });
   }, [accepts, start]);
 
-  const beginResize = (block: TimelineBlock) => (e: ReactPointerEvent<HTMLButtonElement>) => {
+  const beginResize = (block: TimelineBlock) => (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const root = rootRef.current;
@@ -142,6 +145,7 @@ export function Timeline(p: TimelineProps) {
         <Block
           key={b.id}
           block={resizing?.id === b.id ? { ...b, end: resizing.end } : b}
+          lane={lanes.get(b.id)}
           top={y}
           selected={p.selectedBlockId === b.id}
           movable={Boolean(p.onMoveBlock) && !b.locked}
@@ -167,8 +171,16 @@ export function Timeline(p: TimelineProps) {
   );
 }
 
+/** A block's horizontal slot: the full row, or its share of a cluster of overlapping blocks. */
+function laneStyle(lane: Lane | undefined): { left?: string; width?: string } {
+  if (!lane || lane.columns <= 1) return {};
+  const share = `(100% - 3.5rem) / ${lane.columns}`;
+  return { left: `calc(3.5rem + ${share} * ${lane.column})`, width: `calc(${share} - 3px)` };
+}
+
 function Block({
   block,
+  lane,
   top,
   selected,
   movable,
@@ -179,6 +191,7 @@ function Block({
   onResizeStart,
 }: {
   block: TimelineBlock;
+  lane?: Lane;
   top: (m: number) => number;
   selected: boolean;
   movable: boolean;
@@ -186,7 +199,7 @@ function Block({
   onRemove?: () => void;
   onToggleLock?: () => void;
   onOpenTask?: () => void;
-  onResizeStart?: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onResizeStart?: (e: ReactPointerEvent<HTMLDivElement>) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const { id, start, end } = block;
@@ -198,12 +211,17 @@ function Block({
       getInitialData: ({ input, element }): BlockDragData => ({ type: "block", id, duration: end - start, grabPx: input.clientY - element.getBoundingClientRect().top }),
     });
   }, [movable, id, start, end]);
-  const height = Math.max(14, (end - start) * PX_PER_MIN - 2);
+  // Never shorter than a touch target (WCAG 2.5.8): a 15-minute block draws a little taller than its slot rather than unreachably thin.
+  const height = Math.max(24, (end - start) * PX_PER_MIN - 2);
   const range = `${formatTime(timeFromMinutes(start))} to ${formatTime(timeFromMinutes(end))}`;
   // The block is a real button; the toolbar and the resize handle sit beside
   // it, never inside it, so nothing interactive is nested (§11.5).
   return (
-    <div ref={ref} className={`absolute left-14 right-0 rounded-md border-l-[3px] border-ink bg-surface-2 text-xs text-ink ${movable ? "cursor-grab" : ""} ${selected ? "ring-2 ring-spare-fill ring-offset-1" : ""}`} style={{ top: top(start) + 1, height }}>
+    <div
+      ref={ref}
+      className={`absolute left-14 right-0 rounded-md border-l-[3px] border-ink bg-surface-2 text-xs text-ink ${movable ? "cursor-grab" : ""} ${selected ? "ring-2 ring-spare-fill ring-offset-1" : ""}`}
+      style={{ top: top(start) + 1, height, ...laneStyle(lane) }}
+    >
       <button
         type="button"
         aria-label={`Block: ${block.title}, ${range}${block.locked ? ", locked" : ""}`}
@@ -239,7 +257,8 @@ function Block({
           )}
         </div>
       )}
-      {onResizeStart && <button type="button" aria-label={`Resize block: ${block.title}`} onPointerDown={onResizeStart} className="absolute inset-x-0 -bottom-1 h-2 cursor-ns-resize" />}
+      {/* A mouse-only affordance, hidden from assistive tech: the accessible way to resize is the detail sheet (§11.5, "a tap path for every drag"). */}
+      {onResizeStart && <div aria-hidden="true" data-testid={`resize-${id}`} onPointerDown={onResizeStart} className="absolute inset-x-0 -bottom-1 h-2 cursor-ns-resize" />}
     </div>
   );
 }

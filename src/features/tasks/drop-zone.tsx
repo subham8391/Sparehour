@@ -29,7 +29,7 @@ export function DropZone({ onDropTask, children, className = "", label }: { onDr
     });
   }, []);
   return (
-    <div ref={ref} aria-label={label} data-over={over || undefined} className={`rounded-xl transition-shadow ${over ? "ring-2 ring-ink/40 ring-offset-2 ring-offset-paper" : ""} ${className}`}>
+    <div ref={ref} role="group" aria-label={label} data-over={over || undefined} className={`rounded-xl transition-shadow ${over ? "ring-2 ring-ink/40 ring-offset-2 ring-offset-paper" : ""} ${className}`}>
       {children}
     </div>
   );

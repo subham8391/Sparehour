@@ -11,6 +11,9 @@ export default async function teardown(): Promise<void> {
       await c.query("delete from public.headings where title like $1", [`${E2E_PREFIX}%`]);
       // Accounts the magic-link test created; auth.users cascades through public.users and their space.
       await c.query("delete from auth.users where email like 'e2e-magic-%@sparehour.local'");
+      // Tags the detail test attached, and the dev account's day plan a ritual test may have left closed.
+      await c.query("delete from public.tags where name like 'e2e%'");
+      await c.query("delete from public.day_plans p using public.users u where u.id = p.user_id and u.email = 'dev@sparehour.local' and p.date >= current_date");
     });
   } catch (e) {
     console.warn("e2e teardown skipped:", e instanceof Error ? e.message : e);

@@ -87,7 +87,9 @@ describe("<Timeline>", () => {
 
   it("a locked block has no resize handle; an unlocked one does", () => {
     render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} onResizeBlock={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Resize block: Draft the proposal" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Resize block: Deep work" })).not.toBeInTheDocument();
+    // The handle is mouse-only and hidden from assistive tech (the sheet is the accessible way to resize).
+    expect(screen.getByTestId("resize-b1")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("resize-b2")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Resize block/ })).not.toBeInTheDocument();
   });
 });
