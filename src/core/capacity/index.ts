@@ -242,11 +242,11 @@ export function capacityFor(input: CapacityInput): Capacity {
     if (!t.doDate || !t.doDate.equals(day)) continue;
     if (t.state !== "inbox" && t.state !== "active") continue;
     const est = t.estimateMin ?? settings.defaultEstimateMin;
+    if (blockedTaskIds.has(t.id)) continue; // its block is already committed time, evening or not
     if (t.evening) {
       eveningMin += est;
       continue;
     }
-    if (blockedTaskIds.has(t.id)) continue;
     unscheduledMin += est;
     unscheduledTasks.push(t);
   }

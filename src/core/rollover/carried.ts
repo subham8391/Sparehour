@@ -4,6 +4,8 @@
 import { compareDates, type DaySettings, type LocalDate } from "../time";
 import type { Task } from "../types";
 
+const byCodeUnit = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
+
 export interface RolloverSettings extends DaySettings {
   /** Show "Still want this?" once a task has been carried this many times. */
   carryAskAfter: number;
@@ -22,7 +24,8 @@ export function carriedOver(tasks: readonly Task[], today: LocalDate): Task[] {
         (t.startDate === null || compareDates(t.startDate, today) <= 0) &&
         t.routineRunId === null,
     )
-    .sort((a, b) => b.carryCount - a.carryCount || (a.daySortKey ?? "").localeCompare(b.daySortKey ?? "") || a.id.localeCompare(b.id));
+    // Fractional keys and ids compare by code unit (as core/ordering does), never by locale.
+    .sort((a, b) => b.carryCount - a.carryCount || byCodeUnit(a.daySortKey ?? "", b.daySortKey ?? "") || byCodeUnit(a.id, b.id));
 }
 
 /** Not a stored flag: evaluated live, so changing the setting applies instantly. */

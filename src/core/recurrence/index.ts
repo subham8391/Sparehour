@@ -16,6 +16,10 @@ const FAR_FUTURE_DAYS = 366 * 20;
 function build(rule: string, dtstart: LocalDate): RRule {
   const opts = RRule.parseString(rule);
   if (opts.tzid || opts.dtstart) throw new Error("recurrence rules carry no DTSTART or TZID; the anchor is passed separately");
+  // The engine deals in calendar dates: FREQ is required and no finer than daily,
+  // and an interval below one would never fire (or, negative, never finish).
+  if (opts.freq === undefined || opts.freq > RRule.DAILY) throw new Error("recurrence needs FREQ of DAILY, WEEKLY, MONTHLY or YEARLY");
+  if (opts.interval !== undefined && (!Number.isInteger(opts.interval) || opts.interval < 1)) throw new Error("recurrence INTERVAL must be a whole number of at least 1");
   return new RRule({ ...opts, dtstart: utcMidnight(dtstart) });
 }
 

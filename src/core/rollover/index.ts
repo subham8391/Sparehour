@@ -67,8 +67,8 @@ export function rollover(input: RolloverInput): RolloverResult {
         });
         out = next ? { ...t, doDate: next } : { ...t, state: "dropped" };
         outcome = "skipped";
-      } else if (t.lastCarriedAt === null || compareDates(t.lastCarriedAt, today) < 0) {
-        // 3. bump the counter once per day, at most
+      } else if (t.missPolicy === "carry" && (t.lastCarriedAt === null || compareDates(t.lastCarriedAt, today) < 0)) {
+        // 3. bump the counter once per day, at most (a non-recurring "skip" is left alone, as the job does)
         out = { ...t, carryCount: t.carryCount + 1, lastCarriedAt: today };
         outcome = "carried";
       }

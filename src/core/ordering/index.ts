@@ -1,7 +1,7 @@
 // Ordering with jittered fractional indexing. See SYSTEM_DESIGN.md §5.6.
 // A drag writes ONE row (the moved item's key); jitter keeps two offline
 // clients from generating identical keys; `id` breaks any remaining tie.
-import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing-jittered";
+import { generateJitteredKeyBetween, generateNJitteredKeysBetween } from "fractional-indexing-jittered";
 
 export interface Orderable {
   id: string;
@@ -10,11 +10,11 @@ export interface Orderable {
 
 /** A key that sorts between `before` and `after` (either may be absent at the ends). */
 export const keyBetween = (before?: string | null, after?: string | null): string =>
-  generateKeyBetween(before ?? null, after ?? null);
+  generateJitteredKeyBetween(before ?? null, after ?? null);
 
 /** `n` keys that sort between `before` and `after`, in order. */
 export const keysBetween = (before: string | null, after: string | null, n: number): string[] =>
-  n <= 0 ? [] : generateNKeysBetween(before, after, n);
+  n <= 0 ? [] : generateNJitteredKeysBetween(before, after, n);
 
 /** A strict total order: by key, then by id. */
 export const compare = (a: Orderable, b: Orderable): -1 | 0 | 1 => {
@@ -32,7 +32,15 @@ export const sorted = <T extends Orderable>(items: readonly T[]): T[] => [...ite
 export function keyForMove<T extends Orderable>(items: readonly T[], itemId: string, index: number): string {
   const rest = sorted(items).filter((x) => x.id !== itemId);
   const i = Math.max(0, Math.min(index, rest.length));
-  return keyBetween(rest[i - 1]?.sortKey ?? null, rest[i]?.sortKey ?? null);
+  const before = rest[i - 1]?.sortKey ?? null;
+  const after = rest[i]?.sortKey ?? null;
+  // Ties are legal (ids break them). Nothing sorts between two equal keys, so a drop
+  // onto a tie lands just before the tied group, after the last smaller key.
+  if (before !== null && after !== null && before >= after) {
+    const prior = rest.slice(0, i - 1).reverse().find((x) => x.sortKey < after)?.sortKey ?? null;
+    return keyBetween(prior, after);
+  }
+  return keyBetween(before, after);
 }
 
 /** Evenly spaced keys for `n` items, used when a container is rebalanced. */

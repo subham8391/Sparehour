@@ -56,7 +56,8 @@ const relativePatterns: { re: RegExp; resolve: (m: RegExpExecArray, today: Local
     },
   },
   {
-    re: new RegExp(`\\b(?:(next)\\s+)?(${WEEKDAY_RE})\\b`, "gi"),
+    // "last mon" is a phrase about the past, not a weekday token.
+    re: new RegExp(`(?<!\\blast\\s)\\b(?:(next)\\s+)?(${WEEKDAY_RE})\\b`, "gi"),
     resolve: (m, today) => {
       const wd = WEEKDAY[m[2].toLowerCase()];
       return { date: m[1] ? nextWeekMonday(today).add({ days: wd - 1 }) : weekdayOnOrAfter(today, wd) };
@@ -94,7 +95,7 @@ const relativePatterns: { re: RegExp; resolve: (m: RegExpExecArray, today: Local
     re: /\b(\d{4})-(\d{2})-(\d{2})\b/g,
     resolve: (m) => {
       try {
-        return { date: Temporal.PlainDate.from({ year: +m[1], month: +m[2], day: +m[3] }) };
+        return { date: Temporal.PlainDate.from({ year: +m[1], month: +m[2], day: +m[3] }, { overflow: "reject" }) };
       } catch {
         return null;
       }
@@ -166,31 +167,63 @@ export interface ChronoMatch {
   time: LocalTime | null;
 }
 
+const plainDate = (year: number, month: number, day: number): LocalDate | null => {
+  try {
+    return Temporal.PlainDate.from({ year, month, day }, { overflow: "reject" });
+  } catch {
+    return null;
+  }
+};
+
+/** The next `month`/`day` on or after `today` (PRODUCT_SPEC.md §5.3 rule 5); Feb 29 waits for a leap year. */
+function forward(month: number, day: number, today: LocalDate): LocalDate | null {
+  for (let year = today.year; year <= today.year + 8; year++) {
+    const d = plainDate(year, month, day);
+    if (d && Temporal.PlainDate.compare(d, today) >= 0) return d;
+  }
+  return null;
+}
+
 /**
  * Absolute dates chrono can read with certainty ("15 sept", "oct 12 at 2pm",
- * "in 3 days"). Anything where the day is guessed is rejected.
+ * "in 3 days"). Anything where the day is guessed is rejected. Only chrono's
+ * calendar fields are used; the year is resolved here, forward from `today`,
+ * so the result never depends on the host's zone or on chrono's own "is this
+ * past?" arithmetic — which once turned today's date into next year's on a
+ * +05:30 machine.
  */
 export function findAbsoluteDates(text: string, today: LocalDate, offsetMinutes: number): ChronoMatch[] {
-  const refDate = new Date(Date.UTC(today.year, today.month - 1, today.day, 12, 0, 0));
-  const results = strictParser.parse(text, { instant: refDate, timezone: offsetMinutes }, { forwardDate: true });
+  // The reference is local midnight of `today` in the user's zone.
+  const refDate = new Date(Date.UTC(today.year, today.month - 1, today.day) - offsetMinutes * 60_000);
+  const results = strictParser.parse(text, { instant: refDate, timezone: offsetMinutes });
   const out: ChronoMatch[] = [];
   for (const r of results) {
     if (!r.start.isCertain("day") || !r.start.isCertain("month")) continue;
-    const year = r.start.get("year");
     const month = r.start.get("month");
     const day = r.start.get("day");
-    if (year == null || month == null || day == null) continue;
-    let date: LocalDate;
-    try {
-      date = Temporal.PlainDate.from({ year, month, day });
-    } catch {
-      continue;
+    if (month == null || day == null) continue;
+    let end = r.index + r.text.trimEnd().length;
+    let date: LocalDate | null = null;
+    if (r.start.isCertain("year")) {
+      const year = r.start.get("year");
+      const explicit = year == null ? null : plainDate(year, month, day);
+      // A stray two-digit number after the day ("3 oct 12") that would land in the past is not a
+      // year: leave it in the title and resolve the date without it. A four-digit year is explicit.
+      const stray = /\s+\d{2}$/.exec(r.text.trimEnd());
+      if (explicit && !(stray && Temporal.PlainDate.compare(explicit, today) < 0)) date = explicit;
+      else if (stray) {
+        end -= stray[0].length;
+        date = forward(month, day, today);
+      } else continue;
+    } else {
+      date = forward(month, day, today);
     }
+    if (!date) continue;
     const time = r.start.isCertain("hour")
       ? Temporal.PlainTime.from({ hour: r.start.get("hour") ?? 0, minute: r.start.get("minute") ?? 0 })
       : null;
     // chrono can swallow trailing blanks; keep the span tight so it never touches another token
-    out.push({ start: r.index, end: r.index + r.text.trimEnd().length, date, time });
+    out.push({ start: r.index, end, date, time });
   }
   return out;
 }

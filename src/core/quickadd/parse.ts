@@ -52,24 +52,29 @@ class Scan {
   }
 }
 
-/** Backticks and double quotes protect text from parsing — unless the quote belongs to a #/@ token. */
+/**
+ * Backticks and double quotes protect text from parsing — unless the quote
+ * belongs to a #/@ token. A brace group glued to a word ("Submit{fri}") is
+ * not a deadline token (rule 1) and its contents are not dates either.
+ */
 function protect(scan: Scan): void {
-  const re = /`[^`]*`|"[^"]*"/g;
+  const re = /`[^`]*`|"[^"]*"|(?<=[\p{L}\p{N}])\{[^{}]*\}/gu;
   let m: RegExpExecArray | null;
   while ((m = re.exec(scan.input)) !== null) {
     const before = scan.input.slice(Math.max(0, m.index - 2), m.index);
     if (m[0].startsWith('"') && /[#@]\+?$/.test(before)) continue;
+    if (!scan.free(m.index, m.index + m[0].length)) continue;
     scan.take("protected", m.index, m.index + m[0].length);
   }
 }
 
-function scanRegex(scan: Scan, kind: SpanKind, re: RegExp, onMatch: (m: RegExpExecArray, span: Span) => void): void {
+function scanRegex(scan: Scan, kind: SpanKind, re: RegExp, onMatch: (m: RegExpExecArray, span: Span) => void, accept: (m: RegExpExecArray) => boolean = () => true): void {
   re.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(scan.input)) !== null) {
     const start = m.index;
     const end = start + m[0].length;
-    if (!scan.free(start, end)) continue;
+    if (!scan.free(start, end) || !accept(m)) continue; // a token that does not parse stays in the title (rule 7)
     onMatch(m, scan.take(kind, start, end));
   }
 }
@@ -77,13 +82,12 @@ function scanRegex(scan: Scan, kind: SpanKind, re: RegExp, onMatch: (m: RegExpEx
 const NAME = `(?:"([^"]+)"|([\\p{L}\\p{N}_-]*\\p{L}[\\p{L}\\p{N}_-]*))`;
 const PROJECT_RE = new RegExp(`(?<![\\p{L}\\p{N}\\\\])#(\\+?)${NAME}`, "gu");
 const TAG_RE = new RegExp(`(?<![\\p{L}\\p{N}\\\\])@${NAME}`, "gu");
-const ESTIMATE_RE = /(?<!\\)~(\d+(?:\.\d+)?)\s*(m|min|mins|h|hr|hrs)?(?:(\d{1,2})\s*m?)?(?![\p{L}\p{N}])/giu;
+const ESTIMATE_RE = /(?<![\p{L}\p{N}\\])~(\d+(?:\.\d+)?)\s*(m|min|mins|h|hr|hrs)?(?:(\d{1,2})\s*m?)?(?![\p{L}\p{N}])/giu;
 const PRIORITY_RE = /(?<![\p{L}\p{N}\\])!([123])(?![\p{L}\p{N}])/gu;
-const DEADLINE_RE = /(?<!\\)\{([^{}]+)\}/g;
+const DEADLINE_RE = /(?<![\p{L}\p{N}\\])\{([^{}]+)\}/gu;
 const START_RE = /\bafter\s+(?=\S)/gi;
 const RECUR_RE = /\b(every!?)\s+(?=\S)/gi;
 const EVENING_RE = /\b(this evening|evening)\b/gi;
-const NOTES_RE = /\/\/(.*)$/m;
 
 function parseEstimate(m: RegExpExecArray): number | null {
   const n = Number(m[1]);
@@ -105,9 +109,13 @@ function dateAt(text: string, offset: number, today: LocalDate, offsetMinutes: n
 }
 
 /** Extend a datetime span backwards over a dangling "at"/"on" so the title doesn't end in one. */
-function absorbPreposition(text: string, start: number): number {
+function absorbPreposition(scan: Scan, text: string, start: number): number {
   const m = /(?:^|\s)(at|on)\s+$/i.exec(text.slice(0, start));
-  return m ? start - m[0].length + (m[0].startsWith(" ") ? 1 : 0) : start;
+  if (!m) return start;
+  const from = start - m[0].length + (m[0].startsWith(" ") ? 1 : 0);
+  // The residual blanks protected text too; never absorb across it.
+  for (let i = from; i < start; i++) if (scan.taken[i]) return start;
+  return from;
 }
 
 /**
@@ -145,22 +153,29 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
   const warnings: ParseWarning[] = [];
   const scan = new Scan(input);
 
-  // 1. Notes: "// …" to end of line, and any lines after the first.
+  // 1. Notes: any lines after the first; then protected text; then "// …" to
+  //    the end of the first line — the first "//" that is not inside backticks
+  //    or quotes (a URL in code is not a note).
   const firstBreak = input.indexOf("\n");
   const notesParts: string[] = [];
-  const noteMatch = NOTES_RE.exec(firstBreak === -1 ? input : input.slice(0, firstBreak));
-  if (noteMatch) {
-    scan.take("notes", noteMatch.index, noteMatch.index + noteMatch[0].length);
-    if (noteMatch[1].trim()) notesParts.push(noteMatch[1].trim());
-  }
   if (firstBreak !== -1) {
     scan.take("notes", firstBreak, input.length);
     const rest = input.slice(firstBreak + 1).trim();
     if (rest) notesParts.push(rest);
   }
-
-  // 2. Protected text, then the sigil tokens (last wins, tags accumulate).
   protect(scan);
+  const firstLine = firstBreak === -1 ? input : input.slice(0, firstBreak);
+  const slashes = /\/\//g;
+  let slash: RegExpExecArray | null;
+  while ((slash = slashes.exec(firstLine)) !== null) {
+    if (!scan.free(slash.index, slash.index + 2)) continue;
+    scan.take("notes", slash.index, firstLine.length);
+    const note = firstLine.slice(slash.index + 2).trim();
+    if (note) notesParts.push(note);
+    break;
+  }
+
+  // 2. The sigil tokens (last wins, tags accumulate).
   scanRegex(scan, "project", PROJECT_RE, (m) => {
     draft.projectName = (m[2] ?? m[3]).trim();
     draft.projectCreate = m[1] === "+";
@@ -169,17 +184,22 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
     const name = (m[1] ?? m[2]).trim();
     if (!draft.tagNames.includes(name)) draft.tagNames.push(name);
   });
-  scanRegex(scan, "estimate", ESTIMATE_RE, (m) => {
-    const min = parseEstimate(m);
-    if (min != null) draft.estimateMin = min;
-  });
+  scanRegex(
+    scan,
+    "estimate",
+    ESTIMATE_RE,
+    (m) => {
+      draft.estimateMin = parseEstimate(m);
+    },
+    (m) => parseEstimate(m) != null,
+  );
   scanRegex(scan, "priority", PRIORITY_RE, (m) => {
     draft.priority = (4 - Number(m[1])) as Priority;
   });
 
   // Deadline {date-expr}: only a readable date is a token; anything else stays in the title.
   {
-    const re = new RegExp(DEADLINE_RE.source, "g");
+    const re = new RegExp(DEADLINE_RE.source, "gu");
     let m: RegExpExecArray | null;
     while ((m = re.exec(input)) !== null) {
       const start = m.index;
@@ -233,21 +253,21 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
   const residual = scan.residual();
   const dates = findDates(residual, today);
   for (const d of dates) {
-    scan.take("datetime", absorbPreposition(residual, d.start), d.end);
+    scan.take("datetime", absorbPreposition(scan, residual, d.start), d.end);
     draft.doDate = d.date;
     if (d.evening) draft.evening = true;
   }
   const afterDates = scan.residual();
   const times = findTimes(afterDates);
   for (const t of times) {
-    scan.take("datetime", absorbPreposition(afterDates, t.start), t.end);
+    scan.take("datetime", absorbPreposition(scan, afterDates, t.start), t.end);
     draft.doTime = t.time;
   }
   if (!draft.doDate) {
     const abs = findAbsoluteDates(scan.residual(), today, offsetMinutes).filter((a) => scan.free(a.start, a.end));
     const last = abs.at(-1);
     if (last) {
-      scan.take("datetime", absorbPreposition(scan.residual(), last.start), last.end);
+      scan.take("datetime", absorbPreposition(scan, scan.residual(), last.start), last.end);
       draft.doDate = last.date;
       if (last.time && !draft.doTime) draft.doTime = last.time;
     }
@@ -257,24 +277,33 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
   draft.title = buildTitle(scan);
   draft.notes = notesParts.length ? notesParts.join("\n") : null;
   const spans = [...scan.spans].sort((a, b) => a.start - b.start);
-  if (!draft.title) return { ok: false, reason: "empty_title", spans };
+  if (!draft.title || !/[^\s\p{Cf}]/u.test(draft.title)) return { ok: false, reason: "empty_title", spans };
 
   // A time without a date means today; a repeat without a date starts at its next occurrence.
   if (draft.doTime && !draft.doDate) draft.doDate = today;
+  let doDateFromRule = false;
   if (draft.recurrenceRule && !draft.doDate) {
     const weekdays = ruleWeekdays(draft.recurrenceRule);
     draft.doDate = weekdays?.length
       ? weekdays.map((wd) => weekdayOnOrAfter(today, wd)).sort(compareDates)[0]
       : today;
+    doDateFromRule = true;
   }
 
   // 7. Evening follows the clock.
   if (draft.doTime && Temporal.PlainTime.compare(draft.doTime, eveningAt) >= 0) draft.evening = true;
 
-  // 8. A deadline before the do-date is almost certainly the other way round.
+  // 8. A deadline before the do-date is almost certainly the other way round —
+  //    unless the do-date is the rule's next occurrence, which must stay on the rule;
+  //    then the deadline moves onto that first occurrence, so it can never be missed before it starts.
   if (draft.deadline && draft.doDate && compareDates(draft.deadline, draft.doDate) < 0) {
-    [draft.deadline, draft.doDate] = [draft.doDate, draft.deadline];
-    warnings.push({ code: "deadline_before_do_date_swapped" });
+    if (doDateFromRule) {
+      draft.deadline = draft.doDate;
+      warnings.push({ code: "deadline_moved_to_first_occurrence" });
+    } else {
+      [draft.deadline, draft.doDate] = [draft.doDate, draft.deadline];
+      warnings.push({ code: "deadline_before_do_date_swapped" });
+    }
   }
   // 9. You can't do it before it starts.
   if (draft.startDate && draft.doDate && compareDates(draft.startDate, draft.doDate) > 0) {

@@ -53,6 +53,7 @@ export interface Span {
 
 export type ParseWarning =
   | { code: "deadline_before_do_date_swapped" }
+  | { code: "deadline_moved_to_first_occurrence" }
   | { code: "do_date_moved_to_start_date" };
 
 export type ParseResult =

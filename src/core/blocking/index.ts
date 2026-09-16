@@ -59,8 +59,8 @@ export function minuteAtOffset(offsetPx: number, pxPerMinute: number, dayStartMi
 /** A block dropped at `startMin` keeps its length and stays inside the day. */
 export function placeAt(startMin: number, durationMin: number): Interval {
   const start = clampMinute(snapTo(startMin));
-  const end = Math.min(24 * 60, start + durationMin);
-  return { start: Math.min(start, end - MIN_BLOCK_MIN), end };
+  const end = Math.min(24 * 60, start + Math.max(durationMin, MIN_BLOCK_MIN));
+  return { start: Math.max(0, Math.min(start, end - MIN_BLOCK_MIN)), end };
 }
 
 /** Resizing from the bottom edge: the end moves, never past the day, never under five minutes. */

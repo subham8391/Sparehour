@@ -166,7 +166,9 @@ function listFile(path: string, title: string, tasks: Row[], names: Lookup): Exp
   return { path, content: [`# ${title}`, "", ...(tasks.length ? tasks.map((t) => names.taskBlock(t)) : ["_Nothing here._"]), ""].join("\n") };
 }
 
-const byKey = (a: Row, b: Row) => String(a.sort_key ?? "").localeCompare(String(b.sort_key ?? "")) || String(a.id).localeCompare(String(b.id));
+// Fractional keys compare by code unit, exactly as the app orders them (core/ordering).
+const byCodeUnit = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
+const byKey = (a: Row, b: Row) => byCodeUnit(String(a.sort_key ?? ""), String(b.sort_key ?? "")) || byCodeUnit(String(a.id), String(b.id));
 const sortTasks = (tasks: Row[]) => [...tasks].sort(byKey);
 const sortByCompleted = (tasks: Row[]) => [...tasks].sort((a, b) => String(b.completed_at ?? "").localeCompare(String(a.completed_at ?? "")));
 

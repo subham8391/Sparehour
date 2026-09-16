@@ -313,5 +313,6 @@ export function QuickAdd({
 
 const WARNING_TEXT: Record<string, string> = {
   deadline_before_do_date_swapped: "The deadline was before the do-date, so they were swapped.",
+  deadline_moved_to_first_occurrence: "The deadline was before the first repeat, so it moved to that day.",
   do_date_moved_to_start_date: "“after” sets when it starts, so the day became the start date.",
 };
