@@ -25,6 +25,17 @@ export const LOGBOOK_SQL = `
   order by completed_at desc, id
   limit 1000`;
 
+/**
+ * Completions of repeating tasks (SYSTEM_DESIGN.md §5.2: one rolling row plus
+ * a completion per occurrence), newest first, with the task they belong to.
+ */
+export const LOGBOOK_COMPLETIONS_SQL = `
+  select t.*, c.id as completion_id, c.completed_at as occurrence_completed_at, c.occurrence_date
+  from task_completions c join tasks t on t.id = c.task_id
+  where c.deleted_at is null and t.deleted_at is null
+  order by c.completed_at desc, c.id
+  limit 1000`;
+
 /** Everything still open in one project, in the project's own order. */
 export const PROJECT_TASKS_SQL = `
   select * from tasks

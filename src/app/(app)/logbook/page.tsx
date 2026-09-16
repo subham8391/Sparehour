@@ -6,9 +6,9 @@ import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import type { Task } from "@/core/types";
+import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toTask } from "@/data/mappers";
-import { LOGBOOK_SQL, monthsBack } from "@/data/queries/views";
+import { LOGBOOK_COMPLETIONS_SQL, LOGBOOK_SQL, monthsBack } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { EmptyState, ViewHeader } from "@/features/shell/view-header";
@@ -27,13 +27,17 @@ export default function LogbookPage() {
   const { data, isLoading } = useQuery<TaskRowType>(LOGBOOK_SQL, [], {
     streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60, waitForStream: true }],
   });
+  const { data: completions } = useQuery<TaskRowType & { completion_id: string; occurrence_completed_at: string }>(LOGBOOK_COMPLETIONS_SQL);
 
   const groups = useMemo(() => {
     const out: DayGroup[] = [];
-    for (const row of data ?? []) {
-      if (!row.completed_at) continue;
-      const day = instant(normaliseTimestamp(row.completed_at)).toZonedDateTimeISO(zone).toPlainDate();
-      const task = toTask(row);
+    // Done tasks and each completion of a repeating task, one list, newest first.
+    const entries = [
+      ...(data ?? []).filter((r) => r.completed_at).map((r) => ({ completedAt: r.completed_at as string, task: toTask(r) })),
+      ...(completions ?? []).map((r) => ({ completedAt: r.occurrence_completed_at, task: { ...toTask(r), id: r.completion_id as TaskId, state: "done" as const } })),
+    ].sort((a, b) => (a.completedAt < b.completedAt ? 1 : a.completedAt > b.completedAt ? -1 : 0));
+    for (const { completedAt, task } of entries) {
+      const day = instant(normaliseTimestamp(completedAt)).toZonedDateTimeISO(zone).toPlainDate();
       const last = out[out.length - 1];
       const minutes = task.estimateMin ?? settings?.defaultEstimateMin ?? 30;
       if (last && last.day.equals(day)) {
@@ -44,7 +48,7 @@ export default function LogbookPage() {
       }
     }
     return out;
-  }, [data, zone, settings?.defaultEstimateMin]);
+  }, [data, completions, zone, settings?.defaultEstimateMin]);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">

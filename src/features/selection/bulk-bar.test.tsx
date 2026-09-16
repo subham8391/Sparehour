@@ -82,6 +82,7 @@ describe("<BulkBar>", () => {
     expect(String(execute.mock.calls[3][0])).toMatch(/^update tasks set state = \?, do_date = case/);
     expect(execute.mock.calls[3][1][0]).toBe("dropped");
     await user.click(screen.getByRole("button", { name: "tick t1" }));
+    getAll.mockResolvedValueOnce([{ id: "t1", title: "One", state: "active", recurrence_rule: null }]); // completing reads the rows first: does one repeat?
     await user.click(screen.getByRole("button", { name: "Complete" }));
     expect(String(execute.mock.calls[4][0])).toMatch(/set state = 'done'/);
   });
