@@ -7,6 +7,7 @@ import { ruleToSpec } from "@/core/quickadd/recurrence";
 import type { Span, TaskDraft } from "@/core/quickadd";
 import { formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
+import { deadlineWording } from "@/ui/relative-day";
 
 export interface QuickAddProject {
   id: string;
@@ -27,8 +28,23 @@ export function priorityLabel(priority: number): string | null {
   return priority > 0 ? `priority ${4 - priority}` : null;
 }
 
+/** What kind of fact a part is, so the sheet can draw it as the matching chip. */
+export type FactKind = "time" | "day" | "evening" | "estimate" | "deadline" | "start" | "repeat" | "project" | "tag" | "priority" | "note";
+
+export interface Fact {
+  kind: FactKind;
+  /** The plain-English wording, as it reads in the strip. */
+  label: string;
+  /** A shorter wording for the chip when the label is a sentence fragment ("due Fri 18 Sep" becomes "Due Fri"). */
+  chip?: string;
+  /** A project that is named but neither resolved nor promised yet. */
+  tentative?: boolean;
+}
+
 export interface Interpretation {
-  /** Each fact the parse found, in reading order. */
+  /** Each fact the parse found, in reading order, typed. */
+  facts: Fact[];
+  /** Each fact's wording, in reading order. */
   parts: string[];
   /** The parts joined for the strip; empty when nothing beyond the title was found. */
   strip: string;
@@ -37,26 +53,31 @@ export interface Interpretation {
 }
 
 export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: string | null = draft.projectName): Interpretation {
-  const parts: string[] = [];
+  const facts: Fact[] = [];
   if (draft.doDate) {
     const when = dayLabel(draft.doDate, today);
-    parts.push(draft.doTime ? `${when} ${formatTime(draft.doTime)}` : draft.evening ? `${when}, evening` : when);
+    if (draft.doTime) facts.push({ kind: "time", label: `${when} ${formatTime(draft.doTime)}` });
+    else if (draft.evening) facts.push({ kind: "evening", label: `${when}, evening` });
+    else facts.push({ kind: "day", label: when });
   } else if (draft.evening) {
-    parts.push("This evening");
+    facts.push({ kind: "evening", label: "This evening" });
   }
-  if (draft.estimateMin != null) parts.push(formatMinutes(draft.estimateMin));
-  if (draft.deadline) parts.push(`due ${dayLabel(draft.deadline, today)}`);
-  if (draft.startDate) parts.push(`from ${dayLabel(draft.startDate, today)}`);
+  if (draft.estimateMin != null) facts.push({ kind: "estimate", label: formatMinutes(draft.estimateMin) });
+  if (draft.deadline) facts.push({ kind: "deadline", label: `due ${dayLabel(draft.deadline, today)}`, chip: `Due ${deadlineWording(draft.deadline, today).label}` });
+  if (draft.startDate) facts.push({ kind: "start", label: `from ${dayLabel(draft.startDate, today)}` });
   if (draft.recurrenceRule) {
-    parts.push(`repeats every ${ruleToSpec(draft.recurrenceRule)}${draft.recurrenceMode === "after_completion" ? ", after each completion" : ""}`);
+    const spec = `every ${ruleToSpec(draft.recurrenceRule)}${draft.recurrenceMode === "after_completion" ? ", after each completion" : ""}`;
+    facts.push({ kind: "repeat", label: `repeats ${spec}`, chip: spec });
   }
-  if (projectLabel) parts.push(projectLabel);
-  if (draft.tagNames.length) parts.push(draft.tagNames.map((t) => `@${t}`).join(" "));
+  // The sheet passes the resolved name, "new project X" or "X?"; only the first two are a project token yet.
+  if (projectLabel) facts.push({ kind: "project", label: projectLabel, tentative: projectLabel.endsWith("?") });
+  if (draft.tagNames.length) facts.push({ kind: "tag", label: draft.tagNames.map((t) => `@${t}`).join(" ") });
   const priority = priorityLabel(draft.priority);
-  if (priority) parts.push(priority);
-  if (draft.notes) parts.push("with a note");
+  if (priority) facts.push({ kind: "priority", label: priority });
+  if (draft.notes) facts.push({ kind: "note", label: "with a note" });
+  const parts = facts.map((f) => f.label);
   const destination = draft.doDate ? (draft.doDate.equals(today) ? "Today" : "Upcoming") : "Inbox";
-  return { parts, strip: parts.join(" · "), destination };
+  return { facts, parts, strip: parts.join(" · "), destination };
 }
 
 const fold = (s: string) => s.trim().toLocaleLowerCase();

@@ -10,6 +10,8 @@ import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { Button } from "@/ui/button";
+import { Sheet } from "@/ui/sheet";
 import { actionsFor, type PushAction } from "./actions";
 import { parseDeepLink, type DeepLink } from "./push";
 
@@ -113,18 +115,17 @@ export function PushActionSheet({ link, onPick, onClose }: { link: DeepLink; onP
     return () => document.removeEventListener("keydown", onKey, true);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-center sm:justify-center">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-ink/20" />
-      <div role="dialog" aria-modal="true" aria-label={TITLES[link.kind]} className="relative flex w-full flex-col gap-3 rounded-t-[20px] border-t border-line bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:max-w-sm sm:rounded-2xl sm:border">
-        <p className="font-display text-2xl text-ink">{TITLES[link.kind]}</p>
+    <Sheet label={TITLES[link.kind]} onClose={onClose} align="center" width="sm">
+      <div className="flex flex-col gap-4 p-5">
+        <p className="font-display text-pane font-medium text-ink">{TITLES[link.kind]}</p>
         <div className="flex flex-col gap-2">
           {actionsFor(link.kind).map((a, i) => (
-            <button key={a.id} type="button" onClick={() => onPick(a.id)} className={`h-12 rounded-xl px-4 text-[15px] font-medium ${i === 0 ? "bg-ink text-paper" : "border border-line bg-surface text-ink hover:border-line-strong"}`}>
+            <Button key={a.id} variant={i === 0 ? "primary" : "secondary"} size="sheet" onClick={() => onPick(a.id)}>
               {a.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }

@@ -35,11 +35,15 @@ describe("<QuickAdd>", () => {
     expect(input).toHaveValue("");
   });
 
-  it("restates the parse as you type and paints the tokens", async () => {
+  it("restates the parse as chips as you type and paints the tokens", async () => {
     const { user, input } = setup();
     await user.type(input, "Draft proposal tomorrow 3pm ~45m #acme !1");
-    expect(screen.getByText("Tomorrow 15:00 · 45m · Acme · priority 1")).toBeInTheDocument();
-    expect(screen.getByText("→ Upcoming")).toBeInTheDocument();
+    // One chip per fact, in reading order, then where it lands; the live region reads them with the strip's separators.
+    const strip = input.getAttribute("aria-describedby")!;
+    expect(document.getElementById(strip)).toHaveTextContent("Tomorrow 15:00 · 45m · Acme · priority 1 → Upcoming");
+    expect(screen.getByText("Tomorrow 15:00").className).toContain("bg-surface-2");
+    expect(screen.getByText("Acme").className).toContain("bg-meet-soft");
+    expect(screen.getByText("Upcoming")).toBeInTheDocument();
     const painted = document.querySelectorAll("mark[data-kind]");
     expect([...painted].map((m) => m.getAttribute("data-kind"))).toEqual(["datetime", "datetime", "estimate", "project", "priority"]);
   });

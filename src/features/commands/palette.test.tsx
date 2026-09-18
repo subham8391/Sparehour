@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
@@ -68,15 +68,25 @@ function setup(over: Partial<PaletteProps> = {}) {
 }
 
 describe("<Palette>", () => {
-  it("lists recents first on an empty query, hides plumbing, shows shortcuts and disabled reasons", () => {
+  it("lists recents first on an empty query, hides plumbing and shows shortcuts", () => {
     setup({ recents: ["go.inbox"] });
     const options = screen.getAllByRole("option");
     expect(options[0]).toHaveTextContent("Go to Inbox");
     expect(options[0]).toHaveTextContent("G I");
     expect(screen.queryByText("Select next")).not.toBeInTheDocument();
+  });
+
+  it("keeps the task actions out of the way until a task is selected, but finds them by name with the reason", async () => {
+    const { user, input } = setup();
+    // On open with nothing selected: no grey rows (D12).
+    expect(screen.queryByRole("option", { name: /Complete/ })).not.toBeInTheDocument();
+    await user.type(input, "compl");
     const complete = screen.getByRole("option", { name: /Complete/ });
     expect(complete).toHaveAttribute("aria-disabled", "true");
     expect(complete).toHaveTextContent("select a task first");
+    cleanup();
+    setup({ availability: () => ({ enabled: true }) });
+    expect(screen.getByRole("option", { name: /Complete/ })).not.toHaveAttribute("aria-disabled");
   });
 
   it("Enter runs the top match; arrows move the highlight", async () => {

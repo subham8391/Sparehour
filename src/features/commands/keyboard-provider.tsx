@@ -12,11 +12,10 @@ import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { useUndoOptional } from "@/features/undo/undo-provider";
-import { Icon } from "@/ui/icons";
-import { chordOf, displayShortcut, resolveKey, type SequenceState } from "./keys";
-import { COMMANDS, GROUP_ORDER, availability, keyBindings, type Command, type CommandContext, type Theme } from "./registry";
+import { chordOf, resolveKey, type SequenceState } from "./keys";
+import { COMMANDS, availability, keyBindings, type Command, type CommandContext, type Theme } from "./registry";
+import { ShortcutsDialog } from "./shortcuts-dialog";
 import { applyTheme, readTheme } from "./theme";
-import { Kbd } from "@/ui/kbd";
 
 const BINDINGS = keyBindings(COMMANDS);
 
@@ -136,52 +135,5 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       {children}
       {shortcutsOpen && <ShortcutsDialog isMac={isMac} onClose={() => setShortcutsOpen(false)} />}
     </CommandsContext.Provider>
-  );
-}
-
-
-/** The `?` overlay (SCREENS.md §24): every shortcut, grouped as the spec groups them. */
-function ShortcutsDialog({ isMac, onClose }: { isMac: boolean; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
-  const groups = GROUP_ORDER.map((g) => ({ group: g, commands: COMMANDS.filter((c) => c.group === g && c.shortcut) })).filter((g) => g.commands.length > 0);
-  return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-start sm:justify-center sm:pt-[8vh]">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-ink/20" />
-      <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="relative flex max-h-[85dvh] w-full flex-col rounded-t-[20px] border-t border-line bg-surface shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:border">
-        <div className="flex items-center justify-between px-5 pt-4 pb-2">
-          <h2 className="font-display text-2xl text-ink">Keyboard shortcuts</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="-m-2 flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-paper hover:text-ink">
-            <Icon name="close" size={18} />
-          </button>
-        </div>
-        <div className="grid grid-cols-1 gap-6 overflow-y-auto px-5 pb-6 sm:grid-cols-2">
-          {groups.map((g) => (
-            <section key={g.group}>
-              <h3 className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{g.group}</h3>
-              <dl className="flex flex-col gap-1.5">
-                {g.commands.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between gap-3 text-[14px]">
-                    <dt className="text-ink">{c.title}</dt>
-                    <dd>
-                      <Kbd>{displayShortcut(c.shortcut!, isMac)}</Kbd>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ))}
-          <p className="text-[12.5px] text-ink-3 sm:col-span-2">Any other letter opens quick-add and types itself. `T` with nothing selected jumps to today.</p>
-        </div>
-      </div>
-    </div>
   );
 }

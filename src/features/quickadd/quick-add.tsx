@@ -1,15 +1,20 @@
 "use client";
 // Quick-add (SCREENS.md §11): one line in, a task out. Tokens are painted in
-// place as they complete, the strip below restates the parse in plain
-// English, ⏎ saves and keeps going, ⌘⏎ saves and closes, esc discards. On a
-// phone it is a bottom sheet docked above the keyboard; from the narrow band
-// up, an overlay. Presentational and testable: data arrives as props.
+// place as they complete, the strip below restates the parse as chips, ⏎
+// saves and keeps going, ⌘⏎ saves and closes, esc discards. On a phone it is
+// a bottom sheet docked above the keyboard; from the narrow band up, a
+// dialog under the top edge (DESIGN_SYSTEM.md §5 "Sheet"). Presentational
+// and testable: data arrives as props.
 import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import { parse, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
-import { Icon } from "@/ui/icons";
-import { interpret, projectMatches, projectToken, resolveProject, segments, splitPaste, type QuickAddProject } from "./interpret";
+import { Button } from "@/ui/button";
+import { Chip, type ChipTone } from "@/ui/chip";
+import { cx } from "@/ui/cx";
+import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
+import { Sheet } from "@/ui/sheet";
+import { interpret, projectMatches, projectToken, resolveProject, segments, splitPaste, type Fact, type QuickAddProject } from "./interpret";
 
 export interface QuickAddContext {
   now: Instant;
@@ -25,18 +30,36 @@ export interface QuickAddSubmission {
   createProjectName: string | null;
 }
 
+// Tokens in the line are told apart by weight of colour alone: a project is
+// the meet token, everything else steps back to ink-2 (D11: no green, no
+// ember in the box). The chips below carry the meaning.
 const TOKEN_TONE: Record<Span["kind"], string> = {
   protected: "",
-  datetime: "bg-surface-2 text-ink",
-  project: "bg-spare-soft text-spare",
-  tag: "bg-meet-soft text-meet",
-  estimate: "bg-surface-2 text-ink",
-  priority: "bg-over-soft text-over",
-  deadline: "bg-deadline-soft text-deadline",
-  start: "bg-surface-2 text-ink",
-  recurrence: "bg-surface-2 text-ink",
-  evening: "bg-over-soft text-over",
+  datetime: "text-ink-2",
+  project: "text-meet",
+  tag: "text-ink-2",
+  estimate: "text-ink-2",
+  priority: "text-ink-2",
+  deadline: "text-ink-2",
+  start: "text-ink-2",
+  recurrence: "text-ink-2",
+  evening: "text-ink-2",
   notes: "text-ink-3",
+};
+
+/** How each parsed fact is drawn: the chip family's tones and glyphs (DESIGN_SYSTEM.md §5 "Chips"). */
+const FACT_CHIP: Record<Fact["kind"], { tone: ChipTone; icon: IconName | null }> = {
+  time: { tone: "time", icon: "clock" },
+  day: { tone: "time", icon: "calendar" },
+  evening: { tone: "time", icon: "moon" },
+  estimate: { tone: "neutral", icon: null },
+  deadline: { tone: "deadline", icon: "flag" },
+  start: { tone: "neutral", icon: "arrow-right" },
+  repeat: { tone: "neutral", icon: "routines" },
+  project: { tone: "meet", icon: null },
+  tag: { tone: "neutral", icon: null },
+  priority: { tone: "neutral", icon: null },
+  note: { tone: "neutral", icon: null },
 };
 
 const SUGGESTIONS: { label: string; insert: string }[] = [
@@ -52,6 +75,12 @@ const SUGGESTIONS: { label: string; insert: string }[] = [
   { label: "!1", insert: "!1" },
 ];
 
+/** A suggestion or a project match: an outlined chip that is also a button, 44 px on the phone and 28 px above. */
+const SUGGEST =
+  "inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-line px-2.5 text-body-sm font-medium text-ink-2 transition-[border-color,color,background-color,transform] dur-fast hover:border-line-strong hover:text-ink motion-safe:active:scale-97 sm:h-7 sm:px-2";
+
+/** The line itself: the field look at 48 px and 16 px type on every width, so iOS never zooms. The border turns ink on focus, so no ring. */
+const LINE = "h-12 w-full rounded-lg border border-line-control px-3.5 text-base outline-none placeholder:text-ink-4 focus:border-ink focus-visible:outline-none";
 
 export function QuickAdd({
   open,
@@ -187,127 +216,127 @@ export function QuickAdd({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-start sm:justify-center sm:pt-[12vh]">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-ink/20" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add a task"
-        className="relative w-full rounded-t-[20px] border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:border"
-      >
-        <div className="mx-auto mt-2 h-1 w-9 rounded-full bg-line-strong sm:hidden" aria-hidden="true" />
-        <div className="flex flex-col gap-3 p-4 sm:p-5">
-          <div className="relative">
-            <div
-              ref={paintRef}
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 flex h-11 items-center overflow-hidden whitespace-pre px-[calc(1rem+1.5px)] text-[15px] text-ink"
-            >
-              {segments(value, spans).map((s, i) =>
-                s.kind ? (
-                  <mark key={i} data-kind={s.kind} className={`rounded-md bg-transparent ${TOKEN_TONE[s.kind]}`}>
-                    {s.text}
-                  </mark>
-                ) : (
-                  <span key={i}>{s.text}</span>
-                ),
-              )}
-            </div>
-            <input
-              ref={inputRef}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={onKeyDown}
-              onPaste={(e) => void onPaste(e)}
-              onScroll={syncScroll}
-              aria-label="Task"
-              aria-describedby={stripId}
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-              enterKeyHint="done"
-              placeholder="Add a task — e.g. Draft proposal fri 3pm ~45m #acme !1"
-              className="relative h-11 w-full rounded-xl border-[1.5px] border-ink bg-transparent px-4 text-[15px] text-transparent caret-ink outline-none placeholder:text-ink-3"
-            />
-          </div>
-
-          <p id={stripId} aria-live="polite" className="min-h-5 font-mono text-[12px] text-ink-2">
-            {interpretation ? (
-              <>
-                {interpretation.strip || <span className="text-ink-3">Dates, times, ~estimates, #projects, @tags and !priority are understood.</span>}
-                <span className="ml-3 text-ink-3">→ {interpretation.destination}</span>
-              </>
-            ) : (
-              <span className="text-ink-3">Dates, times, ~estimates, #projects, @tags and !priority are understood.</span>
+    <Sheet label="Add a task" onClose={onClose} width="lg">
+      <div className="flex flex-col gap-3 p-4 sm:p-5">
+        <div className="relative">
+          {/* The painted line sits under the box: the same metrics, the box's own border width added to the padding, so the glyphs land exactly under the caret. */}
+          <div ref={paintRef} aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-lg bg-surface px-[calc(0.875rem+1px)] text-base whitespace-pre text-ink">
+            {segments(value, spans).map((s, i) =>
+              s.kind ? (
+                <mark key={i} data-kind={s.kind} className={cx("bg-transparent", TOKEN_TONE[s.kind])}>
+                  {s.text}
+                </mark>
+              ) : (
+                <span key={i}>{s.text}</span>
+              ),
             )}
-          </p>
-          {warnings.length > 0 && (
-            <p className="font-mono text-[12px] text-over">
-              {warnings.map((w) => WARNING_TEXT[w.code] ?? w.code).join(" · ")}
-            </p>
-          )}
+          </div>
+          <input
+            ref={inputRef}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={(e) => void onPaste(e)}
+            onScroll={syncScroll}
+            aria-label="Task"
+            aria-describedby={stripId}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="done"
+            placeholder="Add a task — e.g. Draft proposal fri 3pm ~45m #acme !1"
+            className={cx(LINE, "relative bg-transparent text-transparent caret-ink")}
+          />
+        </div>
 
-          {projectName && !match && (
-            <div className="flex flex-wrap items-center gap-2 text-[13px]">
-              {suggestions.map((p) => (
-                <button key={p.id} type="button" onClick={() => pickProject(p)} className="h-9 rounded-full border border-line px-3 text-ink hover:border-line-strong">
-                  {p.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setCreateProject(true)}
-                aria-pressed={willCreate}
-                className={`h-9 rounded-full border px-3 ${willCreate ? "border-spare bg-spare-soft text-spare" : "border-line text-ink hover:border-line-strong"}`}
-              >
-                {willCreate ? "Will create" : "Create"} “{projectName}”
-                {suggestions.length === 0 && !willCreate && <Kbd className="ml-2 max-sm:hidden">Tab</Kbd>}
-              </button>
-            </div>
+        {/* The parse restated as chips; the destination follows the arrow. A live region, so a screen reader hears the parse settle. */}
+        <p id={stripId} aria-live="polite" className="flex min-h-[22px] flex-wrap items-center gap-1.5 text-body-sm text-ink-2">
+          {interpretation && interpretation.facts.length > 0 ? (
+            interpretation.facts.map((f, i) => <FactChip key={i} fact={f} first={i === 0} />)
+          ) : (
+            <span className="text-ink-3">Dates, times, ~estimates, #projects, @tags and !priority are understood.</span>
           )}
+          {interpretation && (
+            <span className="inline-flex items-center gap-1">
+              <span className="sr-only"> → </span>
+              <Icon name="arrow-right" size={14} className="text-ink-3" />
+              {interpretation.destination}
+            </span>
+          )}
+        </p>
+        {warnings.length > 0 && <p className="text-body-sm text-over">{warnings.map((w) => WARNING_TEXT[w.code] ?? w.code).join(" · ")}</p>}
 
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="Suggestions">
-            {SUGGESTIONS.map((s) => (
-              <button key={s.label} type="button" onClick={() => insert(s.insert)} className="h-9 shrink-0 rounded-full border border-line px-3 font-mono text-[12.5px] text-ink-2 hover:border-line-strong hover:text-ink">
-                {s.label}
+        {projectName && !match && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {suggestions.map((p) => (
+              <button key={p.id} type="button" onClick={() => pickProject(p)} className={cx(SUGGEST, "text-ink")}>
+                {p.name}
               </button>
             ))}
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <p className="hidden items-center gap-4 text-[12px] text-ink-3 sm:flex">
-              <span>
-                <Kbd>⏎</Kbd> save and keep going
-              </span>
-              <span>
-                <Kbd>⌘⏎</Kbd> save and close
-              </span>
-              <span>
-                <Kbd>esc</Kbd> discard
-              </span>
-            </p>
             <button
               type="button"
-              onClick={() => void submit(false)}
-              disabled={!draft || busy}
-              className="h-11 w-full rounded-xl bg-ink px-5 text-[15px] font-medium text-paper disabled:opacity-50 sm:h-9 sm:w-auto"
+              onClick={() => setCreateProject(true)}
+              aria-pressed={willCreate}
+              className={cx(SUGGEST, "aria-pressed:border-meet-line aria-pressed:bg-meet-soft aria-pressed:text-meet")}
             >
-              Add
+              <Icon name="plus" size={12} strokeWidth={2} className="shrink-0" />
+              {willCreate ? "Will create" : "Create"} “{projectName}”
+              {suggestions.length === 0 && !willCreate && <Kbd className="ml-1">Tab</Kbd>}
             </button>
           </div>
-          {notice && (
-            <p role="status" className="flex items-center gap-1.5 text-[12px] text-spare">
-              <Icon name="check" size={12} /> {notice}
-            </p>
-          )}
-          {error && (
-            <p role="alert" className="text-[12px] text-deadline">
-              {error}
-            </p>
-          )}
+        )}
+
+        <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
+          {SUGGESTIONS.map((s) => (
+            <button key={s.label} type="button" onClick={() => insert(s.insert)} className={cx(SUGGEST, "num")}>
+              {s.label}
+            </button>
+          ))}
         </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="hidden items-center gap-4 text-body-sm text-ink-2 sm:flex">
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd>⏎</Kbd> save and keep going
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd>⌘⏎</Kbd> save and close
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd>esc</Kbd> discard
+            </span>
+          </p>
+          <Button variant="primary" size="desktop" onClick={() => void submit(false)} disabled={!draft || busy} className="max-sm:h-12 max-sm:w-full max-sm:text-body-lg">
+            Add
+          </Button>
+        </div>
+        {notice && (
+          <p role="status" className="flex items-center gap-1.5 text-body-sm text-ink-2">
+            <Icon name="check" size={14} className="shrink-0 text-ink-3" /> {notice}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="flex items-center gap-1.5 text-body-sm text-over">
+            <Icon name="alert" size={14} className="shrink-0" /> {error}
+          </p>
+        )}
       </div>
-    </div>
+    </Sheet>
+  );
+}
+
+/** One parsed fact as a chip. Facts after the first carry a hidden separator so the live region reads as the strip did. */
+function FactChip({ fact, first }: { fact: Fact; first: boolean }) {
+  const look = FACT_CHIP[fact.kind];
+  // A project that is only a guess stays neutral until it resolves or the person asks to create it.
+  const tone = fact.kind === "project" && fact.tentative ? "neutral" : look.tone;
+  return (
+    <>
+      {!first && <span className="sr-only"> · </span>}
+      <Chip tone={tone} icon={look.icon}>
+        {fact.chip ?? fact.label}
+      </Chip>
+    </>
   );
 }
 

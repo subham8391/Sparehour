@@ -2,6 +2,8 @@
 // Records every task write's inverse and offers it back: a toast with Undo
 // for the ones a person might regret (drop, complete, move), ⌘Z for all.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Button } from "@/ui/button";
+import { Toast } from "@/ui/toast";
 import { pop, push, type UndoEntry } from "./undo-stack";
 
 export interface UndoSink {
@@ -44,6 +46,15 @@ export function UndoProvider({ children }: { children: ReactNode }) {
     setToast(entry);
     if (entry) timer.current = setTimeout(() => setToast(null), TOAST_MS);
   }, []);
+  // A toast under the pointer or holding focus waits; it gets its full time back once left alone (WCAG 2.2.1).
+  const holdToast = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+  const releaseToast = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToast(null), TOAST_MS);
+  }, []);
 
   const record = useCallback(
     (entry: UndoEntry) => {
@@ -78,12 +89,20 @@ export function UndoProvider({ children }: { children: ReactNode }) {
     <UndoContext.Provider value={api}>
       {children}
       {toast && (
-        <div role="status" className="fixed inset-x-4 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+1rem)] z-30 mx-auto flex max-w-md items-center gap-3 rounded-xl bg-ink px-4 py-3 text-[14px] text-paper shadow-lg sm:bottom-16">
-          <span className="min-w-0 flex-1 truncate">{toast.label}</span>
-          <button type="button" onClick={() => void undo()} className="flex h-9 items-center rounded-lg px-2 font-medium text-paper underline decoration-paper/50 hover:decoration-paper">
-            Undo
-          </button>
-        </div>
+        <Toast
+          key={toast.label}
+          onMouseEnter={holdToast}
+          onMouseLeave={releaseToast}
+          onFocus={holdToast}
+          onBlur={releaseToast}
+          action={
+            <Button variant="quiet" size="auto" className="px-3" onClick={() => void undo()}>
+              Undo
+            </Button>
+          }
+        >
+          {toast.label}
+        </Toast>
       )}
     </UndoContext.Provider>
   );

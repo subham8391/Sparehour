@@ -17,6 +17,8 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { cx } from "@/ui/cx";
+import { Grabber, Scrim } from "@/ui/sheet";
 import { useTaskRepo } from "./use-task-repo";
 
 // The panel brings the recurrence engine with it, so it stays out of the
@@ -26,7 +28,7 @@ const loadPanel = () => import("./task-detail-panel");
 const TaskDetailPanel = dynamic(() => loadPanel().then((m) => m.TaskDetailPanel), { ssr: false, loading: Opening });
 
 function Opening() {
-  return <div className="p-5 text-ink-3">Opening…</div>;
+  return <div className="p-5 text-body text-ink-3">Opening…</div>;
 }
 
 type ChecklistRow = Parameters<typeof toChecklistItem>[0];
@@ -112,8 +114,10 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
 /**
  * The context pane (medium band and up), a right-side sheet (narrow) or a
- * full-screen sheet (phone). Mounted once by the shell; empty until a task is
- * opened. Escape closes it unless a popover inside claimed the key first.
+ * full-height sheet with a grabber (phone). Mounted once by the shell; empty
+ * until a task is opened. Escape closes it unless a popover inside claimed
+ * the key first. The pane appears at once; the sheets slide in from their
+ * edge (DESIGN_SYSTEM.md §7 "Sheets"), or simply appear under reduced motion.
  */
 export function TaskDetailPane() {
   const { selectedId, close } = useTaskDetail();
@@ -129,11 +133,17 @@ export function TaskDetailPane() {
   if (!selectedId) return null;
   return (
     <>
-      <button type="button" aria-label="Close" onClick={close} className="fixed inset-0 z-20 bg-ink/20 md:hidden" />
+      <Scrim onClose={close} className="fixed z-20 md:hidden" />
       <aside
         aria-label="Task"
-        className="fixed inset-0 z-30 flex flex-col bg-surface sm:left-auto sm:w-[420px] sm:border-l sm:border-line md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-96 md:shrink-0"
+        className={cx(
+          "fixed inset-0 z-30 flex flex-col bg-surface pt-[env(safe-area-inset-top)]",
+          // The phone sheet rises from the bottom, the narrow band's from the right; the pane from `md` up just appears.
+          "max-md:transition-[translate,opacity] max-md:dur-slow max-md:ease-drawer max-sm:starting:translate-y-full sm:max-md:starting:translate-x-full",
+          "sm:left-auto sm:w-[420px] sm:border-l sm:border-line sm:pt-0 sm:shadow-sheet md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-96 md:shrink-0 md:shadow-none",
+        )}
       >
+        <Grabber />
         <TaskDetail key={selectedId} id={selectedId} onClose={close} />
       </aside>
     </>
