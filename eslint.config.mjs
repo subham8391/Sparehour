@@ -47,6 +47,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    // Agent worktrees live here while a task runs; they are separate checkouts, not this tree.
+    ".claude/**",
     "next-env.d.ts",
     // Research docs and the published report — not app code.
     "docs/**",

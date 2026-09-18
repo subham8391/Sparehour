@@ -81,7 +81,16 @@ function Frame({ children }: { children: ReactNode }) {
         )}
       >
         {/* The view's scroll region from the narrow band up; on a phone it is simply the page. */}
-        <div className="flex flex-1 flex-col sm:min-h-0 sm:overflow-y-auto">{children}</div>
+        {/* The region scrolls on its own from the narrow band up, so it is focusable: a keyboard
+            user can reach it and scroll a view that has nothing to focus (the Logbook). */}
+        <div
+          role="region"
+          aria-label="Content"
+          tabIndex={0}
+          className="flex flex-1 flex-col outline-none sm:min-h-0 sm:overflow-y-auto sm:focus-visible:outline-2 sm:focus-visible:-outline-offset-2 sm:focus-visible:outline-ink"
+        >
+          {children}
+        </div>
         {adds && <QuickAddBar />}
       </div>
       <TaskDetailPane />
