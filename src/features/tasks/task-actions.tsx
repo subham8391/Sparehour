@@ -107,7 +107,7 @@ export const BLOCK_GLYPH = <span aria-hidden="true" className="size-[7px] shrink
 export function DayChipTag({ chip, count = true }: { chip: DayChip | null; count?: boolean }) {
   if (!chip) return null;
   return (
-    <Chip tone={chip.tone === "carried" ? "over" : "neutral"} size="auto" className={chip.tone === "parked" ? "text-ink-3" : undefined}>
+    <Chip tone="neutral" size="auto" className={chip.tone === "parked" ? "text-ink-3" : undefined}>
       {chip.tone === "carried" && !count ? "Carried" : chip.label}
     </Chip>
   );

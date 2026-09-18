@@ -28,13 +28,14 @@ export default function PlanPage() {
   const model = useToday(now);
   const tomorrow = model.today.add({ days: 1 });
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
-  const { data: openRows } = useQuery<TaskRowType>(OPEN_TASKS_SQL);
+  const { data: openRows, isLoading: loadingOpen } = useQuery<TaskRowType>(OPEN_TASKS_SQL);
   const open = useMemo(() => (openRows ?? []).map(toTask), [openRows]);
   const { spareMin: tomorrowSpareMin } = useTomorrowSpare(tomorrow, model.settings);
 
   // Freeze the groups the first time data is there, so rows stay put while choices are made.
+  // The query reports an empty list while it loads, so wait for it, or the picker freezes empty.
   const [frozen, setFrozen] = useState<Candidates | null>(null);
-  if (!frozen && openRows && model.ready) setFrozen(candidates(open, model.today));
+  if (!frozen && !loadingOpen && model.ready) setFrozen(candidates(open, model.today));
   const byId = useMemo(() => new Map(open.map((t) => [t.id, t])), [open]);
   const groups = useMemo<Candidates>(() => {
     const live = (list: Task[]) => list.map((t) => byId.get(t.id) ?? t).filter((t) => t.state === "inbox" || t.state === "active");
@@ -51,7 +52,7 @@ export default function PlanPage() {
   const settings = model.settings;
 
   return (
-    <MorningPlanFlow
+    <MorningPlanFlow meetings={model.meetings}
       capacity={cap}
       groups={groups}
       onToday={onToday}

@@ -2,6 +2,7 @@
 // The morning plan (SCREENS.md §14): three steps, one spare number, and an
 // always-available Skip. Presentational; the page feeds it the day and does
 // the writes as choices are made.
+import type { TimelineMeeting } from "@/features/today/hooks/use-today";
 import { useId, useState, type ReactNode } from "react";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, type Instant, type LocalDate } from "@/core/time";
@@ -19,6 +20,8 @@ import { PlanHero } from "./plan-hero";
 import { RitualFooter, RitualFrame } from "./ritual-frame";
 
 export interface MorningPlanFlowProps {
+  /** Today's titled meetings for the timeline; optional, the drawing says Busy without them. */
+  meetings?: readonly TimelineMeeting[];
   capacity: Capacity | null;
   /** The picker's groups, frozen when the flow opened so rows do not jump as choices are made. */
   groups: Candidates;
@@ -134,7 +137,7 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
           <p className="text-body-lg text-pretty text-ink-2">Your day as it stands. Dragging tasks onto it arrives with time blocking; for now the plan is the list.</p>
           {c && c.state !== "no_work_day" ? (
             <div className="overflow-hidden rounded-xl border border-line bg-surface bg-daylight px-3 py-4 sm:px-4">
-              <Timeline c={c} now={p.now} zone={p.zone} />
+              <Timeline c={c} now={p.now} zone={p.zone} meetings={p.meetings} />
             </div>
           ) : (
             <p className="text-body-lg text-ink-3">No working hours today.</p>

@@ -86,12 +86,3 @@ export function Icon({ name, size = 18, className, ...rest }: { name: IconName; 
   );
 }
 
-/** The logo mark, "the spare slice": an ink ring over three quarters of the hour, the quarter set aside in green, sitting proud. */
-export function LogoMark({ size = 20 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" aria-hidden="true">
-      <path d="M17 10A7 7 0 1 1 10 3" stroke="var(--ink)" strokeWidth={1.8} strokeLinecap="round" />
-      <path d="M10 2.25A7.75 7.75 0 0 1 17.75 10" stroke="var(--spare-fill)" strokeWidth={2.4} strokeLinecap="round" />
-    </svg>
-  );
-}

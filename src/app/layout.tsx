@@ -13,6 +13,7 @@ const newsreaderItalic = Newsreader({ variable: "--font-newsreader-italic", weig
 const instrumentSans = Instrument_Sans({ variable: "--font-instrument-sans", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
+  appleWebApp: { title: "Sparehour", capable: true, statusBarStyle: "default" },
   title: "Sparehour",
   description: "A calm planner that knows how much free time you really have.",
 };

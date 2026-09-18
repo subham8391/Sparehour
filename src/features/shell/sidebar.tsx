@@ -7,7 +7,8 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { cx } from "@/ui/cx";
-import { Icon, LogoMark, type IconName } from "@/ui/icons";
+import { Mark } from "@/ui/brand";
+import { Icon, type IconName } from "@/ui/icons";
 import { EYEBROW } from "@/ui/section-label";
 import { SIDEBAR_VIEWS, VIEWS, countLabel, isActive, type NavCounts, type NavView, type ViewId } from "./nav";
 import { SyncChip, type SyncChipModel } from "./sync-chip";
@@ -129,7 +130,7 @@ export function Sidebar({
     >
       <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "px-6")}>
         <Link href="/today" aria-label="Sparehour — Today" className="flex items-center gap-2.5 rounded-lg">
-          <LogoMark size={22} />
+          <Mark size={22} />
           {!rail && <span className="font-display text-pane font-medium leading-none text-ink">Sparehour</span>}
         </Link>
       </div>
