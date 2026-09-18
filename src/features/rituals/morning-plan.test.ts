@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { instant, localDate } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
-import { candidates, easiestMove, pullInSuggestions, readout } from "./morning-plan";
+import { candidates, easiestMove, frameLine, pullInSuggestions, readout } from "./morning-plan";
 
 const today = localDate("2026-09-14");
 const base: Task = {
@@ -115,5 +115,18 @@ describe("easiestMove", () => {
     expect(easiestMove(picked, 0, 65, 30)).toBeNull();
     expect(easiestMove(picked, 40, null, 30)).toBeNull();
     expect(easiestMove(picked, 40, 10, 30)).toBeNull();
+  });
+});
+
+describe("frameLine", () => {
+  const day = { state: "comfortable" as const, windows: [{ start: 540, end: 1080 }], busy: [{ start: 600, end: 630 }, { start: 780, end: 810 }], busyMin: 60, committedMin: 90, unscheduledMin: 180 };
+  it("says the working hours, the meetings, the plan and the carry-over in one sentence", () => {
+    expect(frameLine(day, 1)).toBe("Working 09:00 to 18:00 with 2 meetings (1h) and 4h 30m planned. 1 task carried over.");
+    expect(frameLine({ ...day, busy: [], busyMin: 0, committedMin: 0, unscheduledMin: 0 }, 0)).toBe("Working 09:00 to 18:00 with no meetings and nothing planned yet. Nothing carried over.");
+  });
+
+  it("keeps the carry-over when there are no working hours", () => {
+    expect(frameLine(null, 3)).toBe("No working hours today. 3 tasks carried over.");
+    expect(frameLine({ ...day, state: "no_work_day" }, 0)).toBe("No working hours today. Nothing carried over.");
   });
 });

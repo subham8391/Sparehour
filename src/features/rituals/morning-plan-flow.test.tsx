@@ -65,7 +65,7 @@ describe("<MorningPlanFlow>", () => {
   it("frames the day, then walks to the picker and the timeline", async () => {
     const { user } = setup();
     expect(screen.getByRole("heading", { name: "Here’s your day" })).toBeInTheDocument();
-    expect(screen.getByText("Carried over").nextSibling).toHaveTextContent("1");
+    expect(screen.getByText(/1 task carried over/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("heading", { name: "Pick today’s tasks" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Next · Block time" }));

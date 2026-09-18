@@ -1,5 +1,7 @@
 // The web app manifest (SYSTEM_DESIGN.md §10.5). `shortcuts` work on
-// Android and desktop and are ignored on iOS.
+// Android and desktop and are ignored on iOS. The icons are the mark on
+// paper: `any` keeps its own rounded corners, `maskable` is full-bleed so a
+// launcher can cut its own shape (the two are separate files on purpose).
 import type { MetadataRoute } from "next";
 import { PAPER } from "@/features/commands/theme";
 
@@ -16,8 +18,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: PAPER.light,
     theme_color: PAPER.light,
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [

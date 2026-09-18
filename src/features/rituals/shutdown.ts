@@ -38,6 +38,31 @@ export function closedLine(done: readonly Task[], defaultEstimateMin: number, cl
   return parts.join(" · ");
 }
 
+export interface LedgerRow {
+  label: string;
+  value: string;
+  /** `spare` and `over` are tomorrow's colours; `quiet` is a fact that is absent ("Not rated"). */
+  tone?: "spare" | "over" | "quiet";
+}
+
+/**
+ * The closing moment's ledger (brief §1): what was done, what moves, the
+ * rating, the highlight and tomorrow, as facts in a fixed order. Nothing
+ * here cheers.
+ */
+export function closingLedger(p: { done: readonly Task[]; unfinished: readonly Task[]; defaultEstimateMin: number; rating: number | null; highlight: string; tomorrow: { spareMin: number | null; planned: number } }): LedgerRow[] {
+  const minutes = p.done.reduce((s, t) => s + (t.estimateMin ?? p.defaultEstimateMin), 0);
+  const rows: LedgerRow[] = [
+    { label: "Done", value: p.done.length === 0 ? "Nothing" : `${things(p.done.length)} · ${formatMinutes(minutes)}` },
+    { label: "Carried to tomorrow", value: p.unfinished.length === 0 ? "Nothing" : things(p.unfinished.length) },
+    p.rating ? { label: "Day rating", value: `${p.rating} / 5` } : { label: "Day rating", value: "Not rated", tone: "quiet" },
+  ];
+  if (p.highlight.trim()) rows.push({ label: "Worth it", value: p.highlight.trim() });
+  const spare = p.tomorrow.spareMin;
+  if (spare !== null) rows.push(spare < 0 ? { label: "Tomorrow", value: `${formatMinutes(-spare)} over already`, tone: "over" } : { label: "Tomorrow", value: `${formatMinutes(spare)} spare`, tone: "spare" });
+  return rows;
+}
+
 export function nextStep(step: ShutdownStep): ShutdownStep | null {
   const i = SHUTDOWN_STEPS.indexOf(step);
   return i >= 0 && i < SHUTDOWN_STEPS.length - 1 ? SHUTDOWN_STEPS[i + 1] : null;

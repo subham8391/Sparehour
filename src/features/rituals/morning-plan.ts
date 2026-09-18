@@ -1,7 +1,8 @@
 // The morning plan's arithmetic and words (SCREENS.md §14): the three
 // candidate groups, the readout that updates on every tick, and the coach's
 // "easiest move" when the day is over. Pure.
-import { formatMinutes, compareDates, type LocalDate } from "@/core/time";
+import type { Capacity } from "@/core/capacity";
+import { formatMinutes, formatTime, compareDates, timeFromMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 
 export const PLAN_STEPS = ["frame", "pick", "block"] as const;
@@ -92,6 +93,21 @@ export function easiestMove(picked: readonly Task[], overMin: number, tomorrowSp
   const leavesOverMin = Math.max(0, overMin - estimateOf(task, defaultEstimateMin));
   const tail = leavesOverMin === 0 ? "Moving it makes the day fit." : leavesOverMin <= 15 ? `Moving it leaves ${formatMinutes(leavesOverMin)} over — close enough to keep.` : `Moving it leaves ${formatMinutes(leavesOverMin)} over.`;
   return { task, reason: `No deadline, and tomorrow has ${formatMinutes(tomorrowSpareMin)} spare. ${tail}`, leavesOverMin };
+}
+
+/**
+ * The frame step's one line of prose, in place of stat tiles (brief P5):
+ * "Working 09:00 to 18:00 with 2 meetings (1h) and 4h 30m planned. 1 task
+ * carried over." The spare figure itself lives in the hero above it.
+ */
+export function frameLine(c: Pick<Capacity, "state" | "windows" | "busy" | "busyMin" | "committedMin" | "unscheduledMin"> | null, carried: number): string {
+  const tail = carried === 0 ? "Nothing carried over." : `${carried} ${carried === 1 ? "task" : "tasks"} carried over.`;
+  if (!c || c.state === "no_work_day") return `No working hours today. ${tail}`;
+  const hours = `${formatTime(timeFromMinutes(c.windows[0].start))} to ${formatTime(timeFromMinutes(c.windows[c.windows.length - 1].end))}`;
+  const meetings = c.busy.length === 0 ? "no meetings" : `${c.busy.length} ${c.busy.length === 1 ? "meeting" : "meetings"} (${formatMinutes(c.busyMin)})`;
+  const planned = c.committedMin + c.unscheduledMin;
+  const plan = planned === 0 ? "nothing planned yet" : `${formatMinutes(planned)} planned`;
+  return `Working ${hours} with ${meetings} and ${plan}. ${tail}`;
 }
 
 /** "Planned at 8:42" for the Today header. */

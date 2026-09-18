@@ -66,7 +66,7 @@ describe("<ShutdownFlow>", () => {
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("heading", { name: "Carried to tomorrow" })).toBeInTheDocument();
     expect(screen.getByText("2 things didn’t happen. That’s normal.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "← Back" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Done today" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Step 5: Tomorrow" }));
     expect(screen.getByText("Tomorrow: 4h 10m spare, 3 things already on it.")).toBeInTheDocument();

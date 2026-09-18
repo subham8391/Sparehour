@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { instant } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
-import { SHUTDOWN_STEPS, carriedLine, closedLine, doneLine, isRating, nextStep, previousStep, tomorrowLine } from "./shutdown";
+import { SHUTDOWN_STEPS, carriedLine, closedLine, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine } from "./shutdown";
 
 const task = (estimateMin: number | null): Task => ({
   id: "t" as TaskId,
@@ -49,6 +49,24 @@ describe("shutdown copy", () => {
     expect(tomorrowLine(0, 0)).toBe("Tomorrow: 0m spare, nothing on it yet.");
     expect(tomorrowLine(-40, 6)).toBe("Tomorrow: 40m over already, 6 things already on it.");
     expect(tomorrowLine(null, 2)).toBe("Tomorrow: 2 things already on it.");
+  });
+
+  it("lays the closing moment out as facts, tomorrow in the spare colour", () => {
+    const rows = closingLedger({ done: [task(60), task(null)], unfinished: [task(10)], defaultEstimateMin: 30, rating: 4, highlight: " Shipped the thing ", tomorrow: { spareMin: 250, planned: 3 } });
+    expect(rows).toEqual([
+      { label: "Done", value: "2 things · 1h 30m" },
+      { label: "Carried to tomorrow", value: "1 thing" },
+      { label: "Day rating", value: "4 / 5" },
+      { label: "Worth it", value: "Shipped the thing" },
+      { label: "Tomorrow", value: "4h 10m spare", tone: "spare" },
+    ]);
+    expect(closingLedger({ done: [], unfinished: [], defaultEstimateMin: 30, rating: null, highlight: "", tomorrow: { spareMin: -40, planned: 6 } })).toEqual([
+      { label: "Done", value: "Nothing" },
+      { label: "Carried to tomorrow", value: "Nothing" },
+      { label: "Day rating", value: "Not rated", tone: "quiet" },
+      { label: "Tomorrow", value: "40m over already", tone: "over" },
+    ]);
+    expect(closingLedger({ done: [], unfinished: [], defaultEstimateMin: 30, rating: 2, highlight: "", tomorrow: { spareMin: null, planned: 0 } }).map((r) => r.label)).toEqual(["Done", "Carried to tomorrow", "Day rating"]);
   });
 
   it("summarises a closed day", () => {

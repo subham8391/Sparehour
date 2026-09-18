@@ -7,13 +7,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabaseBrowser } from "@/data/supabase-browser";
+import { Button } from "@/ui/button";
+import { Input } from "@/ui/field";
 import { fetchSignInProviders } from "./providers";
 import { safeNext } from "./safe-next";
 
-const INPUT = "rounded-lg border border-line bg-surface px-3 py-2";
-const PRIMARY = "h-11 rounded-lg bg-ink font-medium text-paper disabled:opacity-60";
-const SECONDARY = "flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-surface font-medium text-ink disabled:opacity-60";
-const LINK = "self-start text-sm text-ink-2 underline decoration-line-strong underline-offset-2 hover:text-ink";
+const FIELD = "flex flex-col gap-1.5 text-body-sm font-medium text-ink-2";
 
 /** Supabase's messages in the app's voice; anything unknown is shown as it came. */
 function plain(message: string): string {
@@ -94,41 +93,34 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
     void run(() => supabaseBrowser().auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl() } }));
   };
 
+  const alert = error && (
+    <p role="alert" className="text-body-sm text-pretty text-deadline">
+      {error}
+    </p>
+  );
+
   if (step === "code") {
     return (
-      <form onSubmit={verifyCode} className="flex w-full max-w-sm flex-col gap-3">
-        <p className="text-sm text-ink-2">
-          We sent a code to <strong className="text-ink">{email}</strong>. The email has a link too; either works once.
+      // Keyed so the step change remounts the form and the code field takes focus.
+      <form key="code" onSubmit={verifyCode} className="flex w-full flex-col gap-4">
+        <p className="text-body text-pretty text-ink-2">
+          We sent a code to <strong className="font-medium text-ink">{email}</strong>. The email has a link too; either works once.
         </p>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={FIELD}>
           Code
-          <input
-            className={`${INPUT} font-mono text-lg tracking-[0.3em]`}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            autoFocus
-            required
-          />
+          <Input className="tracking-[0.3em] num" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus required />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-deadline">
-            {error}
-          </p>
-        )}
-        <button className={`mt-1 ${PRIMARY}`} disabled={busy || code.length < 6} type="submit">
+        {alert}
+        <Button type="submit" variant="primary" block disabled={busy || code.length < 6}>
           {busy ? "Signing in…" : "Sign in"}
-        </button>
-        <div className="flex gap-4">
-          <button type="button" className={LINK} onClick={sendCode} disabled={busy}>
+        </Button>
+        <div className="-ml-2 flex flex-wrap items-center gap-1">
+          <Button variant="link" className="text-ink-2" onClick={sendCode} disabled={busy}>
             Send another
-          </button>
-          <button
-            type="button"
-            className={LINK}
+          </Button>
+          <Button
+            variant="link"
+            className="text-ink-2"
             onClick={() => {
               setStep("email");
               setCode("");
@@ -136,7 +128,7 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
             }}
           >
             Use a different email
-          </button>
+          </Button>
         </div>
       </form>
     );
@@ -144,48 +136,53 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
 
   const usingPassword = step === "password";
   return (
-    <form onSubmit={usingPassword ? signInWithPassword : sendCode} className="flex w-full max-w-sm flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm">
+    <form key="email" onSubmit={usingPassword ? signInWithPassword : sendCode} className="flex w-full flex-col gap-4">
+      {/* The fast path first when the server offers it; the filled button stays the house path. */}
+      {google && !usingPassword && (
+        <>
+          <Button variant="secondary" block onClick={signInWithGoogle} disabled={busy}>
+            <GoogleMark />
+            Continue with Google
+          </Button>
+          <div aria-hidden="true" className="flex items-center gap-3 text-label text-ink-3">
+            <span className="h-px flex-1 bg-line" />
+            or
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
+      <label className={FIELD}>
         Email
-        <input className={INPUT} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" enterKeyHint={usingPassword ? "next" : "send"} required />
       </label>
       {usingPassword && (
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={FIELD}>
           Password
-          <input className={INPUT} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
       )}
-      {error && (
-        <p role="alert" className="text-sm text-deadline">
-          {error}
-        </p>
-      )}
-      <button className={`mt-1 ${PRIMARY}`} disabled={busy} type="submit">
+      {alert}
+      <Button type="submit" variant="primary" block disabled={busy}>
         {busy ? "One moment…" : usingPassword ? "Sign in" : "Email me a code"}
-      </button>
-      {google && (
-        <button type="button" className={SECONDARY} onClick={signInWithGoogle} disabled={busy}>
-          <GoogleMark />
-          Continue with Google
-        </button>
-      )}
-      <button
-        type="button"
-        className={LINK}
+      </Button>
+      <Button
+        variant="link"
+        className="-ml-2 self-start text-ink-2"
         onClick={() => {
           setStep(usingPassword ? "email" : "password");
           setError(null);
         }}
       >
         {usingPassword ? "Email me a code instead" : "Use a password"}
-      </button>
+      </Button>
+      {!usingPassword && <p className="text-body-sm text-pretty text-ink-3">We&rsquo;ll email a six-digit code and a link. Either works once.</p>}
     </form>
   );
 }
 
 function GoogleMark() {
   return (
-    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48">
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48" className="shrink-0">
       <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" />
       <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z" />
       <path fill="#FBBC05" d="M10.5 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.9-6.1z" />

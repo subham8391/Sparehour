@@ -3,6 +3,8 @@
 // the capacity engine, the picker's groups are frozen when the flow opens,
 // every tick writes immediately, and Done stamps day_plans.planned_at.
 import { useRouter } from "next/navigation";
+import { VIEW_COLUMN } from "@/features/shell/view-header";
+import { cx } from "@/ui/cx";
 import { useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import type { Task } from "@/core/types";
@@ -45,7 +47,7 @@ export default function PlanPage() {
   const fitsMin = cap && cap.state !== "no_work_day" ? Math.max(0, cap.workMin - cap.busyMin - cap.bufferMin) : 0;
   const user = users?.[0];
 
-  if (!model.ready || !model.settings) return <main className="p-6 text-ink-3 md:p-10">Opening…</main>;
+  if (!model.ready || !model.settings) return <main className={cx(VIEW_COLUMN, "text-body text-ink-3")}>Opening…</main>;
   const settings = model.settings;
 
   return (

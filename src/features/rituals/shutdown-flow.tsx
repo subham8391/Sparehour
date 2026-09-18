@@ -1,15 +1,17 @@
 "use client";
 // The evening shutdown (SCREENS.md §15): six steps in a settled order, 60–90
-// seconds, nothing here creates new work. Presentational; the page feeds it
-// the day and does the writes.
-import { VIEW_COLUMN } from "@/features/shell/view-header";
-import { cx } from "@/ui/cx";
+// seconds, nothing here creates new work, and the closing moment is a ledger
+// of facts rather than a cheer. Presentational; the page feeds it the day
+// and does the writes.
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Task } from "@/core/types";
-import { Icon } from "@/ui/icons";
+import { Button } from "@/ui/button";
+import { cx } from "@/ui/cx";
+import { Input } from "@/ui/field";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
-import { SHUTDOWN_STEPS, carriedLine, doneLine, isRating, nextStep, previousStep, tomorrowLine, type ShutdownStep } from "./shutdown";
+import { Lead, RitualFooter, RitualFrame } from "./ritual-frame";
+import { SHUTDOWN_STEPS, carriedLine, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine, type ShutdownStep } from "./shutdown";
 
 export type CarryChoice = "tomorrow" | "someday" | "drop";
 
@@ -39,6 +41,10 @@ const TITLES: Record<ShutdownStep, string> = {
   tomorrow: "Tomorrow",
   close: "Close the day",
 };
+const LABELS = SHUTDOWN_STEPS.map((s) => TITLES[s]);
+
+const RATING =
+  "flex size-11 items-center justify-center rounded-lg border border-line-strong bg-surface text-body font-medium text-ink num transition-[background-color,border-color,color,transform] dur-fast hover:bg-hover motion-safe:active:scale-97 aria-checked:border-ink aria-checked:bg-ink aria-checked:text-ink-inverse";
 
 export function ShutdownFlow(p: ShutdownFlowProps) {
   const [step, setStep] = useState<ShutdownStep>("done");
@@ -113,10 +119,10 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
                   <TaskRow key={t.id} task={t} actions={<MoveActions onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />} />
                 ))}
               </TaskList>
-              <p className="text-[13px] text-ink-3">Anything you leave here carries to tomorrow on its own.</p>
-              <button type="button" onClick={p.onCarryAll} className="self-start text-[13.5px] font-medium text-ink underline decoration-line-strong hover:decoration-ink">
+              <p className="text-body-sm text-pretty text-ink-3">Anything you leave here carries to tomorrow on its own.</p>
+              <Button variant="link" className="-ml-2 self-start" onClick={p.onCarryAll}>
                 Move all to tomorrow
-              </button>
+              </Button>
             </>
           )}
         </>
@@ -126,17 +132,9 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
       body = (
         <>
           <Lead>One tap. Skip if you&rsquo;d rather not.</Lead>
-          <div role="radiogroup" aria-label="Day rating" className="flex gap-2">
+          <div role="radiogroup" aria-label="Day rating" className="flex flex-wrap gap-2">
             {([1, 2, 3, 4, 5] as const).map((n) => (
-              <button
-                key={n}
-                type="button"
-                role="radio"
-                aria-checked={p.rating === n}
-                aria-label={`Rate ${n}`}
-                onClick={() => p.onRating(n)}
-                className="flex size-12 items-center justify-center rounded-xl border border-line bg-surface font-mono text-[16px] text-ink hover:border-line-strong aria-checked:border-ink aria-checked:bg-ink aria-checked:text-paper"
-              >
+              <button key={n} type="button" role="radio" aria-checked={p.rating === n} aria-label={`Rate ${n}`} onClick={() => p.onRating(n)} className={RATING}>
                 {n}
               </button>
             ))}
@@ -147,22 +145,13 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
     case "highlight":
       body = (
         <>
-          <input
-            autoFocus
-            aria-label="Highlight"
-            placeholder="One line is plenty."
-            value={highlight}
-            onChange={(e) => setHighlight(e.target.value)}
-            onBlur={commitHighlight}
-            onKeyDown={onHighlightKey}
-            className="h-12 w-full rounded-xl border border-line bg-surface px-4 text-[16px] text-ink outline-none focus:border-ink"
-          />
+          <Input size="touch" autoFocus aria-label="Highlight" placeholder="One line is plenty." value={highlight} onChange={(e) => setHighlight(e.target.value)} onBlur={commitHighlight} onKeyDown={onHighlightKey} />
           {p.done.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {p.done.slice(0, 6).map((t) => (
-                <button key={t.id} type="button" onClick={() => setHighlight(t.title)} className="h-9 max-w-full truncate rounded-full border border-line px-3 text-[13px] text-ink hover:border-line-strong">
-                  {t.title}
-                </button>
+                <Button key={t.id} variant="secondary" className="max-w-full" onClick={() => setHighlight(t.title)}>
+                  <span className="min-w-0 truncate">{t.title}</span>
+                </Button>
               ))}
             </div>
           )}
@@ -173,65 +162,47 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
       body = (
         <>
           <Lead>{tomorrowLine(p.tomorrow.spareMin, p.tomorrow.planned)}</Lead>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button type="button" onClick={p.onPlanTomorrow} className="h-11 rounded-xl border border-line bg-surface px-4 text-[15px] font-medium text-ink hover:border-line-strong">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={p.onPlanTomorrow}>
               Plan tomorrow now
-            </button>
-            <button type="button" onClick={goNext} className="h-11 rounded-xl px-4 text-[15px] text-ink-2 hover:text-ink">
+            </Button>
+            <Button variant="quiet" onClick={goNext}>
               Plan it in the morning
-            </button>
+            </Button>
           </div>
         </>
       );
       break;
     case "close":
-      body = <Lead>That&rsquo;s the day. Nothing is waiting for you.</Lead>;
+      body = (
+        <>
+          <Lead>That&rsquo;s the day. Nothing is waiting for you.</Lead>
+          <dl className="divide-y divide-line rounded-xl border border-line bg-surface">
+            {closingLedger({ done: p.done, unfinished: p.unfinished, defaultEstimateMin: p.defaultEstimateMin, rating: p.rating, highlight, tomorrow: p.tomorrow }).map((row) => (
+              <div key={row.label} className="flex items-baseline justify-between gap-4 px-4 py-2.5 sm:py-3">
+                <dt className="shrink-0 text-body text-ink-2">{row.label}</dt>
+                <dd className={cx("min-w-0 text-right text-body font-medium num [overflow-wrap:anywhere]", row.tone === "spare" ? "font-semibold text-spare" : row.tone === "over" ? "font-semibold text-over" : row.tone === "quiet" ? "text-ink-3" : "text-ink")}>{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      );
       break;
   }
 
   return (
-    <main className={cx(VIEW_COLUMN, "min-h-dvh pb-28 md:pb-28")}>
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-            Evening shutdown · {stepIndex + 1} of {SHUTDOWN_STEPS.length}
-          </p>
-          <h1 className="font-display text-3xl leading-tight text-ink">{TITLES[step]}</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <ol className="flex gap-1.5" aria-label="Steps">
-            {SHUTDOWN_STEPS.map((s, i) => (
-              <li key={s}>
-                <button type="button" onClick={() => setStep(s)} aria-label={`Step ${i + 1}: ${TITLES[s]}`} aria-current={s === step ? "step" : undefined} className={`block size-2.5 rounded-full ${i <= stepIndex ? "bg-ink" : "bg-line-strong"}`} />
-              </li>
-            ))}
-          </ol>
-          <button type="button" onClick={p.onSkip} aria-label="Skip" className="flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink">
-            <Icon name="close" size={18} />
-          </button>
-        </div>
-      </header>
-
-      <section className="flex flex-col gap-4">{body}</section>
-
-      <footer className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-line bg-paper/95 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
-        <button type="button" onClick={() => prev && setStep(prev)} disabled={!prev} className="h-12 rounded-xl px-4 text-[15px] text-ink-2 hover:text-ink disabled:opacity-0">
-          ← Back
-        </button>
-        {step === "close" ? (
-          <button type="button" onClick={p.onClose} className="h-12 rounded-xl bg-ink px-5 text-[15px] font-medium text-paper">
-            Close the day
-          </button>
-        ) : (
-          <button type="button" onClick={goNext} className="h-12 rounded-xl bg-ink px-5 text-[15px] font-medium text-paper">
-            Next
-          </button>
-        )}
-      </footer>
-    </main>
+    <RitualFrame
+      eyebrow={
+        <>
+          Evening shutdown · <span className="num">{stepIndex + 1}</span> of <span className="num">{SHUTDOWN_STEPS.length}</span>
+        </>
+      }
+      title={TITLES[step]}
+      steps={{ labels: LABELS, index: stepIndex, onStep: (i) => setStep(SHUTDOWN_STEPS[i]) }}
+      onSkip={p.onSkip}
+      footer={<RitualFooter onBack={() => prev && setStep(prev)} canGoBack={prev !== null} primary={step === "close" ? { label: "Close the day", onClick: p.onClose } : { label: "Next", onClick: goNext }} />}
+    >
+      {body}
+    </RitualFrame>
   );
-}
-
-function Lead({ children }: { children: ReactNode }) {
-  return <p className="text-[17px] leading-relaxed text-ink">{children}</p>;
 }
