@@ -12,6 +12,7 @@ import type { LocalDate } from "@/core/time";
 import { displayShortcut } from "./keys";
 import { rankCommands, rankNamed } from "./palette-rank";
 import type { Availability, Command } from "./registry";
+import { Kbd } from "@/ui/kbd";
 
 export interface PaletteNamed {
   id: string;
@@ -45,7 +46,6 @@ type Row =
   | { kind: "named"; key: string; item: PaletteNamed; icon: IconName; label: string }
   | { kind: "add"; key: string; title: string };
 
-const KBD = "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line border-b-2 bg-surface px-1.5 font-mono text-[11px] text-ink-2";
 
 export function Palette(p: PaletteProps) {
   const { commands, recents, projects, areas, tasks, availability: avail } = p;
@@ -147,7 +147,7 @@ export function Palette(p: PaletteProps) {
           <button type="button" onClick={p.onClose} aria-label="Close" className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 hover:bg-paper hover:text-ink sm:hidden">
             <Icon name="close" size={18} />
           </button>
-          <kbd className={`${KBD} hidden [@media(hover:hover)]:inline-flex`}>esc</kbd>
+          <Kbd>esc</Kbd>
         </div>
         <div id={listId} role="listbox" aria-label="Results" className="flex-1 overflow-y-auto p-2">
           {rows.length === 0 && <p className="px-3 py-6 text-[14px] text-ink-3">Nothing matched.</p>}
@@ -176,7 +176,7 @@ export function Palette(p: PaletteProps) {
                         <>
                           <span className="min-w-0 flex-1 truncate">{row.command.title}</span>
                           {!row.availability.enabled && <span className="text-[12px] text-ink-3">{row.availability.reason}</span>}
-                          {row.command.shortcut && <kbd className={`${KBD} hidden [@media(hover:hover)]:inline-flex`}>{displayShortcut(row.command.shortcut, p.isMac)}</kbd>}
+                          {row.command.shortcut && <Kbd>{displayShortcut(row.command.shortcut, p.isMac)}</Kbd>}
                         </>
                       )}
                       {row.kind === "named" && (

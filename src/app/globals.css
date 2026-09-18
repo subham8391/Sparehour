@@ -1,107 +1,271 @@
 @import "tailwindcss";
 
-/* Daylight tokens — docs/design/DESIGN_SYSTEM.md §2. Light is the base; the
-   dark set applies to the un-stamped system theme and to an explicit choice. */
+/* Refined Daylight tokens (docs/design/DESIGN_SYSTEM.md §2, DECISIONS.md Q26).
+   Light is the base; the dark set applies to the un-stamped system theme and
+   to an explicit choice. Every colour a component uses is one of these names;
+   the three blocks are kept in step by hand. Green means spare time only. */
 :root {
+  color-scheme: light;
   --paper: #f4f8f6;
   --surface: #ffffff;
   --surface-2: #edf1ef;
+  --surface-3: #ffffff;
+  --hover: rgb(22 28 25 / 0.05);
+  --press: rgb(22 28 25 / 0.08);
+  --scrim: rgb(25 37 31 / 0.32);
   --line: #d9e0dd;
   --line-strong: #bec6c2;
+  --line-control: #7f8683;
   --ink: #161c19;
-  --ink-2: #5c6661;
-  /* Text tokens hold WCAG AA (≥ 4.5:1) on paper, surface and their soft tints — checked by axe in e2e. */
-  --ink-3: #66706c;
+  --ink-2: #555b58;
+  /* Text tokens hold WCAG AA (4.5:1 or better) on paper, surface and their soft tints; axe checks the real pages in e2e. */
+  --ink-3: #5f6663;
+  /* Placeholders and disabled text only: 3.6:1, never the sole carrier of anything essential. */
+  --ink-4: #818885;
+  --ink-inverse: var(--paper);
   --spare: #1a7455;
-  --spare-fill: #249c74;
+  --spare-fill: #19966e;
   --spare-soft: #d7f3e5;
-  --meet: #4868a2;
-  --meet-fill: #6586c3;
+  --spare-line: #7fd2ae;
+  --meet: #43629c;
+  --meet-fill: #5f80bc;
   --meet-soft: #e0ecff;
-  --over: #8f6329;
-  --over-fill: #ebb16c;
+  --meet-line: #a2bef2;
+  --over: #875814;
+  --over-fill: #aa732b;
   --over-soft: #feebd6;
+  --over-line: #e3b47f;
   --deadline: #a8493d;
+  --deadline-fill: #c15e4f;
   --deadline-soft: #ffe3de;
+  --deadline-line: #f9a496;
+  /* Planned time on the ribbon is a neutral, never ink, so the number stays the darkest thing on the card. */
+  --block-fill: #292f2c;
+  --block-soft: var(--surface-2);
+  --hatch: rgb(22 28 25 / 0.16);
+  /* Elevation: cards are flat; only raised popovers, the phone sheet and the FAB cast an ink-tinted shadow. */
+  --shadow-tint: 25 37 31;
+  --shadow-1: 0 1px 2px rgb(var(--shadow-tint) / 0.05);
+  --shadow-2: 0 1px 2px rgb(var(--shadow-tint) / 0.05), 0 4px 10px rgb(var(--shadow-tint) / 0.07), 0 12px 28px rgb(var(--shadow-tint) / 0.08);
+  --shadow-float: 0 -12px 40px rgb(var(--shadow-tint) / 0.18);
+  --shadow-fab: 0 8px 20px rgb(var(--shadow-tint) / 0.22);
+  --shadow-active: 0 1px 2px rgb(var(--shadow-tint) / 0.06), 0 0 0 1px var(--line);
+  --raised-border: transparent;
+  /* The one gradient in the product: cool at the start of the day, warm at the end, behind the timeline only. */
+  --daylight: linear-gradient(180deg, oklch(96% 0.012 235 / 0.7) 0%, transparent 42%, oklch(96.5% 0.018 75 / 0.75) 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --paper: #0c110f;
     --surface: #151917;
     --surface-2: #1e2320;
-    --line: #292f2c;
-    --line-strong: #3e4441;
+    --surface-3: #282d2a;
+    --hover: rgb(255 255 255 / 0.06);
+    --press: rgb(255 255 255 / 0.1);
+    --scrim: rgb(0 0 0 / 0.55);
+    --line: #343937;
+    --line-strong: #4f5451;
+    --line-control: #7a817e;
     --ink: #e8ecea;
-    --ink-2: #9ea7a3;
-    --ink-3: #8a948f;
-    --spare: #69d6aa;
-    --spare-fill: #37b78a;
-    --spare-soft: #103627;
-    --meet: #9ebef8;
-    --meet-fill: #7698d6;
-    --meet-soft: #202e47;
-    --over: #ebb16c;
-    --over-fill: #ebb16c;
-    --over-soft: #3e290f;
-    --deadline: #f58d7c;
-    --deadline-soft: #47211b;
+    --ink-2: #afb8b4;
+    --ink-3: #98a19d;
+    --ink-4: #808884;
+    --ink-inverse: var(--paper);
+    --spare: #7cd2ae;
+    --spare-fill: #46b68c;
+    --spare-soft: #1c3329;
+    --spare-line: #0a6548;
+    --meet: #9bbeff;
+    --meet-fill: #7c9edd;
+    --meet-soft: #262e3d;
+    --meet-line: #3c5582;
+    --over: #e7b375;
+    --over-fill: #ca924c;
+    --over-soft: #392b1a;
+    --over-line: #744b13;
+    --deadline: #fda293;
+    --deadline-fill: #e47d6d;
+    --deadline-soft: #3c2824;
+    --deadline-line: #853b31;
+    --block-fill: #7b827f;
+    --block-soft: var(--surface-2);
+    --hatch: rgb(232 236 234 / 0.16);
+    /* Dark elevates by tone and a hairline, not by shadow. */
+    --shadow-1: none;
+    --shadow-2: none;
+    --shadow-float: 0 -12px 40px rgb(0 0 0 / 0.5);
+    --shadow-fab: 0 8px 20px rgb(0 0 0 / 0.45);
+    --shadow-active: 0 0 0 1px var(--line);
+    --raised-border: var(--line-strong);
+    --daylight: linear-gradient(180deg, oklch(26% 0.014 235 / 0.55) 0%, transparent 42%, oklch(26% 0.016 70 / 0.6) 100%);
   }
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --paper: #0c110f;
   --surface: #151917;
   --surface-2: #1e2320;
-  --line: #292f2c;
-  --line-strong: #3e4441;
+  --surface-3: #282d2a;
+  --hover: rgb(255 255 255 / 0.06);
+  --press: rgb(255 255 255 / 0.1);
+  --scrim: rgb(0 0 0 / 0.55);
+  --line: #343937;
+  --line-strong: #4f5451;
+  --line-control: #7a817e;
   --ink: #e8ecea;
-  --ink-2: #9ea7a3;
-  --ink-3: #8a948f;
-  --spare: #69d6aa;
-  --spare-fill: #37b78a;
-  --spare-soft: #103627;
-  --meet: #9ebef8;
-  --meet-fill: #7698d6;
-  --meet-soft: #202e47;
-  --over: #ebb16c;
-  --over-fill: #ebb16c;
-  --over-soft: #3e290f;
-  --deadline: #f58d7c;
-  --deadline-soft: #47211b;
+  --ink-2: #afb8b4;
+  --ink-3: #98a19d;
+  --ink-4: #808884;
+  --ink-inverse: var(--paper);
+  --spare: #7cd2ae;
+  --spare-fill: #46b68c;
+  --spare-soft: #1c3329;
+  --spare-line: #0a6548;
+  --meet: #9bbeff;
+  --meet-fill: #7c9edd;
+  --meet-soft: #262e3d;
+  --meet-line: #3c5582;
+  --over: #e7b375;
+  --over-fill: #ca924c;
+  --over-soft: #392b1a;
+  --over-line: #744b13;
+  --deadline: #fda293;
+  --deadline-fill: #e47d6d;
+  --deadline-soft: #3c2824;
+  --deadline-line: #853b31;
+  --block-fill: #7b827f;
+  --block-soft: var(--surface-2);
+  --hatch: rgb(232 236 234 / 0.16);
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-float: 0 -12px 40px rgb(0 0 0 / 0.5);
+  --shadow-fab: 0 8px 20px rgb(0 0 0 / 0.45);
+  --shadow-active: 0 0 0 1px var(--line);
+  --raised-border: var(--line-strong);
+  --daylight: linear-gradient(180deg, oklch(26% 0.014 235 / 0.55) 0%, transparent 42%, oklch(26% 0.016 70 / 0.6) 100%);
+}
+
+/* Theme-independent values: durations (DESIGN_SYSTEM.md §7) and the ribbon's span. */
+:root {
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 240ms;
+  /* How many hours the ribbon spans; the tick utility divides the width by it. */
+  --ribbon-hours: 9;
+}
+
+/* Easings live in the theme so `ease-out-quart` and friends exist as utilities and as variables. */
+@theme {
+  --ease-out-quart: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* A small settle for the check ring only: 3.8% overshoot, back by 85%. */
+  --ease-settle: linear(0, 0.4 20%, 0.9 45%, 1.038 65%, 0.995 85%, 1);
 }
 
 @theme inline {
   --color-paper: var(--paper);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hover: var(--hover);
+  --color-press: var(--press);
+  --color-scrim: var(--scrim);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-line-control: var(--line-control);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-ink-inverse: var(--ink-inverse);
   --color-spare: var(--spare);
   --color-spare-fill: var(--spare-fill);
   --color-spare-soft: var(--spare-soft);
+  --color-spare-line: var(--spare-line);
   --color-meet: var(--meet);
   --color-meet-fill: var(--meet-fill);
   --color-meet-soft: var(--meet-soft);
+  --color-meet-line: var(--meet-line);
   --color-over: var(--over);
   --color-over-fill: var(--over-fill);
   --color-over-soft: var(--over-soft);
+  --color-over-line: var(--over-line);
   --color-deadline: var(--deadline);
+  --color-deadline-fill: var(--deadline-fill);
   --color-deadline-soft: var(--deadline-soft);
-  --font-display: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+  --color-deadline-line: var(--deadline-line);
+  --color-block-fill: var(--block-fill);
+  --color-block-soft: var(--block-soft);
+  --color-raised-border: var(--raised-border);
+
+  /* Faces (DESIGN_SYSTEM.md §3): Newsreader for the few emotional moments, its italic for the one qualifier
+     word, Instrument Sans for everything else including every numeral. Mono is the system stack, kbd only. */
+  --font-display: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --font-display-italic: var(--font-newsreader-italic), "Iowan Old Style", Georgia, serif;
   --font-sans: var(--font-instrument-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-mono: var(--font-dm-mono), "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Newsreader's display weight; `font-book` on the hero and titles. */
+  --font-weight-book: 450;
+
+  /* Type scale: display steps are fluid (phone value at 360, desktop value at 1440), UI steps are fixed. */
+  --text-hero: clamp(2.5rem, 2.167rem + 1.481vw, 3.5rem);
+  --text-hero--line-height: 1;
+  --text-em: clamp(1.5rem, 1.333rem + 0.741vw, 2rem);
+  --text-em--line-height: 1;
+  --text-title: clamp(1.625rem, 1.458rem + 0.741vw, 2.125rem);
+  --text-title--line-height: 1.1;
+  --text-pane: clamp(1.25rem, 1.208rem + 0.185vw, 1.375rem);
+  --text-pane--line-height: 1.2;
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.5rem;
+  --text-body-lg: 0.9375rem;
+  --text-body-lg--line-height: 1.25rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-body-sm: 0.8125rem;
+  --text-body-sm--line-height: 1.125rem;
+  --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 0.875rem;
+  /* Eyebrows are the only tracked text. */
+  --tracking-eyebrow: 0.07em;
+
+  /* Radii. `rounded-md` is a legacy alias of `rounded-sm` for the chips that predate the primitives. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-sheet: 20px;
+  --radius-fab: 18px;
+
+  /* Shadows: Tailwind's names point at the ink-tinted scale so `shadow-lg` and friends follow the theme.
+     The utility names differ from the raw tokens on purpose (a same-named theme key would reference itself). */
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
+  --shadow-lg: var(--shadow-2);
+  --shadow-xl: var(--shadow-2);
+  --shadow-2xl: var(--shadow-float);
+  --shadow-raised: var(--shadow-2);
+  --shadow-sheet: var(--shadow-float);
+  --shadow-lift: var(--shadow-fab);
+  --shadow-nav: var(--shadow-active);
+
   /* Width bands (DESIGN_SYSTEM.md §4a): phone < sm, narrow rail sm–md, sidebar ≥ md, three panes ≥ lg */
   --breakpoint-sm: 640px;
   --breakpoint-md: 900px;
   --breakpoint-lg: 1180px;
   --breakpoint-xl: 1440px;
   --breakpoint-2xl: 1680px;
-  /* Check-off (DESIGN_SYSTEM.md §7): the ring fills in 120 ms. */
-  --animate-check-fill: check-fill 120ms ease-out both;
+
+  /* Check-off (DESIGN_SYSTEM.md §7): the ring fills in 120 ms and settles. */
+  --animate-check-fill: check-fill var(--dur-fast) var(--ease-settle) both;
   @keyframes check-fill {
     from {
       transform: scale(0.4);
@@ -114,27 +278,110 @@
   }
 }
 
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
+/* Durations as utilities: `transition-colors dur-fast`. */
+@utility dur-fast {
+  transition-duration: var(--dur-fast);
+}
+@utility dur-base {
+  transition-duration: var(--dur-base);
+}
+@utility dur-slow {
+  transition-duration: var(--dur-slow);
 }
 
-/* Keyboard focus is always visible (SYSTEM_DESIGN.md §11.5); pointer focus stays quiet. */
-:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+/* The ribbon's instruments (DESIGN_SYSTEM.md §5), reusable by the hero, the morning plan and the week bars. */
+/* Spare track: spare-soft with a 6 px dot grid in spare-fill. */
+@utility ribbon-track {
+  background-color: var(--spare-soft);
+  background-image: radial-gradient(circle at 2px 2px, var(--spare-fill) 0.9px, transparent 1.15px);
+  background-size: 6px 6px;
+  background-position: 2px 4px;
+}
+/* The elapsed part of the day: a 135 degree hatch laid over the track. */
+@utility ribbon-elapsed {
+  background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1.2px, transparent 1.2px 5px);
+}
+/* Engraved ticks under the track: an 8 px hour tick and 4 px quarter ticks, drawn from --ribbon-hours.
+   The third layer is the closing hour tick that a repeating tile cannot draw. */
+@utility ribbon-ticks {
+  background-image:
+    linear-gradient(to right, var(--line-control) 1px, transparent 1px),
+    linear-gradient(to right, var(--line-strong) 1px, transparent 1px),
+    linear-gradient(var(--line-control), var(--line-control));
+  background-size:
+    calc(100% / var(--ribbon-hours)) 8px,
+    calc(100% / (var(--ribbon-hours) * 4)) 4px,
+    1px 8px;
+  background-repeat: repeat-x, repeat-x, no-repeat;
+  background-position:
+    0 0,
+    0 0,
+    100% 0;
+}
+/* The daylight gradient over the timeline pane. */
+@utility bg-daylight {
+  background-image: var(--daylight);
+}
+/* A line that fades out at its right edge instead of wrapping (the phone row's meta line). */
+@utility fade-end {
+  mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+}
+/* Tabular figures for anything that lines up: times, durations, counts, ticks. */
+@utility num {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Motion is feedback only, and none at all for people who asked for none. */
+@layer base {
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-optical-sizing: auto;
+  }
+  /* Times and keys always line up. */
+  time,
+  kbd {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Everything actionable gets a pointer, once, here. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+  button,
+  a,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Keyboard focus is always visible (SYSTEM_DESIGN.md §11.5) and follows the element's radius; pointer focus stays quiet.
+     Inputs that switch their border to ink opt out with `focus-visible:outline-none` so there is never a double ring. */
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
+/* Keyboard hints mean nothing on a touch device (DESIGN_SYSTEM.md §4a). Unlayered on purpose: it must beat the utility. */
+@media (hover: none) and (pointer: coarse) {
+  kbd {
+    display: none;
+  }
+}
+
+/* Motion is feedback only. People who asked for less keep the 120 ms fades and lose every movement. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color, border-color, outline-color, box-shadow !important;
+    transition-duration: var(--dur-fast) !important;
     scroll-behavior: auto !important;
   }
 }

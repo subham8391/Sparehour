@@ -1,8 +1,11 @@
 "use client";
 // A field row that opens a small panel: the task detail's "each field opens a
 // popover" (SCREENS.md §10). Closes on Escape and on a click outside; hands
-// focus back to the row.
+// focus back to the row. Panels are raised: surface-3 with the ink shadow in
+// light, a line-strong hairline and no shadow in dark (DESIGN_SYSTEM.md §4).
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { fieldClass } from "./field";
+import { Icon } from "./icons";
 
 export function FieldPopover({
   label,
@@ -60,13 +63,13 @@ export function FieldPopover({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        className="flex min-h-[46px] w-full items-center justify-between gap-3 px-3.5 text-left text-[14.5px] hover:bg-paper"
+        className="flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left text-body hover:bg-hover"
       >
         <span className="text-ink-2">{label}</span>
-        <span className="flex min-w-0 items-center gap-2 text-ink">{value}</span>
+        <span className="flex min-w-0 items-center gap-2 font-medium text-ink num">{value}</span>
       </button>
       {open && (
-        <div id={panelId} role="dialog" aria-label={label} className="absolute right-2 top-full z-30 mt-1 w-[calc(100%-1rem)] max-w-80 rounded-xl border border-line bg-surface p-3 shadow-lg">
+        <div id={panelId} role="dialog" aria-label={label} className="absolute right-2 top-full z-30 mt-1 w-[calc(100%-1rem)] max-w-80 rounded-xl border border-raised-border bg-surface-3 p-3 shadow-raised">
           {children(close)}
         </div>
       )}
@@ -126,16 +129,12 @@ export function MenuButton({
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         aria-label={label}
-        className={text ? className || "flex h-9 items-center rounded-lg px-2.5 text-[13px] text-ink-2 hover:bg-paper hover:text-ink" : "flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink sm:size-9"}
+        className={text ? className || "flex h-9 items-center rounded-sm px-2.5 text-body-sm font-medium text-ink-2 hover:bg-hover hover:text-ink" : "flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-hover hover:text-ink sm:size-9"}
       >
-        {text ?? (
-          <span aria-hidden="true" className="text-lg leading-none">
-            ⋯
-          </span>
-        )}
+        {text ?? <Icon name="more" size={18} strokeWidth={2.6} />}
       </button>
       {open && (
-        <div id={panelId} role="menu" aria-label={label} className={`absolute z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-line bg-surface p-2 shadow-lg ${direction === "up" ? "bottom-full mb-1" : "top-full mt-1"} ${align === "right" ? "right-0" : "left-0"}`}>
+        <div id={panelId} role="menu" aria-label={label} className={`absolute z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-raised-border bg-surface-3 p-2 shadow-raised ${direction === "up" ? "bottom-full mb-1" : "top-full mt-1"} ${align === "right" ? "right-0" : "left-0"}`}>
           {children(close)}
         </div>
       )}
@@ -143,6 +142,7 @@ export function MenuButton({
   );
 }
 
-export const MENU_ITEM = "flex min-h-10 w-full items-center rounded-lg px-2.5 text-left text-[14px] text-ink hover:bg-paper";
-export const CHIP_BUTTON = "h-9 rounded-full border border-line px-3 text-[13px] text-ink hover:border-line-strong aria-pressed:border-ink aria-pressed:bg-surface-2";
-export const FIELD_INPUT = "h-10 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink outline-none focus:border-ink";
+export const MENU_ITEM = "flex min-h-10 w-full items-center rounded-sm px-2.5 text-left text-body text-ink hover:bg-hover";
+export const CHIP_BUTTON = "h-9 rounded-full border border-line px-3 text-body-sm text-ink hover:border-line-strong aria-pressed:border-ink aria-pressed:bg-surface-2";
+/** The input used inside popover panels; the field primitive's look at the desktop height. */
+export const FIELD_INPUT = fieldClass({ size: "desktop" });

@@ -16,6 +16,7 @@ import { Icon } from "@/ui/icons";
 import { chordOf, displayShortcut, resolveKey, type SequenceState } from "./keys";
 import { COMMANDS, GROUP_ORDER, availability, keyBindings, type Command, type CommandContext, type Theme } from "./registry";
 import { applyTheme, readTheme } from "./theme";
+import { Kbd } from "@/ui/kbd";
 
 const BINDINGS = keyBindings(COMMANDS);
 
@@ -138,7 +139,6 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   );
 }
 
-const KBD = "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line border-b-2 bg-surface px-1.5 font-mono text-[11px] text-ink-2";
 
 /** The `?` overlay (SCREENS.md §24): every shortcut, grouped as the spec groups them. */
 function ShortcutsDialog({ isMac, onClose }: { isMac: boolean; onClose: () => void }) {
@@ -172,7 +172,7 @@ function ShortcutsDialog({ isMac, onClose }: { isMac: boolean; onClose: () => vo
                   <div key={c.id} className="flex items-center justify-between gap-3 text-[14px]">
                     <dt className="text-ink">{c.title}</dt>
                     <dd>
-                      <kbd className={KBD}>{displayShortcut(c.shortcut!, isMac)}</kbd>
+                      <Kbd>{displayShortcut(c.shortcut!, isMac)}</Kbd>
                     </dd>
                   </div>
                 ))}

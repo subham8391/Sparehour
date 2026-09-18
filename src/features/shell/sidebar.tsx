@@ -30,7 +30,7 @@ export interface NavArea {
 }
 
 const ITEM = "flex h-[34px] items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-ink-2 hover:bg-surface hover:text-ink";
-const ACTIVE = "aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=page]:shadow-[0_1px_2px_rgba(22,28,25,0.06),0_0_0_1px_var(--line)]";
+const ACTIVE = "aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=page]:shadow-nav";
 
 function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathname: string; count?: number; rail: boolean; icon: IconName }) {
   const active = isActive(pathname, view.href);
@@ -59,7 +59,7 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
   const activeArea = isActive(pathname, `/area/${area.id}`);
   return (
     <li>
-      <div className={`${ITEM} pr-1 ${activeArea ? "bg-surface text-ink shadow-[0_1px_2px_rgba(22,28,25,0.06),0_0_0_1px_var(--line)]" : ""}`}>
+      <div className={`${ITEM} pr-1 ${activeArea ? "bg-surface text-ink shadow-nav" : ""}`}>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}

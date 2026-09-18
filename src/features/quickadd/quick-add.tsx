@@ -9,6 +9,7 @@ import { parse, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Icon } from "@/ui/icons";
 import { interpret, projectMatches, projectToken, resolveProject, segments, splitPaste, type QuickAddProject } from "./interpret";
+import { Kbd } from "@/ui/kbd";
 
 export interface QuickAddContext {
   now: Instant;
@@ -51,7 +52,6 @@ const SUGGESTIONS: { label: string; insert: string }[] = [
   { label: "!1", insert: "!1" },
 ];
 
-const KBD = "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line border-b-2 bg-surface px-1.5 font-mono text-[11px] text-ink-2";
 
 export function QuickAdd({
   open,
@@ -261,7 +261,7 @@ export function QuickAdd({
                 className={`h-9 rounded-full border px-3 ${willCreate ? "border-spare bg-spare-soft text-spare" : "border-line text-ink hover:border-line-strong"}`}
               >
                 {willCreate ? "Will create" : "Create"} “{projectName}”
-                {suggestions.length === 0 && !willCreate && <kbd className={`${KBD} ml-2 hidden sm:inline-flex`}>Tab</kbd>}
+                {suggestions.length === 0 && !willCreate && <Kbd className="ml-2 max-sm:hidden">Tab</Kbd>}
               </button>
             </div>
           )}
@@ -277,13 +277,13 @@ export function QuickAdd({
           <div className="flex items-center justify-between gap-3">
             <p className="hidden items-center gap-4 text-[12px] text-ink-3 sm:flex">
               <span>
-                <kbd className={KBD}>⏎</kbd> save and keep going
+                <Kbd>⏎</Kbd> save and keep going
               </span>
               <span>
-                <kbd className={KBD}>⌘⏎</kbd> save and close
+                <Kbd>⌘⏎</Kbd> save and close
               </span>
               <span>
-                <kbd className={KBD}>esc</kbd> discard
+                <Kbd>esc</Kbd> discard
               </span>
             </p>
             <button

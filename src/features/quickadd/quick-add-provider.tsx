@@ -13,6 +13,7 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Icon } from "@/ui/icons";
 import type { QuickAddSubmission } from "./quick-add";
+import { Kbd } from "@/ui/kbd";
 
 // The sheet carries the natural-language parser, so it stays out of the
 // shell's first download (SYSTEM_DESIGN.md §11.6): fetched in idle time
@@ -85,7 +86,6 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   );
 }
 
-const KBD = "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line border-b-2 bg-surface px-1.5 font-mono text-[11px] text-ink-2";
 
 /** The always-present bar at the bottom of the main pane (narrow band and up). */
 export function QuickAddBar() {
@@ -99,7 +99,7 @@ export function QuickAddBar() {
       >
         <Icon name="plus" size={16} />
         <span className="flex-1">Add a task</span>
-        <kbd className={KBD}>Q</kbd>
+        <Kbd>Q</Kbd>
       </button>
     </div>
   );
