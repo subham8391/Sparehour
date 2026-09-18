@@ -35,9 +35,9 @@ test("a new person sees only their own (empty) world, and sign-out clears the de
   // The dev account's seeded tasks must not be here.
   await expect(page.getByText("Book dentist")).toHaveCount(0);
   await page.getByRole("link", { name: /^Inbox/ }).click();
-  await expect(page.getByText("Inbox zero. Nice.")).toBeVisible();
+  await expect(page.getByText("Inbox is empty.")).toBeVisible();
   await page.getByRole("link", { name: "Logbook" }).click();
-  await expect(page.getByText("Nothing completed yet.")).toBeVisible();
+  await expect(page.getByText("Nothing finished yet.")).toBeVisible();
 
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();

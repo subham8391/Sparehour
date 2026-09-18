@@ -4,19 +4,23 @@ import { expect, test } from "./fixtures";
 import { waitForRow } from "./db";
 import { openApp, quickAdd, uniqueTitle } from "./helpers";
 
+const ZONE = "Europe/London";
+
 test("tomorrow's task is under tomorrow; T brings it to today", async ({ page }) => {
   await openApp(page, "/upcoming");
   const title = uniqueTitle("upcoming");
   await quickAdd(page, `${title} tomorrow`);
+  // Day labels follow the account's zone (Europe/London), not the machine's: late in the evening they differ.
+  const label = (d: Date) => new RegExp(`^${d.toLocaleDateString("en-GB", { weekday: "short", timeZone: ZONE })} ${d.toLocaleDateString("en-GB", { day: "numeric", timeZone: ZONE })}`);
   const tomorrow = new Date(Date.now() + 86_400_000);
-  const dayLabel = new RegExp(`^${tomorrow.toLocaleDateString("en-GB", { weekday: "short" })} ${tomorrow.getDate()}`);
+  const dayLabel = label(tomorrow);
   const column = page.getByRole("group", { name: dayLabel });
   await expect(column.getByRole("listitem").filter({ hasText: title })).toBeVisible();
 
   await column.getByRole("listitem").filter({ hasText: title }).getByText("30m?", { exact: true }).click();
   await page.keyboard.press("t");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: ZONE });
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2", [title, today])).not.toBeNull();
-  const todayLabel = new RegExp(`^${new Date().toLocaleDateString("en-GB", { weekday: "short" })} ${new Date().getDate()}`);
+  const todayLabel = label(new Date());
   await expect(page.getByRole("group", { name: todayLabel }).getByRole("listitem").filter({ hasText: title })).toBeVisible();
 });

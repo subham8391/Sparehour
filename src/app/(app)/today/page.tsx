@@ -240,7 +240,8 @@ export default function TodayPage() {
     // Three panes from the wide band: the list column scrolls on its own and the day pane keeps its place beside it.
     // Below that the day pane takes the list's place when "Day" is chosen, and the page (or the shell's region) scrolls.
     <main className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
-      <div className={cx("min-w-0 flex-1 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:overflow-y-auto", showDay ? "hidden lg:flex" : "flex")}>
+      {/* Below the wide band the Day view replaces only the lists: the header, the hero and the ritual row (with the List/Day control) stay. */}
+      <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto", showDay ? "pb-0 lg:pb-7" : "flex-1")}>
         <ViewHeader
           eyebrow="Today"
           title={formatDay(model.today, { weekday: "long", month: "long" })}
@@ -322,7 +323,7 @@ export default function TodayPage() {
           </div>
         )}
 
-        <div className="flex flex-col gap-6">
+        <div className={cx("flex-col gap-6", showDay ? "hidden lg:flex" : "flex")}>
           {model.carried.length > 0 && (
             <section className="flex flex-col gap-2">
               <SectionLabel
