@@ -106,9 +106,10 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     <PwaContext.Provider value={api}>
       {children}
       {updateReady && (
-        <div role="status" className="fixed inset-x-4 top-3 z-40 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-line bg-surface px-4 py-2.5 text-[14px] text-ink shadow-lg">
-          <span className="min-w-0 flex-1">A new version is ready.</span>
-          <button type="button" onClick={reloadToUpdate} className="h-9 rounded-lg bg-ink px-3 font-medium text-paper">
+        // The toast (DESIGN_SYSTEM.md §5): an ink object with its action as a text button; the ring inverts with it.
+        <div role="status" className="fixed inset-x-4 top-3 z-40 mx-auto flex h-11 max-w-md items-center gap-3 rounded-lg bg-ink pr-1.5 pl-4 text-body font-medium text-ink-inverse shadow-raised">
+          <span className="min-w-0 flex-1 truncate">A new version is ready.</span>
+          <button type="button" onClick={reloadToUpdate} className="flex h-8 shrink-0 items-center rounded-sm px-2 font-semibold text-ink-inverse transition-colors dur-fast hover:bg-ink-inverse/15 focus-visible:outline-ink-inverse active:bg-ink-inverse/25">
             Reload
           </button>
         </div>

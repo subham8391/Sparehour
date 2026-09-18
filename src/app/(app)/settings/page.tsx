@@ -121,7 +121,7 @@ export default function SettingsPage() {
           signingOut={leaving}
         />
       ) : (
-        <p className="text-ink-3">Opening…</p>
+        <p className="text-body text-ink-3">Opening…</p>
       )}
     </main>
   );

@@ -4,7 +4,12 @@
 // titles", the one write calendar with the read-all/write-one promise restated,
 // sync status with "Sync now", and disconnect with what it means. Presentational.
 import { useState } from "react";
+import { HINT, LABEL, NOTE, ROW, VALUE } from "@/features/settings/rows";
+import { Button } from "@/ui/button";
+import { Chip } from "@/ui/chip";
+import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
+import { Switch } from "@/ui/switch";
 
 export interface CalendarAccountView {
   id: string;
@@ -45,12 +50,10 @@ export interface CalendarPanel {
   onWriteTarget: (id: string | null) => void;
 }
 
-const ROW = "flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-2 first:border-t-0";
-const LABEL = "text-[15px] text-ink-2";
-const SMALL = "text-[13px] text-ink-3";
-const BUTTON = "h-9 rounded-lg border border-line px-3 text-[13px] text-ink hover:border-line-strong disabled:opacity-60";
-const PRIMARY = "h-9 rounded-lg bg-ink px-3 text-[13px] font-medium text-paper disabled:opacity-60";
-const QUIET = "h-9 rounded-lg px-3 text-[13px] text-ink-2 hover:text-ink disabled:opacity-60";
+// A native radio drawn as a ring that thickens to ink when chosen; the label around it is the 44 px target.
+const RADIO = "size-5 shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] border-line-control bg-surface transition-[border-color,border-width] dur-fast checked:border-[6px] checked:border-ink";
+// The one destructive confirm: a quiet button in the deadline colour, the only warm red outside a near chip.
+const DESTRUCTIVE = "flex h-11 shrink-0 items-center rounded-lg px-3.5 text-body font-medium text-deadline transition-colors dur-fast hover:bg-hover disabled:pointer-events-none disabled:opacity-60 sm:h-9";
 
 export const PROMISE = {
   read: "We read all your calendars — just the times you're busy, so the spare-hours number is real.",
@@ -71,22 +74,32 @@ export function relativeTime(iso: string | null, now: Date = new Date()): string
 /** Google reports owner/writer/reader/freeBusyReader; a row without a role (older data) is not held against the calendar. */
 const writable = (c: CalendarView) => c.accessRole === null || c.accessRole === "owner" || c.accessRole === "writer";
 
+/**
+ * A calendar switch that flips on the tap: the pill shows what was just
+ * chosen while the row write makes its way through the local database, and
+ * a second tap flips from what is shown, so it never re-writes the value
+ * the first tap already wrote. The row's value wins again once it changes.
+ */
 function Toggle({ id, label, checked, onChange, disabled = false }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  const [shown, setShown] = useState(checked);
+  const [seen, setSeen] = useState(checked);
+  if (seen !== checked) {
+    setSeen(checked);
+    setShown(checked);
+  }
   return (
-    <label htmlFor={id} className="flex items-center gap-2 text-[13px] text-ink-2">
-      <button
-        id={id}
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative h-6 w-10 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${checked ? "border-ink bg-ink" : "border-line-strong bg-surface"}`}
-      >
-        <span className={`absolute top-0.5 size-[18px] rounded-full transition-[left] ${checked ? "left-[18px] bg-paper" : "left-0.5 bg-ink-3"}`} />
-      </button>
+    <label htmlFor={id} className="flex items-center gap-2 text-body-sm text-ink-2">
       {label}
+      <Switch
+        id={id}
+        aria-label={label}
+        checked={shown}
+        disabled={disabled}
+        onChange={(v) => {
+          setShown(v);
+          onChange(v);
+        }}
+      />
     </label>
   );
 }
@@ -104,82 +117,87 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
   return (
     <>
       {panel.notice && (
-        <p role="status" className={`${ROW} text-[13.5px] text-ink-2`}>
+        <p role="status" className={cx(ROW, HINT)}>
           {panel.notice}
         </p>
       )}
 
       {panel.accounts.length === 0 ? (
-        <div className={`${ROW} flex-col items-stretch gap-3 py-4`}>
-          <p className="text-[15px] text-ink">Connect your calendar.</p>
-          <ul className="flex flex-col gap-1 text-[13.5px] text-ink-2">
-            <li>{PROMISE.read}</li>
-            <li>{PROMISE.write}</li>
+        <div className={cx(ROW, "flex-col items-stretch gap-y-3 py-4")}>
+          <p className={LABEL}>Connect your calendar.</p>
+          <ul className="flex flex-col gap-1">
+            <li className={HINT}>{PROMISE.read}</li>
+            <li className={HINT}>{PROMISE.write}</li>
           </ul>
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className={PRIMARY} onClick={panel.onConnect} disabled={panel.busy || panel.configured !== true}>
+            <Button variant="primary" onClick={panel.onConnect} disabled={panel.busy || panel.configured !== true}>
               Connect Google Calendar
-            </button>
-            {panel.configured === false && <span className={SMALL}>Google Calendar isn&rsquo;t set up on this server yet.</span>}
+            </Button>
+            {panel.configured === false && <span className={NOTE}>Google Calendar isn&rsquo;t set up on this server yet.</span>}
           </div>
         </div>
       ) : (
         panel.accounts.map((a) => (
-          <div key={a.id} className={`${ROW} flex-col items-stretch gap-2`}>
+          <div key={a.id} className={cx(ROW, "flex-col items-stretch gap-y-2")}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="flex min-w-0 flex-col">
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                   <span className={LABEL}>Google Calendar</span>
-                  <span className="truncate font-mono text-[13px] text-ink">{a.email ?? "—"}</span>
+                  <span className={cx(VALUE, "min-w-0 truncate")}>{a.email ?? "—"}</span>
                 </span>
-                <span className={SMALL}>
+                <span className={cx(NOTE, "num")}>
                   {a.status === "ok" ? `Connected · synced ${relativeTime(a.lastSyncedAt, now)}` : a.status === "needs_reauth" ? "Needs reconnecting — your meetings stopped updating." : "Access was revoked."}
                 </span>
               </span>
-              <span className="flex items-center gap-2">
+              <span className="flex flex-wrap items-center gap-1">
                 {a.status === "ok" ? (
-                  <button type="button" className={BUTTON} onClick={panel.onSyncNow} disabled={panel.busy}>
+                  <Button variant="secondary" onClick={panel.onSyncNow} disabled={panel.busy}>
                     Sync now
-                  </button>
+                  </Button>
                 ) : (
-                  <button type="button" className={PRIMARY} onClick={panel.onConnect} disabled={panel.busy || panel.configured === false}>
+                  <Button variant="primary" onClick={panel.onConnect} disabled={panel.busy || panel.configured === false}>
                     Reconnect
-                  </button>
+                  </Button>
                 )}
                 {confirming === a.id ? (
-                  <span className="flex items-center gap-1 text-[13px] text-ink-2">
+                  <span className="flex flex-wrap items-center gap-1 pl-2 text-body-sm text-ink-2">
                     Your blocks stay, unsynced.
-                    <button type="button" className={`${QUIET} text-deadline`} onClick={() => panel.onDisconnect(a.id)} disabled={panel.busy}>
+                    <button type="button" className={DESTRUCTIVE} onClick={() => panel.onDisconnect(a.id)} disabled={panel.busy}>
                       Disconnect
                     </button>
-                    <button type="button" className={QUIET} onClick={() => setConfirming(null)}>
+                    <Button variant="quiet" onClick={() => setConfirming(null)}>
                       Keep
-                    </button>
+                    </Button>
                   </span>
                 ) : (
-                  <button type="button" className={QUIET} onClick={() => setConfirming(a.id)} disabled={panel.busy}>
+                  <Button variant="quiet" onClick={() => setConfirming(a.id)} disabled={panel.busy}>
                     Disconnect…
-                  </button>
+                  </Button>
                 )}
               </span>
             </div>
-            {a.lastError && a.status === "ok" && <p className="text-[13px] text-over">{a.lastError}</p>}
+            {a.lastError && a.status === "ok" && <p className="text-body-sm text-over">{a.lastError}</p>}
           </div>
         ))
       )}
 
       {panel.calendars.length > 0 && (
         <>
-          <p className={`px-4 pt-3 pb-1 ${SMALL}`}>{PROMISE.read}</p>
+          <p className={cx(NOTE, "px-4 pt-3 pb-1")}>{PROMISE.read}</p>
           <ul>
             {panel.calendars.map((c) => (
               <li key={c.id} className={ROW}>
                 <span className="flex min-w-0 items-center gap-2">
+                  {/* The calendar's own colour from Google, a data value, not a token. */}
                   <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color ?? "var(--meet-fill)" }} aria-hidden="true" />
-                  <span className="truncate text-[15px] text-ink">{c.summary}</span>
-                  {!writable(c) && <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-ink-3">read-only</span>}
+                  <span className={cx(LABEL, "truncate")}>{c.summary}</span>
+                  {!writable(c) && (
+                    <Chip size="sm" icon={null}>
+                      read-only
+                    </Chip>
+                  )}
                 </span>
-                <span className="flex flex-wrap items-center gap-4">
+                <span className="flex flex-wrap items-center gap-x-5 gap-y-0">
                   <Toggle id={`busy-${c.id}`} label="Counts as busy" checked={c.read} onChange={changed((v) => panel.onRead(c.id, v))} />
                   <Toggle id={`private-${c.id}`} label="Hide titles" checked={c.private} onChange={changed((v) => panel.onPrivate(c.id, v))} />
                 </span>
@@ -187,39 +205,39 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
             ))}
           </ul>
 
-          <div className={`${ROW} flex-col items-stretch gap-2`}>
+          <div className={cx(ROW, "flex-col items-stretch gap-y-2")}>
             <span className={LABEL}>Blocks go to</span>
-            <p className={SMALL}>{PROMISE.write}</p>
+            <p className={NOTE}>{PROMISE.write}</p>
             {writeCandidates.length === 0 ? (
-              <p className={SMALL}>None of these calendars can be written to.</p>
+              <p className={NOTE}>None of these calendars can be written to.</p>
             ) : (
-              <div role="radiogroup" aria-label="Write calendar" className="flex flex-col gap-1">
+              <div role="radiogroup" aria-label="Write calendar" className="flex flex-col">
                 {writeCandidates.map((c) => (
-                  <label key={c.id} className="flex items-center gap-2 text-[14px] text-ink">
-                    <input type="radio" name="write-calendar" className="accent-ink" checked={c.writeTarget} onChange={changed(() => panel.onWriteTarget(c.id))} />
+                  <label key={c.id} className="flex min-h-11 items-center gap-3 text-body text-ink">
+                    <input type="radio" name="write-calendar" className={RADIO} checked={c.writeTarget} onChange={changed(() => panel.onWriteTarget(c.id))} />
                     {c.summary}
                   </label>
                 ))}
-                <label className="flex items-center gap-2 text-[14px] text-ink-2">
-                  <input type="radio" name="write-calendar" className="accent-ink" checked={writeTarget === null} onChange={changed(() => panel.onWriteTarget(null))} />
+                <label className="flex min-h-11 items-center gap-3 text-body text-ink-2">
+                  <input type="radio" name="write-calendar" className={RADIO} checked={writeTarget === null} onChange={changed(() => panel.onWriteTarget(null))} />
                   Keep blocks in Sparehour only
                 </label>
               </div>
             )}
             {!panel.accounts.some((a) => a.canWrite) && writeTarget && (
               <div className="flex flex-wrap items-center gap-3">
-                <button type="button" className={PRIMARY} onClick={() => panel.onAllowWrite(false)} disabled={panel.busy || panel.configured !== true}>
+                <Button variant="secondary" onClick={() => panel.onAllowWrite(false)} disabled={panel.busy || panel.configured !== true}>
                   Allow writing to Google
-                </button>
-                <span className={SMALL}>One more permission: blocks then appear on {writeTarget.summary}, and nowhere else.</span>
+                </Button>
+                <span className={NOTE}>One more permission: blocks then appear on {writeTarget.summary}, and nowhere else.</span>
               </div>
             )}
             {panel.offerFallback && !panel.accounts.some((a) => a.canWrite) && (
               <div className="flex flex-wrap items-center gap-3">
-                <button type="button" className={BUTTON} onClick={() => panel.onAllowWrite(true)} disabled={panel.busy || panel.configured !== true}>
+                <Button variant="secondary" onClick={() => panel.onAllowWrite(true)} disabled={panel.busy || panel.configured !== true}>
                   Use a separate Sparehour calendar
-                </button>
-                <span className={SMALL}>It keeps your blocks out of your colleagues&rsquo; view; they won&rsquo;t show as busy to others.</span>
+                </Button>
+                <span className={NOTE}>It keeps your blocks out of your colleagues&rsquo; view; they won&rsquo;t show as busy to others.</span>
               </div>
             )}
           </div>
@@ -228,9 +246,9 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
 
       {panel.accounts.length > 0 && (
         <div className={ROW}>
-          <button type="button" className={`${QUIET} -ml-3 flex items-center gap-1`} onClick={panel.onConnect} disabled={panel.busy || panel.configured !== true}>
-            <Icon name="plus" size={14} /> Add another Google account
-          </button>
+          <Button variant="quiet" className="-ml-3.5" onClick={panel.onConnect} disabled={panel.busy || panel.configured !== true}>
+            <Icon name="plus" size={16} /> Add another Google account
+          </Button>
         </div>
       )}
     </>
