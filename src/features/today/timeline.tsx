@@ -1,26 +1,37 @@
 "use client";
-// The day timeline (DESIGN_SYSTEM.md §5 "Timeline", SCREENS.md §2.6): hour
-// lines, meetings (read-only), blocks (draggable, resizable from the bottom
-// edge, lockable), the now-line and the projected finish. A task row dragged
-// over it shows a ghost block snapped to five minutes; dropping creates the
-// block. Blocks stay local until a write calendar exists (P7b).
+// The day timeline (DESIGN_SYSTEM.md §5 "Timeline", SCREENS.md §2.6): 66 px
+// per hour, a 48 px ruler gutter with hour labels and quarter ticks, meetings
+// (read-only, titled or "Busy"), blocks (draggable, resizable from the bottom
+// edge, lockable), free gaps of half an hour or more named in spare, the
+// now line with its gutter dot and time, the projected finish with its
+// "done by" pill in the gutter, and the past dimmed by a token swap. A task
+// row dragged over it shows a ghost block snapped to five minutes; dropping
+// creates the block. Blocks stay local until a write calendar exists (P7b).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { layoutLanes, type Lane } from "./overlap";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { blockLength, minuteAtOffset, placeAt, resizeEnd } from "@/core/blocking";
-import type { Capacity } from "@/core/capacity";
+import type { Capacity, Interval } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes, type Instant } from "@/core/time";
 import { asDragData, type BlockDragData } from "@/features/blocking/drag";
+import { Chip } from "@/ui/chip";
+import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
-import type { TimelineBlock } from "./hooks/use-today";
+import type { TimelineBlock, TimelineMeeting } from "./hooks/use-today";
 
 export const PX_PER_MIN = 1.1;
+/** A free gap shorter than this is not worth naming. */
+const FREE_LABEL_MIN = 30;
+/** A slot taller than this carries its time range on a second line. */
+const TWO_LINE_PX = 40;
 
 export interface TimelineProps {
   c: Capacity;
   now: Instant;
   zone: string;
   blocks?: readonly TimelineBlock[];
+  /** Names for the busy intervals; an interval with no single matching event reads "Busy". */
+  meetings?: readonly TimelineMeeting[];
   defaultEstimateMin?: number;
   selectedBlockId?: string | null;
   onSelectBlock?: (id: string | null) => void;
@@ -41,15 +52,28 @@ interface Ghost {
   label: string;
 }
 
+/** "10:00–11:30 · 1h 30m" */
+const rangeLine = (start: number, end: number) => `${formatTime(timeFromMinutes(start))}–${formatTime(timeFromMinutes(end))} · ${formatMinutes(end - start)}`;
+
+/** The one event that fills a busy interval names it; two overlapping ones, or a private calendar, read "Busy". */
+function meetingTitle(b: Interval, meetings: readonly TimelineMeeting[] | undefined): string {
+  const inside = (meetings ?? []).filter((m) => m.start >= b.start && m.end <= b.end);
+  return inside.length === 1 ? inside[0].title : "Busy";
+}
+
 export function Timeline(p: TimelineProps) {
   const { c, now, zone } = p;
   const start = c.windows[0].start;
   const end = c.windows[c.windows.length - 1].end;
   const y = (m: number) => (m - start) * PX_PER_MIN;
-  // Overlapping blocks share the width side by side (SCREENS.md §4), so each stays reachable.
-  const lanes = layoutLanes(p.blocks ?? []);
+  // Whatever overlaps shares the width side by side (SCREENS.md §4), a block dropped on a meeting included, so each stays readable and reachable.
+  const lanes = layoutLanes([...(p.blocks ?? []), ...c.busy.map((b, i) => ({ id: `m${i}`, ...b }))]);
   const z = now.toZonedDateTimeISO(zone);
   const nowMin = z.hour * 60 + z.minute;
+  const nowShown = nowMin >= start && nowMin <= end;
+  // Where the day stands: before it starts nothing is past, after it ends everything is.
+  const elapsed = Math.min(Math.max(nowMin, start), end);
+  const finishMin = c.projectedFinish ? c.projectedFinish.hour * 60 + c.projectedFinish.minute : null;
   const rootRef = useRef<HTMLDivElement>(null);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   const [resizing, setResizing] = useState<{ id: string; end: number } | null>(null);
@@ -121,32 +145,63 @@ export function Timeline(p: TimelineProps) {
     p.onSelectBlock?.(null);
   };
 
+  // The ruler: an hour line and label per hour, a fainter line at the half hour, 4 px ticks at the quarters.
+  // A label within reach of the now time or the done-by pill gives way to it.
+  const hours = Array.from({ length: Math.floor((end - start) / 60) + 1 }, (_, i) => start + i * 60);
+  const labelHidden = (m: number) => (nowShown && Math.abs(m - nowMin) <= 12) || (finishMin !== null && Math.abs(m - finishMin) <= 14);
+  // Free gaps of half an hour or more are content: named in spare, and the tap-to-schedule targets. The part already gone is not free.
+  const gaps = c.free.map((g) => ({ start: Math.max(g.start, elapsed), end: g.end })).filter((g) => g.end - g.start >= FREE_LABEL_MIN);
+
   return (
     <div
       ref={rootRef}
-      className={`relative select-none ${p.placing ? "cursor-crosshair" : ""}`}
+      className={cx("relative select-none", p.placing && "cursor-crosshair")}
       style={{ height: (end - start) * PX_PER_MIN }}
       data-testid="timeline"
       data-placing={p.placing ? "true" : undefined}
       aria-label={p.placing ? `Tap a time for ${p.placing.title}` : undefined}
       onClick={onTap}
     >
-      {Array.from({ length: Math.floor((end - start) / 60) + 1 }, (_, i) => (
-        <div key={i} className="absolute left-12 right-0 border-t border-line" style={{ top: y(start + i * 60) }}>
-          <span className="absolute -left-12 -top-2 w-10 text-right font-mono text-[11px] text-ink-3">{formatTime(timeFromMinutes(start + i * 60))}</span>
+      {hours.map((h) => (
+        <div key={h} className="pointer-events-none absolute inset-x-0" style={{ top: y(h) }}>
+          <div className="absolute top-0 right-0 left-12 border-t border-line" />
+          {!labelHidden(h) && <span className="absolute -top-[7px] left-0 w-10 text-micro font-medium text-ink-3 num">{formatTime(timeFromMinutes(h))}</span>}
+          {h + 30 <= end && <div className="absolute right-0 left-12 border-t border-line opacity-55" style={{ top: 30 * PX_PER_MIN }} />}
+          {[15, 30, 45].map((q) => h + q <= end && <span key={q} className="absolute left-11 h-px w-1 bg-line-strong" style={{ top: q * PX_PER_MIN }} />)}
         </div>
       ))}
-      {c.busy.map((b, i) => (
-        <div key={`m${i}`} className="absolute left-14 right-0 overflow-hidden rounded-md border-l-[3px] border-meet-fill bg-meet-soft px-2 text-xs text-meet" style={{ top: y(b.start) + 1, height: Math.max(12, (b.end - b.start) * PX_PER_MIN - 2) }}>
-          meeting <span className="font-mono">{formatTime(timeFromMinutes(b.start))}</span>
+      {gaps.map((g, i) => (
+        <div
+          key={`f${i}`}
+          className="pointer-events-none absolute right-2 left-13 flex items-center justify-center rounded-sm bg-spare-soft/45 text-label font-semibold text-spare num"
+          style={{ top: y(g.start) + 1, height: (g.end - g.start) * PX_PER_MIN - 2 }}
+        >
+          {formatMinutes(g.end - g.start)} free{finishMin !== null && g.start >= finishMin && " · after the plan"}
         </div>
       ))}
+      {c.busy.map((b, i) => {
+        const height = Math.max(14, (b.end - b.start) * PX_PER_MIN - 2);
+        const past = b.end <= elapsed;
+        const tall = height >= TWO_LINE_PX;
+        return (
+          <div
+            key={`m${i}`}
+            className={cx("absolute right-2 left-13 overflow-hidden rounded-sm border-l-[3px] px-2 pl-2.5", tall ? "py-1" : "flex items-center gap-1.5", past ? "border-meet-line bg-[color-mix(in_oklab,var(--meet-soft)_55%,var(--surface))]" : "border-meet-fill bg-meet-soft")}
+            style={{ top: y(b.start) + 1, height, ...laneStyle(lanes.get(`m${i}`)) }}
+          >
+            <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-meet">{meetingTitle(b, p.meetings)}</span>
+            {/* On one line the time keeps its shape and the title gives way. */}
+            <span className={cx("block truncate text-micro text-meet num", !tall && "shrink-0")}>{tall ? rangeLine(b.start, b.end) : formatTime(timeFromMinutes(b.start))}</span>
+          </div>
+        );
+      })}
       {(p.blocks ?? []).map((b) => (
         <Block
           key={b.id}
           block={resizing?.id === b.id ? { ...b, end: resizing.end } : b}
           lane={lanes.get(b.id)}
           top={y}
+          past={b.end <= elapsed}
           selected={p.selectedBlockId === b.id}
           movable={Boolean(p.onMoveBlock) && !b.locked}
           onSelect={() => p.onSelectBlock?.(b.id)}
@@ -157,15 +212,30 @@ export function Timeline(p: TimelineProps) {
         />
       ))}
       {ghost && (
-        <div className="pointer-events-none absolute left-14 right-0 rounded-md border border-dashed border-line-strong bg-surface/80 px-2 text-xs text-ink-2" style={{ top: y(ghost.start) + 1, height: Math.max(12, (ghost.end - ghost.start) * PX_PER_MIN - 2) }}>
-          <span className="font-mono">{formatTime(timeFromMinutes(ghost.start))}</span> {ghost.label}
+        <div className="pointer-events-none absolute right-2 left-13 flex items-center gap-1.5 overflow-hidden rounded-sm border border-dashed border-line-strong bg-surface/80 px-2 text-label text-ink-2" style={{ top: y(ghost.start) + 1, height: Math.max(12, (ghost.end - ghost.start) * PX_PER_MIN - 2) }}>
+          <span className="num">{formatTime(timeFromMinutes(ghost.start))}</span>
+          <span className="truncate">{ghost.label}</span>
         </div>
       )}
-      {nowMin >= start && nowMin <= end && <div className="pointer-events-none absolute left-12 right-0 border-t-[1.5px] border-ink" style={{ top: y(nowMin) }} />}
-      {c.projectedFinish && (
-        <div className="pointer-events-none absolute left-12 right-0 border-t border-dashed border-spare" style={{ top: y(c.projectedFinish.hour * 60 + c.projectedFinish.minute) }}>
-          <span className="absolute right-0 -top-5 rounded-md bg-spare-soft px-2 font-mono text-[11px] text-spare">done by {formatTime(c.projectedFinish)}</span>
-        </div>
+      {/* The working day's end, a shade firmer than an hour line. */}
+      <div className="pointer-events-none absolute right-0 left-12 border-t border-line-strong" style={{ top: y(end) }} />
+      {finishMin !== null && finishMin >= start && finishMin <= end && (
+        <>
+          <div className="pointer-events-none absolute right-0 left-12 z-[2] border-t-[1.5px] border-dashed border-spare-fill" style={{ top: y(finishMin) }} />
+          <Chip tone="spare" size="sm" className="pointer-events-none absolute left-0 z-[4] px-2" style={{ top: y(finishMin) - 10 }}>
+            done by {formatTime(c.projectedFinish!)}
+          </Chip>
+        </>
+      )}
+      {nowShown && (
+        <>
+          <span className="pointer-events-none absolute left-0 z-[3] w-10 text-micro font-semibold text-ink num" style={{ top: y(nowMin) - 7 }}>
+            {formatTime(timeFromMinutes(nowMin))}
+          </span>
+          <div className="pointer-events-none absolute right-0 left-10 z-[3] border-t-2 border-ink" style={{ top: y(nowMin) - 1 }}>
+            <span className="absolute -top-[5.5px] left-0 size-[9px] rounded-full bg-ink" />
+          </div>
+        </>
       )}
     </div>
   );
@@ -174,14 +244,15 @@ export function Timeline(p: TimelineProps) {
 /** A block's horizontal slot: the full row, or its share of a cluster of overlapping blocks. */
 function laneStyle(lane: Lane | undefined): { left?: string; width?: string } {
   if (!lane || lane.columns <= 1) return {};
-  const share = `(100% - 3.5rem) / ${lane.columns}`;
-  return { left: `calc(3.5rem + ${share} * ${lane.column})`, width: `calc(${share} - 3px)` };
+  const share = `(100% - 3.25rem - 0.5rem) / ${lane.columns}`;
+  return { left: `calc(3.25rem + ${share} * ${lane.column})`, width: `calc(${share} - 3px)` };
 }
 
 function Block({
   block,
   lane,
   top,
+  past,
   selected,
   movable,
   onSelect,
@@ -193,6 +264,7 @@ function Block({
   block: TimelineBlock;
   lane?: Lane;
   top: (m: number) => number;
+  past: boolean;
   selected: boolean;
   movable: boolean;
   onSelect: () => void;
@@ -213,13 +285,20 @@ function Block({
   }, [movable, id, start, end]);
   // Never shorter than a touch target (WCAG 2.5.8): a 15-minute block draws a little taller than its slot rather than unreachably thin.
   const height = Math.max(24, (end - start) * PX_PER_MIN - 2);
+  const tall = height >= TWO_LINE_PX;
   const range = `${formatTime(timeFromMinutes(start))} to ${formatTime(timeFromMinutes(end))}`;
   // The block is a real button; the toolbar and the resize handle sit beside
   // it, never inside it, so nothing interactive is nested (§11.5).
   return (
     <div
       ref={ref}
-      className={`absolute left-14 right-0 rounded-md border-l-[3px] border-ink bg-surface-2 text-xs text-ink ${movable ? "cursor-grab" : ""} ${selected ? "ring-2 ring-spare-fill ring-offset-1" : ""}`}
+      className={cx(
+        "absolute right-2 left-13 rounded-sm border-l-[3px]",
+        // The past is dimmed by a token mix, opaque so nothing beneath shows through.
+        past ? "border-line-strong bg-[color-mix(in_oklab,var(--block-soft)_55%,var(--surface))]" : "border-block-fill bg-block-soft",
+        movable && "cursor-grab",
+        selected && "ring-2 ring-ink ring-offset-1 ring-offset-surface",
+      )}
       style={{ top: top(start) + 1, height, ...laneStyle(lane) }}
     >
       <button
@@ -231,27 +310,28 @@ function Block({
           onSelect();
         }}
         onDoubleClick={onOpenTask}
-        className="flex h-full w-full items-center gap-1 overflow-hidden whitespace-nowrap px-2 text-left leading-[14px]"
+        className={cx("h-full w-full overflow-hidden rounded-sm px-2 pl-2.5 text-left focus-visible:-outline-offset-2", tall ? "flex flex-col justify-start py-1" : "flex items-center gap-1.5")}
       >
-        {block.locked && <Icon name="lock" size={10} className="shrink-0" />}
-        <span className="truncate">{block.title}</span>
-        <span className="font-mono text-ink-2">{formatTime(timeFromMinutes(start))}</span>
-        {height > 28 && <span className="font-mono text-ink-2">· {formatMinutes(end - start)}</span>}
+        <span className={cx("flex min-w-0 items-center gap-1 text-label leading-[15px] font-semibold", past ? "text-ink-3" : "text-ink")}>
+          {block.locked && <Icon name="lock" size={10} className="shrink-0" />}
+          <span className="truncate">{block.title}</span>
+        </span>
+        <span className={cx("block truncate text-micro text-ink-2 num", !tall && "shrink-0")}>{tall ? rangeLine(start, end) : formatTime(timeFromMinutes(start))}</span>
       </button>
       {selected && (
-        <div className="absolute -top-9 right-0 z-10 flex gap-1 rounded-lg border border-line bg-surface p-1 shadow-md" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute -top-9 right-0 z-10 flex gap-0.5 rounded-lg border border-raised-border bg-surface-3 p-1 shadow-raised" onClick={(e) => e.stopPropagation()}>
           {onOpenTask && (
-            <button type="button" onClick={onOpenTask} className="h-7 rounded-md px-2 text-[12px] text-ink hover:bg-paper">
+            <button type="button" onClick={onOpenTask} className="h-7 rounded-sm px-2 text-body-sm font-medium text-ink hover:bg-hover">
               Open
             </button>
           )}
           {onToggleLock && (
-            <button type="button" onClick={onToggleLock} className="h-7 rounded-md px-2 text-[12px] text-ink hover:bg-paper">
+            <button type="button" onClick={onToggleLock} className="h-7 rounded-sm px-2 text-body-sm font-medium text-ink hover:bg-hover">
               {block.locked ? "Unlock" : "Lock"}
             </button>
           )}
           {onRemove && (
-            <button type="button" onClick={onRemove} className="h-7 rounded-md px-2 text-[12px] text-ink hover:bg-paper">
+            <button type="button" onClick={onRemove} className="h-7 rounded-sm px-2 text-body-sm font-medium text-ink hover:bg-hover">
               Remove
             </button>
           )}

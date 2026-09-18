@@ -43,8 +43,20 @@ describe("<Timeline>", () => {
     render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} />);
     expect(screen.getByRole("button", { name: "Block: Draft the proposal, 09:45 to 10:30" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Block: Deep work, 13:00 to 14:30, locked" })).toBeInTheDocument();
-    expect(screen.getByText(/meeting/)).toHaveTextContent("10:00");
+    // A meeting with no title reads "Busy" and carries its range on a second line (brief D5).
+    expect(screen.getByText("Busy").parentElement).toHaveTextContent("10:00–11:00 · 1h");
     expect(screen.getByText("done by 16:25")).toBeInTheDocument();
+    // The open afternoon is named in spare; the quarter-hour before the first block is too short to name.
+    expect(screen.getByText("7h free")).toBeInTheDocument();
+    expect(screen.getByText("11:00")).toBeInTheDocument();
+  });
+
+  it("names a meeting after the one event that fills it, and the now time takes the hour label's place", () => {
+    render(<Timeline c={capacity} now={instant("2026-09-14T09:58:00Z")} zone="UTC" blocks={blocks} meetings={[{ start: 600, end: 660, title: "Lunch with Ana" }]} />);
+    expect(screen.getByText("Lunch with Ana")).toBeInTheDocument();
+    expect(screen.queryByText("Busy")).not.toBeInTheDocument();
+    expect(screen.getByText("09:58")).toBeInTheDocument();
+    expect(screen.queryByText("10:00")).not.toBeInTheDocument();
   });
 
   it("selecting a block shows Open · Lock · Remove, and the actions call back", async () => {

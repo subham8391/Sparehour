@@ -5,11 +5,11 @@ import { useMemo } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { capacityFor, type Capacity } from "@/core/capacity";
 import { carriedOver, shouldAsk } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
-import { Temporal, todayFor, type LocalDate } from "@/core/time";
+import { Temporal, instant, todayFor, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
-import { toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
-import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
-import { CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow } from "@/data/queries/calendar";
+import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
+import { BLOCKS_AROUND_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
+import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import { TaskRepo } from "@/data/repositories/task-repo";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 
@@ -23,6 +23,14 @@ export interface TimelineBlock {
   locked: boolean;
 }
 
+/** A timed meeting as the timeline labels it: minutes of the local day and the title a person may see. */
+export interface TimelineMeeting {
+  start: number;
+  end: number;
+  /** "Busy" when the calendar is private or the event has no summary. */
+  title: string;
+}
+
 export interface TodayModel {
   ready: boolean;
   today: LocalDate;
@@ -34,6 +42,8 @@ export interface TodayModel {
   /** Today's blocks, in the user's zone, with the task's title when it has one. */
   blocks: TimelineBlock[];
   blockByTask: ReadonlyMap<string, TimelineBlock>;
+  /** Today's timed meetings with their titles; the capacity's busy intervals stay the geometry, these only name them. */
+  meetings: TimelineMeeting[];
   repo: TaskRepo;
   /** False until a calendar is connected: the ribbon offers to connect one (PRODUCT_SPEC.md §9.4). */
   calendarConnected: boolean;
@@ -59,7 +69,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
   const { data: eventRows } = useQuery<CalendarEventRow>(EVENTS_AROUND_SQL, [from, to], {
     streams: [{ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24 }],
   });
-  const { data: calendarRows } = useQuery<{ id: string; read: number | null }>(CALENDARS_SQL);
+  const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
 
   return useMemo(() => {
@@ -102,6 +112,23 @@ export function useToday(now: Temporal.Instant): TodayModel {
       .filter((b): b is TimelineBlock => b !== null)
       .sort((a, b) => a.start - b.start);
     const blockByTask = new Map<string, TimelineBlock>(blocks.filter((b) => b.taskId).map((b) => [b.taskId as string, b]));
+    // PRODUCT_SPEC.md §10.3 rule 7: a private calendar shows its events as "Busy"; a calendar switched off does not show at all.
+    const privateIds = new Set((calendarRows ?? []).filter((c) => c.private === 1).map((c) => c.id));
+    const meetings: TimelineMeeting[] = (eventRows ?? [])
+      .map((e): TimelineMeeting | null => {
+        if (e.all_day || !e.start_at || !e.end_at) return null;
+        if (e.calendar_id && readByCalendar.get(e.calendar_id) === false) return null;
+        const start = instant(normaliseTimestamp(e.start_at)).toZonedDateTimeISO(zone);
+        const end = instant(normaliseTimestamp(e.end_at)).toZonedDateTimeISO(zone);
+        if (!start.toPlainDate().equals(today)) return null;
+        const hidden = e.calendar_id ? privateIds.has(e.calendar_id) : false;
+        return {
+          start: start.hour * 60 + start.minute,
+          end: end.toPlainDate().equals(today) ? end.hour * 60 + end.minute : 24 * 60,
+          title: hidden || !e.summary ? "Busy" : e.summary,
+        };
+      })
+      .filter((m): m is TimelineMeeting => m !== null);
 
     return {
       ready: !isLoading && settings !== null,
@@ -113,6 +140,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
       eveningTasks: onDay.filter((t) => t.evening),
       blocks,
       blockByTask,
+      meetings,
       repo,
       // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: one line when the calendar has a problem.
       calendarConnected: (calendarRows ?? []).length > 0,

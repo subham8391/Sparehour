@@ -389,3 +389,10 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* The ribbon's over-tail (DESIGN_SYSTEM.md §5 "over"): the part of the plan that runs past the working day,
+   over-soft under a 135 degree hatch in a softened over-fill so it reads as a pattern, never an alarm. */
+@utility ribbon-over {
+  background-color: var(--over-soft);
+  background-image: repeating-linear-gradient(135deg, color-mix(in oklab, var(--over-fill) 55%, transparent) 0 1.2px, transparent 1.2px 5px);
+}
