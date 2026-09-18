@@ -467,8 +467,10 @@ export default function TodayPage() {
         // that spans the region's height beside the list and scrolls on its own only when the day is taller than the screen.
         <aside
           aria-label="Your day"
+          // The pane scrolls on its own from the wide band, so a keyboard user can focus it to scroll a day with nothing to focus.
+          tabIndex={0}
           className={cx(
-            "w-full flex-col px-5 pb-6 sm:px-6 md:px-10 md:pb-7",
+            "w-full flex-col px-5 pb-6 outline-none sm:px-6 md:px-10 md:pb-7 lg:focus-visible:outline-2 lg:focus-visible:-outline-offset-2 lg:focus-visible:outline-ink",
             "lg:ml-auto lg:h-full lg:w-86 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7",
             showDay ? "flex" : "hidden",
             detail.selectedId ? "lg:hidden" : "lg:flex",
