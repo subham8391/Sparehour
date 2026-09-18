@@ -73,7 +73,8 @@ describe("<SearchView>", () => {
     setup();
     expect(screen.getByRole("heading", { name: /Tasks 2/ })).toBeInTheDocument();
     expect(screen.getByText("Draft the proposal")).toBeInTheDocument();
-    expect(screen.getByText("#Acme")).toBeInTheDocument();
+    // The project name is the row's quiet meta, plain (the # belongs to tokens and filter chips).
+    expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.getByText("Today")).toBeInTheDocument();
     const mark = screen.getByText("proposal", { selector: "mark" });
     expect(mark.closest("p")).toHaveTextContent("attach the proposal numbers");

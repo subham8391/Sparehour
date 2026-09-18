@@ -10,9 +10,13 @@ import type { Task, TaskState } from "@/core/types";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { Button } from "@/ui/button";
 import { Chip } from "@/ui/chip";
+import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
+import { EmptyCard, ListCard } from "@/ui/list-card";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
+import { EYEBROW, SectionLabel } from "@/ui/section-label";
 import { STATE_LABEL, filterLabel, hasFilters, type FilterKey, type SearchFilters, type Snippet } from "./search";
 
 export interface SearchHit {
@@ -51,7 +55,13 @@ export interface SearchViewProps {
   onClose: () => void;
 }
 
-const CHIP = "flex h-8 shrink-0 items-center gap-1 rounded-full border border-line bg-surface pl-3 pr-1.5 text-[13px] text-ink";
+// A filter is a control, not a data chip: a secondary-button look at the button scale (44 px on the phone, 36 above), its × a full target of its own.
+const FILTER = "flex h-11 shrink-0 items-center gap-1 rounded-lg border border-line-strong bg-surface pl-3 pr-0.5 text-body-sm font-medium text-ink num sm:h-9";
+const FILTER_MENU = "flex h-11 shrink-0 items-center rounded-lg pr-3 pl-8 text-body font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-9";
+// A 44 px icon button on the phone, 36 px above, the same wash as every quiet control.
+const ICON_BUTTON = "flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:size-9";
+// The × inside a filter: the chip's own height on the phone, 32 px inside the 36 px chip above.
+const FILTER_REMOVE = "flex size-11 shrink-0 items-center justify-center rounded-md text-ink-3 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:size-8";
 const STATES: TaskState[] = ["inbox", "active", "someday", "done", "dropped"];
 
 export function SearchView(p: SearchViewProps) {
@@ -92,7 +102,8 @@ export function SearchView(p: SearchViewProps) {
   return (
     <main className={VIEW_COLUMN}>
       <div className="flex items-center gap-2">
-        <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface px-4 focus-within:border-ink">
+        {/* The field switches its border to ink on focus, so the input inside carries no ring of its own (D6). */}
+        <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-lg border border-line-control bg-surface pr-1 pl-3.5 transition-colors dur-fast focus-within:border-ink">
           <Icon name="search" size={18} className="shrink-0 text-ink-3" />
           <input
             ref={inputRef}
@@ -104,95 +115,101 @@ export function SearchView(p: SearchViewProps) {
             onKeyDown={onKey}
             autoComplete="off"
             spellCheck={false}
-            className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
+            className="h-full min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none sm:text-body-lg [&::-webkit-search-cancel-button]:hidden"
           />
           {p.query && (
-            <button type="button" aria-label="Clear the search" onClick={() => p.onQueryChange("")} className="-mr-2 flex size-9 items-center justify-center rounded-lg text-ink-3 hover:text-ink">
-              <Icon name="close" size={14} />
+            <button type="button" aria-label="Clear the search" onClick={() => p.onQueryChange("")} className={ICON_BUTTON}>
+              <Icon name="close" size={16} />
             </button>
           )}
         </div>
-        <button type="button" onClick={p.onClose} aria-label="Close search" title="Close (Esc)" className="flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 hover:bg-surface hover:text-ink">
+        <button type="button" onClick={p.onClose} aria-label="Close search" title="Close (Esc)" className="flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink">
           <Icon name="close" size={18} />
         </button>
       </div>
 
       {/* The chips scroll sideways on a phone; the menu sits outside that scroller so its panel is never clipped. */}
-      <div className="flex items-center gap-2">
+      <div className="-my-1 flex items-center gap-2">
         <div className="flex min-w-0 items-center gap-2 overflow-x-auto py-1">
           {active.map((key) => {
             const label = filterLabel(key, filters, names);
             if (!label) return null;
             return (
-              <span key={key} className={CHIP}>
+              <span key={key} className={FILTER}>
                 {label}
-                <button type="button" aria-label={`Remove filter ${label}`} onClick={() => remove(key)} className="flex size-6 items-center justify-center rounded-full text-ink-3 hover:bg-paper hover:text-ink">
-                  <Icon name="close" size={11} />
+                <button type="button" aria-label={`Remove filter ${label}`} onClick={() => remove(key)} className={FILTER_REMOVE}>
+                  <Icon name="close" size={14} />
                 </button>
               </span>
             );
           })}
         </div>
-        <MenuButton label="Add filter" text="+ Filter" align="left" className="flex h-8 shrink-0 items-center rounded-full border border-dashed border-line-strong px-3 text-[13px] text-ink-2 hover:border-ink hover:text-ink">
-          {(close) => (
-            <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
-              <Group label="Project">
-                {p.projects.map((x) => (
-                  <MenuItem key={x.id} onClick={() => (close(), set({ project: x.id }))}>
-                    #{x.name}
-                  </MenuItem>
-                ))}
-              </Group>
-              <Group label="Area">
-                {p.areas.map((x) => (
-                  <MenuItem key={x.id} onClick={() => (close(), set({ area: x.id }))}>
-                    {x.name}
-                  </MenuItem>
-                ))}
-              </Group>
-              <Group label="Tag">
-                {p.tags.map((x) => (
-                  <MenuItem key={x.name} onClick={() => (close(), set({ tag: x.name }))}>
-                    @{x.name}
-                  </MenuItem>
-                ))}
-              </Group>
-              <Group label="State">
-                {STATES.map((s) => (
-                  <MenuItem key={s} onClick={() => (close(), set({ state: s }))}>
-                    {STATE_LABEL[s]}
-                  </MenuItem>
-                ))}
-              </Group>
-              <Group label="Do-date">
-                {presets().map((x) => (
-                  <MenuItem key={x.label} onClick={() => (close(), set({ from: x.from, to: x.to }))}>
-                    {x.label}
-                  </MenuItem>
-                ))}
-              </Group>
-              <Group label="Other">
-                <MenuItem onClick={() => (close(), set({ hasDeadline: true }))}>Has a deadline</MenuItem>
-                <MenuItem onClick={() => (close(), set({ noEstimate: true }))}>No estimate</MenuItem>
-              </Group>
-            </div>
-          )}
-        </MenuButton>
+        {/* The plus is drawn over the trigger's left padding: the menu button takes a word, not an icon. */}
+        <span className="relative shrink-0">
+          <Icon name="plus" size={16} className="pointer-events-none absolute inset-y-0 left-2.5 my-auto text-ink-3" />
+          <MenuButton label="Add filter" text="Filter" align="left" className={FILTER_MENU}>
+            {(close) => (
+              <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+                <Group label="Project">
+                  {p.projects.map((x) => (
+                    <MenuItem key={x.id} onClick={() => (close(), set({ project: x.id }))}>
+                      #{x.name}
+                    </MenuItem>
+                  ))}
+                </Group>
+                <Group label="Area">
+                  {p.areas.map((x) => (
+                    <MenuItem key={x.id} onClick={() => (close(), set({ area: x.id }))}>
+                      {x.name}
+                    </MenuItem>
+                  ))}
+                </Group>
+                <Group label="Tag">
+                  {p.tags.map((x) => (
+                    <MenuItem key={x.name} onClick={() => (close(), set({ tag: x.name }))}>
+                      @{x.name}
+                    </MenuItem>
+                  ))}
+                </Group>
+                <Group label="State">
+                  {STATES.map((s) => (
+                    <MenuItem key={s} onClick={() => (close(), set({ state: s }))}>
+                      {STATE_LABEL[s]}
+                    </MenuItem>
+                  ))}
+                </Group>
+                <Group label="Do-date">
+                  {presets().map((x) => (
+                    <MenuItem key={x.label} onClick={() => (close(), set({ from: x.from, to: x.to }))}>
+                      {x.label}
+                    </MenuItem>
+                  ))}
+                </Group>
+                <Group label="Other">
+                  <MenuItem onClick={() => (close(), set({ hasDeadline: true }))}>Has a deadline</MenuItem>
+                  <MenuItem onClick={() => (close(), set({ noEstimate: true }))}>No estimate</MenuItem>
+                </Group>
+              </div>
+            )}
+          </MenuButton>
+        </span>
       </div>
 
-      {!isSearch && <p className="px-0.5 text-[14px] text-ink-3">Titles, notes, checklist steps, projects and areas. Add a filter to browse without typing.</p>}
+      {!isSearch && <p className="px-0.5 text-body text-pretty text-ink-2">Titles, notes, checklist steps, projects and areas. Add a filter to browse without typing.</p>}
 
       {nothing && (
-        <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-line px-4 py-6 text-[15px] text-ink-2">
-          <p>
-            Nothing matched {p.query.trim() ? <em>{p.query.trim()}</em> : "those filters"}.
-          </p>
-          {p.query.trim() && (
-            <button type="button" onClick={() => p.onAddTask(p.query.trim())} className="flex h-10 items-center rounded-lg border border-line bg-surface px-3 text-[14px] font-medium text-ink hover:border-line-strong">
-              Add “{p.query.trim()}” as a task
-            </button>
-          )}
-        </div>
+        <EmptyCard
+          action={
+            p.query.trim() && (
+              <Button variant="link" onClick={() => p.onAddTask(p.query.trim())}>
+                Add “{p.query.trim()}” as a task
+                <Icon name="chevron-right" size={16} className="text-ink-3" />
+              </Button>
+            )
+          }
+        >
+          Nothing matched {p.query.trim() ? <em className="font-medium text-ink not-italic">{p.query.trim()}</em> : "those filters"}.
+        </EmptyCard>
       )}
 
       {p.hits.length > 0 && (
@@ -207,22 +224,25 @@ export function SearchView(p: SearchViewProps) {
 
       {p.projectMatches.length > 0 && (
         <Section label="Projects" count={p.projectMatches.length}>
-          <NamedList items={p.projectMatches} icon="grid" />
+          <NamedList items={p.projectMatches} kind="project" />
         </Section>
       )}
 
       {p.areaMatches.length > 0 && (
         <Section label="Areas" count={p.areaMatches.length}>
-          <NamedList items={p.areaMatches} icon="grid" />
+          <NamedList items={p.areaMatches} kind="area" />
         </Section>
       )}
 
       {p.alsoFound.length > 0 && (
         <details className="group">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-            <Icon name="chevron-right" size={12} className="transition-transform group-open:rotate-90" />
-            Also found <span className="font-mono normal-case tracking-normal">{p.alsoFound.length}</span>
-            <span className="font-normal normal-case tracking-normal text-ink-3">· done, dropped or not started yet</span>
+          <summary className={cx(EYEBROW, "-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-2 transition-colors dur-fast hover:bg-hover sm:min-h-7 [&::-webkit-details-marker]:hidden")}>
+            <Icon name="chevron-right" size={14} className="shrink-0 text-ink-3 transition-transform dur-fast motion-safe:group-open:rotate-90" />
+            Also found
+            <span className="font-medium normal-case tracking-normal num">
+              <b className="font-semibold text-ink-2">{p.alsoFound.length}</b>
+              <span className="text-ink-3"> · done, dropped or not started yet</span>
+            </span>
           </summary>
           <div className="mt-2">
             <TaskList>
@@ -240,9 +260,9 @@ export function SearchView(p: SearchViewProps) {
 function Section({ label, count, children }: { label: string; count: number; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-        {label} <span className="ml-1 font-mono normal-case tracking-normal">{count}</span>
-      </h2>
+      <SectionLabel className="px-0.5" count={count}>
+        {label}
+      </SectionLabel>
       {children}
     </section>
   );
@@ -253,7 +273,7 @@ function Group({ label, children }: { label: string; children: ReactNode[] | Rea
   if (list.length === 0) return null;
   return (
     <div>
-      <p className="px-2.5 pt-1 pb-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</p>
+      <p className={cx(EYEBROW, "px-2.5 pt-1 pb-0.5")}>{label}</p>
       {children}
     </div>
   );
@@ -267,19 +287,26 @@ function MenuItem({ children, onClick }: { children: ReactNode; onClick: () => v
   );
 }
 
-function NamedList({ items, icon }: { items: readonly Named[]; icon: "grid" }) {
+/** Projects carry the sidebar's 6 px dot, areas the grid glyph, so the results read like the navigation. */
+function NamedList({ items, kind }: { items: readonly Named[]; kind: "project" | "area" }) {
   return (
-    <ul className="rounded-xl border border-line bg-surface">
+    <ListCard className="overflow-clip">
       {items.map((x) => (
         <li key={x.id} className="border-t border-line first:border-t-0">
-          <Link href={x.href} className="flex min-h-11 items-center gap-3 px-4 text-[15px] text-ink">
-            <Icon name={icon} size={16} className="text-ink-3" />
-            <span className="flex-1">{x.name}</span>
-            <Icon name="chevron-right" size={16} className="text-ink-3" />
+          <Link href={x.href} className="flex min-h-11 items-center gap-3 px-4 text-body-lg text-ink transition-colors dur-fast hover:bg-hover focus-visible:-outline-offset-2 active:bg-press">
+            {kind === "project" ? (
+              <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
+                <span className="size-1.5 rounded-full bg-line-control" />
+              </span>
+            ) : (
+              <Icon name="grid" size={16} className="shrink-0 text-ink-3" />
+            )}
+            <span className="min-w-0 flex-1 truncate">{x.name}</span>
+            <Icon name="chevron-right" size={16} className="shrink-0 text-ink-3" />
           </Link>
         </li>
       ))}
-    </ul>
+    </ListCard>
   );
 }
 
@@ -294,7 +321,7 @@ function Hit({ hit, p }: { hit: SearchHit; p: SearchViewProps }) {
       onSelect={() => p.onSelect(task.id)}
       onOpen={() => p.onOpen(task.id)}
       onDone={task.state === "done" ? undefined : () => p.onDone(task.id)}
-      meta={hit.projectName && <span>#{hit.projectName}</span>}
+      meta={hit.projectName && <span>{hit.projectName}</span>}
       chips={
         task.state === "done" || task.state === "dropped" || task.state === "archived" ? (
           <Chip size="auto" className="text-ink-3">
@@ -306,12 +333,12 @@ function Hit({ hit, p }: { hit: SearchHit; p: SearchViewProps }) {
       }
       footer={
         hit.context && (
-          <p className="mx-4 mb-2 ml-14 flex items-center gap-1.5 text-body-sm text-ink-2 sm:ml-11">
+          <p className="mx-4 mb-2.5 ml-14 flex items-center gap-1.5 text-body-sm text-ink-2 sm:ml-11">
             {hit.context.where === "step" && <span aria-hidden="true" className="size-2.5 shrink-0 rounded-xs border border-line-control" />}
             <span className="min-w-0 truncate">
-            {hit.context.snippet.before}
-            <mark className="rounded-xs bg-surface-2 px-0.5 font-medium text-ink">{hit.context.snippet.match}</mark>
-            {hit.context.snippet.after}
+              {hit.context.snippet.before}
+              <mark className="rounded-xs bg-surface-2 font-semibold text-ink">{hit.context.snippet.match}</mark>
+              {hit.context.snippet.after}
             </span>
           </p>
         )

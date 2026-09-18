@@ -1,8 +1,10 @@
 "use client";
 // The bulk-edit bar (PRODUCT_SPEC.md "Multi-select + bulk edit"; SCREENS.md
 // §24): appears while rows are ticked, sits above the tab bar on the phone
-// and above the quick-add bar elsewhere. Every action is one write with one
-// undo entry, then the ticks clear. Escape clears them without a write.
+// and above the quick-add bar elsewhere. A raised panel (DESIGN_SYSTEM.md
+// §4: surface-3, the ink shadow in light, a hairline in dark) of quiet
+// buttons, 44 px on the phone. Every action is one write with one undo
+// entry, then the ticks clear. Escape clears them without a write.
 import { useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { formatMinutes, localDate } from "@/core/time";
@@ -13,6 +15,8 @@ import type { TaskPatch } from "@/data/repositories/task-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { Button, buttonClass } from "@/ui/button";
+import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { useSelection } from "./selection-provider";
@@ -25,7 +29,10 @@ const PRIORITIES: { value: Priority; label: string }[] = [
   { value: 1, label: "!3 Low" },
   { value: 0, label: "None" },
 ];
-const BTN = "flex h-9 shrink-0 items-center rounded-lg px-2.5 text-[13px] text-ink-2 hover:bg-paper hover:text-ink";
+// Every action is the quiet button, a touch closer together than the default so the bar stays one line.
+const QUIET = cx(buttonClass({ variant: "quiet" }), "px-2.5");
+// The date and tag fields wear the same look as the buttons; their inputs carry no ring, the row does.
+const FIELD = cx(QUIET, "cursor-pointer gap-1 focus-within:bg-hover focus-within:text-ink");
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -46,7 +53,7 @@ export function BulkBar() {
   const [tag, setTag] = useState("");
   const count = ids.length;
 
-  // Escape lets go of the ticks — unless a panel or the task detail wants the key first.
+  // Escape lets go of the ticks, unless a panel or the task detail wants the key first.
   useEffect(() => {
     if (count === 0) return;
     const onKey = (e: KeyboardEvent) => {
@@ -73,22 +80,27 @@ export function BulkBar() {
   };
 
   return (
-    <div role="toolbar" aria-label="Bulk edit" className="fixed inset-x-3 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] z-30 mx-auto flex max-w-4xl items-center gap-1 overflow-x-auto rounded-xl border border-line bg-surface px-3 py-2 shadow-lg sm:bottom-16 sm:inset-x-6">
-      <span className="mr-2 shrink-0 font-display text-lg text-ink">
-        {count} <span className="text-[13px] font-sans text-ink-2">selected</span>
+    // The actions wrap onto more lines rather than scroll: a scroll box would clip the menus that open upward from the bar.
+    <div
+      role="toolbar"
+      aria-label="Bulk edit"
+      className="fixed inset-x-3 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] z-30 mx-auto flex max-w-4xl flex-wrap items-center gap-x-0.5 gap-y-1 rounded-xl border border-raised-border bg-surface-3 px-2 py-2 shadow-raised sm:bottom-16 sm:inset-x-6"
+    >
+      <span className="mr-2 ml-1.5 shrink-0 whitespace-nowrap text-body text-ink-2">
+        <b className="font-semibold text-ink num">{count}</b> selected
       </span>
-      <button type="button" className={`${BTN} font-medium text-ink`} onClick={() => patch({ doDate: today, doTime: null, evening: false }, "Moved {title} to today")}>
+      <Button variant="quiet" className="px-2.5 text-ink" onClick={() => patch({ doDate: today, doTime: null, evening: false }, "Moved {title} to today")}>
         Today
-      </button>
-      <button type="button" className={BTN} onClick={() => patch({ doDate: tomorrow, doTime: null, evening: false }, "Moved {title} to tomorrow")}>
+      </Button>
+      <Button variant="quiet" className="px-2.5" onClick={() => patch({ doDate: tomorrow, doTime: null, evening: false }, "Moved {title} to tomorrow")}>
         Tomorrow
-      </button>
-      <label className={`${BTN} cursor-pointer gap-1`}>
-        <Icon name="calendar" size={14} />
+      </Button>
+      <label className={FIELD}>
+        <Icon name="calendar" size={16} className="shrink-0" />
         <span className="sr-only">Pick a date</span>
-        <input type="date" aria-label="Pick a date" className="w-[7.5rem] bg-transparent text-[13px] text-ink outline-none" onChange={(e) => e.target.value && patch({ doDate: localDate(e.target.value), doTime: null, evening: false }, "Moved {title}")} />
+        <input type="date" aria-label="Pick a date" className="w-30 bg-transparent text-body-sm text-ink outline-none num focus-visible:outline-none" onChange={(e) => e.target.value && patch({ doDate: localDate(e.target.value), doTime: null, evening: false }, "Moved {title}")} />
       </label>
-      <MenuButton label="Project" text="Project…" align="left">
+      <MenuButton label="Project" text="Project…" align="left" direction="up" className={QUIET}>
         {(close) => (
           <>
             <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: null }, "Moved {title} out of its project"))}>
@@ -102,7 +114,7 @@ export function BulkBar() {
           </>
         )}
       </MenuButton>
-      <MenuButton label="Priority" text="Priority" align="left">
+      <MenuButton label="Priority" text="Priority" align="left" direction="up" className={QUIET}>
         {(close) =>
           PRIORITIES.map((x) => (
             <button key={x.value} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ priority: x.value }, `Set {title} to ${x.label.toLowerCase()} priority`))}>
@@ -111,11 +123,11 @@ export function BulkBar() {
           ))
         }
       </MenuButton>
-      <MenuButton label="Estimate" text="Estimate" align="left">
+      <MenuButton label="Estimate" text="Estimate" align="left" direction="up" className={QUIET}>
         {(close) => (
           <>
             {ESTIMATES.map((m) => (
-              <button key={m} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ estimateMin: m }, `Estimated {title} at ${formatMinutes(m)}`))}>
+              <button key={m} type="button" role="menuitem" className={cx(MENU_ITEM, "num")} onClick={() => (close(), patch({ estimateMin: m }, `Estimated {title} at ${formatMinutes(m)}`))}>
                 {formatMinutes(m)}
               </button>
             ))}
@@ -125,7 +137,7 @@ export function BulkBar() {
           </>
         )}
       </MenuButton>
-      <label className={`${BTN} gap-1`}>
+      <label className={FIELD}>
         <span className="text-ink-3">@</span>
         <input
           aria-label="Add a tag"
@@ -138,21 +150,26 @@ export function BulkBar() {
               addTag();
             }
           }}
-          className="w-20 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
+          className="w-20 bg-transparent text-body-sm text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none"
         />
       </label>
       <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
-      <button type="button" className={BTN} onClick={() => void repo.completeMany(ids).then(done)}>
+      <Button variant="quiet" className="px-2.5" onClick={() => void repo.completeMany(ids).then(done)}>
         Complete
-      </button>
-      <button type="button" className={BTN} onClick={() => void repo.setStateMany(ids, "someday").then(done)}>
+      </Button>
+      <Button variant="quiet" className="px-2.5" onClick={() => void repo.setStateMany(ids, "someday").then(done)}>
         Someday
-      </button>
-      <button type="button" className={BTN} onClick={() => void repo.setStateMany(ids, "dropped").then(done)}>
+      </Button>
+      <Button variant="quiet" className="px-2.5" onClick={() => void repo.setStateMany(ids, "dropped").then(done)}>
         Drop
-      </button>
-      <span className="flex-1" />
-      <button type="button" aria-label="Clear the selection" title="Clear the selection (Esc)" onClick={done} className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-2 hover:bg-paper hover:text-ink">
+      </Button>
+      <button
+        type="button"
+        aria-label="Clear the selection"
+        title="Clear the selection (Esc)"
+        onClick={done}
+        className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:size-9"
+      >
         <Icon name="close" size={16} />
       </button>
     </div>
