@@ -2,6 +2,7 @@
 // The search screen (SCREENS.md §13): a full view, not a sidebar filter.
 // Query, removable filter chips, then Tasks · Projects · Areas · Also found.
 // Presentational: the page runs the statements and owns the URL.
+import { VIEW_COLUMN } from "@/features/shell/view-header";
 import Link from "next/link";
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { LocalDate } from "@/core/time";
@@ -9,6 +10,7 @@ import type { Task, TaskState } from "@/core/types";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { Chip } from "@/ui/chip";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { STATE_LABEL, filterLabel, hasFilters, type FilterKey, type SearchFilters, type Snippet } from "./search";
@@ -88,7 +90,7 @@ export function SearchView(p: SearchViewProps) {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <div className="flex items-center gap-2">
         <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface px-4 focus-within:border-ink">
           <Icon name="search" size={18} className="shrink-0 text-ink-3" />
@@ -287,23 +289,30 @@ function Hit({ hit, p }: { hit: SearchHit; p: SearchViewProps }) {
   return (
     <TaskRow
       task={task}
+      today={p.today}
       selected={p.selectedId === task.id}
       onSelect={() => p.onSelect(task.id)}
       onOpen={() => p.onOpen(task.id)}
       onDone={task.state === "done" ? undefined : () => p.onDone(task.id)}
-      meta={
-        <>
-          {hit.projectName && <span className="rounded-md bg-meet-soft px-2 py-0.5 text-xs text-meet">#{hit.projectName}</span>}
-          {task.state === "done" || task.state === "dropped" || task.state === "archived" ? <span className="rounded-md bg-surface-2 px-2 py-0.5 text-xs text-ink-3">{STATE_LABEL[task.state]}</span> : <DayChipTag chip={chip} />}
-        </>
+      meta={hit.projectName && <span>#{hit.projectName}</span>}
+      chips={
+        task.state === "done" || task.state === "dropped" || task.state === "archived" ? (
+          <Chip size="auto" className="text-ink-3">
+            {STATE_LABEL[task.state]}
+          </Chip>
+        ) : (
+          <DayChipTag chip={chip} count={false} />
+        )
       }
       footer={
         hit.context && (
-          <p className="mx-4 mb-2 ml-11 truncate text-[13px] text-ink-2">
-            <span className="text-ink-3">{hit.context.where === "step" ? "☐ " : ""}</span>
+          <p className="mx-4 mb-2 ml-14 flex items-center gap-1.5 text-body-sm text-ink-2 sm:ml-11">
+            {hit.context.where === "step" && <span aria-hidden="true" className="size-2.5 shrink-0 rounded-xs border border-line-control" />}
+            <span className="min-w-0 truncate">
             {hit.context.snippet.before}
-            <mark className="rounded-sm bg-spare-soft px-0.5 text-ink">{hit.context.snippet.match}</mark>
+            <mark className="rounded-xs bg-surface-2 px-0.5 font-medium text-ink">{hit.context.snippet.match}</mark>
             {hit.context.snippet.after}
+            </span>
           </p>
         )
       }

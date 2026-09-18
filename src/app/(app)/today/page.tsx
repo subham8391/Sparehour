@@ -17,22 +17,28 @@ import { closedLine } from "@/features/rituals/shutdown";
 import { Ribbon } from "@/features/today/ribbon";
 import { Timeline } from "@/features/today/timeline";
 import { ViewHeader } from "@/features/shell/view-header";
-import { MoveActions } from "@/features/tasks/task-actions";
+import { BLOCK_GLYPH, CarryAsk, MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
+import { buttonClass } from "@/ui/button";
+import { Chip } from "@/ui/chip";
+import { cx } from "@/ui/cx";
+import { Icon } from "@/ui/icons";
+import { SectionAction, SectionLabel } from "@/ui/section-label";
+import { Segmented } from "@/ui/segmented";
 
 const NOTHING_SQL = `select * from tasks where 0`;
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
-/** The chip a blocked task carries in the list (SCREENS.md §2.6 "a small block indicator"). */
+/** The chip a blocked task carries in the list (SCREENS.md §2.6 "a small block indicator"); it stands in for the do-time chip. */
 function BlockChip({ block }: { block: TimelineBlock }) {
   return (
-    <span className="rounded-md bg-ink px-2 py-0.5 font-mono text-xs text-paper" title={`Blocked ${formatTime(timeFromMinutes(block.start))}–${formatTime(timeFromMinutes(block.end))}`}>
-      ▪ {formatTime(timeFromMinutes(block.start))}
-    </span>
+    <Chip tone="block" size="auto" title={`Blocked ${formatTime(timeFromMinutes(block.start))}–${formatTime(timeFromMinutes(block.end))}`}>
+      {formatTime(timeFromMinutes(block.start))}
+    </Chip>
   );
 }
 
@@ -215,15 +221,11 @@ export default function TodayPage() {
 
   const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
   const showDay = hasDay && view === "day";
-  const segment = (v: "list" | "day", label: string) => (
-    <button type="button" aria-pressed={view === v} onClick={() => setView(v)} className="h-9 rounded-lg px-3 text-[13px] font-medium text-ink-2 aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-sm">
-      {label}
-    </button>
-  );
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6 md:flex-row md:p-10">
-      <div className="flex min-w-0 flex-1 flex-col gap-6">
+    <main className="flex w-full flex-col gap-8 px-5 py-6 sm:px-6 md:flex-row md:px-10 md:py-7">
+      {/* The list column keeps the shell's one column width (brief D9); the day pane sits beside it. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-6 md:max-w-190">
         <ViewHeader
           eyebrow="Today"
           title={formatDay(model.today, { weekday: "long", month: "long" })}
@@ -231,14 +233,16 @@ export default function TodayPage() {
             !closedAt && (
               <>
                 {plannedAt ? (
-                  <span className="hidden min-h-11 items-center px-2 font-mono text-[12px] text-ink-3 sm:flex">{plannedLabel(plannedAt)}</span>
+                  <span className="hidden h-9 items-center px-2 text-label text-ink-3 num sm:flex">{plannedLabel(plannedAt)}</span>
                 ) : (
-                  <Link href="/plan" className="flex min-h-11 items-center px-2 text-[13.5px] font-medium text-ink hover:underline">
-                    Morning plan ▸
+                  <Link href="/plan" className={buttonClass({ variant: "link" })}>
+                    Morning plan
+                    <Icon name="chevron-right" size={16} className="text-ink-3" />
                   </Link>
                 )}
-                <Link href="/shutdown" className={`flex min-h-11 items-center px-2 text-[13.5px] font-medium ${shutdownReady ? "text-ink" : "text-ink-3"} hover:text-ink`}>
-                  Shutdown ▸
+                <Link href="/shutdown" className={cx(buttonClass({ variant: "link" }), !shutdownReady && "text-ink-2")}>
+                  Shutdown
+                  <Icon name="chevron-right" size={16} className="text-ink-3" />
                 </Link>
               </>
             )
@@ -269,34 +273,39 @@ export default function TodayPage() {
 
         {hasDay && (
           <div className="-mt-2 flex justify-end md:hidden">
-            <div role="group" aria-label="Show" className="flex gap-0.5 rounded-xl bg-surface-2 p-0.5">
-              {segment("list", "List")}
-              {segment("day", "Day")}
-            </div>
+            <Segmented
+              options={[
+                { value: "list", label: "List" },
+                { value: "day", label: "Day" },
+              ]}
+              value={view}
+              onChange={setView}
+            />
           </div>
         )}
 
         <div className={`flex flex-col gap-6 ${showDay ? "hidden md:flex" : ""}`}>
         {model.carried.length > 0 && (
           <section className="flex flex-col gap-2">
-            <div className="flex items-center justify-between px-0.5">
-              <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Carried over <span className="ml-2 font-mono normal-case tracking-normal">{model.carried.length}</span></h2>
-              <button
-                type="button"
-                onClick={() => void time("clear-the-slate", () => model.repo.archiveMany(model.carried.map((t) => t.id)))}
-                title="Archive everything carried over — one undo brings it all back"
-                className="flex min-h-9 items-center text-[13px] text-ink-2 hover:text-ink"
-              >
-                Clear the slate
-              </button>
-            </div>
+            <SectionLabel
+              className="px-0.5"
+              count={model.carried.length}
+              action={
+                <SectionAction onClick={() => void time("clear-the-slate", () => model.repo.archiveMany(model.carried.map((t) => t.id)))} title="Archive everything carried over — one undo brings it all back">
+                  Clear the slate
+                </SectionAction>
+              }
+            >
+              Carried over
+            </SectionLabel>
             <TaskList>
               {model.carried.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
+                  today={model.today}
                   draggable
-                  meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                  timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                   onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
                   onDone={() => void time("complete", () => model.repo.complete(t.id))}
                   actions={
@@ -309,12 +318,12 @@ export default function TodayPage() {
                   }
                   footer={
                     t.ask && (
-                      <p className="mx-4 mb-2 ml-11 rounded-lg bg-over-soft px-3 py-2 text-[13px]">
-                        Carried over {t.carryCount} times — still want this?{" "}
-                        <button type="button" className="font-medium text-over" onClick={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}>
-                          Keep today
-                        </button>
-                      </p>
+                      <CarryAsk
+                        count={t.carryCount}
+                        onKeep={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}
+                        onSomeday={() => void time("someday", () => model.repo.setState(t.id, "someday"))}
+                        onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
+                      />
                     )
                   }
                 />
@@ -324,38 +333,31 @@ export default function TodayPage() {
         )}
 
         <section className="flex flex-col gap-2">
-          <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-            Today <span className="ml-2 font-mono normal-case tracking-normal">{model.todayTasks.length} · {formatMinutes(model.todayTasks.reduce((s, t) => s + (t.estimateMin ?? model.settings?.defaultEstimateMin ?? 30), 0))}</span>
-          </h2>
+          <SectionLabel className="px-0.5" count={model.todayTasks.length} detail={formatMinutes(model.todayTasks.reduce((s, t) => s + (t.estimateMin ?? model.settings?.defaultEstimateMin ?? 30), 0))}>
+            Today
+          </SectionLabel>
           <TaskList>
             {model.todayTasks.map((t) => (
               <TaskRow
                 key={t.id}
                 task={t}
+                today={model.today}
                 draggable
                 onDropTask={(src, edge) => dropInToday(src, t.id, edge)}
-                meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                 onOpen={() => detail.open(t.id)}
                 selected={sel.selectedId === t.id}
                 onSelect={() => sel.select(t.id)}
                 onDone={() => void time("complete", () => model.repo.complete(t.id))}
                 actions={
-                  <span className="-my-2 flex shrink-0 items-center text-ink-3">
-                    <button type="button" aria-label="Move up" onClick={() => move(t, -1)} className="flex min-h-11 min-w-8 items-center justify-center">
-                      ↑
-                    </button>
-                    <button type="button" aria-label="Move down" onClick={() => move(t, 1)} className="flex min-h-11 min-w-8 items-center justify-center">
-                      ↓
-                    </button>
-                    <button type="button" aria-label="Tomorrow" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} className="flex min-h-11 items-center px-1.5 text-[13px]">
-                      → tmr
-                    </button>
+                  <>
+                    <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(t, -1)} />
+                    <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(t, 1)} />
+                    <RowAction label="Tomorrow" text="Tmr" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />
                     {hasDay && !model.blockByTask.has(t.id) && (
-                      <button type="button" aria-label={`Block ${t.title}`} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} className="flex min-h-11 items-center px-1.5 text-[13px]">
-                        ▪ Block
-                      </button>
+                      <RowAction label={`Block ${t.title}`} text="Block" glyph={BLOCK_GLYPH} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} />
                     )}
-                  </span>
+                  </>
                 }
               />
             ))}
@@ -377,8 +379,9 @@ export default function TodayPage() {
                         <TaskRow
                           key={t.id}
                           task={t}
+                          today={model.today}
                           onOpen={() => detail.open(t.id)}
-                          meta={<span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-xs text-ink-3">{source === "deadline" ? `due ${t.deadline?.toString().slice(5)}` : source}</span>}
+                          meta={source !== "deadline" && <span>{source}</span>}
                           actions={<MoveActions onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))} />}
                         />
                       ))}
@@ -393,15 +396,18 @@ export default function TodayPage() {
 
         {model.eveningTasks.length > 0 && (
           <section className="flex flex-col gap-2">
-            <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-over">This evening</h2>
+            <SectionLabel className="px-0.5" count={model.eveningTasks.length} detail={formatMinutes(model.eveningTasks.reduce((s, t) => s + (t.estimateMin ?? model.settings?.defaultEstimateMin ?? 30), 0))}>
+              This evening
+            </SectionLabel>
             <TaskList>
               {model.eveningTasks.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
+                  today={model.today}
                   draggable
                   onDropTask={(src, edge) => dropInEvening(src, t.id, edge)}
-                  meta={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                  timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                   onOpen={() => detail.open(t.id)}
                   selected={sel.selectedId === t.id}
                   onSelect={() => sel.select(t.id)}

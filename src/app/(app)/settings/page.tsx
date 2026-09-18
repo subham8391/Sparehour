@@ -15,7 +15,7 @@ import { usePush } from "@/features/notifications/use-push";
 import { usePwa } from "@/features/pwa/pwa-provider";
 import { SettingsForm, type SettingsValues } from "@/features/settings/settings-form";
 import type { Segment } from "@/features/settings/settings-rules";
-import { ViewHeader } from "@/features/shell/view-header";
+import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 
 const USER_SQL = `select id, email, display_name, personal_space_id from users limit 1`;
 
@@ -94,7 +94,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader eyebrow="Settings" title="Your day" subtitle="Every change saves as you make it." />
       {values ? (
         <SettingsForm

@@ -43,14 +43,15 @@ test.describe("Today", () => {
     const block = timeline.getByRole("button", { name: new RegExp(`^Block: ${title}`) });
     await expect(block).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: `Blocked “${title}”` })).toBeVisible();
-    await expect(row.getByText(/^▪ \d\d:\d\d$/)).toBeVisible();
+    // The block chip shows the start time (its square is drawn, not typed); the task has no other time.
+    await expect(row.getByText(/^\d\d:\d\d$/)).toBeVisible();
     const created = await waitForRow<{ id: string }>("select b.id from public.time_blocks b join public.tasks t on t.id = b.task_id where t.title = $1 and b.deleted_at is null", [title]);
     expect(created).not.toBeNull();
 
     await block.click();
     await page.getByRole("button", { name: "Remove" }).click();
     await expect(block).toHaveCount(0);
-    await expect(row.getByText(/^▪ \d\d:\d\d$/)).toHaveCount(0);
+    await expect(row.getByText(/^\d\d:\d\d$/)).toHaveCount(0);
     const removed = await waitForRow<{ id: string }>("select id from public.time_blocks where id = $1 and deleted_at is not null", [created!.id]);
     expect(removed).not.toBeNull();
   });

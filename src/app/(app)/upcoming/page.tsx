@@ -11,7 +11,7 @@ import { toTask } from "@/data/mappers";
 import { PLANNED_BETWEEN_SQL, UNPLANNED_SQL, dayRangeParams } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { DropZone } from "@/features/tasks/drop-zone";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { MoveActions } from "@/features/tasks/task-actions";
@@ -19,6 +19,7 @@ import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { SectionLabel } from "@/ui/section-label";
 
 const DAYS = 7;
 
@@ -67,7 +68,7 @@ export default function UpcomingPage() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader
         eyebrow="Upcoming · rolling 7 days"
         title={`${weekdayName(today)} ${today.day} – ${formatDay(today.add({ days: DAYS - 1 }), { month: "long" })}`}
@@ -75,23 +76,19 @@ export default function UpcomingPage() {
       {days.map(({ day, tasks }, i) => (
         <DropZone key={day.toString()} label={`${weekdayName(day)} ${day.day}`} onDropTask={dropOnDay(day, tasks)}>
           <section className="flex flex-col gap-2">
-            <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+            <SectionLabel className="px-0.5" count={tasks.length > 0 ? tasks.length : undefined} detail={tasks.length > 0 ? formatMinutes(tasks.reduce((s, t) => s + estimate(t), 0)) : undefined}>
               {weekdayName(day)} {day.day}
-              {i === 0 && <span className="ml-2 normal-case tracking-normal text-ink-2">today</span>}
-              {tasks.length > 0 && (
-                <span className="ml-2 font-mono normal-case tracking-normal">
-                  {tasks.length} · {formatMinutes(tasks.reduce((s, t) => s + estimate(t), 0))}
-                </span>
-              )}
-            </h2>
+              {i === 0 && <span className="ml-2 font-medium normal-case tracking-normal text-ink-2">today</span>}
+            </SectionLabel>
             {tasks.length === 0 ? (
-              <p className="px-4 text-[15px] text-ink-3">Free.</p>
+              <p className="px-4 text-body-lg text-ink-3">Free.</p>
             ) : (
               <TaskList>
                 {tasks.map((t) => (
                   <TaskRow
                     key={t.id}
                     task={t}
+                    today={today}
                     draggable
                     onDropTask={(src, edge) => dropOnRow(day, tasks)(src, t.id, edge)}
                     onOpen={() => detail.open(t.id)}
@@ -107,9 +104,9 @@ export default function UpcomingPage() {
       ))}
       <DropZone label="Not yet planned" onDropTask={dropOnUnplanned}>
         <section className="flex flex-col gap-2">
-          <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-            Not yet planned{unplanned.length > 0 && <span className="ml-2 font-mono normal-case tracking-normal">{unplanned.length}</span>}
-          </h2>
+          <SectionLabel className="px-0.5" count={unplanned.length > 0 ? unplanned.length : undefined}>
+            Not yet planned
+          </SectionLabel>
           {unplanned.length === 0 ? (
             <EmptyState>Nothing scheduled beyond today.</EmptyState>
           ) : (
@@ -118,6 +115,7 @@ export default function UpcomingPage() {
                 <TaskRow
                   key={t.id}
                   task={t}
+                  today={today}
                   draggable
                   onOpen={() => detail.open(t.id)}
                   selected={sel.selectedId === t.id}

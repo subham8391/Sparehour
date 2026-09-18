@@ -87,35 +87,44 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 }
 
 
-/** The always-present bar at the bottom of the main pane (narrow band and up). */
+/**
+ * The bar at the bottom of the list column (narrow band and up): sticky,
+ * the width of the column and no wider, fading up from the paper. The
+ * spacer before it keeps the last row clear of the bar at the end of the
+ * page. Both are direct children of the shell's column so the bar can stick.
+ */
 export function QuickAddBar() {
   const { open } = useQuickAdd();
   return (
-    <div className="sticky bottom-0 z-10 mt-auto hidden border-t border-line bg-paper/90 px-6 py-2 backdrop-blur sm:block md:px-10">
-      <button
-        type="button"
-        onClick={() => open()}
-        className="flex h-10 w-full max-w-6xl items-center gap-3 rounded-xl border border-line bg-surface px-4 text-left text-[15px] text-ink-3 hover:border-line-strong hover:text-ink-2"
-      >
-        <Icon name="plus" size={16} />
-        <span className="flex-1">Add a task</span>
-        <Kbd>Q</Kbd>
-      </button>
-    </div>
+    <>
+      <div aria-hidden="true" className="mt-auto hidden h-12 shrink-0 sm:block" />
+      <div className="sticky bottom-0 z-10 hidden w-full max-w-210 bg-linear-to-t from-paper from-70% to-transparent px-6 pt-3 pb-4 sm:block md:px-10">
+        <button
+          type="button"
+          onClick={() => open()}
+          className="flex h-11 w-full items-center gap-3 rounded-lg border border-line-strong bg-surface px-3.5 text-left text-body-lg text-ink-3 transition-colors dur-fast hover:border-line-control hover:text-ink-2 active:bg-press"
+        >
+          <Icon name="plus" size={16} className="text-ink-2" />
+          <span className="flex-1">Add a task</span>
+          <Kbd>Q</Kbd>
+        </button>
+      </div>
+    </>
   );
 }
 
-/** The phone FAB, above the tab bar. */
-export function QuickAddFab() {
+/** The phone FAB: 56 px, ink, a rounded square, 16 px above the tab bar. `hidden` while a sheet owns the screen. */
+export function QuickAddFab({ hidden = false }: { hidden?: boolean }) {
   const { open } = useQuickAdd();
   return (
     <button
       type="button"
       onClick={() => open()}
       aria-label="Add a task"
-      className="fixed right-4 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] z-30 flex size-14 items-center justify-center rounded-full bg-ink text-paper shadow-lg sm:hidden"
+      hidden={hidden}
+      className="fixed right-5 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center rounded-fab bg-ink text-ink-inverse shadow-lift transition-transform dur-fast motion-safe:active:scale-94 sm:hidden"
     >
-      <Icon name="plus" size={24} />
+      <Icon name="plus" size={24} strokeWidth={1.8} />
     </button>
   );
 }

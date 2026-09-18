@@ -92,19 +92,47 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
   };
 }
 
+// Six states, three tones: quiet neutrals for the ordinary ones, amber for the
+// two that want a look. Never green; that colour means spare time (§1).
 const TONE: Record<SyncChipState, string> = {
-  connecting: "text-ink-2",
+  connecting: "text-ink-3",
   synced: "text-ink-3",
-  syncing: "text-ink-2",
+  syncing: "text-ink-3",
   offline: "text-ink-2",
   problem: "text-over",
   unprotected: "text-over",
 };
 
-/** The chip itself; click expands the plain-words detail. `compact` shows the icon only (rail, phone header). */
-export function SyncChip({ model, compact = false, className = "" }: { model: SyncChipModel; compact?: boolean; className?: string }) {
+// The dot beside the word in the sidebar footer: filled when all is well, hollow when offline, amber when something wants a look, pulsing while data moves.
+const DOT: Record<SyncChipState, string> = {
+  connecting: "bg-line-control animate-pulse",
+  synced: "bg-line-control",
+  syncing: "bg-line-control animate-pulse",
+  offline: "border border-line-control",
+  problem: "bg-over-fill",
+  unprotected: "bg-over-fill",
+};
+
+/**
+ * The chip itself; click expands the plain-words detail. `compact` shows the
+ * icon only (rail, phone header) in a 44 px target that drops to 36 px on
+ * the rail. `placement` says where the detail opens: above in the sidebar
+ * footer, below in the phone header.
+ */
+export function SyncChip({
+  model,
+  compact = false,
+  placement = "above",
+  className = "",
+}: {
+  model: SyncChipModel;
+  compact?: boolean;
+  placement?: "above" | "below";
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const moving = model.state === "syncing" || model.state === "connecting";
   return (
     <div className={`relative ${className}`}>
       <button
@@ -115,13 +143,30 @@ export function SyncChip({ model, compact = false, className = "" }: { model: Sy
         aria-label={compact ? model.label : undefined}
         title={compact ? model.label : undefined}
         data-state={model.state}
-        className={`flex h-9 min-w-9 items-center gap-2 rounded-lg px-2 font-mono text-[11px] ${TONE[model.state]} hover:bg-surface`}
+        className={`flex items-center rounded-lg text-body-sm font-medium transition-colors dur-fast hover:bg-hover hover:text-ink active:bg-press ${TONE[model.state]} ${
+          compact ? "size-11 justify-center sm:size-9" : "h-8 gap-2.5 px-3"
+        }`}
       >
-        <Icon name={model.icon} size={14} className={model.state === "syncing" || model.state === "connecting" ? "animate-pulse" : undefined} />
-        {!compact && <span aria-live="polite">{model.label}</span>}
+        {compact ? (
+          <Icon name={model.icon} size={18} className={moving ? "animate-pulse" : undefined} />
+        ) : (
+          <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${DOT[model.state]}`} />
+        )}
+        {!compact && (
+          <span aria-live="polite" className="truncate num">
+            {model.label}
+          </span>
+        )}
       </button>
       {open && (
-        <div id={panelId} role="region" aria-label="Sync status" className="absolute bottom-full left-0 z-30 mb-1 w-64 rounded-xl border border-line bg-surface p-3 text-[13px] leading-snug text-ink-2 shadow-lg">
+        <div
+          id={panelId}
+          role="region"
+          aria-label="Sync status"
+          className={`absolute z-30 w-64 rounded-xl border border-raised-border bg-surface-3 p-3 text-body-sm text-ink-2 shadow-raised ${
+            placement === "above" ? "bottom-full left-0 mb-1" : "top-full right-0 mt-1"
+          }`}
+        >
           <p className="mb-1 font-medium text-ink">{model.label}</p>
           <p>{model.detail}</p>
         </div>

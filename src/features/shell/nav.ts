@@ -54,6 +54,20 @@ export function activeTab(pathname: string): ViewId | null {
   return null;
 }
 
+/** Full-screen routes: the rituals and search own the phone's bottom edge, so the tab bar steps aside. */
+const FULL_SCREEN = ["/plan", "/shutdown", "/search"];
+/** Views where adding a task is not the job: the add bar and the FAB stay away (brief P10). */
+const NO_ADD = [...FULL_SCREEN, "/settings", "/calendar", "/logbook"];
+
+export function showsTabBar(pathname: string): boolean {
+  return !FULL_SCREEN.some((p) => isActive(pathname, p));
+}
+
+/** The desktop add bar and the phone FAB show only on task-list views. */
+export function showsQuickAdd(pathname: string): boolean {
+  return !NO_ADD.some((p) => isActive(pathname, p));
+}
+
 export interface NavCounts {
   inbox: number;
   today: number;

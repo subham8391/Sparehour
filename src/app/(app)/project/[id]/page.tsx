@@ -19,7 +19,7 @@ import { groupByHeading, summarise, type HeadingGroup } from "@/features/project
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { dayChip } from "@/features/tasks/day-chip";
 import { InlineAdd } from "@/features/tasks/inline-add";
 import { DayChipTag, MoveActions } from "@/features/tasks/task-actions";
@@ -70,7 +70,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
 
   if (!isLoading && !project) {
     return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+      <main className={VIEW_COLUMN}>
         <ViewHeader eyebrow="Project" title="Not here" />
         <EmptyState>
           This project isn&rsquo;t on this device.{" "}
@@ -102,7 +102,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader
         eyebrow={
           area ? (
@@ -191,13 +191,14 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
               <TaskRow
                 key={t.id}
                 task={t}
+                today={today}
                 draggable
                 onDropTask={(src, edge) => dropInto(g)(src, t.id, edge)}
                 onOpen={() => detail.open(t.id)}
                 selected={sel.selectedId === t.id}
                 onSelect={() => sel.select(t.id)}
                 onDone={() => void tasksRepo.complete(t.id)}
-                meta={<DayChipTag chip={dayChip(t, today)} />}
+                chips={<DayChipTag chip={dayChip(t, today)} count={false} />}
               />
             ))}
             <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
@@ -252,6 +253,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
                 <TaskRow
                   key={t.id}
                   task={t}
+                  today={today}
                   onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
                   onDone={() => void tasksRepo.complete(t.id)}
                   actions={<MoveActions onToday={() => void tasksRepo.reschedule(t.id, today)} onTomorrow={() => void tasksRepo.reschedule(t.id, today.add({ days: 1 }))} />}

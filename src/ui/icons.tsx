@@ -25,7 +25,13 @@ export type IconName =
   | "lock"
   | "close"
   | "alert"
-  | "menu";
+  | "menu"
+  | "more"
+  | "arrow-up"
+  | "arrow-down"
+  | "arrow-left"
+  | "arrow-right"
+  | "calendar-week";
 
 const PATHS: Record<IconName, string> = {
   inbox: "M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5 M3 11.5l2-6.5h10l2 6.5 M3 11.5h4l1.2 2h3.6l1.2-2h4",
@@ -51,6 +57,13 @@ const PATHS: Record<IconName, string> = {
   close: "M5 5l10 10M15 5L5 15",
   alert: "M10 3.5l7 12.5H3z M10 8.5v3.5M10 14v.01",
   menu: "M4 6h12M4 10h12M4 14h12",
+  // Three dots: the caps do the drawing, so pass a heavier strokeWidth where it must read at 16 px.
+  more: "M5 10h.01M10 10h.01M15 10h.01",
+  "arrow-up": "M10 16V4M5.5 8.5 10 4l4.5 4.5",
+  "arrow-down": "M10 4v12M5.5 11.5 10 16l4.5-4.5",
+  "arrow-left": "M16 10H4M8.5 5.5 4 10l4.5 4.5",
+  "arrow-right": "M4 10h12M11.5 5.5 16 10l-4.5 4.5",
+  "calendar-week": "M5.5 4.5h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z M3.5 8.5h13M7 3v3M13 3v3 M6.5 12h2M9 12h2M11.5 12h2",
 };
 
 export function Icon({ name, size = 18, className, ...rest }: { name: IconName; size?: number } & Omit<SVGProps<SVGSVGElement>, "name">) {
@@ -73,12 +86,12 @@ export function Icon({ name, size = 18, className, ...rest }: { name: IconName; 
   );
 }
 
-/** The logo mark: an hour's circle with the spare part drawn in green. */
+/** The logo mark, "the spare slice": an ink ring over three quarters of the hour, the quarter set aside in green, sitting proud. */
 export function LogoMark({ size = 20 }: { size?: number }) {
   return (
     <svg viewBox="0 0 20 20" width={size} height={size} fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="7.5" stroke="var(--line-strong)" strokeWidth={1.6} />
-      <path d="M10 2.5a7.5 7.5 0 0 1 6.5 11.25" stroke="var(--spare-fill)" strokeWidth={2.4} strokeLinecap="round" />
+      <path d="M17 10A7 7 0 1 1 10 3" stroke="var(--ink)" strokeWidth={1.8} strokeLinecap="round" />
+      <path d="M10 2.25A7.75 7.75 0 0 1 17.75 10" stroke="var(--spare-fill)" strokeWidth={2.4} strokeLinecap="round" />
     </svg>
   );
 }

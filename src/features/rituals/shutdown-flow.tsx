@@ -2,6 +2,8 @@
 // The evening shutdown (SCREENS.md §15): six steps in a settled order, 60–90
 // seconds, nothing here creates new work. Presentational; the page feeds it
 // the day and does the writes.
+import { VIEW_COLUMN } from "@/features/shell/view-header";
+import { cx } from "@/ui/cx";
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Task } from "@/core/types";
 import { Icon } from "@/ui/icons";
@@ -188,7 +190,7 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-6 p-6 pb-28 md:p-10 md:pb-28">
+    <main className={cx(VIEW_COLUMN, "min-h-dvh pb-28 md:pb-28")}>
       <header className="flex items-center justify-between gap-4">
         <div>
           <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
@@ -212,7 +214,7 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
 
       <section className="flex flex-col gap-4">{body}</section>
 
-      <footer className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-line bg-paper/95 px-6 py-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
+      <footer className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-line bg-paper/95 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
         <button type="button" onClick={() => prev && setStep(prev)} disabled={!prev} className="h-12 rounded-xl px-4 text-[15px] text-ink-2 hover:text-ink disabled:opacity-0">
           ← Back
         </button>

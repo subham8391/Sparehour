@@ -6,7 +6,7 @@ import { toTask } from "@/data/mappers";
 import { SOMEDAY_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useListSelection } from "@/features/selection/selection-provider";
@@ -23,7 +23,7 @@ export default function SomedayPage() {
   const sel = useListSelection(tasks.map((t) => t.id));
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader eyebrow="Someday" title="Things you&rsquo;re not doing right now." subtitle="That&rsquo;s allowed." />
       {!isLoading && tasks.length === 0 ? (
         <EmptyState>Nothing parked. That&rsquo;s fine too.</EmptyState>
@@ -33,6 +33,7 @@ export default function SomedayPage() {
             <TaskRow
               key={t.id}
               task={t}
+              today={today}
               onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)}
               onDone={() => void repo.complete(t.id)}
               actions={<MoveActions onToday={() => void repo.reschedule(t.id, today)} onTomorrow={() => void repo.reschedule(t.id, today.add({ days: 1 }))} onDrop={() => void repo.setState(t.id, "dropped")} />}

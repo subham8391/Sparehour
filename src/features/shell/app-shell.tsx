@@ -16,8 +16,10 @@ import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { BulkBar } from "@/features/selection/bulk-bar";
 import { SelectionProvider } from "@/features/selection/selection-provider";
-import { TaskDetailPane, TaskDetailProvider } from "@/features/tasks/task-detail";
+import { TaskDetailPane, TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { UndoProvider } from "@/features/undo/undo-provider";
+import { cx } from "@/ui/cx";
+import { showsQuickAdd, showsTabBar } from "./nav";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
 import { useNavData } from "./use-nav-data";
@@ -31,44 +33,57 @@ function Keyboard({ children }: { children: ReactNode }) {
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <PwaProvider>
-      <Shell>{children}</Shell>
+      <UndoProvider>
+        <QuickAddProvider>
+          <TaskDetailProvider>
+            <SelectionProvider>
+              <PaletteProvider>
+                <BlockingProvider>
+                  <Keyboard>
+                    <Frame>{children}</Frame>
+                    <PaletteHost />
+                    <PushDeepLink />
+                  </Keyboard>
+                </BlockingProvider>
+              </PaletteProvider>
+            </SelectionProvider>
+          </TaskDetailProvider>
+        </QuickAddProvider>
+      </UndoProvider>
     </PwaProvider>
   );
 }
 
-function Shell({ children }: { children: ReactNode }) {
+// The frame proper. The root clips sideways overflow so nothing a view does
+// can push the tab bar off a phone (brief P3). The tab bar steps aside on
+// full-screen routes; the add bar and the FAB show only where adding a task
+// is the job, and the FAB hides under the phone's detail sheet (P5, P10).
+function Frame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { counts, areas } = useNavData();
   const sync = useSyncChip();
+  const detail = useTaskDetail();
   useAppBadge(counts.today);
+  const tabs = showsTabBar(pathname);
+  const adds = showsQuickAdd(pathname);
   return (
-    <UndoProvider>
-      <QuickAddProvider>
-        <TaskDetailProvider>
-          <SelectionProvider>
-            <PaletteProvider>
-              <BlockingProvider>
-              <Keyboard>
-              <div className="flex min-h-dvh">
-                <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
-                <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
-                <div className="flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:pb-0">
-                  {children}
-                  <QuickAddBar />
-                </div>
-                <TaskDetailPane />
-                <TabBar pathname={pathname} counts={counts} className="sm:hidden" />
-                <QuickAddFab />
-                <BulkBar />
-              </div>
-              <PaletteHost />
-              <PushDeepLink />
-              </Keyboard>
-              </BlockingProvider>
-            </PaletteProvider>
-          </SelectionProvider>
-        </TaskDetailProvider>
-      </QuickAddProvider>
-    </UndoProvider>
+    <div className="flex min-h-dvh overflow-x-clip">
+      <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
+      <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
+      <div
+        className={cx(
+          "flex min-w-0 flex-1 flex-col sm:pb-0",
+          // Room under the tab bar, and under the FAB where there is one, so the last row is never covered.
+          tabs && (adds ? "pb-[calc(9rem+env(safe-area-inset-bottom))]" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))]"),
+        )}
+      >
+        {children}
+        {adds && <QuickAddBar />}
+      </div>
+      <TaskDetailPane />
+      {tabs && <TabBar pathname={pathname} counts={counts} className="sm:hidden" />}
+      {adds && <QuickAddFab hidden={detail.selectedId !== null} />}
+      <BulkBar />
+    </div>
   );
 }

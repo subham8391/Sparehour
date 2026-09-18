@@ -11,7 +11,7 @@ import { CALENDARS_COUNT_SQL, EVENTS_BETWEEN_SQL, dayRangeParams } from "@/data/
 import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
 import type { CalendarEventRow } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 
 interface Shown {
   id: string;
@@ -59,7 +59,7 @@ export default function CalendarPage() {
   }, [events, calendarRows, today, zone]);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader eyebrow="Calendar" title="This week" />
       {!connected ? (
         <EmptyState>No calendar connected — your meetings would show here.</EmptyState>

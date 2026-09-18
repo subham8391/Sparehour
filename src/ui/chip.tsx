@@ -11,7 +11,8 @@ import { deadlineWording } from "./relative-day";
 export type ChipTone = "neutral" | "time" | "deadline" | "near" | "meet" | "over" | "spare" | "guess" | "block";
 export type ChipSize = "md" | "sm" | "auto";
 
-const BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-transparent font-medium num";
+// Every tone sets its own border colour: a shared transparent default would outrank the guess chip's dashed line.
+const BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border font-medium num";
 
 const SIZE: Record<ChipSize, string> = {
   md: "h-[22px] px-2 text-body-sm",
@@ -22,15 +23,15 @@ const SIZE: Record<ChipSize, string> = {
 };
 
 const TONE: Record<ChipTone, string> = {
-  neutral: "bg-surface-2 text-ink-2",
-  time: "bg-surface-2 text-ink-2",
-  deadline: "bg-surface-2 text-ink-2",
-  near: "bg-deadline-soft text-deadline [&_svg]:text-deadline-fill",
-  meet: "bg-meet-soft text-meet",
+  neutral: "border-transparent bg-surface-2 text-ink-2",
+  time: "border-transparent bg-surface-2 text-ink-2",
+  deadline: "border-transparent bg-surface-2 text-ink-2",
+  near: "border-transparent bg-deadline-soft text-deadline [&_svg]:text-deadline-fill",
+  meet: "border-transparent bg-meet-soft text-meet",
   over: "border-over-line bg-over-soft text-over",
   spare: "rounded-full border-spare-line bg-spare-soft text-spare font-semibold",
   guess: "border-dashed border-line-control text-ink-2",
-  block: "bg-surface-2 text-ink font-semibold",
+  block: "border-transparent bg-surface-2 text-ink font-semibold",
 };
 
 /** The glyph each tone carries when none is given. */

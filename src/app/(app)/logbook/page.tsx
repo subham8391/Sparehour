@@ -11,8 +11,9 @@ import { normaliseTimestamp, toTask } from "@/data/mappers";
 import { LOGBOOK_COMPLETIONS_SQL, LOGBOOK_SQL, monthsBack } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { SectionLabel } from "@/ui/section-label";
 
 interface DayGroup {
   day: LocalDate;
@@ -51,19 +52,16 @@ export default function LogbookPage() {
   }, [data, completions, zone, settings?.defaultEstimateMin]);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader eyebrow="Logbook" title="Done" subtitle={groups.length > 0 ? `The last ${months.length} months` : undefined} />
       {!isLoading && groups.length === 0 ? (
         <EmptyState>Nothing completed yet.</EmptyState>
       ) : (
         groups.map((g) => (
           <section key={g.day.toString()} className="flex flex-col gap-2">
-            <h2 className="px-0.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+            <SectionLabel className="px-0.5" detail={`${g.tasks.length} done · ${formatMinutes(g.minutes)}`}>
               {formatDay(g.day, { weekday: "long", today })}
-              <span className="ml-2 font-mono normal-case tracking-normal">
-                {g.tasks.length} done · {formatMinutes(g.minutes)}
-              </span>
-            </h2>
+            </SectionLabel>
             <TaskList>
               {g.tasks.map((t) => (
                 <TaskRow key={t.id} task={t} />

@@ -33,8 +33,11 @@ export function InlineAdd({
     }
   };
   return (
-    <li className="flex min-h-11 items-center gap-3 px-4">
-      <Icon name="plus" size={16} className="shrink-0 text-ink-3" />
+    <li className="flex min-h-14 items-center border-t border-line first:border-t-0 sm:min-h-11">
+      <span className="flex size-11 shrink-0 items-center justify-center text-ink-2" aria-hidden="true">
+        <Icon name="plus" size={16} />
+      </span>
+      {/* The focus ring sits inside the 44 px line so it never crosses the hairlines; the padding keeps the text on the title column. */}
       <input
         autoFocus={autoFocus}
         aria-label={placeholder}
@@ -43,7 +46,7 @@ export function InlineAdd({
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKey}
         autoComplete="off"
-        className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
+        className="-ml-2 mr-4 h-11 min-w-0 flex-1 rounded-sm bg-transparent px-2 text-base text-ink placeholder:text-ink-4 focus-visible:-outline-offset-2 sm:text-body-lg"
       />
     </li>
   );

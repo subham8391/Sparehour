@@ -11,7 +11,7 @@ import { AreaRepo } from "@/data/repositories/area-repo";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import type { AreaRow } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { Icon } from "@/ui/icons";
 import { InlineTitle } from "@/ui/inline-title";
 
@@ -30,7 +30,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
 
   if (!isLoading && !area) {
     return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+      <main className={VIEW_COLUMN}>
         <ViewHeader eyebrow="Area" title="Not here" />
         <EmptyState>
           This area isn&rsquo;t on this device.{" "}
@@ -52,7 +52,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader
         eyebrow="Area"
         title={<InlineTitle value={area.name ?? "Untitled area"} label="Area name" onSave={(n) => void areaRepo.rename(area.id, n)} className="font-display text-3xl leading-tight text-ink" />}

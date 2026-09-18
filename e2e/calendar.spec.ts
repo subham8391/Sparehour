@@ -18,6 +18,9 @@ test("the connected calendar is listed and 'counts as busy' writes through to Po
   await expect(page.getByRole("status").filter({ hasText: "Saved" }).first()).toBeVisible();
   expect(await waitForRow(CAL_SQL, ["dev@sparehour.local", !wasOn])).not.toBeNull();
 
+  // The switch reflects the local row; click again only once it has flipped, as a person would,
+  // or the second click writes the same value and nothing new reaches Postgres.
+  await expect(busy).toHaveAttribute("aria-checked", String(!wasOn));
   await busy.click();
   expect(await waitForRow(CAL_SQL, ["dev@sparehour.local", wasOn])).not.toBeNull();
 

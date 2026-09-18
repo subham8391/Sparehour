@@ -8,6 +8,7 @@ import type { PermissionCopy } from "@/features/notifications/push";
 import { persistenceCopy, type InstallState, type PersistenceState } from "@/features/pwa/install";
 import { CalendarSettings, type CalendarPanel } from "@/features/calendar/calendar-section";
 import { Icon } from "@/ui/icons";
+import { Segmented } from "@/ui/segmented";
 import { DEFAULT_SEGMENT, ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, segmentError, timeZoneHint, timeZoneOptions, type Segment } from "./settings-rules";
 
 export interface SettingsValues {
@@ -265,20 +266,16 @@ export function SettingsForm(p: SettingsFormProps) {
       <Section title="Appearance" saved={saved}>
         <div className={ROW}>
           <span className={LABEL}>Theme</span>
-          <div role="radiogroup" aria-label="Theme" className="flex gap-1 rounded-lg border border-line p-0.5">
-            {(["light", "dark", "system"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="radio"
-                aria-checked={values.theme === t}
-                onClick={() => change({ theme: t })}
-                className="h-9 rounded-md px-3 text-[13px] text-ink-2 aria-checked:bg-ink aria-checked:text-paper"
-              >
-                {t === "system" ? "System" : t === "light" ? "Light" : "Dark"}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            label="Theme"
+            options={[
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+              { value: "system", label: "System" },
+            ]}
+            value={values.theme}
+            onChange={(theme) => change({ theme })}
+          />
         </div>
       </Section>
 

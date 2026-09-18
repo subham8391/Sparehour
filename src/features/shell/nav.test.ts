@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BROWSE_VIEWS, SIDEBAR_VIEWS, TAB_VIEWS, activeTab, countLabel, isActive } from "./nav";
+import { BROWSE_VIEWS, SIDEBAR_VIEWS, TAB_VIEWS, activeTab, countLabel, isActive, showsQuickAdd, showsTabBar } from "./nav";
 
 describe("navigation model", () => {
   it("keeps the fixed sidebar order from the spec", () => {
@@ -32,6 +32,16 @@ describe("navigation model", () => {
     expect(activeTab("/upcoming")).toBe("upcoming");
     for (const p of ["/browse", "/someday", "/logbook", "/settings", "/project/p1", "/area/a1"]) expect(activeTab(p)).toBe("browse");
     expect(activeTab("/calendar")).toBeNull();
+  });
+
+  it("the tab bar steps aside for the rituals and search only", () => {
+    for (const p of ["/today", "/inbox", "/upcoming", "/browse", "/settings", "/logbook", "/project/p1"]) expect(showsTabBar(p)).toBe(true);
+    for (const p of ["/plan", "/shutdown", "/search"]) expect(showsTabBar(p)).toBe(false);
+  });
+
+  it("the add bar and the FAB show on task lists only", () => {
+    for (const p of ["/today", "/inbox", "/upcoming", "/someday", "/browse", "/project/p1", "/area/a1"]) expect(showsQuickAdd(p)).toBe(true);
+    for (const p of ["/plan", "/shutdown", "/search", "/settings", "/calendar", "/logbook"]) expect(showsQuickAdd(p)).toBe(false);
   });
 
   it("never shows a zero count", () => {

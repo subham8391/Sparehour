@@ -8,7 +8,7 @@ import { AreaRepo } from "@/data/repositories/area-repo";
 import { BROWSE_VIEWS } from "@/features/shell/nav";
 import { VIEW_ICONS } from "@/features/shell/sidebar";
 import { useNavData } from "@/features/shell/use-nav-data";
-import { EmptyState, ViewHeader } from "@/features/shell/view-header";
+import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { Icon } from "@/ui/icons";
 
 const ROW = "flex min-h-11 items-center gap-3 border-t border-line px-4 text-[15px] text-ink first:border-t-0";
@@ -30,7 +30,7 @@ export default function BrowsePage() {
     void areaRepo.create(n, { spaceId });
   };
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-10">
+    <main className={VIEW_COLUMN}>
       <ViewHeader eyebrow="Browse" title="Everything else" />
       <Link href="/search" className="flex h-11 w-full items-center gap-3 rounded-xl border border-line bg-surface px-4 text-left text-[15px] text-ink-3 hover:border-line-strong">
         <Icon name="search" size={18} />
