@@ -326,6 +326,10 @@
 @utility fade-end {
   mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
 }
+/* A box that fades in from its left edge (the desktop row's action zone, which sits over the chips). */
+@utility fade-start {
+  mask-image: linear-gradient(to right, transparent, black 24px);
+}
 /* Tabular figures for anything that lines up: times, durations, counts, ticks. */
 @utility num {
   font-variant-numeric: tabular-nums;

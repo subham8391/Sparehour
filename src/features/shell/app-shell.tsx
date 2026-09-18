@@ -55,9 +55,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 // The frame proper. The root clips sideways overflow so nothing a view does
-// can push the tab bar off a phone (brief P3). The tab bar steps aside on
-// full-screen routes; the add bar and the FAB show only where adding a task
-// is the job, and the FAB hides under the phone's detail sheet (P5, P10).
+// can push the tab bar off a phone (brief P3). On a phone the page scrolls;
+// from the narrow band up the column is viewport-high and the view scrolls
+// inside it, with the add bar a footer beneath the region so it never covers
+// a row. The tab bar steps aside on full-screen routes; the add bar and the
+// FAB show only where adding a task is the job, and the FAB hides under the
+// phone's detail sheet (P5, P10).
 function Frame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { counts, areas } = useNavData();
@@ -67,7 +70,7 @@ function Frame({ children }: { children: ReactNode }) {
   const tabs = showsTabBar(pathname);
   const adds = showsQuickAdd(pathname);
   return (
-    <div className="flex min-h-dvh overflow-x-clip">
+    <div className="flex min-h-dvh overflow-x-clip sm:h-dvh">
       <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
       <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
       <div
@@ -77,7 +80,8 @@ function Frame({ children }: { children: ReactNode }) {
           tabs && (adds ? "pb-[calc(9rem+env(safe-area-inset-bottom))]" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))]"),
         )}
       >
-        {children}
+        {/* The view's scroll region from the narrow band up; on a phone it is simply the page. */}
+        <div className="flex flex-1 flex-col sm:min-h-0 sm:overflow-y-auto">{children}</div>
         {adds && <QuickAddBar />}
       </div>
       <TaskDetailPane />

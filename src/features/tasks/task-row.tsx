@@ -1,9 +1,13 @@
 "use client";
 // One task row (DESIGN_SYSTEM.md §5 "Task row"). On a pointer device: a 44 px
-// grid of ring, title, a quiet meta run, at most three chips (one time chip,
-// the deadline in human words, the estimate) and a 132 px reserved zone whose
-// actions appear on hover, focus-within and the J/K highlight, so nothing
-// shifts. On a phone: a 56 px row whose title comes first and clamps at two
+// grid of ring, title, a quiet meta run and at most three chips (one time
+// chip, the deadline in human words, the estimate); the title takes whatever
+// is left, nothing is reserved. The actions live in a zone pinned to the
+// row's right edge, out of the flow and hidden at rest; on hover, focus-within
+// and the J/K highlight it appears over the chips on the row's own
+// background, fading in at its left edge, so nothing shifts. A touch device
+// without hover keeps the zone in the flow, always shown. On a phone: a 56 px
+// row whose title comes first and clamps at two
 // lines, the chips and meta on a second line that fades out rather than
 // wraps, no inline actions; the whole row opens the detail, the ring and the
 // "More actions" menu are the other two targets. A footer can sit under the
@@ -77,6 +81,10 @@ export function TaskRow({
   useEffect(() => {
     dataRef.current = { type: "task", id: task.id, title: task.title, estimateMin: task.estimateMin };
   });
+  // The keyboard highlight keeps its row in view; the list scrolls inside the shell's column, so `nearest` is enough. (jsdom has no scrollIntoView.)
+  useEffect(() => {
+    if (selected) ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [selected]);
   useEffect(() => {
     const el = ref.current;
     if (!el || !canDrag) return;
@@ -210,7 +218,10 @@ export function TaskRow({
         "group relative grid border-t border-line transition-[grid-template-rows,opacity,background-color] ease-out-quart [transition-delay:160ms,160ms,0ms] [transition-duration:240ms,240ms,120ms] first:border-t-0 hover:bg-hover active:bg-press",
         completing ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]",
         selected && "shadow-[inset_2px_0_0_var(--ink)]",
-        ticked && "bg-surface-2 hover:bg-surface-2",
+        // The action zone paints the row's background over the chips: `--row-bg` is the base tone, `--row-wash` the hover or press wash on it.
+        ticked
+          ? "bg-surface-2 hover:bg-surface-2 [--row-bg:var(--surface-2)] [--row-wash:transparent]"
+          : "[--row-bg:var(--surface)] [--row-wash:transparent] hover:[--row-wash:var(--hover)] active:[--row-wash:var(--press)]",
         dragging && "opacity-40",
       )}
       aria-current={selected ? "true" : undefined}
@@ -273,11 +284,22 @@ export function TaskRow({
             )}
             <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:fade-end sm:contents">
               {meta && <span className={META_RUN}>{meta}</span>}
-              <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:text-body-sm", hasActions ? "sm:pr-2" : "sm:pr-4", task.state === "done" && "opacity-60")}>{chipRun}</span>
+              <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", task.state === "done" && "opacity-60")}>{chipRun}</span>
             </div>
           </div>
           {hasActions && (
-            <div className="hidden min-w-[132px] items-center justify-end gap-0.5 pr-2 opacity-0 transition-opacity duration-[80ms] group-focus-within:opacity-100 group-hover:opacity-100 group-aria-[current=true]:opacity-100 sm:flex [@media(hover:none)]:opacity-100">
+            <div
+              className={cx(
+                "hidden items-center justify-end gap-0.5 pr-2 sm:flex",
+                // Pinned to the right edge, out of the flow, on the row's own background (base tone under the wash), fading in on the left so it can sit over the chips.
+                "sm:absolute sm:inset-y-0 sm:right-0 sm:pl-6 sm:bg-(--row-bg) sm:shadow-[inset_0_0_0_100vmax_var(--row-wash)] sm:fade-start",
+                // Hidden at rest and no target then (axe reads pointer-events); revealed at 80 ms on hover, focus-within and the J/K highlight.
+                "pointer-events-none opacity-0 transition-opacity duration-[80ms]",
+                "group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-aria-[current=true]:pointer-events-auto group-aria-[current=true]:opacity-100",
+                // No hover, no reveal: a touch device keeps the zone in the flow (the grid's last track) and always shown.
+                "[@media(hover:none)]:sm:static [@media(hover:none)]:sm:pl-0 [@media(hover:none)]:sm:shadow-none [@media(hover:none)]:sm:[mask-image:none] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
+              )}
+            >
               <RowActionsLayoutProvider layout="inline">{actions}</RowActionsLayoutProvider>
             </div>
           )}

@@ -35,8 +35,11 @@ test.describe("Today", () => {
     const title = uniqueTitle("block me");
     await quickAdd(page, `${title} today ~30m`);
     const row = page.getByRole("listitem").filter({ hasText: title });
-    // The estimate chip is plain text: clicking it selects the row without opening the detail (which would hide the timeline).
-    await row.getByText("30m", { exact: true }).click();
+    // The title selects the row and opens the detail (which hides the timeline); Escape closes the detail and keeps the selection.
+    // The chips are not a place to click: the hover actions sit over them.
+    await row.getByRole("button", { name: title, exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
     await expect(row).toHaveAttribute("aria-current", "true");
     await page.keyboard.press("b");
 

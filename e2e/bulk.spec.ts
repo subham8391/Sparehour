@@ -12,7 +12,10 @@ test("X ticks, the bulk bar moves both to today, one undo puts both back", async
   await quickAdd(page, b);
   const rowA = page.getByRole("listitem").filter({ hasText: a });
   const rowB = page.getByRole("listitem").filter({ hasText: b });
-  await rowA.getByText("30m?", { exact: true }).click();
+  // The title selects the row and opens the detail; Escape closes the detail and keeps the selection (the chips sit under the hover actions).
+  await rowA.getByRole("button", { name: a, exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await page.keyboard.press("x");
   await expect(rowA).toHaveAttribute("data-ticked", "true");
   await rowB.getByRole("checkbox", { name: `Select ${b}` }).check();

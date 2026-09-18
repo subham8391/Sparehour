@@ -1,7 +1,8 @@
 "use client";
 // The actions a task row offers (DESIGN_SYSTEM.md §5 "Task row"). On a
-// pointer device they sit in the row's reserved zone and appear on hover,
-// focus-within and the J/K highlight; on a phone the same actions live in the
+// pointer device they sit in the row's action zone, pinned to its right edge
+// over the chips, and appear on hover, focus-within and the J/K highlight;
+// on a phone the same actions live in the
 // row's "More actions" menu. One component, two layouts, told apart by the
 // context the row provides, so every view keeps its accessible names.
 import { createContext, useContext, type ReactNode } from "react";

@@ -88,17 +88,16 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 
 
 /**
- * The bar at the bottom of the list column (narrow band and up): sticky,
- * the width of the column and no wider, fading up from the paper. The
- * spacer before it keeps the last row clear of the bar at the end of the
- * page. Both are direct children of the shell's column so the bar can stick.
+ * The bar at the foot of the list column (narrow band and up): a real footer
+ * under the column's scroll region (the shell's `Frame`), so it never sits
+ * over a row; the width of the column and no wider, a hairline above the
+ * button. On a phone the FAB does this job.
  */
 export function QuickAddBar() {
   const { open } = useQuickAdd();
   return (
-    <>
-      <div aria-hidden="true" className="mt-auto hidden h-12 shrink-0 sm:block" />
-      <div className="sticky bottom-0 z-10 hidden w-full max-w-210 bg-linear-to-t from-paper from-70% to-transparent px-6 pt-3 pb-4 sm:block md:px-10">
+    <div className="hidden w-full max-w-210 shrink-0 bg-paper px-6 sm:block md:px-10">
+      <div className="border-t border-line pt-3 pb-4">
         <button
           type="button"
           onClick={() => open()}
@@ -109,7 +108,7 @@ export function QuickAddBar() {
           <Kbd>Q</Kbd>
         </button>
       </div>
-    </>
+    </div>
   );
 }
 

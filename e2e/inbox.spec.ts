@@ -8,6 +8,8 @@ test("a task without a day goes to the Inbox, and Today moves it to the day", as
   await quickAdd(page, title);
   const row = page.getByRole("listitem").filter({ hasText: title });
   await expect(row).toBeVisible();
+  // The row's actions appear on hover, as they do for a person.
+  await row.hover();
   await row.getByRole("button", { name: "Today", exact: true }).click();
   await expect(row).toHaveCount(0);
   await page.getByRole("link", { name: /^Today/ }).click();

@@ -11,6 +11,8 @@ test("Someday parks a task and Today brings it back; the Logbook lists what was 
   await quickAdd(page, parked);
   await quickAdd(page, done);
   const row = page.getByRole("listitem").filter({ hasText: parked });
+  // The row's actions appear on hover, as they do for a person.
+  await row.hover();
   await row.getByRole("button", { name: "Someday" }).click();
   await expect(row).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'someday'", [parked])).not.toBeNull();
@@ -18,6 +20,7 @@ test("Someday parks a task and Today brings it back; the Logbook lists what was 
   await page.getByRole("link", { name: "Someday" }).click();
   const parkedRow = page.getByRole("listitem").filter({ hasText: parked });
   await expect(parkedRow).toBeVisible();
+  await parkedRow.hover();
   await parkedRow.getByRole("button", { name: "Today", exact: true }).click();
   const today = new Date().toISOString().slice(0, 10);
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'active' and do_date = $2", [parked, today])).not.toBeNull();
