@@ -100,20 +100,21 @@ const TONE: Record<SyncChipState, string> = {
   synced: "text-ink-3",
   syncing: "text-ink-3",
   offline: "text-ink-2",
-  problem: "text-over",
-  unprotected: "text-over",
+  // A sync that is failing is an error; storage the browser has not protected is a note, not a warning.
+  problem: "text-deadline",
+  unprotected: "text-ink-2",
 };
 
 // The dot beside the word in the sidebar footer: filled when all is well, hollow when offline,
-// amber when something wants a look. Nothing pulses — the state is the message, and nothing
+// and in the deadline colour when a sync is failing. Nothing pulses — the state is the message, and nothing
 // on this screen moves on load (DESIGN_SYSTEM.md §7).
 const DOT: Record<SyncChipState, string> = {
   connecting: "border border-line-control",
   synced: "bg-line-control",
   syncing: "bg-line-control",
   offline: "border border-line-control",
-  problem: "bg-over-fill",
-  unprotected: "bg-over-fill",
+  problem: "bg-deadline",
+  unprotected: "border border-line-control",
 };
 
 /** What the live region says: one sentence per state, so it speaks on a change and never on the minute tick. */
