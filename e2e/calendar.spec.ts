@@ -25,5 +25,7 @@ test("the connected calendar is listed and 'counts as busy' writes through to Po
   expect(await waitForRow(CAL_SQL, ["dev@sparehour.local", wasOn])).not.toBeNull();
 
   await page.getByRole("link", { name: /^Today/ }).click();
-  await expect(page.getByText(/in meetings/)).toBeVisible();
+  // A connected calendar never asks to be connected; the meetings figure itself only exists on a working day.
+  await expect(page.getByRole("link", { name: /connect a calendar/i })).toHaveCount(0);
+  await expect(page.getByText(/in meetings|Not a working day/).first()).toBeVisible();
 });
