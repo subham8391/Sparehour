@@ -74,18 +74,24 @@ function StepStrip({ labels, index, onStep }: RitualSteps) {
 }
 
 /**
- * The footer: Back (kept in place but invisible on the first step, so Next
- * never jumps) and the step's one primary action. It spans the column's full
- * width, paper under a hairline, and pads itself above the phone's safe area.
+ * The footer: Back, which is simply not there on the first step so the
+ * primary fills the row, and the step's one action. Its hairline runs the
+ * width of the column, like every other rule in the view, and it pads itself
+ * above the phone's safe area.
  */
 export function RitualFooter({ onBack, canGoBack, primary }: { onBack: () => void; canGoBack: boolean; primary: { label: string; onClick: () => void } }) {
   return (
-    <footer className="sticky bottom-0 z-20 -mx-5 mt-auto flex items-center gap-3 border-t border-line bg-paper/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:-mx-6 sm:justify-between sm:px-6 sm:pb-4 md:-mx-10 md:px-10">
-      <Button variant="secondary" size="sheet" onClick={onBack} disabled={!canGoBack} className={cx("max-w-24 sm:h-9 sm:w-auto sm:max-w-none sm:text-body", !canGoBack && "invisible")}>
-        <Icon name="arrow-left" size={16} />
-        Back
-      </Button>
-      <Button variant="primary" size="sheet" onClick={primary.onClick} className="flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body">
+    // On the phone the step buttons hold the bottom edge (§4a); from `sm` the footer follows the
+    // step instead, so a short step does not leave a band of empty paper above its own rule.
+    <footer className="sticky bottom-0 z-20 mt-auto flex items-center gap-3 border-t border-line bg-paper/95 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:mt-6 sm:justify-between sm:pb-4">
+      {canGoBack && (
+        <Button variant="secondary" size="sheet" onClick={onBack} className="max-w-24 sm:h-9 sm:w-auto sm:max-w-none sm:text-body">
+          <Icon name="arrow-left" size={16} />
+          Back
+        </Button>
+      )}
+      {/* On the phone the primary fills whatever Back leaves; from `sm` it keeps the right edge either way. */}
+      <Button variant="primary" size="sheet" onClick={primary.onClick} className={cx("flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body", !canGoBack && "sm:ml-auto")}>
         {primary.label}
       </Button>
     </footer>

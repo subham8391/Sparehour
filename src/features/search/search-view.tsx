@@ -4,13 +4,13 @@
 // Presentational: the page runs the statements and owns the URL.
 import { VIEW_COLUMN } from "@/features/shell/view-header";
 import Link from "next/link";
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { LocalDate } from "@/core/time";
 import type { Task, TaskState } from "@/core/types";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
-import { Button } from "@/ui/button";
+import { Button, buttonClass, iconButtonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -55,13 +55,11 @@ export interface SearchViewProps {
   onClose: () => void;
 }
 
-// A filter is a control, not a data chip: a secondary-button look at the button scale (44 px on the phone, 36 above), its × a full target of its own.
-const FILTER = "flex h-11 shrink-0 items-center gap-1 rounded-lg border border-line-strong bg-surface pl-3 pr-0.5 text-body-sm font-medium text-ink num sm:h-9";
-const FILTER_MENU = "flex h-11 shrink-0 items-center rounded-lg pr-3 pl-8 text-body font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-9";
-// A 44 px icon button on the phone, 36 px above, the same wash as every quiet control.
-const ICON_BUTTON = "flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:size-9";
+// A filter is a control, not a data chip: the secondary button at the button scale (44 px on the phone, 36 above), its × a full target of its own.
+const FILTER = cx(buttonClass({ variant: "secondary" }), "pr-0.5 pl-3 text-body-sm num");
+const FILTER_MENU = cx(buttonClass({ variant: "quiet" }), "pr-3 pl-8");
 // The × inside a filter: the chip's own height on the phone, 32 px inside the 36 px chip above.
-const FILTER_REMOVE = "flex size-11 shrink-0 items-center justify-center rounded-md text-ink-3 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:size-8";
+const FILTER_REMOVE = cx(iconButtonClass({ size: "touch" }), "rounded-sm text-ink-3 sm:size-8");
 const STATES: TaskState[] = ["inbox", "active", "someday", "done", "dropped"];
 
 export function SearchView(p: SearchViewProps) {
@@ -101,6 +99,15 @@ export function SearchView(p: SearchViewProps) {
 
   return (
     <main className={VIEW_COLUMN}>
+      {/* The header every other view has: the eyebrow with the view's one control beside it, then the serif title. */}
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 sm:gap-x-4">
+        <p className={cx(EYEBROW, "flex min-h-11 items-center sm:min-h-0 sm:pb-2")}>Search</p>
+        <Button variant="link" size="touch" onClick={p.onClose} title="Close (Esc)" className="-mr-2 self-center text-ink-2">
+          Cancel
+        </Button>
+        <h1 className="col-span-2 font-display text-title font-book text-balance text-ink">Find anything</h1>
+      </header>
+
       <div className="flex items-center gap-2">
         {/* The field switches its border to ink on focus, so the input inside carries no ring of its own (D6). */}
         <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-lg border border-line-control bg-surface pr-1 pl-3.5 transition-colors dur-fast focus-within:border-ink">
@@ -118,14 +125,11 @@ export function SearchView(p: SearchViewProps) {
             className="h-full min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none sm:text-body-lg [&::-webkit-search-cancel-button]:hidden"
           />
           {p.query && (
-            <button type="button" aria-label="Clear the search" onClick={() => p.onQueryChange("")} className={ICON_BUTTON}>
+            <button type="button" aria-label="Clear the search" onClick={() => p.onQueryChange("")} className={iconButtonClass()}>
               <Icon name="close" size={16} />
             </button>
           )}
         </div>
-        <button type="button" onClick={p.onClose} aria-label="Close search" title="Close (Esc)" className="flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink">
-          <Icon name="close" size={18} />
-        </button>
       </div>
 
       {/* The chips scroll sideways on a phone; the menu sits outside that scroller so its panel is never clipped. */}
@@ -237,7 +241,8 @@ export function SearchView(p: SearchViewProps) {
       {p.alsoFound.length > 0 && (
         <details className="group">
           <summary className={cx(EYEBROW, "-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-2 transition-colors dur-fast hover:bg-hover sm:min-h-7 [&::-webkit-details-marker]:hidden")}>
-            <Icon name="chevron-right" size={14} className="shrink-0 text-ink-3 transition-transform dur-fast motion-safe:group-open:rotate-90" />
+            {/* The turn is the disclosure's state, not decoration, so only the transition is gated on motion. */}
+            <Icon name="chevron-right" size={14} className="shrink-0 text-ink-3 group-open:rotate-90 motion-safe:transition-transform motion-safe:dur-fast" />
             Also found
             <span className="font-medium normal-case tracking-normal num">
               <b className="font-semibold text-ink-2">{p.alsoFound.length}</b>
@@ -268,12 +273,16 @@ function Section({ label, count, children }: { label: string; count: number; chi
   );
 }
 
+/** A named run of menu rows: a real group, so its label is read with the rows it heads. */
 function Group({ label, children }: { label: string; children: ReactNode[] | ReactNode }) {
+  const id = useId();
   const list = Array.isArray(children) ? children : [children];
   if (list.length === 0) return null;
   return (
-    <div>
-      <p className={cx(EYEBROW, "px-2.5 pt-1 pb-0.5")}>{label}</p>
+    <div role="group" aria-labelledby={id}>
+      <p id={id} className={cx(EYEBROW, "px-2.5 pt-1 pb-0.5")}>
+        {label}
+      </p>
       {children}
     </div>
   );

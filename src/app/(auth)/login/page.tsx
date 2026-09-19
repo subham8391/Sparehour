@@ -14,8 +14,9 @@ function LoginFormWithParams() {
 
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 flex-col items-center px-5 pt-14 pb-10 sm:justify-center sm:px-6 sm:py-10">
-      <div className="flex w-full max-w-sm flex-col gap-6 rounded-xl border border-line bg-surface p-6 sm:p-8">
+    // The card stays (DECISIONS.md), but on a phone it fills the screen so the one decision sits on the bottom edge (§4a).
+    <main className="flex flex-1 flex-col items-center px-5 pt-14 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:justify-center sm:px-6 sm:py-10">
+      <div className="flex w-full max-w-sm flex-1 flex-col gap-6 rounded-xl border border-line bg-surface p-6 sm:flex-none sm:p-8">
         <div className="flex flex-col gap-2.5">
           <Wordmark as="h1" size="lg" />
           <p className="text-body-lg text-pretty text-ink-2">Find the spare hours in your day.</p>

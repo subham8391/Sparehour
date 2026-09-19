@@ -13,6 +13,10 @@ import { fetchSignInProviders } from "./providers";
 import { safeNext } from "./safe-next";
 
 const FIELD = "flex flex-col gap-1.5 text-body-sm font-medium text-ink-2";
+/** The form fills the card on a phone, so the one decision can sit on the bottom edge (DESIGN_SYSTEM.md §4a). */
+const FORM = "flex w-full flex-col gap-4 max-sm:flex-1";
+/** Everything below the fields: on a phone it is pushed to the bottom of the card, above the safe area. */
+const TAIL = "flex flex-col gap-4 max-sm:mt-auto max-sm:pt-4";
 
 /** Supabase's messages in the app's voice; anything unknown is shown as it came. */
 function plain(message: string): string {
@@ -102,7 +106,7 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
   if (step === "code") {
     return (
       // Keyed so the step change remounts the form and the code field takes focus.
-      <form key="code" onSubmit={verifyCode} className="flex w-full flex-col gap-4">
+      <form key="code" onSubmit={verifyCode} className={FORM}>
         <p className="text-body text-pretty text-ink-2">
           We sent a code to <strong className="font-medium text-ink">{email}</strong>. The email has a link too; either works once.
         </p>
@@ -111,24 +115,26 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
           <Input className="tracking-[0.3em] num" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus required />
         </label>
         {alert}
-        <Button type="submit" variant="primary" block disabled={busy || code.length < 6}>
-          {busy ? "Signing in…" : "Sign in"}
-        </Button>
-        <div className="-ml-2 flex flex-wrap items-center gap-1">
-          <Button variant="link" className="text-ink-2" onClick={sendCode} disabled={busy}>
-            Send another
+        <div className={TAIL}>
+          <Button type="submit" variant="primary" block disabled={busy || code.length < 6}>
+            {busy ? "Signing in…" : "Sign in"}
           </Button>
-          <Button
-            variant="link"
-            className="text-ink-2"
-            onClick={() => {
-              setStep("email");
-              setCode("");
-              setError(null);
-            }}
-          >
-            Use a different email
-          </Button>
+          <div className="-ml-2 flex flex-wrap items-center gap-1">
+            <Button variant="link" className="text-ink-2" onClick={sendCode} disabled={busy}>
+              Send another
+            </Button>
+            <Button
+              variant="link"
+              className="text-ink-2"
+              onClick={() => {
+                setStep("email");
+                setCode("");
+                setError(null);
+              }}
+            >
+              Use a different email
+            </Button>
+          </div>
         </div>
       </form>
     );
@@ -136,7 +142,7 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
 
   const usingPassword = step === "password";
   return (
-    <form key="email" onSubmit={usingPassword ? signInWithPassword : sendCode} className="flex w-full flex-col gap-4">
+    <form key="email" onSubmit={usingPassword ? signInWithPassword : sendCode} className={FORM}>
       {/* The fast path first when the server offers it; the filled button stays the house path. */}
       {google && !usingPassword && (
         <>
@@ -162,20 +168,22 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
         </label>
       )}
       {alert}
-      <Button type="submit" variant="primary" block disabled={busy}>
-        {busy ? "One moment…" : usingPassword ? "Sign in" : "Email me a code"}
-      </Button>
-      <Button
-        variant="link"
-        className="-ml-2 self-start text-ink-2"
-        onClick={() => {
-          setStep(usingPassword ? "email" : "password");
-          setError(null);
-        }}
-      >
-        {usingPassword ? "Email me a code instead" : "Use a password"}
-      </Button>
-      {!usingPassword && <p className="text-body-sm text-pretty text-ink-3">We&rsquo;ll email a six-digit code and a link. Either works once.</p>}
+      <div className={TAIL}>
+        <Button type="submit" variant="primary" block disabled={busy}>
+          {busy ? "One moment…" : usingPassword ? "Sign in" : "Email me a code"}
+        </Button>
+        <Button
+          variant="link"
+          className="-ml-2 self-start text-ink-2"
+          onClick={() => {
+            setStep(usingPassword ? "email" : "password");
+            setError(null);
+          }}
+        >
+          {usingPassword ? "Email me a code instead" : "Use a password"}
+        </Button>
+        {!usingPassword && <p className="text-body-sm text-pretty text-ink-3">We&rsquo;ll email a six-digit code and a link. Either works once.</p>}
+      </div>
     </form>
   );
 }

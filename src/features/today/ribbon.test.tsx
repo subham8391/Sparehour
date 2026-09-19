@@ -42,7 +42,17 @@ describe("<Ribbon>", () => {
     render(<Ribbon c={{ ...capacityFixture, spareMin: -40, overMin: 40, overflowMin: 40, projectedFinish: null }} />);
     expect(screen.getByText("40m")).toBeInTheDocument();
     expect(screen.getByText("over")).toBeInTheDocument();
-    expect(screen.getByText("~40m spills over")).toBeInTheDocument();
+    expect(screen.getByText("~40m spills past 18:00")).toBeInTheDocument();
+  });
+
+  it("a plan that spills reads over even while the day's budget still looks generous (ruling R3)", () => {
+    // Late in the day: hours are left on paper, but the work no longer fits before 18:00.
+    render(<Ribbon c={{ ...capacityFixture, overflowMin: 40, projectedFinish: null }} nowMin={1020} />);
+    expect(screen.getByText("over")).toBeInTheDocument();
+    expect(screen.queryByText("spare")).not.toBeInTheDocument();
+    expect(screen.getByText("40m")).toBeInTheDocument();
+    expect(screen.getByText("~40m spills past 18:00")).toBeInTheDocument();
+    expect(screen.queryByText(/done by/)).not.toBeInTheDocument();
   });
 
   it("without a calendar the meetings line becomes the way to connect one", () => {

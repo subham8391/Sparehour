@@ -2,8 +2,7 @@
 // The evening shutdown (SCREENS.md §15), wired to the day: what got done,
 // what didn't, tomorrow's shape, and the day_plans row it writes.
 import { useRouter } from "next/navigation";
-import { VIEW_COLUMN } from "@/features/shell/view-header";
-import { cx } from "@/ui/cx";
+import { Loading } from "../loading-view";
 import { useMemo } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { capacityFor } from "@/core/capacity";
@@ -84,7 +83,7 @@ export default function ShutdownPage() {
     else void tasks.setState(id, "dropped");
   };
 
-  if (!settings) return <main className={cx(VIEW_COLUMN, "text-body text-ink-3")}>Opening…</main>;
+  if (!settings) return <Loading />;
 
   return (
     <ShutdownFlow

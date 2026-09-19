@@ -2,18 +2,20 @@
 // The morning plan (SCREENS.md §14): three steps, one spare number, and an
 // always-available Skip. Presentational; the page feeds it the day and does
 // the writes as choices are made.
-import type { TimelineMeeting } from "@/features/today/hooks/use-today";
+import type { TimelineBlock, TimelineMeeting } from "@/features/today/hooks/use-today";
 import { useId, useState, type ReactNode } from "react";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, type Instant, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { Button } from "@/ui/button";
+import { Checkbox } from "@/ui/checkbox";
 import { Chip, DeadlineChip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { ListCard } from "@/ui/list-card";
+import { MenuButton } from "@/ui/popover";
 import { SectionLabel } from "@/ui/section-label";
 import { dayChip } from "@/features/tasks/day-chip";
-import { DayChipTag, MoveActions } from "@/features/tasks/task-actions";
+import { CarryAsk, DayChipTag, MoveActions, RowActionsLayoutProvider } from "@/features/tasks/task-actions";
 import { Timeline } from "@/features/today/timeline";
 import { PLAN_STEPS, easiestMove, readout, type Candidates, type PlanStep } from "./morning-plan";
 import { PlanHero } from "./plan-hero";
@@ -22,6 +24,8 @@ import { RitualFooter, RitualFrame } from "./ritual-frame";
 export interface MorningPlanFlowProps {
   /** Today's titled meetings for the timeline; optional, the drawing says Busy without them. */
   meetings?: readonly TimelineMeeting[];
+  /** Time already blocked out today, so step 3 draws the day Today draws. */
+  blocks?: readonly TimelineBlock[];
   capacity: Capacity | null;
   /** The picker's groups, frozen when the flow opened so rows do not jump as choices are made. */
   groups: Candidates;
@@ -82,7 +86,8 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
                 actions={<MoveActions onToday={() => p.onCarry(t.id, "today")} onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />}
                 footer={
                   t.carryCount >= p.carryAskAfter && !picked.has(t.id) ? (
-                    <p className="px-4 pb-2.5 pl-14 text-body-sm text-pretty text-over sm:pl-11">Carried over {t.carryCount === 3 ? "three" : t.carryCount} times — still want this?</p>
+                    // The same panel and the same sentence as the Today list: one gentle ask in the product.
+                    <CarryAsk count={t.carryCount} onKeep={() => p.onCarry(t.id, "today")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />
                   ) : null
                 }
               />
@@ -137,7 +142,7 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
           <p className="text-body-lg text-pretty text-ink-2">Your day as it stands. Dragging tasks onto it arrives with time blocking; for now the plan is the list.</p>
           {c && c.state !== "no_work_day" ? (
             <div className="overflow-hidden rounded-xl border border-line bg-surface bg-daylight px-3 py-4 sm:px-4">
-              <Timeline c={c} now={p.now} zone={p.zone} meetings={p.meetings} />
+              <Timeline c={c} now={p.now} zone={p.zone} meetings={p.meetings} blocks={p.blocks} />
             </div>
           ) : (
             <p className="text-body-lg text-ink-3">No working hours today.</p>
@@ -182,8 +187,10 @@ function Group({ title, count, children }: { title: string; count: number; child
 /**
  * A row of the picker, in the task row's clothes: the tick where the ring
  * would be, the title (the tick's label, so it toggles too), the chips in
- * the family's tones, and on carried rows the move actions, inline from
- * `sm` and on a row of their own on the phone. `footer` is the gentle ask.
+ * the family's tones, and on carried rows the move actions — the hover zone
+ * from `sm`, and on the phone the row's "More actions" menu, because there
+ * the tick is the decision and everything else waits behind the `⋯`.
+ * `footer` is the gentle ask.
  */
 function PickRow({
   task,
@@ -218,10 +225,13 @@ function PickRow({
   );
   return (
     <li className="border-t border-line transition-colors dur-fast first:border-t-0 hover:bg-hover">
-      <div className={cx("flex min-h-14 items-center gap-x-3 py-2 pr-4 sm:grid sm:min-h-11 sm:gap-x-0 sm:py-0 sm:pr-0", actions ? "sm:grid-cols-[44px_minmax(0,1fr)_auto_auto]" : "sm:grid-cols-[44px_minmax(0,1fr)_auto]")}>
-        <span className="flex size-11 shrink-0 items-center justify-center">
-          <input id={id} type="checkbox" checked={picked} onChange={(e) => onPick(task, e.target.checked)} aria-label={`Pick ${task.title}`} className="size-[18px] accent-ink" />
-        </span>
+      <div
+        className={cx(
+          "flex min-h-14 items-center gap-x-3 py-2 sm:grid sm:min-h-11 sm:gap-x-0 sm:py-0 sm:pr-0",
+          actions ? "sm:grid-cols-[44px_minmax(0,1fr)_auto_auto]" : "max-sm:pr-4 sm:grid-cols-[44px_minmax(0,1fr)_auto]",
+        )}
+      >
+        <Checkbox id={id} checked={picked} onChange={(e) => onPick(task, e.target.checked)} aria-label={`Pick ${task.title}`} />
         {/* The body stacks title and chips on a phone; from `sm` it dissolves and they become grid cells. */}
         <div className="min-w-0 flex-1 sm:contents">
           <label htmlFor={id} className="block min-w-0 sm:flex sm:min-h-11 sm:items-center sm:pr-3">
@@ -231,9 +241,23 @@ function PickRow({
             <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", !actions && "sm:pr-4")}>{chips}</span>
           </div>
         </div>
-        {actions && <div className="hidden items-center justify-end gap-0.5 pr-2 sm:flex">{actions}</div>}
+        {actions && (
+          <div className="hidden items-center justify-end gap-0.5 pr-2 sm:flex">
+            <RowActionsLayoutProvider layout="inline">{actions}</RowActionsLayoutProvider>
+          </div>
+        )}
+        {actions && (
+          <div className="relative z-1 -my-2 -ml-1 shrink-0 sm:hidden">
+            <MenuButton label="More actions">
+              {(close) => (
+                <RowActionsLayoutProvider layout="menu" close={close}>
+                  {actions}
+                </RowActionsLayoutProvider>
+              )}
+            </MenuButton>
+          </div>
+        )}
       </div>
-      {actions && <div className="-mt-1 flex flex-wrap items-center gap-0.5 px-2 pb-1 pl-12 sm:hidden">{actions}</div>}
       {footer}
     </li>
   );

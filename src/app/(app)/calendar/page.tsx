@@ -125,7 +125,9 @@ export default function CalendarPage() {
               <ListCard>
                 {g.day.items.map((e) => (
                   <li key={e.id} className="flex min-h-11 items-center gap-3 border-t border-line px-4 py-2 first:border-t-0">
-                    <span className={cx("w-[3px] self-stretch rounded-full", e.kind === "meet" ? "bg-meet-fill" : "bg-block-fill")} aria-hidden="true" />
+                    <span className={cx("w-0.75 self-stretch rounded-full", e.kind === "meet" ? "bg-meet-fill" : "bg-block-fill")} aria-hidden="true" />
+                    {/* The edge's colour is the only thing that tells a meeting from a block; the word is there for everyone who cannot see it. */}
+                    <span className="sr-only">{e.kind === "meet" ? "Meeting" : "Block"}: </span>
                     <span className="min-w-0 flex-1 truncate text-body-lg text-ink">{e.title}</span>
                     <span className={cx("shrink-0 text-body-sm num", e.kind === "meet" ? "text-meet" : "text-ink-2")}>{e.when}</span>
                   </li>

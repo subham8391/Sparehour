@@ -103,7 +103,7 @@ describe("<SearchView>", () => {
 
   it("filters are chips: the menu adds one, the × removes it, and a date preset sets a range", async () => {
     const { user, onFiltersChange } = setup({ filters: { project: "p1", tag: "deep", from: "2026-09-14", to: "2026-09-20" } });
-    expect(screen.getByText("#Acme", { selector: "span.flex" })).toBeInTheDocument();
+    expect(screen.getByText("#Acme", { selector: "span.inline-flex" })).toBeInTheDocument();
     expect(screen.getByText("@deep")).toBeInTheDocument();
     expect(screen.getByText("2026-09-14 – 2026-09-20")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove filter @deep" }));

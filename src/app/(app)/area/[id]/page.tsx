@@ -12,6 +12,7 @@ import { ProjectRepo } from "@/data/repositories/project-repo";
 import type { AreaRow } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
+import { Loading } from "../../loading-view";
 import { buttonClass } from "@/ui/button";
 import { DeadlineChip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
@@ -19,8 +20,8 @@ import { Icon } from "@/ui/icons";
 import { InlineTitle } from "@/ui/inline-title";
 import { CARD, EmptyCard } from "@/ui/list-card";
 
-/** A project card: the list card's shell with room for a name and a line of figures. */
-const PROJECT_CARD = cx(CARD, "flex min-h-24 flex-col justify-between gap-2 p-4");
+/** A project card: the list card's shell around a name and a line of figures, and no taller than the two of them. */
+const PROJECT_CARD = cx(CARD, "flex h-full flex-col gap-1.5 p-4");
 
 export default function AreaPage({ params }: PageProps<"/area/[id]">) {
   const { id } = use(params);
@@ -52,7 +53,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
       </main>
     );
   }
-  if (!area) return <main className={cx(VIEW_COLUMN, "text-body text-ink-3")}>Opening…</main>;
+  if (!area) return <Loading />;
 
   const createProject = () => {
     const n = name.trim();
@@ -66,7 +67,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
     <main className={VIEW_COLUMN}>
       <ViewHeader
         eyebrow="Area"
-        title={<InlineTitle value={area.name ?? "Untitled area"} label="Area name" onSave={(n) => void areaRepo.rename(area.id, n)} className="font-display text-title font-book text-ink" />}
+        title={<InlineTitle value={area.name ?? "Untitled area"} label="Area name" onSave={(n) => void areaRepo.rename(area.id, n)} className="font-display text-title font-book text-balance text-ink" />}
         subtitle={projects ? <span className="num">{`${projects.length} ${projects.length === 1 ? "project" : "projects"}`}</span> : undefined}
       />
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">

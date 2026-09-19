@@ -24,6 +24,8 @@ export const PX_PER_MIN = 1.1;
 const FREE_LABEL_MIN = 30;
 /** A slot taller than this carries its time range on a second line. */
 const TWO_LINE_PX = 40;
+/** A selected block's toolbar action: 44 px on touch, 28 px above, like every other row action. */
+const TOOLBAR_ACTION = "flex h-11 items-center rounded-sm px-2 text-body-sm font-medium text-ink transition-colors dur-fast hover:bg-hover sm:h-7";
 
 export interface TimelineProps {
   c: Capacity;
@@ -191,7 +193,7 @@ export function Timeline(p: TimelineProps) {
           >
             <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-meet">{meetingTitle(b, p.meetings)}</span>
             {/* On one line the time keeps its shape and the title gives way. */}
-            <span className={cx("block truncate text-micro text-meet num", !tall && "shrink-0")}>{tall ? rangeLine(b.start, b.end) : formatTime(timeFromMinutes(b.start))}</span>
+            <span className={cx("block text-micro text-meet num", tall ? "truncate" : "shrink-0 whitespace-nowrap")}>{tall ? rangeLine(b.start, b.end) : formatTime(timeFromMinutes(b.start))}</span>
           </div>
         );
       })}
@@ -221,18 +223,18 @@ export function Timeline(p: TimelineProps) {
       <div className="pointer-events-none absolute right-0 left-12 border-t border-line-strong" style={{ top: y(end) }} />
       {finishMin !== null && finishMin >= start && finishMin <= end && (
         <>
-          <div className="pointer-events-none absolute right-0 left-12 z-[2] border-t-[1.5px] border-dashed border-spare-fill" style={{ top: y(finishMin) }} />
-          <Chip tone="spare" size="sm" className="pointer-events-none absolute left-0 z-[4] px-2" style={{ top: y(finishMin) - 10 }}>
+          <div className="pointer-events-none absolute right-0 left-12 z-2 border-t-[1.5px] border-dashed border-spare-fill" style={{ top: y(finishMin) }} />
+          <Chip tone="spare" size="sm" className="pointer-events-none absolute left-0 z-4 px-2" style={{ top: y(finishMin) - 10 }}>
             done by {formatTime(c.projectedFinish!)}
           </Chip>
         </>
       )}
       {nowShown && (
         <>
-          <span className="pointer-events-none absolute left-0 z-[3] w-10 text-micro font-semibold text-ink num" style={{ top: y(nowMin) - 7 }}>
+          <span className="pointer-events-none absolute left-0 z-3 w-10 text-micro font-semibold text-ink num" style={{ top: y(nowMin) - 7 }}>
             {formatTime(timeFromMinutes(nowMin))}
           </span>
-          <div className="pointer-events-none absolute right-0 left-10 z-[3] border-t-2 border-ink" style={{ top: y(nowMin) - 1 }}>
+          <div className="pointer-events-none absolute right-0 left-10 z-3 border-t-2 border-ink" style={{ top: y(nowMin) - 1 }}>
             <span className="absolute -top-[5.5px] left-0 size-[9px] rounded-full bg-ink" />
           </div>
         </>
@@ -297,7 +299,7 @@ function Block({
         // The past is dimmed by a token mix, opaque so nothing beneath shows through.
         past ? "border-line-strong bg-[color-mix(in_oklab,var(--block-soft)_55%,var(--surface))]" : "border-block-fill bg-block-soft",
         movable && "cursor-grab",
-        selected && "ring-2 ring-ink ring-offset-1 ring-offset-surface",
+        selected && "outline-2 outline-offset-1 outline-ink",
       )}
       style={{ top: top(start) + 1, height, ...laneStyle(lane) }}
     >
@@ -316,22 +318,22 @@ function Block({
           {block.locked && <Icon name="lock" size={10} className="shrink-0" />}
           <span className="truncate">{block.title}</span>
         </span>
-        <span className={cx("block truncate text-micro text-ink-2 num", !tall && "shrink-0")}>{tall ? rangeLine(start, end) : formatTime(timeFromMinutes(start))}</span>
+        <span className={cx("block text-micro text-ink-2 num", tall ? "truncate" : "shrink-0 whitespace-nowrap")}>{tall ? rangeLine(start, end) : formatTime(timeFromMinutes(start))}</span>
       </button>
       {selected && (
-        <div className="absolute -top-9 right-0 z-10 flex gap-0.5 rounded-lg border border-raised-border bg-surface-3 p-1 shadow-raised" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute right-0 bottom-full z-10 mb-1 flex gap-0.5 rounded-lg border border-raised-border bg-surface-3 p-1 shadow-raised" onClick={(e) => e.stopPropagation()}>
           {onOpenTask && (
-            <button type="button" onClick={onOpenTask} className="h-7 rounded-sm px-2 text-body-sm font-medium text-ink hover:bg-hover">
+            <button type="button" onClick={onOpenTask} className={TOOLBAR_ACTION}>
               Open
             </button>
           )}
           {onToggleLock && (
-            <button type="button" onClick={onToggleLock} className="h-7 rounded-sm px-2 text-body-sm font-medium text-ink hover:bg-hover">
+            <button type="button" onClick={onToggleLock} className={TOOLBAR_ACTION}>
               {block.locked ? "Unlock" : "Lock"}
             </button>
           )}
           {onRemove && (
-            <button type="button" onClick={onRemove} className="h-7 rounded-sm px-2 text-body-sm font-medium text-ink hover:bg-hover">
+            <button type="button" onClick={onRemove} className={TOOLBAR_ACTION}>
               Remove
             </button>
           )}

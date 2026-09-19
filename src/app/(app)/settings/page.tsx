@@ -16,6 +16,7 @@ import { usePwa } from "@/features/pwa/pwa-provider";
 import { SettingsForm, type SettingsValues } from "@/features/settings/settings-form";
 import type { Segment } from "@/features/settings/settings-rules";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
+import { LOADING_LINE } from "../loading-view";
 
 const USER_SQL = `select id, email, display_name, personal_space_id from users limit 1`;
 
@@ -121,7 +122,7 @@ export default function SettingsPage() {
           signingOut={leaving}
         />
       ) : (
-        <p className="text-body text-ink-3">Opening…</p>
+        <p className={LOADING_LINE}>Opening…</p>
       )}
     </main>
   );

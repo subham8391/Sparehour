@@ -19,24 +19,27 @@ import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
+import { Loading } from "../../loading-view";
 import { dayChip } from "@/features/tasks/day-chip";
 import { InlineAdd } from "@/features/tasks/inline-add";
 import { DayChipTag, MoveActions } from "@/features/tasks/task-actions";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
-import { buttonClass } from "@/ui/button";
+import { Button, buttonClass } from "@/ui/button";
 import { Chip, DeadlineChip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
+import { DateField } from "@/ui/date-field";
 import { Icon } from "@/ui/icons";
 import { InlineTitle } from "@/ui/inline-title";
 import { EmptyCard, ListCard } from "@/ui/list-card";
-import { FIELD_INPUT, MENU_ITEM, MenuButton } from "@/ui/popover";
+import { FieldPopover, MENU_ITEM, MenuButton } from "@/ui/popover";
+import { relativeDay } from "@/ui/relative-day";
 import { EYEBROW } from "@/ui/section-label";
 
 const NOTHING_SQL = `select * from tasks where 0`;
-/** The view's h1, editable in place: the same face and step as every other screen title. */
-const TITLE = "font-display text-title font-book text-ink";
+/** The view's h1, editable in place: the same face, step and balance as every other screen title. */
+const TITLE = "font-display text-title font-book text-balance text-ink";
 /** A disclosure line under a list: 44 px on the phone, 36 above, pulled out to the column's edge like a section action. */
 const DISCLOSURE = "-ml-2 flex h-11 items-center gap-1.5 self-start rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-9";
 
@@ -54,7 +57,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   const { data: projectRows, isLoading } = useQuery<ProjectRow>(PROJECT_SQL, [id]);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: headingRows } = useQuery<HeadingRow>(PROJECT_HEADINGS_SQL, [id]);
-  const { data: taskRows } = useQuery<TaskRowType>(PROJECT_TASKS_SQL, [id]);
+  const { data: taskRows, isLoading: loadingTasks } = useQuery<TaskRowType>(PROJECT_TASKS_SQL, [id]);
   const [showDone, setShowDone] = useState(false);
   const [showSomeday, setShowSomeday] = useState(false);
   const [notesOpen, setNotesOpen] = useState<boolean | null>(null);
@@ -93,7 +96,9 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
       </main>
     );
   }
-  if (!project) return <main className={cx(VIEW_COLUMN, "text-body text-ink-3")}>Opening…</main>;
+  // The add row autofocuses an empty project, and `autoFocus` only fires on mount: wait for the
+  // tasks before drawing the list, or every project opens with the focus ring in its add row.
+  if (!project || loadingTasks) return <Loading />;
 
   const add = (draft: TaskDraft, headingId: string | null) => void tasksRepo.create(draft, { spaceId: project.spaceId, projectId: project.id, headingId });
   // Drag-to-reorder within a section, or into another section (the row takes that heading).
@@ -118,7 +123,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
       <ViewHeader
         eyebrow={
           area ? (
-            <Link href={`/area/${area.id}`} className="inline-flex min-h-11 items-center rounded-sm transition-colors dur-fast hover:text-ink sm:min-h-6">
+            <Link href={`/area/${area.id}`} className="inline-flex min-h-11 items-center rounded-sm transition-colors dur-fast hover:text-ink sm:min-h-0">
               {area.name}
             </Link>
           ) : (
@@ -135,14 +140,10 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
             {project.state !== "active" && <Chip>{project.state}</Chip>}
           </span>
         }
-        actions={
+        compactActions={
           <MenuButton label="Project actions">
             {(close) => (
               <>
-                <label className="flex flex-col gap-1 px-2.5 py-1.5 text-label font-medium text-ink-2">
-                  Deadline
-                  <input type="date" aria-label="Project deadline" value={project.deadline?.toString() ?? ""} onChange={(e) => void projectRepo.setDeadline(project.id, e.target.value ? localDate(e.target.value) : null)} className={FIELD_INPUT} />
-                </label>
                 {project.state === "active" ? (
                   <>
                     <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (void projectRepo.setState(project.id, "done"), close())}>
@@ -166,13 +167,43 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
         }
       />
 
-      {/* Notes: one quiet 44 px line that opens into the editor; collapsed, the first words show beside the label. */}
-      <ListCard as="section" className="overflow-clip">
+      {/* What the project is: the deadline as a field row (never a form inside a menu), then notes — one
+          quiet 44 px line that opens into the editor; collapsed, the first words show beside the label.
+          The card does not clip, because the deadline's panel opens below its row and must be able to leave it. */}
+      <ListCard as="section">
+        <FieldPopover
+          className="[&>button]:rounded-t-xl"
+          label="Deadline"
+          value={project.deadline ? relativeDay(project.deadline, today) : <span className="font-normal text-ink-3">None</span>}
+        >
+          {(close) => (
+            <div className="flex items-center gap-2">
+              <DateField
+                aria-label="Project deadline"
+                today={today}
+                value={project.deadline?.toString() ?? ""}
+                onChange={(e) => void projectRepo.setDeadline(project.id, e.target.value ? localDate(e.target.value) : null)}
+                className="flex-1"
+              />
+              {project.deadline && (
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    void projectRepo.setDeadline(project.id, null);
+                    close();
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          )}
+        </FieldPopover>
         <button
           type="button"
           onClick={() => setNotesOpen(!notesShown)}
           aria-expanded={notesShown}
-          className="flex min-h-11 w-full items-center gap-2 px-4 text-left transition-colors dur-fast hover:bg-hover focus-visible:-outline-offset-2 active:bg-press"
+          className="flex min-h-11 w-full items-center gap-2 border-t border-line px-4 text-left transition-colors dur-fast last:rounded-b-xl hover:bg-hover focus-visible:-outline-offset-2 active:bg-press"
         >
           <Icon name={notesShown ? "chevron-down" : "chevron-right"} size={14} className="shrink-0 text-ink-3" />
           <span className={cx(EYEBROW, "shrink-0")}>Notes</span>
@@ -187,7 +218,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
             }}
             placeholder="What this project is for, links, decisions."
             rows={3}
-            className="w-full resize-y border-t border-line bg-transparent px-4 py-3 text-base leading-5 text-ink placeholder:text-ink-4 focus-visible:-outline-offset-2 sm:text-body"
+            className="w-full resize-y rounded-b-xl border-t border-line bg-transparent px-4 py-3 text-base leading-5 text-ink placeholder:text-ink-4 focus-visible:-outline-offset-2 sm:text-body"
           />
         )}
       </ListCard>
@@ -217,11 +248,10 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
         </section>
       ))}
 
-      {/* The next heading is typed on the same line it will occupy: the eyebrow's face, a plus where the check ring would be, the words on the title column (56 px in from the edge on a phone, 44 above). */}
-      <div className="flex min-h-11 items-center gap-3 sm:gap-0">
-        <span className="flex size-11 shrink-0 items-center justify-center text-ink-3" aria-hidden="true">
-          <Icon name="plus" size={16} />
-        </span>
+      {/* The next heading is typed on the line it will occupy, in the disclosure's shape below: pulled out to
+          the column's edge, a 14 px glyph, then the words already in the eyebrow's face. */}
+      <div className="-ml-2 flex min-h-11 items-center gap-1.5 px-2 sm:min-h-9">
+        <Icon name="plus" size={14} className="shrink-0 text-ink-3" aria-hidden="true" />
         <input
           aria-label="Add a heading"
           placeholder="Add a heading"
@@ -234,7 +264,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
             }
           }}
           onBlur={addHeading}
-          className={cx(EYEBROW, "-ml-2 h-11 min-w-0 flex-1 rounded-sm bg-transparent px-2 text-ink placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-4 focus-visible:-outline-offset-2")}
+          className={cx(EYEBROW, "h-11 min-w-0 flex-1 rounded-sm bg-transparent text-ink placeholder:text-body-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-2 focus-visible:-outline-offset-2 sm:h-9")}
         />
       </div>
 

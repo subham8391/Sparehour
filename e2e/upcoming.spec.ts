@@ -17,7 +17,13 @@ test("tomorrow's task is under tomorrow; T brings it to today", async ({ page })
   const column = page.getByRole("group", { name: dayLabel });
   await expect(column.getByRole("listitem").filter({ hasText: title })).toBeVisible();
 
-  await column.getByRole("listitem").filter({ hasText: title }).getByText("30m?", { exact: true }).click();
+  // Upcoming rows now carry the same actions as every other list, and on a pointer device that zone
+  // sits over the chips on hover — so the row is selected the way today.spec does it: the title opens
+  // the detail, Escape closes it, and the selection stays.
+  const row = column.getByRole("listitem").filter({ hasText: title });
+  await row.getByRole("button", { name: title, exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(row).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("t");
   const today = new Date().toLocaleDateString("en-CA", { timeZone: ZONE });
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2", [title, today])).not.toBeNull();

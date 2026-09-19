@@ -38,11 +38,12 @@ describe("<PlanHero>", () => {
   });
 
   it("marks now on the strip and lets the nearest hour label yield to the time", () => {
-    // 10:20 UTC is 11:20 in London in September.
+    // 10:20 UTC is 11:20 in London in September. The hero draws the shared RibbonTrack,
+    // so the label that yields is hidden by the one rule Today uses too.
     render(<PlanHero c={day} now={instant("2026-09-14T10:20:00Z")} zone="Europe/London" carried={0} />);
     expect(screen.getByText("11:20")).toBeInTheDocument();
-    expect(screen.getByText("11").className).toContain("invisible");
-    expect(screen.getByText("12").className).not.toContain("invisible");
+    expect(screen.getByText("11").className).toContain("hidden");
+    expect(screen.getByText("13").className).not.toContain("hidden");
   });
 
   it("draws no now mark once the day is over, and reads 'over' when the day does not fit", () => {
@@ -50,7 +51,15 @@ describe("<PlanHero>", () => {
     expect(screen.queryByText("20:30")).not.toBeInTheDocument();
     expect(screen.getByText("40m")).toBeInTheDocument();
     expect(screen.getByText("over")).toBeInTheDocument();
-    expect(screen.getByText("~40m spills over")).toBeInTheDocument();
+    expect(screen.getByText("~40m spills past 18:00")).toBeInTheDocument();
+  });
+
+  it("a plan that spills never shows the spare figure beside it (ruling R3)", () => {
+    render(<PlanHero c={{ ...day, overflowMin: 25 }} now={instant("2026-09-14T15:30:00Z")} zone="Europe/London" carried={0} />);
+    expect(screen.getByText("over")).toBeInTheDocument();
+    expect(screen.queryByText("spare")).not.toBeInTheDocument();
+    expect(screen.getByText("25m")).toBeInTheDocument();
+    expect(screen.queryByText(/done by/)).not.toBeInTheDocument();
   });
 
   it("falls back to the prose line on a day without working hours", () => {

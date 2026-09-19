@@ -102,6 +102,16 @@ export default function UpcomingPage() {
   };
 
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
+  const tomorrow = today.add({ days: 1 });
+  // The same moves every other list offers — the hover zone on a pointer, the "More actions"
+  // menu on a phone — minus the day the row already sits on.
+  const dayActions = (t: Task, day: LocalDate) => (
+    <MoveActions
+      onToday={day.equals(today) ? undefined : () => void repo.reschedule(t.id, today)}
+      onTomorrow={day.equals(tomorrow) ? undefined : () => void repo.reschedule(t.id, tomorrow)}
+      onSomeday={() => void repo.setState(t.id, "someday")}
+    />
+  );
 
   const renderDay = ({ day, tasks }: DayGroup, isToday = false) => (
     <DropZone key={day.toString()} label={dayLabel(day)} onDropTask={dropOnDay(day, tasks)}>
@@ -111,7 +121,8 @@ export default function UpcomingPage() {
           {isToday && <span className="ml-2 font-medium normal-case tracking-normal text-ink-2">today</span>}
         </SectionLabel>
         {tasks.length === 0 ? (
-          <p className="px-4 text-body text-ink-3">Free.</p>
+          // On the title's own column, so an empty day reads as a line in the list rather than a stray note.
+          <p className="pl-11 text-body text-ink-3">Free.</p>
         ) : (
           <TaskList>
             {tasks.map((t) => (
@@ -126,6 +137,7 @@ export default function UpcomingPage() {
                 onSelect={() => sel.select(t.id)}
                 onDone={() => void repo.complete(t.id)}
                 meta={meta(t)}
+                actions={dayActions(t, day)}
               />
             ))}
           </TaskList>
@@ -183,7 +195,7 @@ export default function UpcomingPage() {
                 Not yet planned
               </SectionLabel>
               {unplanned.length === 0 ? (
-                <p className="px-4 text-body text-ink-3">Nothing scheduled beyond today.</p>
+                <p className="pl-11 text-body text-ink-3">Nothing scheduled beyond today.</p>
               ) : (
                 <TaskList>
                   {unplanned.map((t) => (

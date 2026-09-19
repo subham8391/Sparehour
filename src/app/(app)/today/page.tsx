@@ -12,6 +12,7 @@ import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, OPEN_TASKS_SQL, monthsBack } from "@/da
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlocking } from "@/features/blocking/blocking-provider";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
+import { useProjectNames } from "@/features/projects/use-project-names";
 import { plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
 import { Ribbon } from "@/features/today/ribbon";
@@ -29,9 +30,16 @@ import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Segmented } from "@/ui/segmented";
+import { Loading } from "../loading-view";
 
 const NOTHING_SQL = `select * from tasks where 0`;
 const USER_SQL = `select id, personal_space_id from users limit 1`;
+
+/** The eyebrow's second word: morning until noon, evening from the hour the person set (DESIGN_SYSTEM.md §5). */
+function partOfDay(minute: number, eveningAt: number): "Morning" | "Afternoon" | "Evening" {
+  if (minute < 12 * 60) return "Morning";
+  return minute < eveningAt ? "Afternoon" : "Evening";
+}
 
 /** The chip a blocked task carries in the list (SCREENS.md §2.6 "a small block indicator"); it stands in for the do-time chip. */
 function BlockChip({ block }: { block: TimelineBlock }) {
@@ -90,6 +98,7 @@ export default function TodayPage() {
   // ---- time blocks (SCREENS.md §2.6): local for now, on the calendar with P7b.
   const blocks = useBlockRepo();
   const blocking = useBlocking();
+  const projectNames = useProjectNames();
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "day">("list");
@@ -227,7 +236,7 @@ export default function TodayPage() {
   const dropInToday = dropInto(model.todayTasks, false);
   const dropInEvening = dropInto(model.eveningTasks, true);
 
-  if (!model.ready) return <main className="p-8 text-ink-3">Loading today…</main>;
+  if (!model.ready) return <Loading />;
 
   const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
   const showDay = hasDay && view === "day";
@@ -235,6 +244,11 @@ export default function TodayPage() {
   // The phone's ritual row turns to the shutdown once the plan is projected to be done, or the day is two hours from its end.
   const shutdownTime = shutdownReady || (finish !== null && nowMinute >= finish.hour * 60 + finish.minute);
   const sectionMinutes = (list: Task[]) => formatMinutes(list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0));
+  // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
+  const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
+  const eveningAt = model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
+  // Past the working day: the ritual row says so even when there is no projected finish left to name.
+  const dayOver = hasDay && nowMinute >= dayEnd;
 
   return (
     // Three panes from the wide band: the list column scrolls on its own and the day pane keeps its place beside it.
@@ -243,7 +257,7 @@ export default function TodayPage() {
       {/* Below the wide band the Day view replaces only the lists: the header, the hero and the ritual row (with the List/Day control) stay. */}
       <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto", showDay ? "pb-0 lg:pb-7" : "flex-1")}>
         <ViewHeader
-          eyebrow="Today"
+          eyebrow={`Today · ${partOfDay(nowMinute, eveningAt)}`}
           title={formatDay(model.today, { weekday: "long", month: "long" })}
           actions={
             !closedAt && (
@@ -295,7 +309,7 @@ export default function TodayPage() {
               (shutdownTime ? (
                 <span className="-ml-2 flex items-center gap-1 sm:hidden">
                   <RitualLink href="/shutdown">Shutdown</RitualLink>
-                  {finish && <span className="text-label text-ink-3 num">done by {formatTime(finish)}</span>}
+                  {finish ? <span className="text-label text-ink-3 num">done by {formatTime(finish)}</span> : dayOver ? <span className="text-label text-ink-3">Day&rsquo;s over</span> : null}
                 </span>
               ) : (
                 <span className="-ml-2 flex items-center gap-1 sm:hidden">
@@ -345,6 +359,7 @@ export default function TodayPage() {
                     today={model.today}
                     draggable
                     timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                    meta={meta(t)}
                     onOpen={() => detail.open(t.id)}
                     selected={sel.selectedId === t.id}
                     onSelect={() => sel.select(t.id)}
@@ -386,6 +401,7 @@ export default function TodayPage() {
                   draggable
                   onDropTask={(src, edge) => dropInToday(src, t.id, edge)}
                   timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                  meta={meta(t)}
                   onOpen={() => detail.open(t.id)}
                   selected={sel.selectedId === t.id}
                   onSelect={() => sel.select(t.id)}
@@ -450,6 +466,7 @@ export default function TodayPage() {
                     draggable
                     onDropTask={(src, edge) => dropInEvening(src, t.id, edge)}
                     timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                    meta={meta(t)}
                     onOpen={() => detail.open(t.id)}
                     selected={sel.selectedId === t.id}
                     onSelect={() => sel.select(t.id)}

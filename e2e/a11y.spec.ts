@@ -28,7 +28,8 @@ test.describe("accessibility", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Acme");
     await audit(page, "/project");
     await page.keyboard.press("q");
-    await expect(page.getByRole("textbox", { name: "Task" })).toBeFocused();
+    // Exact: a project's own add row is named "Add a task", which a loose match would also take.
+    await expect(page.getByRole("textbox", { name: "Task", exact: true })).toBeFocused();
     await audit(page, "quick-add");
   });
 });

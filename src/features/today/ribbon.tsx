@@ -5,6 +5,10 @@
 // 2 px ink cursor marks now and a dashed spare cursor the projected finish,
 // and engraved ticks with hour labels sit beneath. A cursor's time takes the
 // place of the hour labels it would collide with. Nothing here moves on load.
+//
+// `RibbonTrack` is the drawing on its own: Today's hero and the morning plan's
+// both render it, so there is one ribbon in the product and the two cannot
+// drift apart. `heroState` is the matching rule for the words above it.
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { Capacity } from "@/core/capacity";
@@ -15,6 +19,8 @@ import { cx } from "@/ui/cx";
 const YIELD_MIN = 35;
 /** Below 340 px of track only every second hour is labelled and a cursor clears a wider berth. */
 const YIELD_NARROW_MIN = 60;
+/** The over-tail never takes more than this share of the card, so a wild overrun cannot squeeze the day to nothing. */
+const TAIL_MAX_PCT = 20;
 
 export interface RibbonProps {
   c: Capacity;
@@ -31,6 +37,36 @@ export interface RibbonLabel {
   kind: "hour" | "now" | "finish";
   /** `narrow` hides the label on a track under 340 px; `always` hides it because a cursor's time sits there. */
   hide: "never" | "narrow" | "always";
+}
+
+/** The hero's one state (ruling R3): the spare figure and a spill never share a card. */
+export interface HeroState {
+  /** True when the plan cannot fit: it spills past the end of the day, or it is already over the day's budget. */
+  over: boolean;
+  /** The figure the hero prints: what is spare, or how much is over. */
+  min: number;
+  /** One sentence naming the spill, when there is one: "~40m spills past 18:00". */
+  spill: string | null;
+  /** "done by 16:25" — only when the day finishes with nothing left over. */
+  finish: string | null;
+}
+
+/**
+ * Which state the hero is in, for both heroes at once. A plan that spills past
+ * the end of the day is over even when the day's budget still looks generous —
+ * which is what every evening looks like — so the amber sentence and the green
+ * figure can never appear together (ruling R3). After the working day with
+ * nothing over, the day's spare figure simply stands.
+ */
+export function heroState(c: Capacity): HeroState {
+  const end = c.windows.length > 0 ? c.windows[c.windows.length - 1].end : 0;
+  const spills = c.overflowMin > 0;
+  return {
+    over: spills || c.spareMin < 0,
+    min: spills ? c.overflowMin : Math.abs(c.spareMin),
+    spill: spills ? `~${formatMinutes(c.overflowMin)} spills past ${formatTime(timeFromMinutes(end))}` : null,
+    finish: !spills && c.projectedFinish ? `done by ${formatTime(c.projectedFinish)}` : null,
+  };
 }
 
 /**
@@ -58,19 +94,24 @@ export function ribbonLabels(day: number, end: number, nowMin?: number, finishMi
   return labels;
 }
 
-export function Ribbon({ c, nowMin, compact = false, connected = true }: RibbonProps) {
-  if (c.state === "no_work_day") return <p className="text-ink-2">Not a working day.</p>;
+/**
+ * The instrument itself: track, segments, elapsed hatch, the two cursors, the
+ * engraved ticks, the one label row and the over-tail. Everything it says is
+ * in the prose beside it, so assistive tech skips the drawing.
+ */
+export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: number; className?: string }) {
   const day = c.windows[0].start;
   const end = c.windows[c.windows.length - 1].end;
   const span = end - day;
   const pct = (m: number) => ((m - day) / span) * 100;
   const w = (a: number, b: number) => `${((b - a) / span) * 100}%`;
-  const over = c.spareMin < 0;
   const finishMin = c.projectedFinish ? c.projectedFinish.hour * 60 + c.projectedFinish.minute : undefined;
   const now = nowMin !== undefined && nowMin >= day && nowMin <= end ? nowMin : undefined;
   const elapsed = nowMin === undefined ? 0 : Math.min(Math.max(nowMin - day, 0), span);
-  // The over-tail is proportional to the overflow, but never so wide that the day itself shrinks to nothing.
-  const tail = c.overflowMin > 0 ? Math.min(Math.max((c.overflowMin / span) * 100, 6), 20) : 0;
+  // The over-tail follows the spill exactly. Its only floor is a few pixels, so a small
+  // overrun reads as a small overrun rather than as a fixed amber block.
+  const tailPct = c.overflowMin > 0 ? Math.min((c.overflowMin / span) * 100, TAIL_MAX_PCT) : 0;
+  const tail = tailPct > 0 ? `max(3px, ${tailPct}%)` : null;
   // Whole hours only under the ticks: a half-hour start keeps the tile aligned to the clock, not to the window's edge.
   const firstHour = Math.ceil(day / 60) * 60;
   const lastHour = Math.floor(end / 60) * 60;
@@ -79,12 +120,67 @@ export function Ribbon({ c, nowMin, compact = false, connected = true }: RibbonP
   const align = (p: number) => (p < 4 ? "" : p > 96 ? "-translate-x-full" : "-translate-x-1/2");
 
   return (
+    <div aria-hidden="true" className={cx("@container relative", className)}>
+      <div className="relative" style={tail ? { width: `calc(100% - ${tail})` } : undefined}>
+        <div className="relative h-4 rounded-xs ribbon-track sm:h-6">
+          <div className="absolute inset-0 overflow-hidden rounded-xs">
+            {c.busy.map((b, i) => (
+              <span key={`m${i}`} className="absolute inset-y-0 rounded-[3px] bg-meet-fill" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
+            ))}
+            {c.blocks.map((b, i) => (
+              <span key={`b${i}`} className="absolute inset-y-0 rounded-[3px] bg-block-fill" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
+            ))}
+            {elapsed > 0 && <span className="absolute inset-y-0 left-0 ribbon-elapsed" style={{ width: `${(elapsed / span) * 100}%` }} />}
+          </div>
+          {/* Both cursors overhang the track by 4 px, so a 16 px phone track still shows them. */}
+          {finishMin !== undefined && finishMin >= day && finishMin <= end && (
+            <span className="absolute -top-1 -bottom-1 z-1 w-0 border-l-[1.5px] border-dashed border-spare-fill" style={{ left: `${pct(finishMin)}%` }} />
+          )}
+          {now !== undefined && <span className="absolute -top-1 -bottom-1 z-2 w-0.5 -translate-x-px rounded-[1px] bg-ink shadow-[0_0_0_1px_var(--surface)]" style={{ left: `${pct(now)}%` }} />}
+        </div>
+        {lastHour > firstHour && (
+          <div className="relative mt-0.5 h-2">
+            <span
+              className="absolute inset-y-0 ribbon-ticks"
+              style={{ left: `${pct(firstHour)}%`, width: `${((lastHour - firstHour) / span) * 100}%`, "--ribbon-hours": (lastHour - firstHour) / 60 } as CSSProperties}
+            />
+          </div>
+        )}
+        <div className="relative mt-0.5 h-3.5 text-micro font-medium text-ink-3 num">
+          {labels.map((l) => (
+            <span
+              key={`${l.kind}${l.min}`}
+              className={cx(
+                "absolute top-0 whitespace-nowrap",
+                align(pct(l.min)),
+                l.kind === "now" && "font-semibold text-ink",
+                l.kind === "finish" && "font-semibold text-spare",
+                l.hide === "always" && "hidden",
+                l.hide === "narrow" && "hidden @min-[340px]:block",
+              )}
+              style={{ left: `${pct(l.min)}%` }}
+            >
+              {l.text}
+            </span>
+          ))}
+        </div>
+      </div>
+      {tail && <span className="absolute top-0 right-0 h-4 rounded-r-xs border border-l-0 border-over-line ribbon-over sm:h-6" style={{ width: tail }} />}
+    </div>
+  );
+}
+
+export function Ribbon({ c, nowMin, compact = false, connected = true }: RibbonProps) {
+  if (c.state === "no_work_day") return <p className="text-ink-2">Not a working day.</p>;
+  const h = heroState(c);
+
+  return (
     <section aria-label="Spare time today" className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
       {/* The contributors sit on the number's baseline; a column too narrow for both drops them, whole, to a line of their own. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-6 sm:gap-y-2">
         <p className="flex items-baseline gap-2.5 whitespace-nowrap sm:gap-3.5">
-          <span className={cx("font-display font-book num text-ink", compact ? "text-title" : "text-hero", c.spareMin === 0 && "text-ink-2")}>{formatMinutes(over ? -c.spareMin : c.spareMin)}</span>
-          <span className={cx("font-display-italic", compact ? "text-pane" : "text-em", over ? "text-over" : "text-spare")}>{over ? "over" : "spare"}</span>
+          <span className={cx("font-display font-book num text-ink", compact ? "text-title" : "text-hero", !h.over && c.spareMin === 0 && "text-ink-2")}>{formatMinutes(h.min)}</span>
+          <span className={cx("font-display-italic", compact ? "text-pane" : "text-em", h.over ? "text-over" : "text-spare")}>{h.over ? "over" : "spare"}</span>
         </p>
         <p className="min-w-0 text-label text-ink-2 num sm:ml-auto sm:text-right sm:text-body-sm sm:whitespace-nowrap">
           <b className="font-medium text-ink">{formatMinutes(c.committedMin + c.unscheduledMin)}</b> planned
@@ -98,70 +194,23 @@ export function Ribbon({ c, nowMin, compact = false, connected = true }: RibbonP
               connect a calendar to see real free time
             </Link>
           )}
-          {c.projectedFinish && (
+          {/* One of the two, never both: the day either finishes or it spills (ruling R3). */}
+          {h.finish && (
             <>
               <span className="text-ink-4"> · </span>
-              <span className="font-semibold text-spare">done by {formatTime(c.projectedFinish)}</span>
+              <span className="font-semibold text-spare">{h.finish}</span>
             </>
           )}
-          {c.overflowMin > 0 && (
+          {h.spill && (
             <>
               <span className="text-ink-4"> · </span>
-              <span className="font-semibold text-over">~{formatMinutes(c.overflowMin)} spills over</span>
+              <span className="font-semibold text-over">{h.spill}</span>
             </>
           )}
         </p>
       </div>
 
-      {/* The instrument. Everything it says is in the prose above, so assistive tech skips the drawing. */}
-      <div aria-hidden="true" className={cx("@container relative", compact ? "mt-3" : "mt-3.5 sm:mt-5")}>
-        <div className="relative" style={tail ? { width: `${100 - tail}%` } : undefined}>
-          <div className="relative h-4 rounded-xs ribbon-track sm:h-6">
-            <div className="absolute inset-0 overflow-hidden rounded-xs">
-              {c.busy.map((b, i) => (
-                <span key={`m${i}`} className="absolute inset-y-0 rounded-[3px] bg-meet-fill" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
-              ))}
-              {c.blocks.map((b, i) => (
-                <span key={`b${i}`} className="absolute inset-y-0 rounded-[3px] bg-block-fill" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
-              ))}
-              {elapsed > 0 && <span className="absolute inset-y-0 left-0 ribbon-elapsed" style={{ width: `${(elapsed / span) * 100}%` }} />}
-            </div>
-            {finishMin !== undefined && finishMin >= day && finishMin <= end && (
-              <span className="absolute inset-y-0 z-[1] w-0 border-l-[1.5px] border-dashed border-spare-fill" style={{ left: `${pct(finishMin)}%` }} />
-            )}
-            {now !== undefined && (
-              <span className="absolute -top-1 -bottom-1 z-[2] w-0.5 -translate-x-px rounded-[1px] bg-ink shadow-[0_0_0_1px_var(--surface)]" style={{ left: `${pct(now)}%` }} />
-            )}
-          </div>
-          {lastHour > firstHour && (
-            <div className="relative mt-0.5 h-2">
-              <span
-                className="absolute inset-y-0 ribbon-ticks"
-                style={{ left: `${pct(firstHour)}%`, width: `${((lastHour - firstHour) / span) * 100}%`, "--ribbon-hours": (lastHour - firstHour) / 60 } as CSSProperties}
-              />
-            </div>
-          )}
-          <div className="relative mt-0.5 h-3.5 text-micro font-medium text-ink-3 num">
-            {labels.map((l) => (
-              <span
-                key={`${l.kind}${l.min}`}
-                className={cx(
-                  "absolute top-0 whitespace-nowrap",
-                  align(pct(l.min)),
-                  l.kind === "now" && "font-semibold text-ink",
-                  l.kind === "finish" && "font-semibold text-spare",
-                  l.hide === "always" && "hidden",
-                  l.hide === "narrow" && "hidden @min-[340px]:block",
-                )}
-                style={{ left: `${pct(l.min)}%` }}
-              >
-                {l.text}
-              </span>
-            ))}
-          </div>
-        </div>
-        {tail > 0 && <span className="absolute top-0 right-0 h-4 rounded-r-xs border border-l-0 border-over-line ribbon-over sm:h-6" style={{ width: `${tail}%` }} />}
-      </div>
+      <RibbonTrack c={c} nowMin={nowMin} className={compact ? "mt-3" : "mt-3.5 sm:mt-5"} />
     </section>
   );
 }
