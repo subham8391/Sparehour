@@ -43,9 +43,12 @@
   --block-fill: #292f2c;
   --block-soft: var(--surface-2);
   --hatch: rgb(22 28 25 / 0.16);
+  /* An hour that has already gone: the soft tint let down towards the surface. Defined once — the mix
+     re-resolves against whichever theme's tokens the element inherits. */
+  --meet-soft-past: color-mix(in oklab, var(--meet-soft) 55%, var(--surface));
+  --block-soft-past: color-mix(in oklab, var(--block-soft) 55%, var(--surface));
   /* Elevation: cards are flat; only raised popovers, the phone sheet and the FAB cast an ink-tinted shadow. */
   --shadow-tint: 25 37 31;
-  --shadow-1: 0 1px 2px rgb(var(--shadow-tint) / 0.05);
   --shadow-2: 0 1px 2px rgb(var(--shadow-tint) / 0.05), 0 4px 10px rgb(var(--shadow-tint) / 0.07), 0 12px 28px rgb(var(--shadow-tint) / 0.08);
   --shadow-float: 0 -12px 40px rgb(var(--shadow-tint) / 0.18);
   --shadow-fab: 0 8px 20px rgb(var(--shadow-tint) / 0.22);
@@ -93,7 +96,6 @@
     --block-soft: var(--surface-2);
     --hatch: rgb(232 236 234 / 0.16);
     /* Dark elevates by tone and a hairline, not by shadow. */
-    --shadow-1: none;
     --shadow-2: none;
     --shadow-float: 0 -12px 40px rgb(0 0 0 / 0.5);
     --shadow-fab: 0 8px 20px rgb(0 0 0 / 0.45);
@@ -139,7 +141,6 @@
   --block-fill: #7b827f;
   --block-soft: var(--surface-2);
   --hatch: rgb(232 236 234 / 0.16);
-  --shadow-1: none;
   --shadow-2: none;
   --shadow-float: 0 -12px 40px rgb(0 0 0 / 0.5);
   --shadow-fab: 0 8px 20px rgb(0 0 0 / 0.45);
@@ -150,6 +151,8 @@
 
 /* Theme-independent values: durations (DESIGN_SYSTEM.md §7) and the ribbon's span. */
 :root {
+  /* The hover reveal and the scrim fade: 80 ms, the one duration below `fast`. */
+  --dur-reveal: 80ms;
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 240ms;
@@ -200,6 +203,8 @@
   --color-deadline-line: var(--deadline-line);
   --color-block-fill: var(--block-fill);
   --color-block-soft: var(--block-soft);
+  --color-meet-soft-past: var(--meet-soft-past);
+  --color-block-soft-past: var(--block-soft-past);
   --color-raised-border: var(--raised-border);
 
   /* Faces (DESIGN_SYSTEM.md §3): Newsreader for the few emotional moments, its italic for the one qualifier
@@ -220,8 +225,6 @@
   --text-title--line-height: 1.1;
   --text-pane: clamp(1.25rem, 1.208rem + 0.185vw, 1.375rem);
   --text-pane--line-height: 1.2;
-  --text-heading: 1.0625rem;
-  --text-heading--line-height: 1.5rem;
   --text-body-lg: 0.9375rem;
   --text-body-lg--line-height: 1.25rem;
   --text-body: 0.875rem;
@@ -235,23 +238,17 @@
   /* Eyebrows are the only tracked text. */
   --tracking-eyebrow: 0.07em;
 
-  /* Radii. `rounded-md` is a legacy alias of `rounded-sm` for the chips that predate the primitives. */
+  /* Radii. `--radius-md` is deprecated: one site is left (search-view's filter remove) and moves to `sm` with the lists pass. */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-xl: 12px;
-  --radius-2xl: 12px;
   --radius-sheet: 20px;
   --radius-fab: 18px;
 
-  /* Shadows: Tailwind's names point at the ink-tinted scale so `shadow-lg` and friends follow the theme.
-     The utility names differ from the raw tokens on purpose (a same-named theme key would reference itself). */
-  --shadow-sm: var(--shadow-1);
-  --shadow-md: var(--shadow-2);
-  --shadow-lg: var(--shadow-2);
-  --shadow-xl: var(--shadow-2);
-  --shadow-2xl: var(--shadow-float);
+  /* Shadows: the three the design has, named for what they lift. Tailwind's own `shadow-sm`/`-lg`
+     scale is deliberately not aliased — a shadow that is not one of these is a mistake. */
   --shadow-raised: var(--shadow-2);
   --shadow-sheet: var(--shadow-float);
   --shadow-lift: var(--shadow-fab);
@@ -278,7 +275,13 @@
   }
 }
 
+/* A device that cannot hover: the swipe-and-tap band, whatever its width. `touch:static`, `touch:hidden`. */
+@custom-variant touch (@media (hover: none));
+
 /* Durations as utilities: `transition-colors dur-fast`. */
+@utility dur-reveal {
+  transition-duration: var(--dur-reveal);
+}
 @utility dur-fast {
   transition-duration: var(--dur-fast);
 }
@@ -395,4 +398,11 @@
 @utility ribbon-over {
   background-color: var(--over-soft);
   background-image: repeating-linear-gradient(135deg, color-mix(in oklab, var(--over-fill) 55%, transparent) 0 1.2px, transparent 1.2px 5px);
+}
+
+/* The italic display face shares Newsreader's family name with the roman, so the utility must also
+   ask for the italic style, or the roman answers. */
+@utility font-display-italic {
+  font-family: var(--font-display-italic);
+  font-style: italic;
 }

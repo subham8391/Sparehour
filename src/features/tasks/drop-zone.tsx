@@ -29,7 +29,8 @@ export function DropZone({ onDropTask, children, className = "", label }: { onDr
     });
   }, []);
   return (
-    <div ref={ref} role="group" aria-label={label} data-over={over || undefined} className={`rounded-xl transition-shadow dur-fast ${over ? "ring-2 ring-ink ring-offset-2 ring-offset-paper" : ""} ${className}`}>
+    // The outline stands off the card rather than hugging it, so a row hovering over a list is not mistaken for a focus ring on the card.
+    <div ref={ref} role="group" aria-label={label} data-over={over || undefined} className={`rounded-xl ${over ? "outline-2 outline-offset-4 outline-ink" : ""} ${className}`}>
       {children}
     </div>
   );

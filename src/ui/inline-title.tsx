@@ -3,6 +3,8 @@
 // saves, Escape cancels, an empty value is discarded. Used for area and
 // project names and for headings inside a project.
 import { useRef, useState, type KeyboardEvent } from "react";
+import { cx } from "./cx";
+import { bareFieldClass } from "./field";
 
 export function InlineTitle({
   value,
@@ -55,14 +57,20 @@ export function InlineTitle({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={onKey}
-        className={`w-full bg-transparent outline-none focus:underline focus:decoration-line-strong ${className} ${inputClassName}`}
+        className={cx(bareFieldClass(), "w-full", className, inputClassName)}
       />
     );
   }
   return (
     <Tag className={className}>
-      <button type="button" onClick={start} aria-label={`Edit ${label.toLowerCase()}`} className="min-w-0 max-w-full truncate text-left hover:underline hover:decoration-line-strong">
-        {value}
+      {/* The dashed rule says "editable" without a hover, and the 44 px minimum makes it a target on a phone. */}
+      <button
+        type="button"
+        onClick={start}
+        aria-label={`Edit ${label.toLowerCase()}`}
+        className="inline-flex min-h-11 max-w-full items-center rounded-sm text-left underline decoration-line decoration-dashed decoration-1 underline-offset-[6px] transition-[text-decoration-color] dur-fast hover:decoration-line-strong sm:min-h-0"
+      >
+        <span className="min-w-0 truncate">{value}</span>
       </button>
     </Tag>
   );

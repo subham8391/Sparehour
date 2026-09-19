@@ -6,11 +6,11 @@
 // row's "More actions" menu. One component, two layouts, told apart by the
 // context the row provides, so every view keeps its accessible names.
 import { createContext, useContext, type ReactNode } from "react";
-import { Chip } from "@/ui/chip";
+import { BlockGlyph, Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon, type IconName } from "@/ui/icons";
 import { MENU_ITEM } from "@/ui/popover";
-import type { DayChip } from "./day-chip";
+import type { DayChip, DayChipTone } from "./day-chip";
 
 export type RowActionsLayout = "inline" | "menu";
 
@@ -78,7 +78,11 @@ export function RowAction({
   );
 }
 
-/** The move actions shared by the inbox, carried-over, Someday and Upcoming lists. */
+/**
+ * The move actions shared by the inbox, carried-over, Someday and Upcoming
+ * lists. Drop is undoable, so it reads in ink like the rest (ruling R2): the
+ * destructive tone is for Delete and Disconnect only.
+ */
 export function MoveActions({
   onToday,
   onTomorrow,
@@ -100,15 +104,22 @@ export function MoveActions({
   );
 }
 
-/** The 7 px square that stands for a time block, in the current colour. */
-export const BLOCK_GLYPH = <span aria-hidden="true" className="size-[7px] shrink-0 rounded-[1.5px] bg-current" />;
+/** The 7 px square that stands for a time block, in the current colour; drawn by the one glyph in `src/ui/chip`. */
+export const BLOCK_GLYPH = <BlockGlyph />;
 
-/** The day chip on rows outside Today. A task row shows the carry count itself, so it asks for the carried chip without one. */
+/** A day never looks like a duration: every day chip carries a glyph the estimate does not (DESIGN_SYSTEM.md §5). */
+const DAY_GLYPH: Record<DayChipTone, IconName> = { neutral: "calendar", carried: "carry", parked: "moon" };
+
+/**
+ * The day chip on rows outside Today. A task row prints the carry count
+ * itself, so a row that does asks with `count={false}` and the carried chip
+ * steps aside rather than saying the same thing twice.
+ */
 export function DayChipTag({ chip, count = true }: { chip: DayChip | null; count?: boolean }) {
-  if (!chip) return null;
+  if (!chip || (chip.tone === "carried" && !count)) return null;
   return (
-    <Chip tone="neutral" size="auto" className={chip.tone === "parked" ? "text-ink-3" : undefined}>
-      {chip.tone === "carried" && !count ? "Carried" : chip.label}
+    <Chip tone="time" size="auto" icon={chip.label === "Inbox" ? "inbox" : DAY_GLYPH[chip.tone]} className={chip.tone === "parked" ? "text-ink-3" : undefined}>
+      {chip.label}
     </Chip>
   );
 }

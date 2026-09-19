@@ -94,7 +94,7 @@ function Frame({ children }: { children: ReactNode }) {
         {adds && <QuickAddBar />}
       </div>
       <TaskDetailPane />
-      {tabs && <TabBar pathname={pathname} counts={counts} className="sm:hidden" />}
+      {tabs && <TabBar pathname={pathname} counts={counts} sync={sync} className="sm:hidden" />}
       {adds && <QuickAddFab hidden={detail.selectedId !== null} />}
       <BulkBar />
     </div>

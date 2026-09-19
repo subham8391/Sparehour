@@ -1,4 +1,10 @@
+import fs from "node:fs";
 import type { NextConfig } from "next";
+
+// The repo sits inside a folder with other projects, so Turbopack is told where the root is
+// rather than inferring it. Resolving the real path lets the tree be reached through a symlink
+// (a git worktree, a checkout under /private/var); TURBOPACK_ROOT overrides it when it must.
+const TURBOPACK_ROOT = process.env.TURBOPACK_ROOT ?? fs.realpathSync(__dirname);
 
 // Where the sync service lives from the app server's point of view. With the
 // client pointed at `/powersync` (NEXT_PUBLIC_POWERSYNC_URL), the browser
@@ -9,8 +15,7 @@ import type { NextConfig } from "next";
 const POWERSYNC_INTERNAL_URL = (process.env.POWERSYNC_INTERNAL_URL ?? "http://localhost:8080").replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
-  // The repo sits inside a folder with other projects; keep Turbopack's root here.
-  turbopack: { root: __dirname },
+  turbopack: { root: TURBOPACK_ROOT },
   // `next build` type-checks the whole tree, tests included, which `npm run typecheck` already does;
   // a local build may skip it (SKIP_TYPECHECK=1) while a test file elsewhere is mid-edit. CI never sets it.
   typescript: { ignoreBuildErrors: process.env.SKIP_TYPECHECK === "1" },

@@ -7,6 +7,7 @@ import { VIEW_COLUMN } from "@/features/shell/view-header";
 import { cx } from "@/ui/cx";
 import { useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { useSyncChip } from "@/features/shell/use-sync-chip";
 import type { Task } from "@/core/types";
 import { toTask } from "@/data/mappers";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
@@ -26,6 +27,7 @@ export default function PlanPage() {
   const dayPlans = useMemo(() => new DayPlanRepo(db), [db]);
   const now = useNow();
   const model = useToday(now);
+  const sync = useSyncChip();
   const tomorrow = model.today.add({ days: 1 });
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
   const { data: openRows, isLoading: loadingOpen } = useQuery<TaskRowType>(OPEN_TASKS_SQL);
@@ -35,7 +37,9 @@ export default function PlanPage() {
   // Freeze the groups the first time data is there, so rows stay put while choices are made.
   // The query reports an empty list while it loads, so wait for it, or the picker freezes empty.
   const [frozen, setFrozen] = useState<Candidates | null>(null);
-  if (!frozen && !loadingOpen && model.ready) setFrozen(candidates(open, model.today));
+  // On a fresh device the query answers with nothing until the first sync lands, so wait for rows or a settled sync.
+  const settled = sync.state !== "connecting" && sync.state !== "syncing";
+  if (!frozen && !loadingOpen && model.ready && (open.length > 0 || settled)) setFrozen(candidates(open, model.today));
   const byId = useMemo(() => new Map(open.map((t) => [t.id, t])), [open]);
   const groups = useMemo<Candidates>(() => {
     const live = (list: Task[]) => list.map((t) => byId.get(t.id) ?? t).filter((t) => t.state === "inbox" || t.state === "active");

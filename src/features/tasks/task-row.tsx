@@ -18,6 +18,7 @@ import { Temporal, formatMinutes, formatTime, type LocalDate } from "@/core/time
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
 import { useSelectionOptional } from "@/features/selection/selection-provider";
+import { Checkbox } from "@/ui/checkbox";
 import { Chip, DeadlineChip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -190,7 +191,7 @@ export function TaskRow({
   const ring = (
     <span
       className={cx(
-        "flex size-[18px] items-center justify-center rounded-full border-[1.5px] transition-[background-color,border-color,transform] dur-fast",
+        "flex size-4.5 items-center justify-center rounded-full border-[1.5px] transition-[background-color,border-color,transform] dur-fast",
         done ? "border-ink bg-ink text-ink-inverse" : "border-line-control",
       )}
     >
@@ -244,13 +245,13 @@ export function TaskRow({
           )}
         >
           {multi && sel && (
-            <input
-              type="checkbox"
+            // The box is 44 px on a phone and folds back into the 28 px grid track from `sm`.
+            <Checkbox
               checked={ticked}
               aria-label={`Select ${task.title}`}
               onChange={() => sel.toggleCheck(task.id)}
               onClick={(e) => e.stopPropagation()}
-              className="relative z-[1] ml-3 size-[18px] shrink-0 accent-ink sm:ml-0 sm:justify-self-center"
+              className="relative z-1 sm:size-7 sm:justify-self-center"
             />
           )}
           {onDone ? (
@@ -258,7 +259,7 @@ export function TaskRow({
               type="button"
               aria-label={`Complete ${task.title}`}
               onClick={complete}
-              className="relative z-[1] flex size-11 shrink-0 items-center justify-center rounded-full hover:[&>span]:border-ink motion-safe:active:[&>span]:scale-90"
+              className="relative z-1 flex size-11 shrink-0 items-center justify-center rounded-full hover:[&>span]:border-ink motion-safe:active:[&>span]:scale-90"
             >
               {ring}
             </button>
@@ -284,7 +285,8 @@ export function TaskRow({
             )}
             <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:fade-end sm:contents">
               {meta && <span className={META_RUN}>{meta}</span>}
-              <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", task.state === "done" && "opacity-60")}>{chipRun}</span>
+              {/* A completed row quietens its chips to ink-3 rather than fading them: at 60 % opacity the estimate fell to 2.4:1 on surface-2. */}
+              <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", task.state === "done" && "[&>*]:text-ink-3!")}>{chipRun}</span>
             </div>
           </div>
           {hasActions && (
@@ -294,17 +296,17 @@ export function TaskRow({
                 // Pinned to the right edge, out of the flow, on the row's own background (base tone under the wash), fading in on the left so it can sit over the chips.
                 "sm:absolute sm:inset-y-0 sm:right-0 sm:pl-6 sm:bg-(--row-bg) sm:shadow-[inset_0_0_0_100vmax_var(--row-wash)] sm:fade-start",
                 // Hidden at rest and no target then (axe reads pointer-events); revealed at 80 ms on hover, focus-within and the J/K highlight.
-                "pointer-events-none opacity-0 transition-opacity duration-[80ms]",
+                "pointer-events-none opacity-0 transition-opacity dur-reveal",
                 "group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-aria-[current=true]:pointer-events-auto group-aria-[current=true]:opacity-100",
                 // No hover, no reveal: a touch device keeps the zone in the flow (the grid's last track) and always shown.
-                "[@media(hover:none)]:sm:static [@media(hover:none)]:sm:pl-0 [@media(hover:none)]:sm:shadow-none [@media(hover:none)]:sm:[mask-image:none] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
+                "touch:sm:static touch:sm:pl-0 touch:sm:shadow-none touch:sm:[mask-image:none] touch:pointer-events-auto touch:opacity-100",
               )}
             >
               <RowActionsLayoutProvider layout="inline">{actions}</RowActionsLayoutProvider>
             </div>
           )}
           {hasActions && (
-            <div className="relative z-[1] -my-2 -ml-1 shrink-0 sm:hidden">
+            <div className="relative z-1 -my-2 -ml-1 shrink-0 sm:hidden">
               <MenuButton label="More actions">{(close) => <RowActionsLayoutProvider layout="menu" close={close}>{actions}</RowActionsLayoutProvider>}</MenuButton>
             </div>
           )}

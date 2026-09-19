@@ -42,6 +42,13 @@
 - *The ribbon* is the one iconic instrument: a rule with a dot-grid spare track, a 135° hatch over the elapsed hours, engraved hour and quarter ticks beneath, a 2 px ink now cursor labelled with the time and a dashed spare finish cursor labelled with the projected finish (the graft from the Instrument direction). On the phone the List | Day control sits on the ritual row beside "Morning plan ›", and that row carries its status ("Not planned yet", later the projected finish next to "Shutdown ›" — the graft from the Soft direction).
 - *What green means.* Spare time and nothing else: the qualifier word, "done by", the free-gap labels, the spare track and the done-by pill. Never a button, link, focus ring, status, sync state or project token. The focus ring is ink.
 
+**Amendment (2026-09-19): four rulings from the restyle QA pass**, recorded in DESIGN_SYSTEM.md §2, §5 and §9.
+- *R1 — what the warm colours say.* An error (a failed action, a sync problem, a form error) takes the deadline role, `text-deadline`. A warning or a note (a quick-add parse warning, a storage note) is `ink-2` with the `alert` glyph and no colour. Amber stays over-capacity and the gentle ask.
+- *R2 — destructive is a tone.* `Button tone="destructive"` and `MENU_ITEM_DESTRUCTIVE` (deadline text, a `deadline-soft` hover wash) for **Delete** and **Disconnect** only; Drop is undoable and stays ink everywhere. This replaces "never a red anywhere except the near chip".
+- *R3 — the hero has one state.* When the plan cannot fit (`overflowMin > 0`, including after the working day) the qualifier is "over" in the over colour and the prose says what spills; green "spare" and amber "spills over" never appear together. After the working day with nothing over, the hero keeps the spare figure and the ritual row offers Shutdown.
+- *R4 — sync on a phone.* The compact sync cloud leaves the phone's view header; the Browse tab carries a status dot for offline, a sync problem and unprotected storage, and says which in its accessible name. Desktop keeps the sidebar's sync line.
+- *R7 — segmented controls on touch.* 44 px tall below `sm` with the raised tile drawn inset inside the target; 36 px from `sm`.
+
 **Capacity maths.** Buffer = 15% of the day's working hours (a 9h day reserves 1h 20m), capped so capacity never goes below zero: `buffer = min(0.15 × work, work − meetings)`. Spare = work − meetings − buffer − planned estimates. The reference day used in every doc and mockup: 9h day, 2h 00m meetings, 1h 20m buffer, 2h 20m planned → 3h 20m spare, done by 4:30pm.
 
 **Three-carry ask** offers four options, in this order: Keep today · Someday · Break it down · Drop. A no-penalty "yes" must always exist.

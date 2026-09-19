@@ -4,6 +4,7 @@
 // feeds it from PowerSync lives in use-sync-chip.ts.
 import { useId, useState } from "react";
 import { Icon, type IconName } from "@/ui/icons";
+import { RAISED } from "@/ui/sheet";
 
 export type SyncChipState = "connecting" | "synced" | "syncing" | "offline" | "problem" | "unprotected";
 
@@ -103,21 +104,43 @@ const TONE: Record<SyncChipState, string> = {
   unprotected: "text-over",
 };
 
-// The dot beside the word in the sidebar footer: filled when all is well, hollow when offline, amber when something wants a look, pulsing while data moves.
+// The dot beside the word in the sidebar footer: filled when all is well, hollow when offline,
+// amber when something wants a look. Nothing pulses — the state is the message, and nothing
+// on this screen moves on load (DESIGN_SYSTEM.md §7).
 const DOT: Record<SyncChipState, string> = {
-  connecting: "bg-line-control animate-pulse",
+  connecting: "border border-line-control",
   synced: "bg-line-control",
-  syncing: "bg-line-control animate-pulse",
+  syncing: "bg-line-control",
   offline: "border border-line-control",
   problem: "bg-over-fill",
   unprotected: "bg-over-fill",
 };
 
+/** What the live region says: one sentence per state, so it speaks on a change and never on the minute tick. */
+const STATE_WORDING: Record<SyncChipState, string> = {
+  connecting: "Connecting",
+  synced: "Synced",
+  syncing: "Syncing",
+  offline: "Offline. Your work is saved on this device.",
+  problem: "Sync problem. Nothing is lost.",
+  unprotected: "Storage not protected",
+};
+
+/**
+ * Whether a state is worth a mark on the phone's Browse tab, which is where
+ * sync lives without a sidebar (ruling R4): a hollow dot when offline, an
+ * amber one when something wants a look, nothing at all otherwise.
+ */
+export function syncAttention(state: SyncChipState): "offline" | "look" | null {
+  if (state === "offline") return "offline";
+  return state === "problem" || state === "unprotected" ? "look" : null;
+}
+
 /**
  * The chip itself; click expands the plain-words detail. `compact` shows the
- * icon only (rail, phone header) in a 44 px target that drops to 36 px on
- * the rail. `placement` says where the detail opens: above in the sidebar
- * footer, below in the phone header.
+ * icon only (the icon rail) in a 44 px target that drops to 36 px there.
+ * `placement` says where the detail opens: above in the sidebar footer, below
+ * for a trigger near the top of the screen.
  */
 export function SyncChip({
   model,
@@ -132,9 +155,12 @@ export function SyncChip({
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const moving = model.state === "syncing" || model.state === "connecting";
   return (
     <div className={`relative ${className}`}>
+      {/* Only a change of state is worth announcing; the label's "12s ago" re-renders every twelve seconds and would talk over everything. */}
+      <span aria-live="polite" className="sr-only">
+        {STATE_WORDING[model.state]}
+      </span>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -147,25 +173,15 @@ export function SyncChip({
           compact ? "size-11 justify-center sm:size-9" : "h-8 gap-2.5 px-3"
         }`}
       >
-        {compact ? (
-          <Icon name={model.icon} size={18} className={moving ? "animate-pulse" : undefined} />
-        ) : (
-          <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${DOT[model.state]}`} />
-        )}
-        {!compact && (
-          <span aria-live="polite" className="truncate num">
-            {model.label}
-          </span>
-        )}
+        {compact ? <Icon name={model.icon} size={18} /> : <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${DOT[model.state]}`} />}
+        {!compact && <span className="truncate num">{model.label}</span>}
       </button>
       {open && (
         <div
           id={panelId}
           role="region"
           aria-label="Sync status"
-          className={`absolute z-30 w-64 rounded-xl border border-raised-border bg-surface-3 p-3 text-body-sm text-ink-2 shadow-raised ${
-            placement === "above" ? "bottom-full left-0 mb-1" : "top-full right-0 mt-1"
-          }`}
+          className={`${RAISED} absolute z-30 w-64 rounded-xl p-3 text-body-sm text-ink-2 ${placement === "above" ? "bottom-full left-0 mb-1" : "top-full right-0 mt-1"}`}
         >
           <p className="mb-1 font-medium text-ink">{model.label}</p>
           <p>{model.detail}</p>

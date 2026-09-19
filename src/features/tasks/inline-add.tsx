@@ -2,7 +2,10 @@
 // The "+ add" row at the end of a list (SCREENS.md §9): one line, parsed
 // like quick-add, saved on Enter, ready for the next.
 import { useState, type KeyboardEvent } from "react";
-import { parse, type ParseContext, type TaskDraft } from "@/core/quickadd";
+// Straight from `parse`, never the package index, so the routes that carry an add row
+// do not also carry `format` and the rest of the index (CLAUDE.md, size).
+import { parse } from "@/core/quickadd/parse";
+import type { ParseContext, TaskDraft } from "@/core/quickadd/types";
 import { Icon } from "@/ui/icons";
 
 export function InlineAdd({

@@ -15,16 +15,26 @@ export type SheetWidth = "sm" | "lg";
 
 const WIDTH: Record<SheetWidth, string> = { sm: "sm:max-w-sm", lg: "sm:max-w-2xl" };
 
+/**
+ * The one raised tone (DESIGN_SYSTEM.md §4): surface-3 with the ink shadow in
+ * light, a line-strong hairline and no shadow in dark. Every popover, menu,
+ * toast and sheet is drawn on it; the radius is the caller's.
+ */
+export const RAISED = "border border-raised-border bg-surface-3 shadow-raised";
+
 /** The raised panel alone: a phone bottom sheet below `sm`, a dialog above it. */
-export const SHEET_PANEL =
-  "relative flex w-full min-w-0 flex-col border border-raised-border bg-surface-3 max-sm:rounded-t-sheet max-sm:pb-[env(safe-area-inset-bottom)] max-sm:shadow-sheet sm:rounded-xl sm:shadow-raised";
+export const SHEET_PANEL = `relative flex w-full min-w-0 flex-col ${RAISED} max-sm:rounded-t-sheet max-sm:pb-[env(safe-area-inset-bottom)] max-sm:shadow-sheet sm:rounded-xl`;
 
 /** The phone sheet's entry: up from the bottom edge, 240 ms on the drawer curve; instant from `sm` up and under reduced motion. */
 export const SHEET_RISE = "max-sm:transition-[translate,opacity] max-sm:dur-slow max-sm:ease-drawer max-sm:starting:translate-y-full max-sm:starting:opacity-0";
 
-/** The scrim: one tap closes. 80 ms in, so the dimming never flashes. */
+/**
+ * The scrim: one tap closes. 80 ms in, so the dimming never flashes. It is out
+ * of the tab order — every dialog already closes on Escape, and a keyboard
+ * user should never land on a nameless wash of colour.
+ */
 export function Scrim({ onClose, className }: { onClose: () => void; className?: string }) {
-  return <button type="button" aria-label="Close" onClick={onClose} className={cx("absolute inset-0 bg-scrim transition-opacity duration-[80ms] starting:opacity-0", className)} />;
+  return <button type="button" tabIndex={-1} aria-label="Close" onClick={onClose} className={cx("absolute inset-0 bg-scrim transition-opacity dur-reveal starting:opacity-0", className)} />;
 }
 
 /** The 36 by 4 handle at the top of a phone sheet. */

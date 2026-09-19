@@ -15,11 +15,11 @@ export type ChipSize = "md" | "sm" | "auto";
 const BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border font-medium num";
 
 const SIZE: Record<ChipSize, string> = {
-  md: "h-[22px] px-2 text-body-sm",
+  md: "h-5.5 px-2 text-body-sm",
   // The phone meta line.
   sm: "h-5 px-1.5 text-label",
   // The task row: the phone meta size below `sm`, the desktop chip above.
-  auto: "h-5 px-1.5 text-label sm:h-[22px] sm:px-2 sm:text-body-sm",
+  auto: "h-5 px-1.5 text-label sm:h-5.5 sm:px-2 sm:text-body-sm",
 };
 
 const TONE: Record<ChipTone, string> = {
@@ -41,6 +41,21 @@ export function chipClass({ tone = "neutral", size = "md" }: { tone?: ChipTone; 
   return cx(BASE, SIZE[size], TONE[tone]);
 }
 
+/**
+ * A chip that is a button: a suggestion, a pick inside a popover, a rating.
+ * An outlined pill at 44 px on touch and 32 px above, pressed = an ink edge on
+ * surface-2. `aria-pressed` carries the chosen state (DESIGN_SYSTEM.md §5).
+ */
+export function chipButtonClass({ size = "auto" }: { size?: "auto" | "touch" } = {}): string {
+  return cx(
+    "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-line px-3 text-body-sm font-medium text-ink transition-[border-color,background-color,color,transform] dur-fast hover:border-line-strong motion-safe:active:scale-97 aria-pressed:border-ink aria-pressed:bg-surface-2 num",
+    size === "touch" ? "h-11" : "h-11 sm:h-8 sm:px-2.5",
+  );
+}
+
+/** The 7 px square that stands for a time block, in the current colour. Drawn once, used by the block chip and by the row's Block action. */
+export const BlockGlyph = ({ className }: { className?: string }) => <span aria-hidden="true" className={cx("size-[7px] shrink-0 rounded-[1.5px] bg-current", className)} />;
+
 export function Chip({
   tone = "neutral",
   size = "md",
@@ -52,7 +67,7 @@ export function Chip({
   const glyph = icon === undefined ? TONE_ICON[tone] : icon;
   return (
     <span className={cx(chipClass({ tone, size }), className)} {...rest}>
-      {tone === "block" && <span aria-hidden="true" className="size-[7px] shrink-0 rounded-[1.5px] bg-ink" />}
+      {tone === "block" && <BlockGlyph />}
       {typeof glyph === "string" ? <Icon name={glyph as IconName} size={size === "sm" ? 11 : 12} className="shrink-0" /> : glyph}
       {children}
     </span>

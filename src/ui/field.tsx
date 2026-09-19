@@ -18,6 +18,15 @@ export function fieldClass({ size = "auto" }: { size?: FieldSize } = {}): string
   return cx(BASE, SIZE[size]);
 }
 
+/**
+ * A field that draws no box — an inline title, a step, a tag entry. It keeps
+ * the shared focus ring (drawn inside, so it never crosses a hairline on a
+ * full-bleed row) and adds the underline while typing.
+ */
+export function bareFieldClass(): string {
+  return "min-w-0 rounded-sm bg-transparent placeholder:text-ink-4 focus-visible:-outline-offset-2 focus:underline focus:decoration-line-strong focus:underline-offset-4";
+}
+
 export function Input({ size = "auto", className, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & { size?: FieldSize }) {
   return <input className={cx(fieldClass({ size }), className)} {...rest} />;
 }
