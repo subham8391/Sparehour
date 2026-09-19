@@ -11,14 +11,17 @@ export interface PushPlatform {
   isSafari: boolean;
   isFirefox: boolean;
   standalone: boolean;
+  /** A touch device, which has no address bar to point at when the words explain how to lift a block. */
+  touch: boolean;
   ua: string;
 }
 
-export function detectPushPlatform(nav: Pick<Navigator, "userAgent"> & { standalone?: boolean }, standaloneMedia: boolean): PushPlatform {
+export function detectPushPlatform(nav: Pick<Navigator, "userAgent"> & { standalone?: boolean; maxTouchPoints?: number }, standaloneMedia: boolean): PushPlatform {
   const ua = nav.userAgent;
   const isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && "standalone" in nav);
   const isSafari = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox/.test(ua);
-  return { isIOS, isSafari, isFirefox: /Firefox/.test(ua), standalone: standaloneMedia || nav.standalone === true, ua };
+  const touch = isIOS || /Android|Mobile/.test(ua) || (nav.maxTouchPoints ?? 0) > 0;
+  return { isIOS, isSafari, isFirefox: /Firefox/.test(ua), standalone: standaloneMedia || nav.standalone === true, touch, ua };
 }
 
 /** The `platform` column of a subscription. */
@@ -56,6 +59,8 @@ export function permissionCopy(state: PermissionState, p: PushPlatform, subscrib
 function deniedSteps(p: PushPlatform): string[] {
   if (p.isIOS) return ["Open Settings → Notifications → Sparehour", "Allow notifications"];
   if (p.isSafari) return ["Safari → Settings → Websites → Notifications", "Set Sparehour to Allow"];
+  // A phone has no icon beside an address bar; its browser keeps the block in its own settings.
+  if (p.touch) return ["Open your browser's menu, then Settings → Site settings → Notifications", "Find Sparehour and allow it"];
   if (p.isFirefox) return ["Click the permissions icon left of the address bar", "Remove the block on notifications"];
   return ["Click the icon left of the address bar", "Notifications → Allow"];
 }

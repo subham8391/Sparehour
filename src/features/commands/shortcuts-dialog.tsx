@@ -4,6 +4,7 @@
 // a row (J and the down arrow both select the next task). Hidden on touch
 // by the global kbd rule, the keys mean nothing there anyway.
 import { useEffect } from "react";
+import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
@@ -49,18 +50,20 @@ export function ShortcutsDialog({ isMac, onClose }: { isMac: boolean; onClose: (
     ),
   })).filter((g) => g.rows.length > 0);
   return (
-    <Sheet label="Keyboard shortcuts" onClose={onClose} width="lg" className="max-h-[85dvh] sm:pt-[8vh]">
+    // A long list scrolls inside the dialog rather than running off the screen (ruling R6); from `sm`
+    // the cap leaves room below, since the dialog already starts 8vh down.
+    <Sheet label="Keyboard shortcuts" onClose={onClose} width="lg" className="max-h-[calc(100dvh-5rem)] sm:max-h-[80dvh] sm:pt-[8vh]">
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2 sm:pt-4">
         <h2 className="font-display text-pane font-medium text-ink">Keyboard shortcuts</h2>
-        <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink sm:size-9">
+        <Button variant="icon" onClick={onClose} aria-label="Close" className="-mr-2">
           <Icon name="close" size={18} />
-        </button>
+        </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
         {/* Every kbd hides on a touch device, which would leave a bare list of names; say why instead. */}
-        <p className="hidden text-body text-ink-2 [@media(hover:none)]:block">These need a keyboard. On a phone, each row keeps its actions behind More actions.</p>
+        <p className="hidden text-body text-pretty text-ink-2 touch:block">These need a keyboard. On a phone, each row keeps its actions behind More actions.</p>
         {/* Two columns from `sm` up; each group stays whole so the long "Selected task" list heads the first column and the rest fill the second. */}
-        <div className="sm:columns-2 sm:gap-8 [@media(hover:none)]:hidden">
+        <div className="sm:columns-2 sm:gap-8 touch:hidden">
           {groups.map((g) => (
             <section key={g.group} className="mb-5 break-inside-avoid">
               <h3 className={cx(EYEBROW, "mb-1")}>{g.group}</h3>
@@ -79,7 +82,7 @@ export function ShortcutsDialog({ isMac, onClose }: { isMac: boolean; onClose: (
             </section>
           ))}
         </div>
-        <p className="text-body-sm text-ink-3 [@media(hover:none)]:hidden">
+        <p className="text-body-sm text-ink-3 touch:hidden">
           Any other letter opens quick-add and types itself. <Kbd>T</Kbd> with nothing selected jumps to today.
         </p>
       </div>

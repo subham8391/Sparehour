@@ -21,7 +21,7 @@ import { Select } from "@/ui/select";
 import { Slider } from "@/ui/slider";
 import { Switch } from "@/ui/switch";
 import { TimeField } from "@/ui/time-field";
-import { HINT, LABEL, NOTE, ROW, ROW_ACTION, VALUE } from "./rows";
+import { ERROR, HINT, LABEL, NOTE, ROW, VALUE } from "./rows";
 import { DEFAULT_SEGMENT, ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, segmentError, timeZoneHint, timeZoneOptions, type Segment } from "./settings-rules";
 
 export interface SettingsValues {
@@ -241,7 +241,7 @@ export function SettingsForm(p: SettingsFormProps) {
                 {p.notifications.testResult}
               </p>
             )}
-            {p.notifications.error && <p className="text-body-sm text-over">{p.notifications.error}</p>}
+            {p.notifications.error && <p className={ERROR}>{p.notifications.error}</p>}
           </div>
         )}
         <SwitchRow id="n-block" label="A time block is starting" checked={values.notifyBlockStart} onChange={(v) => change({ notifyBlockStart: v })} />
@@ -262,9 +262,10 @@ export function SettingsForm(p: SettingsFormProps) {
             <span className="text-ink-3">–</span>
             <TimeField aria-label="Quiet hours end" value={values.quietHoursEnd} onChange={(e) => e.target.value && change({ quietHoursEnd: e.target.value })} />
             {(values.quietHoursStart || values.quietHoursEnd) && (
-              <button type="button" onClick={() => change({ quietHoursStart: null, quietHoursEnd: null })} className={ROW_ACTION}>
+              // The auto size, so the action's box lines up with the two 44 px fields beside it.
+              <Button variant="link" className="text-ink-2" onClick={() => change({ quietHoursStart: null, quietHoursEnd: null })}>
                 None
-              </button>
+              </Button>
             )}
           </span>
         </div>
@@ -310,7 +311,11 @@ export function SettingsForm(p: SettingsFormProps) {
           </div>
           <div className={ROW}>
             <span className={LABEL}>Storage</span>
-            <span className={cx("text-body-sm text-pretty sm:text-right", p.app.persistence === "unprotected" ? "text-over" : "text-ink-2")}>{persistenceCopy(p.app.persistence, p.app.install.kind === "installed")}</span>
+            {/* A storage note is a note, not a failure: ink-2 and the alert glyph, never amber (ruling R1). */}
+            <span className="flex items-start gap-1.5 text-body-sm text-pretty text-ink-2 sm:text-right">
+              {p.app.persistence === "unprotected" && <Icon name="alert" size={14} className="mt-0.5 shrink-0" />}
+              {persistenceCopy(p.app.persistence, p.app.install.kind === "installed")}
+            </span>
           </div>
           <div className={ROW}>
             <span className={LABEL}>Version</span>
@@ -347,7 +352,7 @@ export function SettingsForm(p: SettingsFormProps) {
                 Saved {p.data.lastFile}
               </p>
             )}
-            {p.data.error && <p className="text-body-sm text-over">{p.data.error}</p>}
+            {p.data.error && <p className={ERROR}>{p.data.error}</p>}
           </div>
         </Section>
       )}
@@ -389,7 +394,7 @@ function WorkDayRow({ name, segment, onChange }: { name: string; segment: Segmen
             <span className="text-ink-3">–</span>
             <TimeField id={`${id}-end`} aria-label={`${name} end`} value={draft.end} onChange={(e) => commit({ ...draft, end: e.target.value })} />
           </span>
-          {error && <span className="text-label text-over">{error}</span>}
+          {error && <span className={cx(ERROR, "text-label")}>{error}</span>}
         </span>
       ) : (
         <span className={cx(VALUE, "text-ink-3")}>Off</span>

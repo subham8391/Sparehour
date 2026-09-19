@@ -4,11 +4,12 @@
 // titles", the one write calendar with the read-all/write-one promise restated,
 // sync status with "Sync now", and disconnect with what it means. Presentational.
 import { useState } from "react";
-import { HINT, LABEL, NOTE, ROW, VALUE } from "@/features/settings/rows";
+import { ERROR, HINT, LABEL, NOTE, ROW, VALUE } from "@/features/settings/rows";
 import { Button } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
+import { Radio } from "@/ui/radio";
 import { Switch } from "@/ui/switch";
 
 export interface CalendarAccountView {
@@ -49,11 +50,6 @@ export interface CalendarPanel {
   onPrivate: (id: string, isPrivate: boolean) => void;
   onWriteTarget: (id: string | null) => void;
 }
-
-// A native radio drawn as a ring that thickens to ink when chosen; the label around it is the 44 px target.
-const RADIO = "size-5 shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] border-line-control bg-surface transition-[border-color,border-width] dur-fast checked:border-[6px] checked:border-ink";
-// The one destructive confirm: a quiet button in the deadline colour, the only warm red outside a near chip.
-const DESTRUCTIVE = "flex h-11 shrink-0 items-center rounded-lg px-3.5 text-body font-medium text-deadline transition-colors dur-fast hover:bg-hover disabled:pointer-events-none disabled:opacity-60 sm:h-9";
 
 export const PROMISE = {
   read: "We read all your calendars — just the times you're busy, so the spare-hours number is real.",
@@ -146,7 +142,13 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                   <span className={cx(VALUE, "min-w-0 truncate")}>{a.email ?? "—"}</span>
                 </span>
                 <span className={cx(NOTE, "num")}>
-                  {a.status === "ok" ? `Connected · synced ${relativeTime(a.lastSyncedAt, now)}` : a.status === "needs_reauth" ? "Needs reconnecting — your meetings stopped updating." : "Access was revoked."}
+                  {a.status === "ok"
+                    ? a.lastSyncedAt
+                      ? `Connected · synced ${relativeTime(a.lastSyncedAt, now)}`
+                      : "Connected · waiting for the first sync"
+                    : a.status === "needs_reauth"
+                      ? "Needs reconnecting — your meetings stopped updating."
+                      : "Access was revoked."}
                 </span>
               </span>
               <span className="flex flex-wrap items-center gap-1">
@@ -162,9 +164,10 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                 {confirming === a.id ? (
                   <span className="flex flex-wrap items-center gap-1 pl-2 text-body-sm text-ink-2">
                     Your blocks stay, unsynced.
-                    <button type="button" className={DESTRUCTIVE} onClick={() => panel.onDisconnect(a.id)} disabled={panel.busy}>
+                    {/* Disconnect is one of the two destructive actions in the product (DESIGN_SYSTEM.md §2). */}
+                    <Button variant="quiet" tone="destructive" onClick={() => panel.onDisconnect(a.id)} disabled={panel.busy}>
                       Disconnect
-                    </button>
+                    </Button>
                     <Button variant="quiet" onClick={() => setConfirming(null)}>
                       Keep
                     </Button>
@@ -176,7 +179,7 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                 )}
               </span>
             </div>
-            {a.lastError && a.status === "ok" && <p className="text-body-sm text-over">{a.lastError}</p>}
+            {a.lastError && a.status === "ok" && <p className={ERROR}>{a.lastError}</p>}
           </div>
         ))
       )}
@@ -213,13 +216,14 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
             ) : (
               <div role="radiogroup" aria-label="Write calendar" className="flex flex-col">
                 {writeCandidates.map((c) => (
-                  <label key={c.id} className="flex min-h-11 items-center gap-3 text-body text-ink">
-                    <input type="radio" name="write-calendar" className={RADIO} checked={c.writeTarget} onChange={changed(() => panel.onWriteTarget(c.id))} />
+                  // The 44 px radio pulls left so its 20 px circle sits on the row's text edge.
+                  <label key={c.id} className="-ml-3 flex items-center gap-2 text-body text-ink">
+                    <Radio name="write-calendar" checked={c.writeTarget} onChange={changed(() => panel.onWriteTarget(c.id))} />
                     {c.summary}
                   </label>
                 ))}
-                <label className="flex min-h-11 items-center gap-3 text-body text-ink-2">
-                  <input type="radio" name="write-calendar" className={RADIO} checked={writeTarget === null} onChange={changed(() => panel.onWriteTarget(null))} />
+                <label className="-ml-3 flex items-center gap-2 text-body text-ink-2">
+                  <Radio name="write-calendar" checked={writeTarget === null} onChange={changed(() => panel.onWriteTarget(null))} />
                   Keep blocks in Sparehour only
                 </label>
               </div>

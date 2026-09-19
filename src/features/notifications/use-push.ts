@@ -53,7 +53,7 @@ export function usePush(): PushApi {
   const [workerAvailable, setWorkerAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const platform = useMemo<PushPlatform>(() => (typeof navigator === "undefined" ? { isIOS: false, isSafari: false, isFirefox: false, standalone: false, ua: "" } : detectPushPlatform(navigator, window.matchMedia("(display-mode: standalone)").matches)), []);
+  const platform = useMemo<PushPlatform>(() => (typeof navigator === "undefined" ? { isIOS: false, isSafari: false, isFirefox: false, standalone: false, touch: false, ua: "" } : detectPushPlatform(navigator, window.matchMedia("(display-mode: standalone)").matches)), []);
 
   // The launch re-registration (§7.3): an existing subscription is written again so a vanished one is noticed.
   useEffect(() => {

@@ -6,7 +6,7 @@
 // header, 48 px field rows that open popovers, then the checklist, tags and
 // notes under section labels, and a footer with Complete first; on a phone
 // the footer sits above the safe area and the quiet actions fold into a menu.
-import { useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
 import { formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
@@ -15,13 +15,16 @@ import type { ChecklistItem, MissPolicy, Priority, TagRef, Task } from "@/core/t
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
-import { Chip } from "@/ui/chip";
+import { Chip, chipButtonClass } from "@/ui/chip";
 import { cx } from "@/ui/cx";
-import { Textarea } from "@/ui/field";
+import { DateField } from "@/ui/date-field";
+import { bareFieldClass, Textarea } from "@/ui/field";
 import { Icon } from "@/ui/icons";
-import { FIELD_INPUT, FieldPopover, MENU_ITEM, MenuButton } from "@/ui/popover";
+import { FIELD_INPUT, MENU_ITEM, MenuButton, useDismiss } from "@/ui/popover";
 import { deadlineWording } from "@/ui/relative-day";
 import { SectionLabel } from "@/ui/section-label";
+import { Grabber, RAISED, Scrim, SHEET_RISE } from "@/ui/sheet";
+import { TimeField } from "@/ui/time-field";
 import { dayLabel } from "@/features/quickadd/interpret";
 import { BLOCK_GLYPH } from "./task-actions";
 import { snoozePresets } from "./snooze";
@@ -67,24 +70,89 @@ const MISS_POLICIES: { value: MissPolicy; label: string; help: string }[] = [
   { value: "expire", label: "Expire", help: "It goes to the Logbook as missed." },
 ];
 
-/** A choice inside a popover: a chip that is a button, 44 px on the phone, 32 px above; pressed = ink edge on surface-2. */
-const PICK =
-  "inline-flex h-11 items-center rounded-sm border border-line px-3 text-body-sm font-medium text-ink transition-[border-color,background-color,transform] dur-fast hover:border-line-strong motion-safe:active:scale-97 aria-pressed:border-ink aria-pressed:bg-surface-2 sm:h-8 sm:px-2.5 num";
-/** A row inside a popover list, pressed = surface-2. */
+/** A choice inside a panel: the chip that is a button (DESIGN_SYSTEM.md §5 "Chips"). */
+const PICK = chipButtonClass();
+/** A row inside a panel's list, pressed = surface-2. */
 const OPTION = cx(MENU_ITEM, "flex-col items-start justify-center gap-0 py-1.5 aria-pressed:bg-surface-2");
-/** An inline text field that draws no box: the underline is its focus. */
-const BARE = "min-w-0 bg-transparent outline-none placeholder:text-ink-4 focus:underline focus:decoration-line-strong focus:underline-offset-4";
-/** An icon-only control at 44 px on the phone and 36 px above. */
-const ICON_BUTTON = "flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink sm:size-9";
+/** An inline text field that draws no box: the shared ring drawn inside, and the underline while typing. */
+const BARE = bareFieldClass();
 const CHECK_LABEL = "flex items-center gap-1 text-body-sm text-ink-2";
+/** A labelled field inside a panel. */
+const PANEL_FIELD = "flex items-center gap-2 text-body-sm text-ink-2";
 
-const Muted = ({ children }: { children: React.ReactNode }) => <span className="font-normal text-ink-3">{children}</span>;
-/** A text action inside a popover: "No day", "Clear", "Never". */
-const Clear = ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) => (
-  <Button variant="link" size="desktop" className="self-start text-ink-2" onClick={onClick}>
+const Muted = ({ children }: { children: ReactNode }) => <span className="font-normal text-ink-3">{children}</span>;
+/** A text action inside a panel: "No day", "Clear", "Never". */
+const Clear = ({ children, onClick }: { children: ReactNode; onClick: () => void }) => (
+  <Button variant="link" className="self-start text-ink-2" onClick={onClick}>
     {children}
   </Button>
 );
+
+/**
+ * A field row and the panel it opens. On a phone the panel is a bottom sheet,
+ * so it never covers the rows it belongs to; from `sm` up it is the raised
+ * popover anchored under its own row (DESIGN_SYSTEM.md §5 "Sheet"). A click
+ * outside or Escape closes it, and focus goes back to the row.
+ */
+function FieldRow({ label, value, children }: { label: string; value: ReactNode; children: (close: () => void) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  const panelId = useId();
+  const close = useCallback(() => setOpen(false), []);
+  const rootRef = useDismiss(open, close);
+
+  // Hand focus back to the row once the panel has closed.
+  useEffect(() => {
+    if (open) {
+      wasOpen.current = true;
+      return;
+    }
+    if (wasOpen.current) {
+      wasOpen.current = false;
+      buttonRef.current?.focus();
+    }
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        // The ring is drawn inside, so it never crosses the hairline of a full-bleed row.
+        className="flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left text-body hover:bg-hover focus-visible:-outline-offset-2 sm:px-5"
+      >
+        <span className="text-ink-2">{label}</span>
+        <span className="flex min-w-0 items-center gap-2 font-medium text-ink num">{value}</span>
+      </button>
+      {open && (
+        <>
+          {/* The sheet's scrim; from `sm` up the panel is a popover, where a click outside is enough. */}
+          <Scrim onClose={close} className="fixed z-40 sm:hidden" />
+          <div
+            id={panelId}
+            role="dialog"
+            aria-label={label}
+            className={cx(
+              RAISED,
+              SHEET_RISE,
+              "z-40 flex flex-col gap-3",
+              "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:max-h-[80dvh] max-sm:overflow-y-auto max-sm:rounded-t-sheet max-sm:px-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:shadow-sheet",
+              "sm:absolute sm:top-full sm:right-2 sm:z-30 sm:mt-1 sm:w-[calc(100%-1rem)] sm:max-w-80 sm:rounded-xl sm:p-3",
+            )}
+          >
+            <Grabber />
+            {children(close)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const { task, today, onPatch } = p;
@@ -147,8 +215,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         </Button>
       )}
       {task.state !== "dropped" && (
-        // The one destructive choice reads in the deadline colour; the quiet variant's own ink-2 must yield to it.
-        <Button variant="quiet" className="text-deadline! hover:text-deadline! max-sm:hidden" onClick={p.onDrop}>
+        // Drop is undoable, so it stays ink; the deadline role is for Delete alone (DESIGN_SYSTEM.md §2).
+        <Button variant="quiet" className="max-sm:hidden" onClick={p.onDrop}>
           Drop
         </Button>
       )}
@@ -181,55 +249,57 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           />
           {(p.areaName || p.projectName) && <p className="mt-1 text-body-sm text-ink-2">{[p.areaName, p.projectName].filter(Boolean).join(" › ")}</p>}
         </div>
-        <button type="button" onClick={p.onClose} aria-label="Close" className={cx(ICON_BUTTON, "-mr-2")}>
+        <Button variant="icon" onClick={p.onClose} aria-label="Close" className="-mr-2">
           <Icon name="close" size={18} />
-        </button>
+        </Button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-5">
         {/* Field rows run edge to edge under hairlines, the way the direction draws them; each opens its own raised popover. */}
         <div className="-mx-4 mt-1 divide-y divide-line border-y border-line sm:-mx-5">
-          <FieldPopover label="Do" value={doValue}>
+          <FieldRow label="Do" value={doValue}>
             {(close) => (
-              <div className="flex flex-col gap-3">
+              <>
                 <div className="flex flex-wrap gap-1.5">
                   <button type="button" className={PICK} onClick={() => (onPatch({ doDate: today, doTime: null, evening: false }), close())}>
                     Today
                   </button>
+                  {/* "This evening" is the first of these, so the panel never repeats it as a checkbox below. */}
                   {presets.map((s) => (
                     <button key={s.id} type="button" className={PICK} onClick={() => (onPatch(s.patch), close())}>
                       {s.label}
                     </button>
                   ))}
                 </div>
-                <label className="flex items-center gap-2 text-body-sm text-ink-2">
+                <label className={PANEL_FIELD}>
                   <span className="w-12">Day</span>
-                  <input type="date" aria-label="Day" value={task.doDate?.toString() ?? ""} onChange={(e) => onPatch({ doDate: e.target.value ? localDate(e.target.value) : null })} className={FIELD_INPUT} />
+                  <DateField aria-label="Day" className="flex-1" today={today} value={task.doDate?.toString() ?? ""} onChange={(e) => onPatch({ doDate: e.target.value ? localDate(e.target.value) : null })} />
                 </label>
-                <label className="flex items-center gap-2 text-body-sm text-ink-2">
+                <label className={PANEL_FIELD}>
                   <span className="w-12">Time</span>
-                  <input type="time" aria-label="Time" value={task.doTime ? task.doTime.toString({ smallestUnit: "minute" }) : ""} onChange={(e) => onPatch({ doTime: e.target.value ? localTime(e.target.value) : null, ...(e.target.value && !task.doDate ? { doDate: today } : {}) })} className={FIELD_INPUT} />
-                </label>
-                <label className={CHECK_LABEL}>
-                  <Checkbox className="-ml-3" checked={task.evening} onChange={(e) => onPatch({ evening: e.target.checked, ...(e.target.checked && !task.doDate ? { doDate: today } : {}) })} />
-                  This evening
+                  <TimeField
+                    aria-label="Time"
+                    className="flex-1"
+                    value={task.doTime ? task.doTime.toString({ smallestUnit: "minute" }) : ""}
+                    onChange={(e) => onPatch({ doTime: e.target.value ? localTime(e.target.value) : null, ...(e.target.value && !task.doDate ? { doDate: today } : {}) })}
+                  />
                 </label>
                 {task.doDate && <Clear onClick={() => (onPatch({ doDate: null, doTime: null, evening: false }), close())}>No day</Clear>}
-              </div>
+              </>
             )}
-          </FieldPopover>
+          </FieldRow>
 
-          <FieldPopover label="Deadline" value={deadlineValue}>
+          <FieldRow label="Deadline" value={deadlineValue}>
             {(close) => <DatePicker value={task.deadline} today={today} onChange={(d) => (onPatch({ deadline: d }), close())} />}
-          </FieldPopover>
+          </FieldRow>
 
-          <FieldPopover label="Starts" value={task.startDate ? formatDay(task.startDate, { today }) : <Muted>—</Muted>}>
+          <FieldRow label="Starts" value={task.startDate ? formatDay(task.startDate, { today }) : <Muted>—</Muted>}>
             {(close) => <DatePicker value={task.startDate} today={today} onChange={(d) => (onPatch({ startDate: d }), close())} />}
-          </FieldPopover>
+          </FieldRow>
 
-          <FieldPopover label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <Chip tone="guess">30m?</Chip>}>
+          <FieldRow label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <Chip tone="guess">30m?</Chip>}>
             {(close) => (
-              <div className="flex flex-col gap-3">
+              <>
                 <div className="flex flex-wrap gap-1.5">
                   {ESTIMATES.map((m) => (
                     <button key={m} type="button" className={PICK} aria-pressed={task.estimateMin === m} onClick={() => (onPatch({ estimateMin: m }), close())}>
@@ -239,11 +309,11 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                 </div>
                 <MinutesInput onSubmit={(m) => (onPatch({ estimateMin: m }), close())} />
                 {task.estimateMin != null && <Clear onClick={() => (onPatch({ estimateMin: null }), close())}>No estimate</Clear>}
-              </div>
+              </>
             )}
-          </FieldPopover>
+          </FieldRow>
 
-          <FieldPopover label="Priority" value={task.priority ? <Chip>{PRIORITIES.find((x) => x.value === task.priority)?.label}</Chip> : <Muted>None</Muted>}>
+          <FieldRow label="Priority" value={task.priority ? <Chip>{PRIORITIES.find((x) => x.value === task.priority)?.label}</Chip> : <Muted>None</Muted>}>
             {(close) => (
               <div className="flex flex-wrap gap-1.5">
                 {PRIORITIES.map((x) => (
@@ -253,9 +323,9 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                 ))}
               </div>
             )}
-          </FieldPopover>
+          </FieldRow>
 
-          <FieldPopover label="Project" value={p.projectName ? <Chip tone="meet">#{p.projectName}</Chip> : <Muted>None</Muted>}>
+          <FieldRow label="Project" value={p.projectName ? <Chip tone="meet">#{p.projectName}</Chip> : <Muted>None</Muted>}>
             {(close) => (
               <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
                 <button type="button" className={cx(MENU_ITEM, "text-ink-2")} onClick={() => (onPatch({ projectId: null }), close())}>
@@ -268,11 +338,11 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                 ))}
               </div>
             )}
-          </FieldPopover>
+          </FieldRow>
 
-          <FieldPopover label="Repeat" value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>}>
+          <FieldRow label="Repeat" value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>}>
             {(close) => (
-              <div className="flex flex-col gap-3">
+              <>
                 <input
                   aria-label="Repeat"
                   placeholder="every weekday · every 2 weeks on wed · every month"
@@ -296,11 +366,11 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                     <Clear onClick={() => (onPatch({ recurrenceRule: null, recurrenceMode: null }), close())}>Never</Clear>
                   </>
                 )}
-              </div>
+              </>
             )}
-          </FieldPopover>
+          </FieldRow>
 
-          <FieldPopover label="If missed" value={MISS_POLICIES.find((m) => m.value === task.missPolicy)?.label}>
+          <FieldRow label="If missed" value={MISS_POLICIES.find((m) => m.value === task.missPolicy)?.label}>
             {(close) => (
               <div className="flex flex-col gap-0.5">
                 {MISS_POLICIES.map((m) => (
@@ -311,7 +381,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                 ))}
               </div>
             )}
-          </FieldPopover>
+          </FieldRow>
         </div>
 
         <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} />
@@ -365,7 +435,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                     </button>
                   )}
                   {task.state !== "dropped" && (
-                    <button type="button" role="menuitem" className={cx(MENU_ITEM, "text-deadline!")} onClick={() => (close(), p.onDrop())}>
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onDrop())}>
                       Drop
                     </button>
                   )}
@@ -472,9 +542,9 @@ function ChecklistRow({
         aria-label={`Step: ${item.title}`}
         className={cx(BARE, "h-11 flex-1 text-body transition-colors dur-fast", item.done ? "text-ink-3 line-through decoration-ink-3" : "text-ink")}
       />
-      <button type="button" onClick={() => onRemove?.(item.id)} aria-label={`Remove step: ${item.title}`} className={cx(ICON_BUTTON, "-mr-2 text-ink-3")}>
+      <Button variant="icon" onClick={() => onRemove?.(item.id)} aria-label={`Remove step: ${item.title}`} className="-mr-2 text-ink-3">
         <Icon name="close" size={14} />
-      </button>
+      </Button>
     </li>
   );
 }
@@ -531,7 +601,7 @@ function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; all
 
 function DatePicker({ value, today, onChange }: { value: LocalDate | null; today: LocalDate; onChange: (d: LocalDate | null) => void }) {
   return (
-    <div className="flex flex-col gap-3">
+    <>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" className={PICK} onClick={() => onChange(today)}>
           Today
@@ -543,9 +613,9 @@ function DatePicker({ value, today, onChange }: { value: LocalDate | null; today
           In a week
         </button>
       </div>
-      <input type="date" aria-label="Date" value={value?.toString() ?? ""} onChange={(e) => onChange(e.target.value ? localDate(e.target.value) : null)} className={FIELD_INPUT} />
+      <DateField aria-label="Date" className="w-full" today={today} value={value?.toString() ?? ""} onChange={(e) => onChange(e.target.value ? localDate(e.target.value) : null)} />
       {value && <Clear onClick={() => onChange(null)}>Clear</Clear>}
-    </div>
+    </>
   );
 }
 
@@ -573,7 +643,7 @@ function MinutesInput({ onSubmit }: { onSubmit: (minutes: number) => void }) {
         }}
         className={cx(FIELD_INPUT, "w-28")}
       />
-      <Button variant="secondary" size="desktop" onClick={commit}>
+      <Button variant="secondary" onClick={commit}>
         Set
       </Button>
     </label>

@@ -95,9 +95,14 @@ describe("<TaskDetailPanel>", () => {
     await user.click(screen.getByRole("button", { name: "Tomorrow" }));
     expect(onPatch).toHaveBeenCalledWith({ doDate: localDate("2026-09-15"), doTime: null, evening: false });
     expect(screen.queryByRole("dialog", { name: "Do" })).not.toBeInTheDocument();
+    // "This evening" is a preset like any other; the panel no longer repeats it as a checkbox.
+    await user.click(screen.getByRole("button", { name: /^Do/ }));
+    await user.click(screen.getByRole("button", { name: "This evening" }));
+    expect(onPatch).toHaveBeenLastCalledWith({ doDate: localDate("2026-09-14"), doTime: null, evening: true });
+    expect(screen.queryByRole("checkbox", { name: "This evening" })).not.toBeInTheDocument();
   });
 
-  it("the day, time and evening controls patch exactly their column", async () => {
+  it("the day and time controls patch exactly their column", async () => {
     const { user, onPatch } = setup();
     await user.click(screen.getByRole("button", { name: /^Do/ }));
     fireEvent.change(screen.getByLabelText("Day"), { target: { value: "2026-09-20" } });
@@ -105,8 +110,6 @@ describe("<TaskDetailPanel>", () => {
     expect((onPatch.mock.lastCall?.[0] as { doDate: LocalDate }).doDate.toString()).toBe("2026-09-20");
     fireEvent.change(screen.getByLabelText("Time"), { target: { value: "09:30" } });
     expect((onPatch.mock.lastCall?.[0] as { doTime: LocalTime }).doTime.toString({ smallestUnit: "minute" })).toBe("09:30");
-    await user.click(screen.getByRole("checkbox", { name: "This evening" }));
-    expect(onPatch).toHaveBeenLastCalledWith({ evening: true });
     await user.click(screen.getByRole("button", { name: "No day" }));
     expect(onPatch).toHaveBeenLastCalledWith({ doDate: null, doTime: null, evening: false });
   });

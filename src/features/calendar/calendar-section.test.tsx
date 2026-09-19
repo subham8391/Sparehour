@@ -78,7 +78,8 @@ describe("<CalendarSettings>", () => {
     await user.click(screen.getAllByRole("switch", { name: "Hide titles" })[0]);
     expect(p.onPrivate).toHaveBeenCalledWith("c1", true);
     const radios = screen.getAllByRole("radio");
-    expect(radios.map((r) => r.parentElement?.textContent?.trim())).toEqual(["Personal", "Keep blocks in Sparehour only"]);
+    // The Radio primitive wraps the native input in its own 44 px box, so the row's words live on the label.
+    expect(radios.map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Personal", "Keep blocks in Sparehour only"]);
     expect(radios[0]).toBeChecked();
     await user.click(radios[1]);
     expect(p.onWriteTarget).toHaveBeenCalledWith(null);

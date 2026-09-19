@@ -7,6 +7,7 @@
 // found by name, greyed, with the reason. Presentational.
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Task } from "@/core/types";
+import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
@@ -169,7 +170,8 @@ export function Palette(p: PaletteProps) {
   return (
     // A fixed height on the phone so the sheet does not grow and shrink as the results change under the keyboard.
     <Sheet label="Command palette" onClose={p.onClose} width="lg" className="max-sm:h-[80dvh] sm:max-h-[70vh]">
-      <div className="flex shrink-0 items-center gap-3 border-b border-line px-4">
+      {/* The search box has no border of its own, so the header row is its edge: it switches to ink while the field has focus, and there is no ring (DESIGN_SYSTEM.md §5 "Buttons"). */}
+      <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 transition-colors dur-fast has-[input:focus]:border-ink">
         <Icon name="search" size={18} className="shrink-0 text-ink-3" />
         <input
           ref={inputRef}
@@ -185,11 +187,11 @@ export function Palette(p: PaletteProps) {
           onKeyDown={onKey}
           autoComplete="off"
           spellCheck={false}
-          className="h-14 min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-4"
+          className="h-14 min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none"
         />
-        <button type="button" onClick={p.onClose} aria-label="Close" className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink sm:hidden">
+        <Button variant="icon" onClick={p.onClose} aria-label="Close" className="-mr-2 sm:hidden">
           <Icon name="close" size={18} />
-        </button>
+        </Button>
         <Kbd>esc</Kbd>
       </div>
       <div id={listId} role="listbox" aria-label="Results" className="min-h-0 flex-1 overflow-y-auto p-2">

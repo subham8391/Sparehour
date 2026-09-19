@@ -9,7 +9,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type 
 import { parse, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Button } from "@/ui/button";
-import { Chip, type ChipTone } from "@/ui/chip";
+import { Chip, chipButtonClass, type ChipTone } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
@@ -75,12 +75,29 @@ const SUGGESTIONS: { label: string; insert: string }[] = [
   { label: "!1", insert: "!1" },
 ];
 
-/** A suggestion or a project match: an outlined chip that is also a button, 44 px on the phone and 28 px above. */
-const SUGGEST =
-  "inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-line px-2.5 text-body-sm font-medium text-ink-2 transition-[border-color,color,background-color,transform] dur-fast hover:border-line-strong hover:text-ink motion-safe:active:scale-97 sm:h-7 sm:px-2";
+/** A suggestion or a project match: the chip that is a button (DESIGN_SYSTEM.md §5 "Chips"). */
+const SUGGEST = chipButtonClass();
 
 /** The line itself: the field look at 48 px and 16 px type on every width, so iOS never zooms. The border turns ink on focus, so no ring. */
 const LINE = "h-12 w-full rounded-lg border border-line-control px-3.5 text-base outline-none placeholder:text-ink-4 focus:border-ink focus-visible:outline-none";
+
+/** The long example runs past the end of the box at 412 px, so the phone gets the short invitation. */
+const PLACEHOLDER = "Add a task — e.g. Draft proposal fri 3pm ~45m #acme !1";
+const PLACEHOLDER_NARROW = "Add a task…";
+
+/** True below `sm`, read once the sheet is up rather than guessed on the server. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(max-width: 39.9375rem)");
+    const sync = () => setNarrow(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return narrow;
+}
 
 export function QuickAdd({
   open,
@@ -106,6 +123,7 @@ export function QuickAdd({
   const inputRef = useRef<HTMLInputElement>(null);
   const paintRef = useRef<HTMLDivElement>(null);
   const stripId = useId();
+  const narrow = useNarrow();
 
   // Focus the input on open; hand focus back to whatever opened us on close.
   useEffect(() => {
@@ -244,7 +262,7 @@ export function QuickAdd({
             autoCorrect="off"
             spellCheck={false}
             enterKeyHint="done"
-            placeholder="Add a task — e.g. Draft proposal fri 3pm ~45m #acme !1"
+            placeholder={narrow ? PLACEHOLDER_NARROW : PLACEHOLDER}
             className={cx(LINE, "relative bg-transparent text-transparent caret-ink")}
           />
         </div>
@@ -264,21 +282,22 @@ export function QuickAdd({
             </span>
           )}
         </p>
-        {warnings.length > 0 && <p className="text-body-sm text-over">{warnings.map((w) => WARNING_TEXT[w.code] ?? w.code).join(" · ")}</p>}
+        {warnings.length > 0 && (
+          // A parse warning is a note, not a failure: ink-2 and the alert glyph (DESIGN_SYSTEM.md §2, ruling R1).
+          <p className="flex items-start gap-1.5 text-body-sm text-pretty text-ink-2">
+            <Icon name="alert" size={14} className="mt-0.5 shrink-0" />
+            {warnings.map((w) => WARNING_TEXT[w.code] ?? w.code).join(" · ")}
+          </p>
+        )}
 
         {projectName && !match && (
           <div className="flex flex-wrap items-center gap-1.5">
             {suggestions.map((p) => (
-              <button key={p.id} type="button" onClick={() => pickProject(p)} className={cx(SUGGEST, "text-ink")}>
+              <button key={p.id} type="button" onClick={() => pickProject(p)} className={SUGGEST}>
                 {p.name}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setCreateProject(true)}
-              aria-pressed={willCreate}
-              className={cx(SUGGEST, "aria-pressed:border-meet-line aria-pressed:bg-meet-soft aria-pressed:text-meet")}
-            >
+            <button type="button" onClick={() => setCreateProject(true)} aria-pressed={willCreate} className={SUGGEST}>
               <Icon name="plus" size={12} strokeWidth={2} className="shrink-0" />
               {willCreate ? "Will create" : "Create"} “{projectName}”
               {suggestions.length === 0 && !willCreate && <Kbd className="ml-1">Tab</Kbd>}
@@ -288,7 +307,7 @@ export function QuickAdd({
 
         <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
           {SUGGESTIONS.map((s) => (
-            <button key={s.label} type="button" onClick={() => insert(s.insert)} className={cx(SUGGEST, "num")}>
+            <button key={s.label} type="button" onClick={() => insert(s.insert)} className={SUGGEST}>
               {s.label}
             </button>
           ))}
@@ -316,7 +335,7 @@ export function QuickAdd({
           </p>
         )}
         {error && (
-          <p role="alert" className="flex items-center gap-1.5 text-body-sm text-over">
+          <p role="alert" className="flex items-center gap-1.5 text-body-sm text-deadline">
             <Icon name="alert" size={14} className="shrink-0" /> {error}
           </p>
         )}

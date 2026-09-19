@@ -10,5 +10,5 @@ export const HINT = "text-body-sm text-pretty text-ink-2";
 export const NOTE = "text-body-sm text-pretty text-ink-3";
 /** A value shown beside a label: the email, the version, "Off". */
 export const VALUE = "text-body text-ink-2 num";
-/** A text action inside a row ("None"): 44 px on the phone, 28 above. */
-export const ROW_ACTION = "flex h-11 shrink-0 items-center rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-7";
+/** A failed action or a form error: the deadline role, the product's one red (DESIGN_SYSTEM.md §2, ruling R1). */
+export const ERROR = "text-body-sm text-pretty text-deadline";

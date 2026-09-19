@@ -1,9 +1,10 @@
 "use client";
 // The bulk-edit bar (PRODUCT_SPEC.md "Multi-select + bulk edit"; SCREENS.md
-// §24): appears while rows are ticked, sits above the tab bar on the phone
-// and above the quick-add bar elsewhere. A raised panel (DESIGN_SYSTEM.md
-// §4: surface-3, the ink shadow in light, a hairline in dark) of quiet
-// buttons, 44 px on the phone. Every action is one write with one undo
+// §24): appears while rows are ticked. On a phone it is a sheet docked above
+// the tab bar — a "3 selected · Done" header over 48 px rows — and from `sm`
+// up the same actions are one floating line above the quick-add bar. Either
+// way it is the raised panel (DESIGN_SYSTEM.md §4: surface-3, the ink shadow
+// in light, a hairline in dark). Every action is one write with one undo
 // entry, then the ticks clear. Escape clears them without a write.
 import { useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
@@ -17,8 +18,11 @@ import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
+import { DateField } from "@/ui/date-field";
+import { Input } from "@/ui/field";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
+import { RAISED } from "@/ui/sheet";
 import { useSelection } from "./selection-provider";
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
@@ -29,10 +33,12 @@ const PRIORITIES: { value: Priority; label: string }[] = [
   { value: 1, label: "!3 Low" },
   { value: 0, label: "None" },
 ];
-// Every action is the quiet button, a touch closer together than the default so the bar stays one line.
-const QUIET = cx(buttonClass({ variant: "quiet" }), "px-2.5");
-// The date and tag fields wear the same look as the buttons; their inputs carry no ring, the row does.
-const FIELD = cx(QUIET, "cursor-pointer gap-1 focus-within:bg-hover focus-within:text-ink");
+// Every action is the quiet button: a full-width 48 px row in the phone sheet, a touch
+// closer together than the default from `sm` up so the bar stays one line.
+const ACTION = "max-sm:min-h-12 max-sm:justify-start max-sm:rounded-lg max-sm:px-2 sm:px-2.5";
+const QUIET = cx(buttonClass({ variant: "quiet" }), ACTION);
+// The two fields go last on the phone, where each takes a row of its own.
+const FIELD = "max-sm:order-1 max-sm:col-span-2 max-sm:w-full";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -80,98 +86,99 @@ export function BulkBar() {
   };
 
   return (
-    // The actions wrap onto more lines rather than scroll: a scroll box would clip the menus that open upward from the bar.
+    // Neither band scrolls its actions: a scroll box would clip the menus that open upward from the bar.
     <div
       role="toolbar"
       aria-label="Bulk edit"
-      className="fixed inset-x-3 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] z-30 mx-auto flex max-w-4xl flex-wrap items-center gap-x-0.5 gap-y-1 rounded-xl border border-raised-border bg-surface-3 px-2 py-2 shadow-raised sm:bottom-16 sm:inset-x-6"
+      className={cx(
+        RAISED,
+        // The phone: a sheet flush above the tab bar.
+        "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 flex flex-col rounded-t-sheet max-sm:shadow-sheet",
+        // From `sm` up: one floating line that wraps rather than scrolls.
+        "sm:inset-x-6 sm:bottom-16 sm:mx-auto sm:max-w-5xl sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-0.5 sm:gap-y-1 sm:rounded-xl sm:px-2 sm:py-2",
+      )}
     >
-      <span className="mr-2 ml-1.5 shrink-0 whitespace-nowrap text-body text-ink-2">
+      {/* The phone's header says what is held and how to let go; from `sm` the count sits at the head of the line instead. */}
+      <div className="flex min-h-12 items-center justify-between gap-2 border-b border-line pr-2 pl-4 sm:hidden">
+        <span className="text-body text-ink-2">
+          <b className="font-semibold text-ink num">{count}</b> selected
+        </span>
+        <Button variant="link" onClick={done}>
+          Done
+        </Button>
+      </div>
+      <span className="mr-2 ml-1.5 shrink-0 whitespace-nowrap text-body text-ink-2 max-sm:hidden">
         <b className="font-semibold text-ink num">{count}</b> selected
       </span>
-      <Button variant="quiet" className="px-2.5 text-ink" onClick={() => patch({ doDate: today, doTime: null, evening: false }, "Moved {title} to today")}>
-        Today
-      </Button>
-      <Button variant="quiet" className="px-2.5" onClick={() => patch({ doDate: tomorrow, doTime: null, evening: false }, "Moved {title} to tomorrow")}>
-        Tomorrow
-      </Button>
-      <label className={FIELD}>
-        <Icon name="calendar" size={16} className="shrink-0" />
-        <span className="sr-only">Pick a date</span>
-        <input type="date" aria-label="Pick a date" className="w-30 bg-transparent text-body-sm text-ink outline-none num focus-visible:outline-none" onChange={(e) => e.target.value && patch({ doDate: localDate(e.target.value), doTime: null, evening: false }, "Moved {title}")} />
-      </label>
-      <MenuButton label="Project" text="Project…" align="left" direction="up" className={QUIET}>
-        {(close) => (
-          <>
-            <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: null }, "Moved {title} out of its project"))}>
-              No project
-            </button>
-            {projects.map((p) => (
-              <button key={p.id} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: p.id }, `Moved {title} to ${p.name}`))}>
-                {p.name}
-              </button>
-            ))}
-          </>
-        )}
-      </MenuButton>
-      <MenuButton label="Priority" text="Priority" align="left" direction="up" className={QUIET}>
-        {(close) =>
-          PRIORITIES.map((x) => (
-            <button key={x.value} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ priority: x.value }, `Set {title} to ${x.label.toLowerCase()} priority`))}>
-              {x.label}
-            </button>
-          ))
-        }
-      </MenuButton>
-      <MenuButton label="Estimate" text="Estimate" align="left" direction="up" className={QUIET}>
-        {(close) => (
-          <>
-            {ESTIMATES.map((m) => (
-              <button key={m} type="button" role="menuitem" className={cx(MENU_ITEM, "num")} onClick={() => (close(), patch({ estimateMin: m }, `Estimated {title} at ${formatMinutes(m)}`))}>
-                {formatMinutes(m)}
-              </button>
-            ))}
-            <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ estimateMin: null }, "Cleared the estimate on {title}"))}>
-              No estimate
-            </button>
-          </>
-        )}
-      </MenuButton>
-      <label className={FIELD}>
-        <span className="text-ink-3">@</span>
-        <input
-          aria-label="Add a tag"
-          placeholder="tag"
-          value={tag}
-          onChange={(e) => setTag(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addTag();
-            }
-          }}
-          className="w-20 bg-transparent text-body-sm text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none"
+      {/* Two columns of 48 px rows on the phone; from `sm` the actions join the bar's own line. */}
+      <div className="grid grid-cols-2 items-center gap-x-1 gap-y-0.5 p-2 sm:contents">
+        <Button variant="quiet" className={cx(ACTION, "text-ink")} onClick={() => patch({ doDate: today, doTime: null, evening: false }, "Moved {title} to today")}>
+          Today
+        </Button>
+        <Button variant="quiet" className={ACTION} onClick={() => patch({ doDate: tomorrow, doTime: null, evening: false }, "Moved {title} to tomorrow")}>
+          Tomorrow
+        </Button>
+        <DateField
+          aria-label="Pick a date"
+          placeholder="Pick a date"
+          value=""
+          today={today}
+          className={cx(FIELD, "sm:w-32")}
+          onChange={(e) => e.target.value && patch({ doDate: localDate(e.target.value), doTime: null, evening: false }, "Moved {title}")}
         />
-      </label>
-      <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
-      <Button variant="quiet" className="px-2.5" onClick={() => void repo.completeMany(ids).then(done)}>
-        Complete
-      </Button>
-      <Button variant="quiet" className="px-2.5" onClick={() => void repo.setStateMany(ids, "someday").then(done)}>
-        Someday
-      </Button>
-      <Button variant="quiet" className="px-2.5" onClick={() => void repo.setStateMany(ids, "dropped").then(done)}>
-        Drop
-      </Button>
-      <button
-        type="button"
-        aria-label="Clear the selection"
-        title="Clear the selection (Esc)"
-        onClick={done}
-        className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:size-9"
-      >
-        <Icon name="close" size={16} />
-      </button>
+        <MenuButton label="Project" text="Project…" align="left" direction="up" className={QUIET}>
+          {(close) => (
+            <>
+              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: null }, "Moved {title} out of its project"))}>
+                No project
+              </button>
+              {projects.map((p) => (
+                <button key={p.id} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: p.id }, `Moved {title} to ${p.name}`))}>
+                  {p.name}
+                </button>
+              ))}
+            </>
+          )}
+        </MenuButton>
+        <MenuButton label="Priority" text="Priority" align="left" direction="up" className={QUIET}>
+          {(close) =>
+            PRIORITIES.map((x) => (
+              <button key={x.value} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ priority: x.value }, `Set {title} to ${x.label.toLowerCase()} priority`))}>
+                {x.label}
+              </button>
+            ))
+          }
+        </MenuButton>
+        <MenuButton label="Estimate" text="Estimate" align="left" direction="up" className={QUIET}>
+          {(close) => (
+            <>
+              {ESTIMATES.map((m) => (
+                <button key={m} type="button" role="menuitem" className={cx(MENU_ITEM, "num")} onClick={() => (close(), patch({ estimateMin: m }, `Estimated {title} at ${formatMinutes(m)}`))}>
+                  {formatMinutes(m)}
+                </button>
+              ))}
+              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ estimateMin: null }, "Cleared the estimate on {title}"))}>
+                No estimate
+              </button>
+            </>
+          )}
+        </MenuButton>
+        <Input aria-label="Add a tag" placeholder="@tag" value={tag} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => (e.key === "Enter" ? (e.preventDefault(), addTag()) : undefined)} className={cx(FIELD, "sm:w-24")} />
+        <span className="mx-1 h-5 w-px shrink-0 bg-line max-sm:hidden" aria-hidden="true" />
+        <Button variant="quiet" className={ACTION} onClick={() => void repo.completeMany(ids).then(done)}>
+          Complete
+        </Button>
+        <Button variant="quiet" className={ACTION} onClick={() => void repo.setStateMany(ids, "someday").then(done)}>
+          Someday
+        </Button>
+        {/* Drop is undoable, so it stays ink (DESIGN_SYSTEM.md §2). */}
+        <Button variant="quiet" className={ACTION} onClick={() => void repo.setStateMany(ids, "dropped").then(done)}>
+          Drop
+        </Button>
+        <Button variant="icon" aria-label="Clear the selection" title="Clear the selection (Esc)" onClick={done} className="ml-auto max-sm:hidden">
+          <Icon name="close" size={16} />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -46,6 +46,9 @@ describe("permissionCopy", () => {
     expect(permissionCopy("granted", platform(CHROME), false, true)).toMatchObject({ action: "enable" });
     expect(permissionCopy("denied", platform(CHROME), false, true)).toMatchObject({ headline: "Blocked in your browser.", action: null, steps: ["Click the icon left of the address bar", "Notifications → Allow"] });
     expect(permissionCopy("denied", platform(FIREFOX), false, true).steps[0]).toMatch(/permissions icon/);
+    // A touch device has no address bar to point at, whatever its user agent says.
+    expect(permissionCopy("denied", platform(ANDROID), false, true).steps[0]).toMatch(/browser's menu/);
+    expect(permissionCopy("denied", detectPushPlatform({ userAgent: CHROME, maxTouchPoints: 5 }, false), false, true).steps[0]).toMatch(/browser's menu/);
     expect(permissionCopy("denied", platform(SAFARI), false, true).steps[0]).toMatch(/Safari → Settings/);
     expect(permissionCopy("denied", platform(IPHONE, true), false, true).steps[0]).toMatch(/Settings → Notifications/);
     expect(permissionCopy("unsupported", platform(CHROME), false, true)).toMatchObject({ action: null });
