@@ -168,6 +168,16 @@ Renders **only when non-empty**. Header: `CARRIED OVER · 2`, a collapse chevron
   Max two asks visible per day; the rest wait.
 - Section footer when 3+ rows: `Move all to tomorrow` · `All to Someday` — both undoable.
 
+### 2.3a Morning review — M1
+
+The first open of a new day (SYSTEM_DESIGN.md §5.3; DECISIONS.md, carry-over ruling amended 2026-09-27) asks about the pile before anything else: a sheet (bottom sheet on a phone, centred dialog from `sm`) named **Review carried-over tasks**.
+
+- Heading in the serif: "3 things didn’t happen yesterday." when every carried task was due yesterday, "3 things are still waiting." otherwise (singular handled). One quiet line under it: "Keep what still matters. The rest can wait, or go."
+- One row per carried task, 48 px, in the Carried over order: the title (two lines on a phone), `×N` and the estimate chip in the quiet run beneath it, a four-way control **Keep · Tomorrow · Someday · Drop** (a radiogroup named "Choice for *title*", Keep chosen by default, 44 px on touch) and a quiet **Pick a day** that opens a date field for any other day; a picked day leaves every segment unchosen. The list scrolls inside the sheet; the footer holds the bottom edge above the safe area.
+- Footer: **Done** applies the answers (Keep is the row's "Keep today", a reschedule to today; Tomorrow and a picked day are the same move; Someday and Drop reset the carry count as everywhere else; tasks that share an answer are one undo) and then stamps `day_plans.carry_reviewed_at`. **Not now**, Escape and the scrim stamp the day without touching a task, so nothing is lost.
+- Rules: shown only when Settings › Planning › **Morning review** is on (the default), Carried over is non-empty, the first sync has settled, the route is not a ritual, today's plan has neither `carry_reviewed_at` nor `planned_at`, and yesterday's has no `shutdown_at`: a person who decided in the evening shutdown or already planned this morning is never asked twice. Never under the restore gate, never before the settings are in hand, once per day at most.
+- On demand: a quiet **Review carried** link beside Morning plan · Shutdown in the header (from `sm`) and on the phone's ritual row, whenever the pile is non-empty.
+
 ### 2.4 Today list
 
 Row anatomy, left to right: `checkbox · title · project chip · tags · estimate chip · deadline flag · priority mark · ⋯`.

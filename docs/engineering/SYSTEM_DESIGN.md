@@ -1886,6 +1886,10 @@ clearTheSlate(userId, scope) :=
 ```
 It archives. It never deletes. The undo entry is a single batch so one Cmd+Z restores everything.
 
+#### The morning review (migration `20260927000100`)
+
+`user_settings.carry_review` (boolean, default true) switches the first-open review of the carried pile on or off, and `day_plans.carry_reviewed_at` records when a day's review was answered or dismissed, so it is offered at most once per local day and never after the evening shutdown (`shutdown_at` on yesterday's row) or the morning plan (`planned_at`) already settled the pile. Both are a person's own columns (no guard and no `SERVER_OWNED_COLUMNS` entry touches them), and the sheet's writes are the ordinary task moves (`reschedule`, `updateMany`, `setState`, `setStateMany`) with their undo; the rules live in `src/features/rituals/carry-review.ts`.
+
 #### What rollover never does
 
 - It never touches `deadline`. Only a missed **deadline** is shown as overdue/red (DECISIONS.md). Do-dates moving is the normal, guilt-free path.

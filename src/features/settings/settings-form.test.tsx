@@ -17,6 +17,7 @@ function setup(over: Partial<SettingsFormProps> = {}) {
       defaultEstimateMin: 30,
       carryAskAfter: 3,
       autoSomedayDays: 30,
+      carryReview: true,
       eveningStartsAt: "18:00",
       theme: "system",
       notifyBlockStart: true,
@@ -134,6 +135,16 @@ describe("<SettingsForm>", () => {
     setup({ data: { onExport, busy: "json", error: null, lastFile: null } });
     expect(screen.getByRole("button", { name: "Preparing…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "CSV" })).toBeDisabled();
+  });
+
+  it("the morning review switch saves its own column and says so", async () => {
+    const { user, onChange } = setup();
+    const row = screen.getByRole("switch", { name: "Morning review" });
+    expect(row).toBeChecked();
+    expect(screen.getByText("Ask about carried-over tasks when the day starts")).toBeInTheDocument();
+    await user.click(row);
+    expect(onChange).toHaveBeenLastCalledWith({ carryReview: false });
+    expect(screen.getAllByRole("status").some((s) => s.textContent?.includes("Saved"))).toBe(true);
   });
 
   it("numbers stay inside their range", async () => {

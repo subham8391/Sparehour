@@ -32,6 +32,8 @@ export interface SettingsValues {
   defaultEstimateMin: number;
   carryAskAfter: number;
   autoSomedayDays: number;
+  /** The morning review of carried-over tasks on the first open of a new day. */
+  carryReview: boolean;
   eveningStartsAt: string;
   theme: "system" | "light" | "dark";
   notifyBlockStart: boolean;
@@ -202,6 +204,7 @@ export function SettingsForm(p: SettingsFormProps) {
         <NumberRow id="estimate" label="Default estimate" unit="minutes" value={values.defaultEstimateMin} min={5} max={480} step={5} onChange={(v) => change({ defaultEstimateMin: v })} />
         <NumberRow id="carry" label="Ask about a carried-over task after" unit="carries" value={values.carryAskAfter} min={1} max={14} step={1} onChange={(v) => change({ carryAskAfter: v })} />
         <NumberRow id="someday" label="Move an untouched task to Someday after" unit="days" value={values.autoSomedayDays} min={7} max={120} step={1} onChange={(v) => change({ autoSomedayDays: v })} />
+        <SwitchRow id="carry-review" label="Morning review" hint="Ask about carried-over tasks when the day starts" checked={values.carryReview} onChange={(v) => change({ carryReview: v })} />
       </Section>
 
       <Section title="Notifications" saved={saved}>
@@ -403,12 +406,21 @@ function WorkDayRow({ name, segment, onChange }: { name: string; segment: Segmen
   );
 }
 
-function SwitchRow({ id, label, checked, onChange, children }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; children?: ReactNode }) {
+function SwitchRow({ id, label, hint, checked, onChange, children }: { id: string; label: string; /** The second line under the label. */ hint?: string; checked: boolean; onChange: (v: boolean) => void; children?: ReactNode }) {
   return (
     <div className={ROW}>
-      <label htmlFor={id} className={LABEL}>
-        {label}
-      </label>
+      {hint ? (
+        <span className="flex min-w-0 flex-col">
+          <label htmlFor={id} className={LABEL}>
+            {label}
+          </label>
+          <span className={HINT}>{hint}</span>
+        </span>
+      ) : (
+        <label htmlFor={id} className={LABEL}>
+          {label}
+        </label>
+      )}
       <span className="flex items-center gap-3">
         {children}
         <Switch id={id} aria-label={label} checked={checked} onChange={onChange} />

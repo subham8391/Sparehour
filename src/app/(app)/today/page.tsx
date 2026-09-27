@@ -13,6 +13,7 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlocking } from "@/features/blocking/blocking-provider";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { useProjectNames } from "@/features/projects/use-project-names";
+import { useCarryReview } from "@/features/rituals/carry-review-host";
 import { plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
 import { Ribbon } from "@/features/today/ribbon";
@@ -86,6 +87,7 @@ export default function TodayPage() {
   }, []);
   const model = useToday(now);
   const detail = useTaskDetail();
+  const review = useCarryReview();
   const sel = useListSelection([model.carried.map((t) => t.id), model.todayTasks.map((t) => t.id), model.eveningTasks.map((t) => t.id)]);
   const time = useInteractionTimer();
   useEffect(() => {
@@ -263,6 +265,12 @@ export default function TodayPage() {
             !closedAt && (
               // From the narrow band up the rituals live here; the phone has its own row under the hero.
               <>
+                {review && review.carried > 0 && (
+                  // The morning review, on demand: the same sheet the first open of the day offers (SCREENS.md §2.3a).
+                  <button type="button" onClick={review.open} className={cx(buttonClass({ variant: "link" }), "text-ink-2 max-sm:hidden")}>
+                    Review carried
+                  </button>
+                )}
                 {plannedAt ? (
                   <span className="hidden h-9 items-center px-2 text-label text-ink-3 num sm:flex">{plannedLabel(plannedAt)}</span>
                 ) : (
@@ -323,6 +331,11 @@ export default function TodayPage() {
                   )}
                 </span>
               ))}
+            {!closedAt && review && review.carried > 0 && (
+              <button type="button" onClick={review.open} className={cx(buttonClass({ variant: "link" }), "text-ink-2 sm:hidden")}>
+                Review carried
+              </button>
+            )}
             {hasDay && (
               <Segmented
                 className="ml-auto"

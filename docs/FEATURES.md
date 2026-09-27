@@ -75,6 +75,7 @@ Each feature is tagged with the milestone where it fits:
 | Morning plan ritual (2–5 min, skippable) | M1 | Sunsama |
 | Evening shutdown ritual | M1 | Sunsama |
 | Carry-over section; gentle ask after 3 carry-overs; auto-Someday at 30 days; "Clear the slate" | M1 | Bullet Journal migration |
+| Morning review: the first open of a new day asks what to do with each carried-over task (Keep · Tomorrow · Someday · Drop · a picked day); skipped after an evening shutdown or a morning plan; switchable in Settings | M1 | Sunsama |
 | Two-way Google Calendar: read all, write blocks to one | M1 | Sunsama, Todoist |
 | Drag to time-block | M1 | Sunsama, Akiflow |
 | "Plan my day": suggest → preview → approve, explains each placement, lockable blocks | M2 | Morgen, Akiflow |

@@ -118,6 +118,8 @@ export interface Settings {
   carryAskAfter: number;
   autoSomedayDays: number;
   eveningStartsAt: LocalTime;
+  /** Offer the morning review of carried-over tasks on the first open of a new day (on by default; null before the column has synced). */
+  carryReview: boolean;
 }
 
 export function toSettings(r: UserSettingsRow): Settings {
@@ -129,5 +131,6 @@ export function toSettings(r: UserSettingsRow): Settings {
     carryAskAfter: r.carry_ask_after ?? 3,
     autoSomedayDays: r.auto_someday_days ?? 30,
     eveningStartsAt: localTime((r.evening_starts_at ?? "18:00").slice(0, 5)),
+    carryReview: r.carry_review == null ? true : bool(r.carry_review),
   };
 }

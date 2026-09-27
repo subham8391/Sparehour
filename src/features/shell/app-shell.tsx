@@ -14,6 +14,7 @@ import { PushDeepLink } from "@/features/notifications/push-actions";
 import { useAppBadge } from "@/features/notifications/use-app-badge";
 import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
+import { CarryReviewHost } from "@/features/rituals/carry-review-host";
 import { BulkBar } from "@/features/selection/bulk-bar";
 import { SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailPane, TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
@@ -40,7 +41,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               <PaletteProvider>
                 <BlockingProvider>
                   <Keyboard>
-                    <Frame>{children}</Frame>
+                    <CarryReviewHost>
+                      <Frame>{children}</Frame>
+                    </CarryReviewHost>
                     <PaletteHost />
                     <PushDeepLink />
                   </Keyboard>

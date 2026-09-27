@@ -10,6 +10,7 @@ import { Palette } from "@/features/commands/palette";
 import { COMMANDS } from "@/features/commands/registry";
 import { PushActionSheet } from "@/features/notifications/push-actions";
 import { QuickAdd } from "@/features/quickadd/quick-add";
+import { CarryReviewSheet } from "@/features/rituals/carry-review-sheet";
 import { MorningPlanFlow } from "@/features/rituals/morning-plan-flow";
 import { ShutdownFlow } from "@/features/rituals/shutdown-flow";
 import { SearchView } from "@/features/search/search-view";
@@ -177,7 +178,7 @@ describe("axe: every M1 surface", () => {
   it("settings, with every panel", async () => {
     await check(
       <SettingsForm
-        values={{ timezone: "Europe/London", weekStart: 0, dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, carryAskAfter: 3, autoSomedayDays: 30, eveningStartsAt: "18:00", theme: "system", notifyBlockStart: true, notifyDeadline: true, notifyMorning: true, notifyShutdown: false, morningNudgeTime: "08:30", shutdownNudgeTime: "", quietHoursStart: "21:30", quietHoursEnd: "07:30" }}
+        values={{ timezone: "Europe/London", weekStart: 0, dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, carryAskAfter: 3, autoSomedayDays: 30, carryReview: true, eveningStartsAt: "18:00", theme: "system", notifyBlockStart: true, notifyDeadline: true, notifyMorning: true, notifyShutdown: false, morningNudgeTime: "08:30", shutdownNudgeTime: "", quietHoursStart: "21:30", quietHoursEnd: "07:30" }}
         workHours={[{ start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "17:00" }, null, null]}
         detectedTimeZone="Asia/Kolkata"
         account={{ name: "Dev User", email: "dev@sparehour.local" }}
@@ -229,6 +230,16 @@ describe("axe: every M1 surface", () => {
       />,
     );
     await check(<PushActionSheet link={{ kind: "block_start", taskId: "t1", blockId: "b1", action: null }} onPick={noop} onClose={noop} />);
+    const noWrites = { reschedule: async () => {}, updateMany: async () => {}, setState: async () => {}, setStateMany: async () => {} };
+    await check(
+      <CarryReviewSheet
+        tasks={[taskFixture("c1", "Book dentist", { doDate: localDate("2026-09-13"), carryCount: 3, estimateMin: 10 }), taskFixture("c2", "Renew the car insurance", { doDate: localDate("2026-09-11"), carryCount: 1, estimateMin: null })]}
+        today={TODAY}
+        repo={noWrites}
+        onStamp={noop}
+        onClose={noop}
+      />,
+    );
     await check(
       <TaskList>
         <InlineAdd ctx={{ now: NOW, zone: "Europe/London" }} onAdd={noop} placeholder="Add a task" />

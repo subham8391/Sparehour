@@ -9,6 +9,8 @@ export interface SettingsPatch {
   defaultEstimateMin?: number;
   carryAskAfter?: number;
   autoSomedayDays?: number;
+  /** The morning review of carried-over tasks on the first open of a new day. */
+  carryReview?: boolean;
   eveningStartsAt?: string; // "18:00"
   theme?: "system" | "light" | "dark";
   // notifications (SYSTEM_DESIGN.md §7.1); a null time turns that nudge off
@@ -30,6 +32,7 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   defaultEstimateMin: "default_estimate_min",
   carryAskAfter: "carry_ask_after",
   autoSomedayDays: "auto_someday_days",
+  carryReview: "carry_review",
   eveningStartsAt: "evening_starts_at",
   theme: "theme",
   notifyBlockStart: "notify_block_start",

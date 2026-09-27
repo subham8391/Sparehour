@@ -46,6 +46,7 @@ export default function SettingsPage() {
         defaultEstimateMin: s.default_estimate_min ?? 30,
         carryAskAfter: s.carry_ask_after ?? 3,
         autoSomedayDays: s.auto_someday_days ?? 30,
+        carryReview: (s.carry_review ?? 1) === 1,
         eveningStartsAt: (s.evening_starts_at ?? "18:00").slice(0, 5),
         theme: (s.theme === "light" || s.theme === "dark" ? s.theme : "system") as SettingsValues["theme"],
         notifyBlockStart: (s.notify_block_start ?? 1) === 1,

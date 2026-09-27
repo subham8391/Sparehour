@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localDate } from "@/core/time";
 import type { LocalDatabase } from "../powersync";
 import { TaskRepo, columnsTouched } from "./task-repo";
@@ -221,6 +221,9 @@ describe("TaskRepo undo after the row has left the device", () => {
 });
 
 describe("TaskRepo completing a repeating task (SYSTEM_DESIGN.md §5.2)", () => {
+  // The next occurrence is reckoned from the real clock, so the clock is held on the week these rows describe.
+  beforeEach(() => vi.useFakeTimers({ now: new Date("2026-09-14T12:00:00Z"), toFake: ["Date"] }));
+  afterEach(() => vi.useRealTimers());
   const weekly = { id: "r1", space_id: "s1", do_date: "2026-09-14", recurrence_rule: "FREQ=WEEKLY", recurrence_mode: "fixed", recurrence_series_id: "r1", recurrence_paused_until: null, actual_min: null };
   const snapshot = { id: "r1", space_id: "s1", title: "Water the plants", state: "active", do_date: "2026-09-14", completed_at: null, sort_key: "a0" };
 

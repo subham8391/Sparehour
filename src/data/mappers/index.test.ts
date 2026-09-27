@@ -52,8 +52,18 @@ describe("row → domain", () => {
     const s = toSettings({ id: "x", user_id: "u", space_id: "s", timezone: null, week_start: null, day_rollover_hour: null, buffer_pct: null, default_estimate_min: null,
       max_block_min: null, min_block_min: null, carry_ask_after: null, auto_someday_days: null, morning_nudge_time: null, shutdown_nudge_time: null,
       quiet_hours_start: null, quiet_hours_end: null, notify_block_start: null, notify_deadline: null, notify_morning: null, notify_shutdown: null,
-      theme: null, evening_starts_at: null, ai_enabled: null, created_at: null, updated_at: null });
-    expect(s).toMatchObject({ timezone: "UTC", dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, carryAskAfter: 3, autoSomedayDays: 30 });
+      theme: null, evening_starts_at: null, ai_enabled: null, carry_review: null, created_at: null, updated_at: null });
+    expect(s).toMatchObject({ timezone: "UTC", dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, carryAskAfter: 3, autoSomedayDays: 30, carryReview: true });
     expect(s.eveningStartsAt.toString({ smallestUnit: "minute" })).toBe("18:00");
+  });
+
+  it("reads the morning review switch as a boolean, on until the column has synced", () => {
+    const row = { id: "x", user_id: "u", space_id: "s", timezone: null, week_start: null, day_rollover_hour: null, buffer_pct: null, default_estimate_min: null,
+      max_block_min: null, min_block_min: null, carry_ask_after: null, auto_someday_days: null, morning_nudge_time: null, shutdown_nudge_time: null,
+      quiet_hours_start: null, quiet_hours_end: null, notify_block_start: null, notify_deadline: null, notify_morning: null, notify_shutdown: null,
+      theme: null, evening_starts_at: null, ai_enabled: null, carry_review: null, created_at: null, updated_at: null };
+    expect(toSettings({ ...row, carry_review: 0 }).carryReview).toBe(false);
+    expect(toSettings({ ...row, carry_review: 1 }).carryReview).toBe(true);
+    expect(toSettings(row).carryReview).toBe(true);
   });
 });

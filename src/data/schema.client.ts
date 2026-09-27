@@ -60,6 +60,7 @@ export const user_settings = new Table({
   theme: column.text,
   evening_starts_at: column.text,
   ai_enabled: column.integer,
+  carry_review: column.integer,
   created_at: column.text,
   updated_at: column.text,
 });
@@ -228,6 +229,7 @@ export const day_plans = new Table(
     date: column.text,
     planned_at: column.text,
     shutdown_at: column.text,
+    carry_reviewed_at: column.text,
     highlights: column.text,
     day_rating: column.integer,
     capacity_work_min: column.integer,

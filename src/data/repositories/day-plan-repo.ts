@@ -6,6 +6,8 @@ import type { LocalDatabase } from "../powersync";
 export interface DayPlanPatch {
   plannedAt?: string | null;
   shutdownAt?: string | null;
+  /** When the morning review of carried-over tasks was answered or dismissed for the day. */
+  carryReviewedAt?: string | null;
   highlights?: string | null;
   dayRating?: number | null;
 }
@@ -13,6 +15,7 @@ export interface DayPlanPatch {
 const COLUMNS: Record<keyof DayPlanPatch, string> = {
   plannedAt: "planned_at",
   shutdownAt: "shutdown_at",
+  carryReviewedAt: "carry_reviewed_at",
   highlights: "highlights",
   dayRating: "day_rating",
 };
