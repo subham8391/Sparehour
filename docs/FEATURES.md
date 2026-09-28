@@ -39,7 +39,7 @@ Each feature is tagged with the milestone where it fits:
 | 3 priority levels + none | M1 | — |
 | Do-date + optional deadline + optional start date (hides until relevant) | M1 | Things, OmniFocus |
 | Someday state | M1 | Things, GTD |
-| Logbook of completed tasks | M1 | Things |
+| Logbook of completed tasks, kept for one week, then removed for good (nightly purge; the export is the long memory) | M1 | Things |
 | Recurring tasks in plain language, incl. "after completion" repeats; future occurrences visible | M1 | Todoist (Notion fails at this) |
 | Markdown notes on tasks | M1 | Things |
 | Multi-select + bulk edit | M1 | Linear |

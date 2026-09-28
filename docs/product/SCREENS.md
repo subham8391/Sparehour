@@ -365,6 +365,8 @@ The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
 
 ## 8. Logbook — M1
 
+The Logbook shows the last week: a finished task is removed for good seven days after it was completed (nightly job, DECISIONS.md 2026-09-28). Its empty state says so ("Done tasks stay here for a week.").
+
 - Completed and dropped tasks, newest first, grouped by completion day.
 - Day headers: `Monday 14 Sep · 7 done · 4h 20m`. Once actuals exist (M2): `planned 4h 20m · actual 5h 05m`.
 - Dropped tasks sit in a separate, collapsed sub-group per day.

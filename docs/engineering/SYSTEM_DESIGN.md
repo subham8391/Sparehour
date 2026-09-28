@@ -1776,6 +1776,8 @@ A recurring task with `miss_policy = 'skip'` that is missed does **not** carry: 
 
 ### 5.3 Carry-over / rollover engine
 
+**Done purge (2026-09-28).** `private.purge_done_tasks(p_keep)` runs nightly at 03:30 (`sparehour_done_purge`) and hard-deletes tasks with `state = 'done'` and `completed_at` older than a week, with their `checklist_items`, `task_tags` and `task_completions` (completion records age out on the same clock, so the Logbook always shows one week). Their `time_blocks` are soft-deleted with `task_id` cleared instead, because a block that reached Google is taken back by the push worker, which reads `deleted_at` (§6.5). Hard deletes reach every device through replication; done rows are only in the `logbook` stream. Contract: `src/server/db/done-purge.test.ts`.
+
 #### The key design decision: carry-over is a view first, a job second
 
 "Carried over" in the Today UI is a **derived query**:

@@ -69,7 +69,7 @@ export default function LogbookPage() {
       {!isLoading && groups.length === 0 ? (
         <div className="flex flex-col gap-3">
           <Icon name="book" size={20} className="text-ink-3" />
-          <EmptyCard fact="Nothing finished yet.">Done tasks collect here.</EmptyCard>
+          <EmptyCard fact="Nothing finished yet.">Done tasks stay here for a week.</EmptyCard>
         </div>
       ) : (
         groups.map((g) => (
