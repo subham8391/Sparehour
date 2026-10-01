@@ -4,15 +4,13 @@
 // section, completed tasks tucked away, Someday collapsed at the bottom.
 import Link from "next/link";
 import { use, useMemo, useState } from "react";
-import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { useQuery } from "@/data/powersync";
 import type { TaskDraft } from "@/core/quickadd";
 import { formatMinutes, localDate } from "@/core/time";
 import type { Heading } from "@/core/types";
 import { toHeading, toProject, toTask } from "@/data/mappers";
 import { AREAS_SQL, type AreaRow } from "@/data/queries/nav";
 import { PROJECT_DONE_SQL, PROJECT_HEADINGS_SQL, PROJECT_SQL, PROJECT_TASKS_SQL, monthsBack } from "@/data/queries/views";
-import { HeadingRepo } from "@/data/repositories/heading-repo";
-import { ProjectRepo } from "@/data/repositories/project-repo";
 import type { HeadingRow, ProjectRow, TaskRow as TaskRowType } from "@/data/schema.client";
 import { groupByHeading, summarise, type HeadingGroup } from "@/features/projects/organise";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
@@ -25,6 +23,7 @@ import { InlineAdd } from "@/features/tasks/inline-add";
 import { DayChipTag, MoveActions } from "@/features/tasks/task-actions";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useHeadingRepo, useProjectRepo } from "@/features/tasks/use-repos";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button, buttonClass } from "@/ui/button";
 import { Chip, DeadlineChip } from "@/ui/chip";
@@ -45,10 +44,9 @@ const DISCLOSURE = "-ml-2 flex h-11 items-center gap-1.5 self-start rounded-sm p
 
 export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   const { id } = use(params);
-  const db = useLocalDatabase();
   const tasksRepo = useTaskRepo();
-  const projectRepo = useMemo(() => new ProjectRepo(db), [db]);
-  const headingRepo = useMemo(() => new HeadingRepo(db), [db]);
+  const projectRepo = useProjectRepo();
+  const headingRepo = useHeadingRepo();
   const detail = useTaskDetail();
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);

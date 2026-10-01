@@ -48,9 +48,16 @@ export interface Interpretation {
   parts: string[];
   /** The parts joined for the strip; empty when nothing beyond the title was found. */
   strip: string;
-  /** Where the task lands: Inbox, Today or Upcoming. */
-  destination: "Inbox" | "Today" | "Upcoming";
+  /**
+   * Where the task lands (PRODUCT_SPEC.md §5.1 rule 5: no date and no project → Inbox, anything else is
+   * active): Today or Upcoming by its day; with no day, the project it is filed in, or Upcoming's "Not yet
+   * planned" when only a deadline or a start date dates it; the Inbox when nothing files or dates it.
+   */
+  destination: string;
 }
+
+/** How the sheet words a project it will create on save. */
+const NEW_PROJECT = "new project ";
 
 export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: string | null = draft.projectName): Interpretation {
   const facts: Fact[] = [];
@@ -70,13 +77,15 @@ export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: stri
     facts.push({ kind: "repeat", label: `repeats ${spec}`, chip: spec });
   }
   // The sheet passes the resolved name, "new project X" or "X?"; only the first two are a project token yet.
-  if (projectLabel) facts.push({ kind: "project", label: projectLabel, tentative: projectLabel.endsWith("?") });
+  const tentative = Boolean(projectLabel?.endsWith("?"));
+  if (projectLabel) facts.push({ kind: "project", label: projectLabel, tentative });
+  const filedIn = projectLabel && !tentative ? (projectLabel.startsWith(NEW_PROJECT) ? projectLabel.slice(NEW_PROJECT.length) : projectLabel) : null;
   if (draft.tagNames.length) facts.push({ kind: "tag", label: draft.tagNames.map((t) => `@${t}`).join(" ") });
   const priority = priorityLabel(draft.priority);
   if (priority) facts.push({ kind: "priority", label: priority });
   if (draft.notes) facts.push({ kind: "note", label: "with a note" });
   const parts = facts.map((f) => f.label);
-  const destination = draft.doDate ? (draft.doDate.equals(today) ? "Today" : "Upcoming") : "Inbox";
+  const destination = draft.doDate ? (draft.doDate.equals(today) ? "Today" : "Upcoming") : (filedIn ?? (draft.deadline || draft.startDate ? "Upcoming" : "Inbox"));
   return { facts, parts, strip: parts.join(" · "), destination };
 }
 

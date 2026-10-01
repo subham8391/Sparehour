@@ -8,7 +8,8 @@ const push = vi.fn();
 
 vi.mock("@/data/powersync", () => ({
   useQuery: () => ({ data: [], isLoading: false, isFetching: false, error: undefined }),
-  useLocalDatabase: () => ({ execute, writeTransaction: vi.fn() }),
+  // A move reads the task's blocks to let go of the ones on the day it left (none here).
+  useLocalDatabase: () => ({ execute, getAll: vi.fn().mockResolvedValue([]), writeTransaction: vi.fn() }),
   useSyncStatus: () => ({ connected: false, dataFlowStatus: { uploading: false, downloading: false } }),
 }));
 vi.mock("next/navigation", () => ({

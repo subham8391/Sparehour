@@ -4,7 +4,7 @@
 // a moved or deleted block is re-queued by a trigger. Removing a block never
 // touches the task.
 import type { LocalDatabase } from "../powersync";
-import type { UndoRecorder } from "./task-repo";
+import type { UndoRecorder } from "./undo";
 
 export interface NewBlock {
   spaceId: string;

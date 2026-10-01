@@ -25,6 +25,18 @@ describe("interpret", () => {
     expect(interpret(draftOf("Email Sam mon").draft, today).destination).toBe("Upcoming");
   });
 
+  it("only a task with no project and no date goes to the Inbox (PRODUCT_SPEC.md §5.1 rule 5)", () => {
+    // Seen in the walkthrough: "→ Inbox" under a line with a #project, and the task did land there.
+    expect(interpret(draftOf("Email Sam #acme").draft, today, "Acme").destination).toBe("Acme");
+    expect(interpret(draftOf("Write post #+Blog").draft, today, "new project Blog").destination).toBe("Blog");
+    expect(interpret(draftOf("Email Sam #acme mon").draft, today, "Acme").destination).toBe("Upcoming");
+    // A deadline or a start date is a date: the task is active, waiting in Upcoming's "Not yet planned".
+    expect(interpret(draftOf("Pay invoice {mon}").draft, today).destination).toBe("Upcoming");
+    expect(interpret(draftOf("Pay invoice after mon").draft, today).destination).toBe("Upcoming");
+    // A name that is neither matched nor to be created files nothing: the task still lands in the Inbox.
+    expect(interpret(draftOf("Email Sam #acm").draft, today, "acm?").destination).toBe("Inbox");
+  });
+
   it("says nothing when there is nothing beyond the title", () => {
     expect(interpret(draftOf("Email Sam").draft, today).strip).toBe("");
   });

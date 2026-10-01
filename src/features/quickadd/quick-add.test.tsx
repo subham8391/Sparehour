@@ -119,7 +119,9 @@ describe("<QuickAdd>", () => {
     expect(screen.getByRole("button", { name: "Website" })).toBeInTheDocument();
     await user.keyboard("{Tab}");
     expect(input).toHaveValue("Ship it #Website");
-    expect(screen.getByText("Website")).toBeInTheDocument();
+    // The project chip, then where the task lands: filed in a project, it is not the Inbox (PRODUCT_SPEC.md §5.1 rule 5).
+    expect(document.getElementById(input.getAttribute("aria-describedby")!)).toHaveTextContent("Website → Website");
+    expect(screen.queryByText("Inbox")).not.toBeInTheDocument();
   });
 
   it("does not save an empty title", async () => {
