@@ -5,7 +5,9 @@ import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
 import { Temporal, localDate, todayFor, type LocalDate, type LocalTime } from "@/core/time";
 import type { MissPolicy, Priority, RecurrenceException, RecurrenceMode } from "@/core/types";
+import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
+import { reviveBlocks, type BlockRow } from "./block-repo";
 
 /** The fields a person edits in the detail panel. Only the keys present are written. */
 export interface TaskPatch {
@@ -166,7 +168,7 @@ export class TaskRepo {
     await tx.execute(`update tasks set ${columns.map((c) => `${c} = ?`).join(", ")}, updated_at = ? where id = ?`, [...columns.map((c) => before[c] ?? null), at, id]);
   }
 
-  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean): void {
+  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = []): void {
     if (!this.history || !before) return;
     const title = `“${String(before.title ?? "")}”`;
     this.history.record({
@@ -174,8 +176,43 @@ export class TaskRepo {
       toast,
       // One transaction: sync takes a done or deleted row off the device a moment after it uploads, and
       // that must not land between restore's presence check and its write (the write would hit nothing).
-      undo: () => this.db.writeTransaction((tx) => this.restore(tx, before, id, columns, new Date().toISOString())),
+      undo: () =>
+        this.db.writeTransaction(async (tx) => {
+          const at = new Date().toISOString();
+          await this.restore(tx, before, id, columns, at);
+          if (released.length > 0) await reviveBlocks(tx, released, at);
+        }),
     });
+  }
+
+  /**
+   * A task that leaves a day lets go of the time it held there: its blocks that have not started and are not
+   * locked are soft-deleted, unless they already sit on `keepOn`, the task's new day (null: no day at all). The
+   * walkthrough found a task moved to tomorrow still holding today's block, counted in today's capacity and
+   * pushed to the calendar. Started blocks stay (they happened); locked ones stay (locking means "keep this
+   * here"). Returns what was released, so the undo can bring it back.
+   */
+  private async releaseBlocks(ids: readonly string[], keepOn: LocalDate | null): Promise<BlockRow[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db.getAll<BlockRow>(`select * from time_blocks where task_id in (${placeholders(ids)}) and deleted_at is null and locked = 0`, [...ids]);
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+    const now = Temporal.Now.instant();
+    const zone = keepOn ? ((await this.db.getOptional<{ timezone: string | null }>(`select timezone from user_settings limit 1`))?.timezone ?? "UTC") : "UTC";
+    const release = rows.filter((b) => {
+      if (typeof b.start_at !== "string") return false;
+      let start: Temporal.Instant;
+      try {
+        start = Temporal.Instant.from(normaliseTimestamp(b.start_at));
+      } catch {
+        return false;
+      }
+      if (Temporal.Instant.compare(start, now) <= 0) return false;
+      return !keepOn || !start.toZonedDateTimeISO(zone).toPlainDate().equals(keepOn);
+    });
+    if (release.length === 0) return [];
+    const at = new Date().toISOString();
+    await this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${placeholders(release.map((b) => b.id))})`, [at, at, ...release.map((b) => b.id)]);
+    return release;
   }
 
   private async snapshotMany(ids: readonly string[], columns: readonly string[]): Promise<RowSnapshot[]> {
@@ -184,7 +221,7 @@ export class TaskRepo {
   }
 
   /** One undo entry for a batch: "Moved 4 tasks to tomorrow" (or the title when it is one). */
-  private rememberMany(before: readonly RowSnapshot[], columns: readonly string[], label: string, toast: boolean): void {
+  private rememberMany(before: readonly RowSnapshot[], columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = []): void {
     if (!this.history || before.length === 0) return;
     const what = before.length === 1 ? `“${String(before[0].title ?? "")}”` : `${before.length} tasks`;
     this.history.record({
@@ -194,6 +231,7 @@ export class TaskRepo {
         this.db.writeTransaction(async (tx) => {
           const at = new Date().toISOString();
           for (const row of before) await this.restore(tx, row, row.id, columns, at);
+          if (released.length > 0) await reviveBlocks(tx, released, at);
         }),
     });
   }
@@ -211,7 +249,8 @@ export class TaskRepo {
     const { sets, args } = buildSets(patch);
     if (sets.length === 0) return;
     await this.db.execute(`update tasks set ${sets.join(", ")}, updated_at = ? where id = ?`, [...args, new Date().toISOString(), id]);
-    this.remember(id, before, touched, note ?? "Changed", Boolean(note));
+    const released = "doDate" in patch ? await this.releaseBlocks([id], patch.doDate ?? null) : [];
+    this.remember(id, before, touched, note ?? "Changed", Boolean(note), released);
   }
 
   /**
@@ -225,7 +264,8 @@ export class TaskRepo {
     if (sets.length === 0) return;
     const before = await this.snapshotMany(ids, touched);
     await this.db.execute(`update tasks set ${sets.join(", ")}, updated_at = ? where id in (${placeholders(ids)})`, [...args, new Date().toISOString(), ...ids]);
-    this.rememberMany(before, touched, note ?? "Changed", Boolean(note));
+    const released = "doDate" in patch ? await this.releaseBlocks(ids, patch.doDate ?? null) : [];
+    this.rememberMany(before, touched, note ?? "Changed", Boolean(note), released);
   }
 
   async complete(id: string): Promise<void> {
@@ -330,7 +370,8 @@ export class TaskRepo {
       new Date().toISOString(),
       id,
     ]);
-    this.remember(id, before, cols, doDate ? "Moved" : "Unscheduled", true);
+    const released = await this.releaseBlocks([id], doDate);
+    this.remember(id, before, cols, doDate ? "Moved" : "Unscheduled", true, released);
   }
 
   async setHeading(id: string, headingId: string | null): Promise<void> {
@@ -384,7 +425,9 @@ export class TaskRepo {
     const cols = ["state", "do_date"];
     const before = await this.snapshot(id, cols);
     await this.db.execute(`update tasks set ${STATE_SETS} where id = ?`, [state, state, state, new Date().toISOString(), id]);
-    this.remember(id, before, cols, STATE_LABELS[state], state !== "active");
+    // Parked, dropped or archived, the task has no day: the time it held goes back to the day.
+    const released = state === "active" ? [] : await this.releaseBlocks([id], null);
+    this.remember(id, before, cols, STATE_LABELS[state], state !== "active", released);
   }
 
   async setStateMany(ids: readonly string[], state: TaskState): Promise<void> {
@@ -392,7 +435,8 @@ export class TaskRepo {
     const cols = ["state", "do_date"];
     const before = await this.snapshotMany(ids, cols);
     await this.db.execute(`update tasks set ${STATE_SETS} where id in (${placeholders(ids)})`, [state, state, state, new Date().toISOString(), ...ids]);
-    this.rememberMany(before, cols, STATE_LABELS[state], state !== "active");
+    const released = state === "active" ? [] : await this.releaseBlocks(ids, null);
+    this.rememberMany(before, cols, STATE_LABELS[state], state !== "active", released);
   }
 }
 

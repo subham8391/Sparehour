@@ -24,7 +24,7 @@ export interface ApprovedPlan {
 }
 
 type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0];
-type BlockRow = Record<string, string | number | null> & { id: string };
+export type BlockRow = Record<string, string | number | null> & { id: string };
 
 /**
  * Brings soft-deleted blocks back for an undo. Sync takes a deleted block off
@@ -34,7 +34,7 @@ type BlockRow = Record<string, string | number | null> & { id: string };
  * leaves out of an insert. It runs in the caller's transaction, so sync cannot
  * take a block away between the presence check and the write.
  */
-async function revive(tx: Pick<Tx, "execute" | "getOptional">, rows: readonly BlockRow[], at: string): Promise<void> {
+export async function reviveBlocks(tx: Pick<Tx, "execute" | "getOptional">, rows: readonly BlockRow[], at: string): Promise<void> {
   for (const before of rows) {
     const present = await tx.getOptional<{ id: string }>(`select id from time_blocks where id = ?`, [before.id]);
     if (!present) {
@@ -114,7 +114,7 @@ export class BlockRepo {
         const at = new Date().toISOString();
         await this.db.writeTransaction(async (tx) => {
           if (ids.length > 0) await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${ids.map(() => "?").join(", ")})`, [at, at, ...ids]);
-          await revive(tx, replaced, at);
+          await reviveBlocks(tx, replaced, at);
         });
         opts.afterUndo?.();
       },
@@ -135,7 +135,7 @@ export class BlockRepo {
       this.history?.record({
         label: `Removed the block${before.title ? ` for “${before.title}”` : ""}`,
         toast: true,
-        undo: () => this.db.writeTransaction((tx) => revive(tx, [before], new Date().toISOString())),
+        undo: () => this.db.writeTransaction((tx) => reviveBlocks(tx, [before], new Date().toISOString())),
       });
     }
   }

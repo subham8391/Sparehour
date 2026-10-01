@@ -286,3 +286,50 @@ describe("TaskRepo completing a repeating task (SYSTEM_DESIGN.md §5.2)", () => 
     expect(sqls[1]).toBe("update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?");
   });
 });
+
+describe("TaskRepo: a task that leaves a day lets go of its time there", () => {
+  // Seen in the walkthrough: "Tmr" on a blocked task left its block on today, still counted and still pushed.
+  const iso = (d: Date) => d.toISOString();
+  const inHours = (h: number) => iso(new Date(Date.now() + h * 3600_000));
+  function blockDb(blocks: Record<string, string | number | null>[]) {
+    const execute = vi.fn().mockResolvedValue({});
+    const getOptional = vi.fn(async (sql: string): Promise<Record<string, string> | null> => (sql.startsWith("select timezone") ? { timezone: "UTC" } : { id: "t1", title: "Draft Q4 budget", do_date: "2026-10-01", state: "active" }));
+    const getAll = vi.fn(async (sql: string) => (sql.includes("from time_blocks") ? blocks : []));
+    const writeTransaction = vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ execute, getOptional, getAll }));
+    return { db: { execute, getOptional, getAll, writeTransaction } as unknown as LocalDatabase, execute, getOptional };
+  }
+
+  it("moving to another day releases blocks that have not started and are not on the new day; undo brings them back", async () => {
+    const later = { id: "b-later", task_id: "t1", start_at: inHours(2), end_at: inHours(3), locked: 0, deleted_at: null };
+    const started = { id: "b-started", task_id: "t1", start_at: inHours(-1), end_at: inHours(1), locked: 0, deleted_at: null };
+    const { db, execute, getOptional } = blockDb([later, started]);
+    const history = { record: vi.fn() };
+    const farAway = localDate(new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10));
+    await new TaskRepo(db, history).reschedule("t1", farAway);
+    const release = execute.mock.calls.find(([sql]) => String(sql).startsWith("update time_blocks set deleted_at = ?"));
+    expect(release?.[1].slice(2)).toEqual(["b-later"]);
+
+    execute.mockClear();
+    getOptional.mockImplementation(async (sql: string) => (sql.startsWith("select id from time_blocks") ? null : { id: "t1" }));
+    await history.record.mock.calls[0][0].undo();
+    const sqls = execute.mock.calls.map(([sql]) => String(sql));
+    expect(sqls.some((x) => x.startsWith("insert into time_blocks"))).toBe(true);
+    expect(sqls).toContain("update time_blocks set deleted_at = null, updated_at = ? where id = ?");
+  });
+
+  it("a block already on the task's new day stays", async () => {
+    const tomorrowBlock = { id: "b-tmr", task_id: "t1", start_at: inHours(26), end_at: inHours(27), locked: 0, deleted_at: null };
+    const { db, execute } = blockDb([tomorrowBlock]);
+    const day = localDate(new Date(Date.now() + 26 * 3600_000).toISOString().slice(0, 10));
+    await new TaskRepo(db, { record: vi.fn() }).reschedule("t1", day);
+    expect(execute.mock.calls.some(([sql]) => String(sql).startsWith("update time_blocks"))).toBe(false);
+  });
+
+  it("parking or dropping releases every block that has not started", async () => {
+    const later = { id: "b-later", task_id: "t1", start_at: inHours(2), end_at: inHours(3), locked: 0, deleted_at: null };
+    const { db, execute } = blockDb([later]);
+    await new TaskRepo(db, { record: vi.fn() }).setState("t1", "someday");
+    const release = execute.mock.calls.find(([sql]) => String(sql).startsWith("update time_blocks set deleted_at = ?"));
+    expect(release?.[1].slice(2)).toEqual(["b-later"]);
+  });
+});
