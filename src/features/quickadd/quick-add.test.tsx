@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
-import { QuickAdd, type QuickAddSubmission } from "./quick-add";
+import { QuickAdd, type QuickAddSave, type QuickAddSubmission } from "./quick-add";
 
 const ctx = { now: instant("2026-09-11T08:00:00Z"), zone: "Europe/London", today: localDate("2026-09-11") };
 const projects = [
@@ -146,6 +146,140 @@ describe("<QuickAdd>", () => {
     await user.click(screen.getByRole("button", { name: "~45m" }));
     expect(input).toHaveValue("Review deck ~45m");
     expect(screen.getByText("45m")).toBeInTheDocument();
+  });
+
+  describe("a partial #project (PRODUCT_SPEC.md §5.2: fuzzy match, else offer to create)", () => {
+    // Seen in the walkthrough: "#Q4" showed "Q4?", and Enter saved the task with no project and "#Q4" gone from the title.
+    const withQ4 = [...projects, { id: "p3", name: "Q4 planning" }, { id: "p4", name: "Acme redesign" }];
+
+    it("files the task in the one project the name fits, says so in the strip first and in the notice after", async () => {
+      const { user, input, onSubmit } = setup({ projects: withQ4 });
+      await user.type(input, "Email the accountant #Q4");
+      expect(document.getElementById(input.getAttribute("aria-describedby")!)).toHaveTextContent("Q4 planning → Q4 planning");
+      // Create stays on offer, and Tab still completes the name.
+      expect(screen.getByRole("button", { name: /Create “Q4”/ })).toBeInTheDocument();
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: "p3", createProjectName: null });
+      expect(onSubmit.mock.calls[0][0].draft.title).toBe("Email the accountant");
+      expect(screen.getByRole("status")).toHaveTextContent("Added “Email the accountant” to Q4 planning");
+    });
+
+    it("a name that fits no project files nothing and keeps its words in the title", async () => {
+      const { user, input, onSubmit } = setup({ projects: withQ4 });
+      await user.type(input, "Email the accountant #taxes tomorrow{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      const s = onSubmit.mock.calls[0][0];
+      expect(s).toMatchObject({ projectId: null, createProjectName: null });
+      expect(s.draft.title).toBe("Email the accountant #taxes");
+      expect(s.draft.projectName).toBeNull();
+      expect(s.draft.doDate?.toString()).toBe("2026-09-12");
+      expect(screen.getByRole("status")).toHaveTextContent("Added “Email the accountant #taxes” — no project is called “taxes”, so it stays in the title");
+    });
+
+    it("a name that fits two projects equally is not guessed: the words stay too", async () => {
+      const { user, input, onSubmit } = setup({ projects: withQ4 });
+      await user.type(input, "Review copy #acm");
+      expect(document.getElementById(input.getAttribute("aria-describedby")!)).toHaveTextContent("acm? → Inbox");
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: null, createProjectName: null });
+      expect(onSubmit.mock.calls[0][0].draft.title).toBe("Review copy #acm");
+      expect(screen.getByRole("status")).toHaveTextContent("#acm fits more than one project, so it stays in the title");
+    });
+
+    it("choosing Create still creates, even when a project would fit", async () => {
+      const { user, input, onSubmit } = setup({ projects: withQ4 });
+      await user.type(input, "Kick-off #Q4");
+      await user.click(screen.getByRole("button", { name: /Create “Q4”/ }));
+      expect(document.getElementById(input.getAttribute("aria-describedby")!)).toHaveTextContent("new project Q4 → Q4");
+      await user.click(screen.getByRole("button", { name: "Add" }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: null, createProjectName: "Q4" });
+      expect(screen.getByRole("status")).toHaveTextContent("Added “Kick-off” to Q4");
+    });
+
+    it("a pasted line is filed the same way", async () => {
+      const { user, input, onSubmit } = setup({ projects: withQ4 });
+      await user.click(input);
+      await user.paste("Budget review #Q4\nCall the bank #nowhere");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+      expect(onSubmit.mock.calls.map((c) => [c[0].draft.title, c[0].projectId])).toEqual([
+        ["Budget review", "p3"],
+        ["Call the bank #nowhere", null],
+      ]);
+    });
+  });
+
+  describe("a multi-line paste (PRODUCT_SPEC.md §5.1 rule 6)", () => {
+    it("strips list markers, then offers one Undo that takes back exactly what it added, once", async () => {
+      let n = 0;
+      const onSubmit = vi.fn<QuickAddSave>().mockImplementation(async () => `task-${++n}`);
+      const takeBack = vi.fn<() => Promise<void>>().mockResolvedValue();
+      const onPasted = vi.fn((_ids: readonly string[]) => takeBack);
+      const { user, input } = setup({ onSubmit, onPasted });
+      await user.click(input);
+      await user.paste("- Buy milk\n* Call Dana tmr\n[ ] Pay rent\n1. Book the dentist\n");
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("4 tasks added"));
+      expect(onSubmit.mock.calls.map((c) => c[0].draft.title)).toEqual(["Buy milk", "Call Dana", "Pay rent", "Book the dentist"]);
+      expect(onPasted).toHaveBeenCalledTimes(1);
+      expect(onPasted.mock.calls[0][0]).toEqual(["task-1", "task-2", "task-3", "task-4"]);
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      expect(takeBack).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Took back 4 tasks"));
+      expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+    });
+
+    it("a line with no name is skipped and said so; a save that fails stops there, keeps that line, and says what was lost", async () => {
+      const onSubmit = vi
+        .fn<QuickAddSave>()
+        .mockResolvedValueOnce("task-1")
+        .mockRejectedValueOnce(new Error("Your account is still loading — try again in a moment."));
+      const onPasted = vi.fn(() => vi.fn<() => Promise<void>>().mockResolvedValue());
+      const { user, input } = setup({ onSubmit, onPasted });
+      await user.click(input);
+      await user.paste("Buy milk\ntomorrow ~30m\nCall Dana\nPay rent");
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Couldn't save “Call Dana”: Your account is still loading — try again in a moment. 1 line after it was not saved either."));
+      expect(screen.getByRole("status")).toHaveTextContent("1 task added · 1 line with no name skipped");
+      expect(onPasted).toHaveBeenCalledWith(["task-1"]);
+      expect(input).toHaveValue("Call Dana");
+    });
+  });
+
+  it("tokens with no words ask for a name in the strip, and nothing saves (PRODUCT_SPEC.md §5.4)", async () => {
+    const { user, input, onSubmit } = setup();
+    await user.type(input, "tomorrow ~30m");
+    expect(document.getElementById(input.getAttribute("aria-describedby")!)).toHaveTextContent("Give it a name");
+    expect(screen.queryByText(/are understood/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    await user.keyboard("{Enter}");
+    expect(onSubmit).not.toHaveBeenCalled();
+    await user.clear(input);
+    expect(screen.getByText(/are understood/)).toBeInTheDocument();
+  });
+
+  it("Escape with words in the box hands them over to be offered back; an empty box closes quietly (§5.1 rule 4)", async () => {
+    const onDiscard = vi.fn();
+    const { user, input, onClose } = setup({ onDiscard });
+    await user.type(input, "Plan the anniversary dinner fri{Escape}");
+    expect(onDiscard).toHaveBeenCalledWith("Plan the anniversary dinner fri", "Plan the anniversary dinner");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await user.clear(input);
+    await user.keyboard("{Escape}");
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("the phone sheet has a 44 px way back (SCREENS.md §22), which discards like Escape", async () => {
+    const onDiscard = vi.fn();
+    const { user, input, onClose } = setup({ onDiscard });
+    const back = within(screen.getByRole("dialog")).getByRole("button", { name: "Close" });
+    expect(back.className).toContain("h-11");
+    expect(back.parentElement?.className).toContain("sm:hidden");
+    await user.type(input, "Call the plumber");
+    await user.click(back);
+    expect(onDiscard).toHaveBeenCalledWith("Call the plumber", "Call the plumber");
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("renders nothing when closed", () => {

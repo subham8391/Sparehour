@@ -130,6 +130,21 @@ export class TaskRepo {
     return id;
   }
 
+  /**
+   * Takes back tasks this device just created (the undo of a multi-line paste, PRODUCT_SPEC.md §5.1 rule 6):
+   * each row and its tag links are soft-deleted in one transaction, as if they had never been added. It is
+   * itself the inverse of a write, so it records nothing. A row that is already gone is simply not there to
+   * update.
+   */
+  async removeCreated(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const now = new Date().toISOString();
+    await this.db.writeTransaction(async (tx) => {
+      await tx.execute(`update tasks set deleted_at = ?, updated_at = ? where id in (${placeholders(ids)}) and deleted_at is null`, [now, now, ...ids]);
+      await tx.execute(`update task_tags set deleted_at = ?, updated_at = ? where task_id in (${placeholders(ids)}) and deleted_at is null`, [now, now, ...ids]);
+    });
+  }
+
   private async ensureTag(tx: Tx, spaceId: string, name: string, now: string): Promise<string> {
     const existing = await tx.getOptional<{ id: string }>(`select id from tags where deleted_at is null and lower(name) = lower(?) limit 1`, [name]);
     if (existing) return existing.id;
