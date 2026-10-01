@@ -5,8 +5,12 @@
 // Today may be a weekend or an evening, so the dev account gets working hours
 // covering every hour of every day for the length of this spec. They are extra
 // rows beside its own, which are never touched, and afterAll deletes exactly
-// the rows it added. The account's other tasks stay as they are: Approve some
-// keeps only this spec's two tasks, so nothing of theirs is written.
+// the rows it added. The account's other open tasks for today are stood
+// aside for the length of the spec (they start tomorrow, so the planner does
+// not consider them): CI seeds about two thousand of them, many overdue, and
+// they would otherwise outrank this spec's tasks and fill the day. afterAll
+// puts every one back exactly as found, and Approve some keeps only this
+// spec's two tasks, so nothing of the account's is written.
 import { expect, test } from "./fixtures";
 import { waitForRow, withDb } from "./db";
 import { DEV_USER, openApp, uniqueTitle } from "./helpers";
@@ -16,6 +20,7 @@ const second = uniqueTitle("plan review");
 const titles = [first, second];
 
 let addedHours: string[] = [];
+let stoodAside: { id: string; start_date: string | null; last_touched_at: string }[] = [];
 let skip: string | null = null;
 
 test.beforeAll(async () => {
@@ -42,6 +47,15 @@ test.beforeAll(async () => {
         [me.sid, me.uid],
       )
     ).rows.map((r) => r.id);
+    stoodAside = (
+      await c.query<{ id: string; start_date: string | null; last_touched_at: string }>(
+        `select id, start_date::text, last_touched_at::text from public.tasks
+          where space_id = $1 and deleted_at is null and state in ('inbox', 'active')
+            and do_date is not null and do_date <= $2::date and (start_date is null or start_date <= $2::date) and title not like 'E2E %'`,
+        [me.sid, me.today],
+      )
+    ).rows;
+    if (stoodAside.length > 0) await c.query("update public.tasks set start_date = $2::date + 1 where id = any($1::uuid[])", [stoodAside.map((r) => r.id), me.today]);
     // Real fractional-index sort keys (the app computes the next key from the last one), and no day order of their own.
     for (const [title, estimate, key] of [
       [first, 45, "y0000000000000000000000011"],
@@ -53,8 +67,16 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  // Exactly the rows this spec added; the account's own working hours were never changed. The E2E tasks go in the global teardown.
-  if (addedHours.length > 0) await withDb((c) => c.query("delete from public.work_hours where id = any($1::uuid[])", [addedHours]));
+  await withDb(async (c) => {
+    // Exactly the rows this spec added; the account's own working hours were never changed. The E2E tasks go in the global teardown.
+    if (addedHours.length > 0) await c.query("delete from public.work_hours where id = any($1::uuid[])", [addedHours]);
+    if (stoodAside.length === 0) return;
+    // Start dates first (the touch trigger counts that as a touch), then last_touched_at on its own, which the
+    // trigger leaves alone, so every row ages exactly as before.
+    const ids = stoodAside.map((r) => r.id);
+    await c.query("update public.tasks t set start_date = v.sd from unnest($1::uuid[], $2::date[]) as v(id, sd) where t.id = v.id", [ids, stoodAside.map((r) => r.start_date)]);
+    await c.query("update public.tasks t set last_touched_at = v.lt from unnest($1::uuid[], $2::timestamptz[]) as v(id, lt) where t.id = v.id", [ids, stoodAside.map((r) => r.last_touched_at)]);
+  });
 });
 
 const LIVE = `select count(*)::int as n from public.time_blocks b join public.tasks t on t.id = b.task_id
