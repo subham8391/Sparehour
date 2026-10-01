@@ -3,6 +3,7 @@
 // evening), the blocks are the day's blocks with their source and lock, and
 // the days ahead feed deadline pressure. Pure, so it is tested without a
 // database.
+import { minuteOnDay } from "@/features/today/day-minute";
 import { capacityFor, type CapacityBlock, type CapacityEvent, type WorkWindow } from "@/core/capacity";
 import type { AheadDay, PlanBlock, PlanInput, PlanTask } from "@/core/planning";
 import { compareDates, toInstant, timeFromMinutes, type Instant, type LocalDate, type Zone } from "@/core/time";
@@ -46,10 +47,13 @@ export function candidateTasks(model: Pick<PlanModel, "carried" | "todayTasks" |
 export function planInputFrom(model: PlanModel, opts: { now: Instant; ages?: ReadonlyMap<string, LocalDate>; ahead?: readonly AheadDay[] }): PlanInput | null {
   const { settings, capacity } = model;
   if (!settings || !capacity) return null;
+  // Completing a task marks its block done (PRODUCT_SPEC.md §10.2): what has passed stays as it was, the rest is free again.
+  const nowMin = minuteOnDay(opts.now, settings.timezone, model.today).minute;
+  const blocks = model.blocks.flatMap((b) => (!b.done ? [planBlock(b)] : b.start < nowMin ? [{ ...planBlock(b), end: Math.min(b.end, nowMin) }] : []));
   return {
     day: model.today,
     capacity: { windows: capacity.windows, busy: capacity.busy },
-    blocks: model.blocks.map(planBlock),
+    blocks,
     candidates: candidateTasks(model).map((t) => planTask(t, opts.ages?.get(t.id) ?? null)),
     settings: {
       timezone: settings.timezone,

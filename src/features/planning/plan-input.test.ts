@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { localDate, localTime } from "@/core/time";
+import type { TaskId } from "@/core/types";
 import { NOW, TODAY, capacityFixture, taskFixture } from "@/test/fixtures";
 import { AHEAD_DAYS, aheadDays, aheadThrough, isoAt, planInputFrom } from "./plan-input";
 
@@ -29,6 +30,30 @@ describe("plan input", () => {
     ]);
     expect(input.capacity).toEqual({ windows: capacityFixture.windows, busy: capacityFixture.busy });
     expect(input.settings).toMatchObject({ maxBlockMin: 90, minBlockMin: 25, bufferPct: 15, timezone: "Europe/London" });
+  });
+
+  it("a done task's block keeps only the part that has passed; the rest is free to plan (PRODUCT_SPEC.md §10.2)", () => {
+    const nowMin = NOW.toZonedDateTimeISO("Europe/London").hour * 60 + NOW.toZonedDateTimeISO("Europe/London").minute;
+    const input = planInputFrom(
+      {
+        today: TODAY,
+        settings,
+        capacity: capacityFixture,
+        carried: [],
+        todayTasks: [],
+        eveningTasks: [],
+        blocks: [
+          { id: "under-way", taskId: "t1" as TaskId, title: "Done early", start: nowMin - 30, end: nowMin + 30, locked: false, source: "plan", done: true },
+          { id: "later", taskId: "t2" as TaskId, title: "Done ahead", start: nowMin + 60, end: nowMin + 120, locked: false, source: "plan", done: true },
+          { id: "open", taskId: "t3" as TaskId, title: "Still to do", start: nowMin + 60, end: nowMin + 90, locked: false, source: "plan" },
+        ],
+      },
+      { now: NOW },
+    )!;
+    expect(input.blocks.map((b) => [b.id, b.start - nowMin, b.end - nowMin])).toEqual([
+      ["under-way", -30, 0],
+      ["open", 60, 90],
+    ]);
   });
 
   it("waits for settings and capacity", () => {
