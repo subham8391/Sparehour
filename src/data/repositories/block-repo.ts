@@ -38,7 +38,9 @@ export async function reviveBlocks(tx: Pick<Tx, "execute" | "getOptional">, rows
   for (const before of rows) {
     const present = await tx.getOptional<{ id: string }>(`select id from time_blocks where id = ?`, [before.id]);
     if (!present) {
-      const row: Record<string, string | number | null> = { ...before, deleted_at: null, updated_at: at };
+      // Inserted still deleted and then undeleted: an update uploads only the columns it changes, so the clearing
+      // has to be a change to reach the server, where the block is deleted (see restoreRow in undo.ts).
+      const row: Record<string, string | number | null> = { ...before, deleted_at: at, updated_at: at };
       const cols = Object.keys(row);
       await tx.execute(`insert into time_blocks (${cols.join(", ")}) values (${cols.map(() => "?").join(", ")})`, cols.map((c) => row[c] ?? null));
     }

@@ -52,7 +52,8 @@ describe("BlockRepo", () => {
     expect(writeTransaction).toHaveBeenCalledTimes(1);
     const [insertSql, insertArgs] = execute.mock.calls[0];
     expect(String(insertSql)).toMatch(/^insert into time_blocks \(id, space_id, user_id, task_id, title, start_at, end_at, locked, source, deleted_at, updated_at\)/);
-    expect(insertArgs.slice(0, 10)).toEqual(["b1", "s", "u", "t1", "Draft", "2026-09-14T08:00:00Z", "2026-09-14T08:45:00Z", 0, "manual", null]);
+    // Inserted still deleted (deleted_at set), so the update that clears it is a change and is uploaded.
+    expect(insertArgs.slice(0, 10)).toEqual(["b1", "s", "u", "t1", "Draft", "2026-09-14T08:00:00Z", "2026-09-14T08:45:00Z", 0, "manual", expect.any(String)]);
     // the explicit write carries deleted_at = null, which the sync layer leaves out of an insert
     expect(String(execute.mock.calls[1][0])).toBe("update time_blocks set deleted_at = null, updated_at = ? where id = ?");
     expect(execute.mock.calls[1][1][1]).toBe("b1");

@@ -190,7 +190,8 @@ describe("TaskRepo undo after the row has left the device", () => {
     expect(String(getOptional.mock.calls[1][0])).toBe("select id from tasks where id = ?");
     const [insertSql, insertArgs] = execute.mock.calls[1];
     expect(insertSql).toMatch(/^insert into tasks \(id, space_id, title, state, completed_at, do_date, sort_key, carry_count, updated_at\) values \(\?, \?, \?, \?, \?, \?, \?, \?, \?\)$/);
-    expect(insertArgs.slice(0, 5)).toEqual(["t1", "s1", "Draft the proposal", "inbox", null]);
+    // completed_at goes in set and the explicit update clears it: an update uploads only what it changes.
+    expect(insertArgs.slice(0, 5)).toEqual(["t1", "s1", "Draft the proposal", "inbox", expect.any(String)]);
     const [fixSql, fixArgs] = execute.mock.calls[2];
     expect(fixSql).toBe("update tasks set state = ?, completed_at = ?, updated_at = ? where id = ?");
     expect(fixArgs.slice(0, 2)).toEqual(["inbox", null]);

@@ -37,8 +37,12 @@ export async function restoreRow(tx: Pick<Tx, "execute" | "getOptional">, table:
     return;
   }
   const row: Record<string, string | number | null> = { ...before, id, updated_at: at };
+  // The sync layer uploads an insert without its null columns, and an update only with the columns it changed
+  // (PowerSync diffs old and new). A timestamp being restored to null (deleted_at, completed_at) is therefore
+  // inserted as `at` and cleared by the update below, so the clearing is a change and reaches the server; it was
+  // set there, and inserted as null here it never got unset (the e2e suite found a revived block still deleted).
+  for (const c of columns) if (row[c] == null && c.endsWith("_at")) row[c] = at;
   const cols = Object.keys(row);
   await tx.execute(`insert into ${table} (${cols.join(", ")}) values (${placeholders(cols)})`, cols.map((c) => row[c] ?? null));
-  // The sync layer uploads an insert without its null columns; a second, explicit write carries them.
   await update();
 }
