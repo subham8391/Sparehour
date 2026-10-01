@@ -53,7 +53,9 @@ describe("specToRule ⇄ ruleToSpec", () => {
 
   it("documents: ruleToSpec drops everything quick-add cannot express", () => {
     // format(draft) on a rule set elsewhere in the app silently loses these parts.
-    expect(ruleToSpec("FREQ=MONTHLY;BYMONTHDAY=15")).toBe("month");
+    expect(ruleToSpec("FREQ=MONTHLY;BYMONTHDAY=15")).toBe("15th"); // quick-add writes this one now (`every 15th`)
+    expect(ruleToSpec("FREQ=MONTHLY;BYMONTHDAY=22")).toBe("22nd");
+    expect(specToRule("15th")).toEqual({ rule: "FREQ=MONTHLY;BYMONTHDAY=15", length: 4 });
     expect(ruleToSpec("FREQ=MONTHLY;BYDAY=MO;BYSETPOS=-1")).toBe("month on mon");
     expect(ruleToSpec("FREQ=DAILY;COUNT=3")).toBe("day");
     expect(ruleToSpec("FREQ=WEEKLY;BYDAY=MO;UNTIL=20261231")).toBe("mon");

@@ -33,9 +33,13 @@ const WEEKDAY: Record<string, number> = {
 
 const WEEKDAY_RE = "monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat|sunday|sun";
 
-/** The weekday on or after `today`: "fri" on a Friday is today. */
+/** The weekday on or after `today` (a repeat's first occurrence: "every fri" on a Friday starts today). */
 export const weekdayOnOrAfter = (today: LocalDate, weekday: number): LocalDate =>
   today.add({ days: (weekday - today.dayOfWeek + 7) % 7 });
+
+/** The next such weekday, never today (PRODUCT_SPEC.md §5.2: "Bare weekday means the next such day, never today"). */
+export const weekdayAfter = (today: LocalDate, weekday: number): LocalDate =>
+  today.add({ days: ((weekday - today.dayOfWeek + 6) % 7) + 1 });
 
 /** The Monday that starts next week. */
 export const nextWeekMonday = (today: LocalDate): LocalDate =>
@@ -60,7 +64,7 @@ const relativePatterns: { re: RegExp; resolve: (m: RegExpExecArray, today: Local
     re: new RegExp(`(?<!\\blast\\s)\\b(?:(next)\\s+)?(${WEEKDAY_RE})\\b`, "gi"),
     resolve: (m, today) => {
       const wd = WEEKDAY[m[2].toLowerCase()];
-      return { date: m[1] ? nextWeekMonday(today).add({ days: wd - 1 }) : weekdayOnOrAfter(today, wd) };
+      return { date: m[1] ? nextWeekMonday(today).add({ days: wd - 1 }) : weekdayAfter(today, wd) };
     },
   },
   {

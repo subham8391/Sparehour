@@ -19,7 +19,7 @@ const UNIT = "days?|weeks?|months?|years?";
 
 /**
  * Matches the spec that follows "every"/"every!". Alternatives, longest first:
- *   3 days | 2 weeks on mon,wed | other week | weekday(s) | weekend(s) | day | mon,wed,fri
+ *   3 days | 2 weeks on mon,wed | other week | weekday(s) | weekend(s) | day | mon,wed,fri | 15th
  */
 export const RECUR_SPEC_RE = new RegExp(
   `^(?:` +
@@ -29,6 +29,7 @@ export const RECUR_SPEC_RE = new RegExp(
     `|(weekends?)` + // 6
     `|(day|week|month|year)(?:\\s+on\\s+(${DAY_LIST}))?` + // 7,8
     `|(${DAY_LIST})` + // 9
+    `|([1-9]|[12]\\d|3[01])(?:st|nd|rd|th)` + // 10: a day of the month, "every 15th"
   `)(?![\\w-])`,
   "i",
 );
@@ -69,6 +70,11 @@ export function specToRule(spec: string): { rule: string; length: number } | nul
     if (m[8]) parts.push(`BYDAY=${byDay(m[8])}`);
   } else if (m[9]) {
     parts.push("FREQ=WEEKLY", `BYDAY=${byDay(m[9])}`);
+  } else if (m[10]) {
+    // PRODUCT_SPEC.md §5.2 lists `every 15th`. The task's do-date lands on that day; both engines repeat a
+    // monthly rule on its do-date's day (a month without a 29th–31st: the client skips it, the server's
+    // skip policy uses the last day).
+    parts.push("FREQ=MONTHLY", `BYMONTHDAY=${Number(m[10])}`);
   }
   return { rule: parts.join(";"), length: m[0].length };
 }
@@ -80,11 +86,23 @@ export function ruleToSpec(rule: string): string {
   const freq = fields.FREQ;
   const unit = { DAILY: "day", WEEKLY: "week", MONTHLY: "month", YEARLY: "year" }[freq] ?? "day";
   const days = fields.BYDAY ? fields.BYDAY.split(",").map((c) => CODE_TO_WORD[c] ?? c.toLowerCase()).join(",") : "";
+  if (freq === "MONTHLY" && fields.BYMONTHDAY && interval === 1) return ordinal(Number(fields.BYMONTHDAY));
   if (freq === "WEEKLY" && fields.BYDAY === "MO,TU,WE,TH,FR" && interval === 1) return "weekday";
   if (freq === "WEEKLY" && fields.BYDAY === "SA,SU" && interval === 1) return "weekend";
   if (interval === 1 && freq === "WEEKLY" && days) return days;
   const head = interval === 1 ? unit : `${interval} ${unit}s`;
   return days ? `${head} on ${days}` : head;
+}
+
+function ordinal(n: number): string {
+  const tail = n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${tail}`;
+}
+
+/** The day of the month a monthly rule names (BYMONTHDAY), or null. */
+export function ruleMonthDay(rule: string): number | null {
+  const m = /(?:^|;)BYMONTHDAY=(\d{1,2})(?:;|$)/.exec(rule);
+  return m ? Number(m[1]) : null;
 }
 
 /** ISO weekdays (1–7) named by the rule's BYDAY, or null when the rule has none. */

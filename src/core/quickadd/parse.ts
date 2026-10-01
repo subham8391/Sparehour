@@ -3,7 +3,7 @@
 // Pure: the same input and context always give byte-identical output.
 import { Temporal, compareDates, todayFor, type LocalDate, type LocalTime } from "../time";
 import { findAbsoluteDates, findDates, findTimes, weekdayOnOrAfter } from "./datetime";
-import { ruleWeekdays, specToRule } from "./recurrence";
+import { ruleMonthDay, ruleWeekdays, specToRule } from "./recurrence";
 import type { ParseContext, ParseResult, ParseWarning, Priority, Span, SpanKind, TaskDraft } from "./types";
 
 const DEFAULT_EVENING = Temporal.PlainTime.from({ hour: 18, minute: 0 });
@@ -284,9 +284,12 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
   let doDateFromRule = false;
   if (draft.recurrenceRule && !draft.doDate) {
     const weekdays = ruleWeekdays(draft.recurrenceRule);
+    const monthDay = ruleMonthDay(draft.recurrenceRule);
     draft.doDate = weekdays?.length
       ? weekdays.map((wd) => weekdayOnOrAfter(today, wd)).sort(compareDates)[0]
-      : today;
+      : monthDay
+        ? monthDayOnOrAfter(today, monthDay)
+        : today;
     doDateFromRule = true;
   }
 
@@ -316,3 +319,14 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
 
 /** Handy for tests and callers that only want the evening cut-off type. */
 export type { LocalTime as EveningTime };
+
+/** The first date on or after `today` that is day `day` of its month; months without that day are skipped. */
+function monthDayOnOrAfter(today: LocalDate, day: number): LocalDate {
+  for (let i = 0; i < 12; i++) {
+    const month = today.with({ day: 1 }).add({ months: i });
+    if (day > month.daysInMonth) continue;
+    const date = month.with({ day });
+    if (compareDates(date, today) >= 0) return date;
+  }
+  return today;
+}

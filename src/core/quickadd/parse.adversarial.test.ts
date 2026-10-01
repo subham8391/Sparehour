@@ -298,10 +298,9 @@ describe("dates", () => {
     expect(iso(draftOf("Task eom", at("2028-02-10T12:00:00Z", "UTC")).doDate)).toBe("2028-02-29");
   });
 
-  it("a bare weekday on that same weekday is today (parser rule and corpus; PRODUCT_SPEC §5.2 says 'never today')", () => {
-    // Friday 2026-09-11. The code comment on weekdayOnOrAfter and the corpus entry
-    // "Draft proposal fri 3pm" both fix this as today; the product spec table disagrees.
-    expect(iso(draftOf("Task fri").doDate)).toBe("2026-09-11");
+  it("a bare weekday is the next such day, never today (PRODUCT_SPEC §5.2; its example 'fri 3pm' is next Friday)", () => {
+    // Friday 2026-09-11.
+    expect(iso(draftOf("Task fri").doDate)).toBe("2026-09-18");
     expect(iso(draftOf("Task sat").doDate)).toBe("2026-09-12");
     expect(iso(draftOf("Task thu").doDate)).toBe("2026-09-17");
     expect(iso(draftOf("Task next fri").doDate)).toBe("2026-09-18");
@@ -348,7 +347,7 @@ describe("dates", () => {
   });
 
   it("a deadline before the rule's first occurrence moves onto it (the rule wins), with a warning", () => {
-    const r = ok(parse("Write {fri} every 2 weeks on wed", ctx));
+    const r = ok(parse("Write {today} every 2 weeks on wed", ctx));
     expect(r.draft.recurrenceRule).toBe("FREQ=WEEKLY;INTERVAL=2;BYDAY=WE");
     expect(iso(r.draft.doDate)).toBe("2026-09-16");
     expect(iso(r.draft.deadline)).toBe("2026-09-16");
@@ -356,10 +355,10 @@ describe("dates", () => {
   });
 
   it("start after do-date moves the do-date, and a start after the deadline is left to the user", () => {
-    const r = ok(parse("Task after mon fri", ctx));
+    const r = ok(parse("Task after mon today", ctx));
     expect(iso(r.draft.doDate)).toBe("2026-09-14");
     expect(r.warnings.map((w) => w.code)).toEqual(["do_date_moved_to_start_date"]);
-    const s = ok(parse("Task after mon {fri}", ctx));
+    const s = ok(parse("Task after mon {today}", ctx));
     expect(iso(s.draft.startDate)).toBe("2026-09-14");
     expect(iso(s.draft.deadline)).toBe("2026-09-11"); // start after deadline: no correction, no warning
     expect(s.warnings).toEqual([]);
@@ -457,13 +456,24 @@ describe("recurrence", () => {
     expect(draftOf("Task everyday").recurrenceRule).toBeNull();
   });
 
+  it("`every 15th` repeats monthly on the 15th and starts on the next 15th; `every 31st` skips short months", () => {
+    // Friday 2026-09-11.
+    const r = ok(parse("Pay electricity bill every 15th", ctx));
+    expect(r.draft.title).toBe("Pay electricity bill");
+    expect(r.draft.recurrenceRule).toBe("FREQ=MONTHLY;BYMONTHDAY=15");
+    expect(iso(r.draft.doDate)).toBe("2026-09-15");
+    expect(iso(ok(parse("Rent every 1st", ctx)).draft.doDate)).toBe("2026-10-01");
+    expect(iso(ok(parse("Report every 11th", ctx)).draft.doDate)).toBe("2026-09-11");
+    expect(iso(ok(parse("Close books every 31st", ctx)).draft.doDate)).toBe("2026-10-31");
+  });
+
   it.each(["every 15th", "every month on the 31st", "every 0 days", "every mon, tue,", "every weekday and", "every day!"])(
     "documents the partial consumption of %j",
     (spec) => {
       // These are all things a person might type. What the parser does with them today:
       const r = ok(parse(`Task ${spec}`, ctx));
       const expected: Record<string, [string | null, string]> = {
-        "every 15th": [null, "Task every 15th"], // unsupported → left whole (rule 7)
+        "every 15th": ["FREQ=MONTHLY;BYMONTHDAY=15", "Task"], // PRODUCT_SPEC §5.2 lists it (found missing by the walkthrough)
         "every month on the 31st": ["FREQ=MONTHLY", "Task on the 31st"], // "every month" eaten, the rest stranded
         "every 0 days": ["FREQ=DAILY", "Task"], // interval 0 is accepted as "daily"
         "every mon, tue,": ["FREQ=WEEKLY;BYDAY=MO,TU", "Task ,"],
@@ -565,7 +575,7 @@ describe("protection, escapes and notes", () => {
   it("documents: escaping `{` does not protect the date word inside, and `}` has no escape", () => {
     const r = ok(parse("Task \\{fri\\}", ctx));
     expect(r.draft.deadline).toBeNull();
-    expect(iso(r.draft.doDate)).toBe("2026-09-11");
+    expect(iso(r.draft.doDate)).toBe("2026-09-18");
     expect(r.draft.title).toBe("Task { \\}");
   });
 
