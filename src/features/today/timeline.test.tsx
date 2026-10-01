@@ -6,7 +6,7 @@ import type { Capacity } from "@/core/capacity";
 import { instant, localDate, localTime } from "@/core/time";
 import type { TaskId } from "@/core/types";
 import type { TimelineBlock } from "./hooks/use-today";
-import { Timeline } from "./timeline";
+import { PX_PER_MIN, Timeline, drawnRange } from "./timeline";
 
 const capacity: Capacity = {
   day: localDate("2026-09-14"),
@@ -87,12 +87,13 @@ describe("<Timeline>", () => {
     const { rerender } = render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} placing={{ title: "Call Mum" }} onTapSlot={onTapSlot} onSelectBlock={onSelectBlock} />);
     const timeline = screen.getByTestId("timeline");
     expect(timeline).toHaveAttribute("aria-label", "Tap a time for Call Mum");
-    // jsdom lays the timeline out at y = 0, so 55 px down is 50 minutes into the day, snapped to five.
-    fireEvent.click(timeline, { clientY: 55 });
+    // jsdom lays the timeline out at y = 0, and the drawn range opens at 08:00, an hour before the working day:
+    // 121 px down is 110 minutes in, 09:50, snapped to five.
+    fireEvent.click(timeline, { clientY: 121 });
     expect(onTapSlot).toHaveBeenCalledWith(590);
     expect(onSelectBlock).not.toHaveBeenCalled();
     rerender(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} placing={null} onTapSlot={onTapSlot} onSelectBlock={onSelectBlock} />);
-    fireEvent.click(timeline, { clientY: 55 });
+    fireEvent.click(timeline, { clientY: 121 });
     expect(onTapSlot).toHaveBeenCalledTimes(1);
     expect(onSelectBlock).toHaveBeenCalledWith(null);
   });
@@ -103,5 +104,70 @@ describe("<Timeline>", () => {
     expect(screen.getByTestId("resize-b1")).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByTestId("resize-b2")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Resize block/ })).not.toBeInTheDocument();
+  });
+
+  it("draws blocks outside working hours inside itself: the range widens to them, labels their hours and dims what is not the working day", () => {
+    // A 07:30 run before a 09:00–18:00 day, and a 19:30 call after it (PRODUCT_SPEC.md §10.2: allowed).
+    const early: TimelineBlock = { id: "b-early", taskId: null, title: "Gym", start: 450, end: 480, locked: false };
+    const late: TimelineBlock = { id: "b-late", taskId: null, title: "Call Sydney", start: 1170, end: 1200, locked: false };
+    render(<Timeline c={{ ...capacity, outsideHoursMin: 60 }} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={[early, ...blocks, late]} />);
+    const timeline = screen.getByTestId("timeline");
+    // 07:00 to 20:00: the earliest block's hour to the latest block's end.
+    const height = parseFloat(timeline.style.height);
+    expect(height).toBeCloseTo((1200 - 420) * PX_PER_MIN);
+    const top = (name: RegExp) => parseFloat((screen.getByRole("button", { name }).parentElement as HTMLElement).style.top);
+    expect(top(/Block: Gym, 07:30 to 08:00/)).toBeCloseTo(30 * PX_PER_MIN + 1);
+    expect(top(/Block: Call Sydney, 19:30 to 20:00/)).toBeCloseTo((1170 - 420) * PX_PER_MIN + 1);
+    expect(top(/Block: Call Sydney/)).toBeLessThan(height);
+    for (const label of ["07:00", "08:00", "19:00", "20:00"]) expect(screen.getByText(label)).toBeInTheDocument();
+    // The two stretches outside 09:00–18:00 are dimmed; the working day is not.
+    const dimmed = screen.getAllByTestId("outside-hours").map((d) => [parseFloat(d.style.top), parseFloat(d.style.height)]);
+    expect(dimmed).toHaveLength(2);
+    expect(dimmed[0][0]).toBeCloseTo(0);
+    expect(dimmed[0][1]).toBeCloseTo(120 * PX_PER_MIN);
+    expect(dimmed[1][0]).toBeCloseTo((1080 - 420) * PX_PER_MIN);
+    expect(dimmed[1][1]).toBeCloseTo(120 * PX_PER_MIN);
+  });
+
+  it("shows the now line after the working day, and draws everything as past once the planned day is over", () => {
+    const { unmount } = render(<Timeline c={capacity} now={instant("2026-09-14T19:15:00Z")} zone="UTC" blocks={blocks} />);
+    expect(screen.getByText("19:15")).toBeInTheDocument();
+    expect(parseFloat(screen.getByTestId("timeline").style.height)).toBeCloseTo((1200 - 480) * PX_PER_MIN);
+    unmount();
+    // 01:30 the next morning still belongs to the 14th's plan (the day rolls over at 04:00): no now line at 01:30 of the 14th.
+    render(<Timeline c={capacity} now={instant("2026-09-15T01:30:00Z")} zone="UTC" blocks={blocks} />);
+    expect(screen.queryByText("01:30")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Block: Deep work/ }).parentElement).toHaveClass("border-line-strong");
+  });
+
+  it("a block whose task is done reads done: struck through with a check, let down like the past, and named so", () => {
+    render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={[{ ...blocks[0], start: 900, end: 960, done: true }, blocks[1]]} />);
+    const done = screen.getByRole("button", { name: "Block: Draft the proposal, 15:00 to 16:00, done" });
+    expect(done.parentElement).toHaveAttribute("data-done", "true");
+    expect(done.parentElement).toHaveClass("border-line-strong");
+    expect(screen.getByText("Draft the proposal")).toHaveClass("line-through");
+    // A block without a task is never done.
+    const adHoc = screen.getByRole("button", { name: "Block: Deep work, 13:00 to 14:30, locked" });
+    expect(adHoc.parentElement).not.toHaveAttribute("data-done");
+    expect(adHoc.parentElement).toHaveClass("border-block-fill");
+  });
+});
+
+describe("drawnRange", () => {
+  const day = [{ start: 540, end: 1080 }];
+  it("is the working day plus an hour either side", () => {
+    expect(drawnRange(day, [], null)).toEqual({ start: 480, end: 1140 });
+    expect(drawnRange(day, [], 700)).toEqual({ start: 480, end: 1140 });
+  });
+
+  it("widens to whatever is drawn outside it and to now, in whole hours", () => {
+    expect(drawnRange(day, [{ start: 450, end: 480 }], null)).toEqual({ start: 420, end: 1140 });
+    expect(drawnRange(day, [{ start: 1170, end: 1205 }], null)).toEqual({ start: 480, end: 1260 });
+    expect(drawnRange(day, [], 1230)).toEqual({ start: 480, end: 1260 });
+    expect(drawnRange([{ start: 510, end: 1050 }], [], null)).toEqual({ start: 420, end: 1140 });
+  });
+
+  it("stays inside the day", () => {
+    expect(drawnRange([{ start: 30, end: 1420 }], [], null)).toEqual({ start: 0, end: 1440 });
   });
 });

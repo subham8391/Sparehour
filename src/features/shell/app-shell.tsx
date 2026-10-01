@@ -6,7 +6,7 @@
 // while the viewport is measured. Quick-add, selection, the keyboard layer
 // and the command palette are mounted once here.
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
@@ -20,6 +20,7 @@ import { SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailPane, TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { UndoProvider } from "@/features/undo/undo-provider";
 import { cx } from "@/ui/cx";
+import { FabRoomContext } from "./fab-visibility";
 import { showsQuickAdd, showsTabBar } from "./nav";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
@@ -63,12 +64,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 // inside it, with the add bar a footer beneath the region so it never covers
 // a row. The tab bar steps aside on full-screen routes; the add bar and the
 // FAB show only where adding a task is the job, and the FAB hides under the
-// phone's detail sheet (P5, P10).
+// phone's detail sheet (P5, P10) and while a view that is not a task list
+// asks it to (Today's Day view).
 function Frame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { counts, areas } = useNavData();
   const sync = useSyncChip();
   const detail = useTaskDetail();
+  const [viewHidesFab, setViewHidesFab] = useState(false);
   useAppBadge(counts.today);
   const tabs = showsTabBar(pathname);
   const adds = showsQuickAdd(pathname);
@@ -92,13 +95,13 @@ function Frame({ children }: { children: ReactNode }) {
           tabIndex={0}
           className="flex flex-1 flex-col focus-visible:-outline-offset-2 sm:min-h-0 sm:overflow-y-auto"
         >
-          {children}
+          <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
         </div>
         {adds && <QuickAddBar />}
       </div>
       <TaskDetailPane />
       {tabs && <TabBar pathname={pathname} counts={counts} sync={sync} className="sm:hidden" />}
-      {adds && <QuickAddFab hidden={detail.selectedId !== null} />}
+      {adds && <QuickAddFab hidden={detail.selectedId !== null || viewHidesFab} />}
       <BulkBar />
     </div>
   );

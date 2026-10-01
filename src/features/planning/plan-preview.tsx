@@ -61,7 +61,19 @@ export function PlanPreview(p: PlanPreviewProps) {
   const [error, setError] = useState<string | null>(null);
   const headingId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   useEffect(() => headingRef.current?.focus({ preventScroll: true }), []);
+  // ✕ and Put back unmount the button that was pressed; focus then goes to the control in the same place in the
+  // list that replaced it, or to the heading, never to <body> (where Escape would no longer reach the panel).
+  const refocus = useRef<{ list: "remove" | "putBack"; index: number } | null>(null);
+  useEffect(() => {
+    const want = refocus.current;
+    if (!want) return;
+    refocus.current = null;
+    const controls = sectionRef.current?.querySelectorAll<HTMLElement>(`[data-refocus="${want.list}"]`) ?? [];
+    const next = controls[Math.min(want.index, controls.length - 1)] ?? headingRef.current;
+    next?.focus({ preventScroll: true });
+  });
 
   // The proposal is a pure function of the day, the removals and the seed: re-planning is just rendering again.
   const input = p.base ? { ...p.base, candidates: p.base.candidates.filter((t) => !removed.has(t.id)) } : null;
@@ -74,6 +86,8 @@ export function PlanPreview(p: PlanPreviewProps) {
   useEffect(() => onDrawing?.(drawing));
 
   const blocks = proposal?.blocks ?? [];
+  // Removing takes the whole task out of this plan, so only a task's first part carries ✕.
+  const removable = blocks.filter((b) => !b.part || b.part.index === 1).map((b) => b.key);
   const chosen = choosing ? blocks.filter((b) => !unticked.has(b.key)) : blocks;
   const removedTasks = (p.base?.candidates ?? []).filter((t) => removed.has(t.id));
   const replaced = (p.base?.blocks ?? []).filter((b) => proposal?.replaces.includes(b.id));
@@ -115,16 +129,19 @@ export function PlanPreview(p: PlanPreviewProps) {
     } else setNote("This is the only arrangement that fits.");
   };
 
-  const remove = (taskId: string) => {
+  const remove = (taskId: string, index: number) => {
+    refocus.current = { list: "remove", index };
     setRemoved((s) => new Set(s).add(taskId));
     setNote(null);
   };
-  const putBack = (taskId: string) =>
+  const putBack = (taskId: string, index: number) => {
+    refocus.current = { list: "putBack", index };
     setRemoved((s) => {
       const next = new Set(s);
       next.delete(taskId);
       return next;
     });
+  };
   const toggle = (key: string) =>
     setUnticked((s) => {
       const next = new Set(s);
@@ -138,9 +155,31 @@ export function PlanPreview(p: PlanPreviewProps) {
     e.stopPropagation();
     p.onClose();
   };
+  // Escape closes the preview wherever focus is in its view (SCREENS.md §2.6a "Discard / Esc") — the timeline beside
+  // it, the page, or nowhere at all — unless something else has the key: a dialog above it, a field being typed in,
+  // or a panel outside the view such as the task detail, whose own Escape closes only itself.
+  const escape = useRef({ busy, onClose: p.onClose });
+  useEffect(() => {
+    escape.current = { busy, onClose: p.onClose };
+  });
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || escape.current.busy) return;
+      if (document.querySelector("[role='dialog'][aria-modal='true']")) return;
+      const el = e.target instanceof Element ? e.target : null;
+      const nowhere = !el || el === document.body || el === document.documentElement;
+      const view = sectionRef.current?.closest("main") ?? document.body;
+      if (!nowhere && !view.contains(el)) return;
+      if (el?.closest("input, textarea, select, [contenteditable='true']") && !sectionRef.current?.contains(el)) return;
+      escape.current.onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <section
+      ref={sectionRef}
       aria-labelledby={headingId}
       data-testid="plan-preview"
       onKeyDown={onKeyDown}
@@ -165,6 +204,7 @@ export function PlanPreview(p: PlanPreviewProps) {
           <ul aria-label={PROPOSED_LABEL} className="flex flex-col">
             {blocks.map((b) => {
               const when = range(b.start, b.end);
+              const removeIndex = removable.indexOf(b.key);
               return (
                 <li key={b.key} data-plan-block={b.key} className="flex items-start gap-1 border-t border-line py-1.5 first:border-t-0">
                   {choosing && <Checkbox checked={!unticked.has(b.key)} onChange={() => toggle(b.key)} aria-label={`Include ${b.title}${partOf(b)}, ${when}`} className="-ml-3 shrink-0" />}
@@ -179,8 +219,8 @@ export function PlanPreview(p: PlanPreviewProps) {
                     <p className="mt-0.5 text-body-sm text-pretty text-ink-2">{explain(b.reasons)}</p>
                   </div>
                   {/* Removing takes the whole task out of this plan; its later parts go with the first. */}
-                  {(!b.part || b.part.index === 1) && (
-                    <Button variant="icon" aria-label={`Remove ${b.title} from the plan`} title="Remove from the plan" onClick={() => remove(b.taskId)} className="-mr-2 shrink-0">
+                  {removeIndex >= 0 && (
+                    <Button variant="icon" data-refocus="remove" aria-label={`Remove ${b.title} from the plan`} title="Remove from the plan" onClick={() => remove(b.taskId, removeIndex)} className="-mr-2 shrink-0">
                       <Icon name="close" size={16} />
                     </Button>
                   )}
@@ -243,10 +283,10 @@ export function PlanPreview(p: PlanPreviewProps) {
 
         {removedTasks.length > 0 && (
           <ul aria-label="Left out of the plan" className="mt-3 flex flex-col">
-            {removedTasks.map((t) => (
+            {removedTasks.map((t, i) => (
               <li key={t.id} className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-body-sm text-ink-2">Left out: {t.title}</span>
-                <Button variant="link" size="compact" aria-label={`Put ${t.title} back in the plan`} onClick={() => putBack(t.id)} className="-mr-2">
+                <Button variant="link" size="compact" data-refocus="putBack" aria-label={`Put ${t.title} back in the plan`} onClick={() => putBack(t.id, i)} className="-mr-2">
                   Put back
                 </Button>
               </li>

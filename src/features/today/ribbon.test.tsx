@@ -61,6 +61,14 @@ describe("<Ribbon>", () => {
     expect(screen.queryByText(/in meetings/)).not.toBeInTheDocument();
   });
 
+  it("notes time planned outside working hours in one quiet line, and says nothing when there is none", () => {
+    const { unmount } = render(<Ribbon c={{ ...capacityFixture, outsideHoursMin: 60 }} nowMin={680} />);
+    expect(screen.getByText("1h planned outside working hours")).toHaveClass("text-ink-2");
+    unmount();
+    render(<Ribbon c={capacityFixture} nowMin={680} />);
+    expect(screen.queryByText(/outside working hours/)).not.toBeInTheDocument();
+  });
+
   it("a day without working hours says so", () => {
     render(<Ribbon c={{ ...capacityFixture, state: "no_work_day" }} />);
     expect(screen.getByText("Not a working day.")).toBeInTheDocument();

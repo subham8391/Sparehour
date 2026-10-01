@@ -150,6 +150,75 @@ describe("<PlanPreview>", () => {
     expect(proposed().getByText("Draft the proposal")).toBeInTheDocument();
   });
 
+  it("after ✕ or Put back, focus lands on the control that took the pressed one's place, or the heading, never on the page", async () => {
+    const { onClose, user } = setup();
+    await user.click(screen.getByRole("button", { name: "Remove Draft the proposal from the plan" }));
+    // The re-planned list's first ✕ is where the pressed one was.
+    expect(screen.getByRole("button", { name: "Remove Review the deck from the plan" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Put Draft the proposal back in the plan" }));
+    // Nothing is left out any more, so the heading takes focus.
+    expect(screen.getByRole("heading", { name: "Plan my day" })).toHaveFocus();
+    // Removing the last row's ✕ moves to the row before it.
+    const last = proposed().getAllByRole("button", { name: /^Remove / }).at(-1)!;
+    await user.click(last);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toHaveAttribute("data-refocus", "remove");
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape closes the preview wherever focus is, unless a dialog above it or a field elsewhere has the key", () => {
+    const { onClose } = setup();
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    const field = document.createElement("input");
+    document.body.append(field);
+    fireEvent.keyDown(field, { key: "Escape" });
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    document.body.append(dialog);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    field.remove();
+    dialog.remove();
+  });
+
+  it("Escape from the timeline beside it closes the preview; from a panel outside the view, such as the task detail, it does not", () => {
+    const onClose = vi.fn();
+    render(
+      <>
+        <main>
+          <PlanPreview mode="plan" base={base()} layout="dock" writer={writer()} toIso={(m) => isoAt(TODAY, m, "UTC")} onClose={onClose} />
+          <aside aria-label="Your day">
+            <button type="button">Block: Deep work</button>
+          </aside>
+        </main>
+        <aside aria-label="Task">
+          <button type="button">Close the task</button>
+        </aside>
+      </>,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Close the task" }), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Block: Deep work" }), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape waits while Approve is saving", async () => {
+    const w = writer();
+    w.approve.mockImplementation(() => new Promise(() => {}));
+    const onClose = vi.fn();
+    render(<PlanPreview mode="plan" base={base()} layout="dock" writer={w} toIso={(m) => isoAt(TODAY, m, "UTC")} onClose={onClose} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("heading", { name: "Plan my day" }), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("names the plan's earlier blocks it replaces, and Keep locks one in place", async () => {
     const earlier: PlanBlock = { id: "b-old", taskId: "t2", start: 660, end: 690, locked: false, source: "plan" };
     const { w, user } = setup({ blocks: [earlier] }, { blockTitles: new Map([["b-old", "Review the deck"]]) });

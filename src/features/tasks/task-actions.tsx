@@ -27,7 +27,10 @@ const INLINE = "inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap r
 /**
  * One row action. `label` is its accessible name; `text` is what the row
  * shows beside the glyph (defaults to the label, `null` for an icon-only
- * action). The menu always shows a word.
+ * action), and must be part of the label so what is seen is what is named
+ * (WCAG 2.5.3): "Block" for "Block Draft the proposal". The menu always shows
+ * a word, and has room for the whole one: a short text that is not part of
+ * the label gives way to the label there.
  */
 export function RowAction({
   label,
@@ -52,7 +55,7 @@ export function RowAction({
   const { layout, close } = useContext(LayoutContext);
   const visual = glyph ?? (icon && <Icon name={icon} size={12} strokeWidth={2} className="shrink-0" />);
   if (layout === "menu") {
-    const word = text ?? label;
+    const word = text && label.toLowerCase().includes(text.toLowerCase()) ? text : label;
     return (
       <button
         type="button"

@@ -6,23 +6,26 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Task } from "@/core/types";
 import { Button } from "@/ui/button";
+import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Input } from "@/ui/field";
-import { MoveActions } from "@/features/tasks/task-actions";
+import { MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { Lead, RitualFooter, RitualFrame } from "./ritual-frame";
-import { SHUTDOWN_STEPS, carriedLine, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine, type ShutdownStep } from "./shutdown";
+import { OUTCOME_LABEL, SHUTDOWN_STEPS, carriedLine, carriedToTomorrow, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine, type CarryChoice, type CarryRow, type ShutdownStep } from "./shutdown";
 
-export type CarryChoice = "tomorrow" | "someday" | "drop";
+export type { CarryChoice } from "./shutdown";
 
 export interface ShutdownFlowProps {
   done: readonly Task[];
-  unfinished: readonly Task[];
+  /** The unfinished tasks as they were when the shutdown opened, each with what has become of it since. */
+  unfinished: readonly CarryRow[];
   defaultEstimateMin: number;
   rating: number | null;
   highlight: string;
   tomorrow: { spareMin: number | null; planned: number };
   onCarry: (id: string, to: CarryChoice) => void;
+  /** Moves every row still waiting to tomorrow, as one change with one undo. */
   onCarryAll: () => void;
   onRating: (rating: 1 | 2 | 3 | 4 | 5) => void;
   onHighlight: (text: string) => void;
@@ -108,26 +111,54 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
         </>
       );
       break;
-    case "carried":
+    case "carried": {
+      const waiting = p.unfinished.filter((r) => r.outcome === null).length;
       body = (
         <>
           <Lead>{carriedLine(p.unfinished.length)}</Lead>
           {p.unfinished.length > 0 && (
             <>
               <TaskList>
-                {p.unfinished.map((t) => (
-                  <TaskRow key={t.id} task={t} actions={<MoveActions onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />} />
+                {p.unfinished.map(({ task: t, outcome }) => (
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    // An answered row stays where it was and says what became of it, in a neutral status chip.
+                    chips={
+                      outcome && (
+                        <Chip size="auto" icon="check" data-testid={`outcome-${t.id}`}>
+                          {OUTCOME_LABEL[outcome]}
+                        </Chip>
+                      )
+                    }
+                    actions={
+                      outcome === null ? (
+                        <>
+                          <MoveActions onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />
+                          <RowAction label="Keep for today" onClick={() => p.onCarry(t.id, "keep")} />
+                        </>
+                      ) : outcome === "kept" ? (
+                        // Keeping wrote nothing, so the other answers stay open.
+                        <MoveActions onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />
+                      ) : undefined
+                    }
+                  />
                 ))}
               </TaskList>
-              <p className="text-body-sm text-pretty text-ink-3">Anything you leave here carries to tomorrow on its own.</p>
-              <Button variant="link" className="-ml-2 self-start" onClick={p.onCarryAll}>
-                Move all to tomorrow
-              </Button>
+              {waiting > 0 && (
+                <>
+                  <p className="text-body-sm text-pretty text-ink-3">Anything you leave here carries to tomorrow on its own.</p>
+                  <Button variant="link" className="-ml-2 self-start" onClick={p.onCarryAll}>
+                    Move all to tomorrow
+                  </Button>
+                </>
+              )}
             </>
           )}
         </>
       );
       break;
+    }
     case "rating":
       body = (
         <>
@@ -178,7 +209,7 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
         <>
           <Lead>That&rsquo;s the day. Nothing is waiting for you.</Lead>
           <dl className="divide-y divide-line rounded-xl border border-line bg-surface">
-            {closingLedger({ done: p.done, unfinished: p.unfinished, defaultEstimateMin: p.defaultEstimateMin, rating: p.rating, highlight, tomorrow: p.tomorrow }).map((row) => (
+            {closingLedger({ done: p.done, carried: carriedToTomorrow(p.unfinished), defaultEstimateMin: p.defaultEstimateMin, rating: p.rating, highlight, tomorrow: p.tomorrow }).map((row) => (
               <div key={row.label} className="flex items-baseline justify-between gap-4 px-4 py-2.5 sm:py-3">
                 <dt className="shrink-0 text-body text-ink-2">{row.label}</dt>
                 <dd className={cx("min-w-0 text-right text-body font-medium num [overflow-wrap:anywhere]", row.tone === "spare" ? "font-semibold text-spare" : row.tone === "over" ? "font-semibold text-over" : row.tone === "quiet" ? "text-ink-3" : "text-ink")}>{row.value}</dd>

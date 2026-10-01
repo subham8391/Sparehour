@@ -3,12 +3,13 @@
 // today's list, all reactive to the local database.
 import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
-import { capacityFor, type Capacity } from "@/core/capacity";
+import { capacityFor, type Capacity, type CapacityBlock } from "@/core/capacity";
 import { carriedOver, shouldAsk } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
-import { Temporal, instant, todayFor, type LocalDate } from "@/core/time";
+import { Temporal, instant, localDate, todayFor, type Instant, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
+import { monthsBack } from "@/data/queries/views";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
@@ -24,6 +25,68 @@ export interface TimelineBlock {
   locked: boolean;
   /** time_blocks.source: 'manual', 'plan', … Plan my day replaces only its own unlocked blocks. */
   source?: string | null;
+  /** Its task is done, or no longer open (parked, dropped): the block is done too (PRODUCT_SPEC.md §10.2). A block without a task never is. */
+  done?: boolean;
+}
+
+/**
+ * The tasks today's blocks belong to, in any state, so a block knows when its task is finished. A completed task
+ * leaves the device once it syncs unless the logbook stream holds it, so the query keeps this month's subscribed.
+ */
+export const BLOCK_TASKS_SQL = `
+  select id, title, state from tasks
+  where deleted_at is null
+    and id in (select task_id from time_blocks where deleted_at is null and task_id is not null and substr(start_at, 1, 10) between ? and ?)`;
+
+/** What a block needs to know about its task. */
+export interface BlockTask {
+  title: string | null;
+  state: string | null;
+}
+
+/** Open means the person can still work on it: inbox or active. Done, Someday, dropped and archived tasks are not. */
+function isClosed(t: BlockTask | undefined): boolean {
+  const state = t?.state;
+  return Boolean(state) && state !== "inbox" && state !== "active";
+}
+
+/** Today's blocks as the timeline draws them, in the user's zone, titled from the block or its task and marked done with it. */
+export function timelineBlocks(rows: readonly TimeBlockRow[], tasks: ReadonlyMap<string, BlockTask>, zone: string, today: LocalDate): TimelineBlock[] {
+  return rows
+    .map((r): TimelineBlock | null => {
+      const b = toCapacityBlock(r);
+      if (!b) return null;
+      const start = b.startAt.toZonedDateTimeISO(zone);
+      const end = b.endAt.toZonedDateTimeISO(zone);
+      if (!start.toPlainDate().equals(today)) return null;
+      const task = b.taskId ? tasks.get(b.taskId) : undefined;
+      return {
+        id: b.id,
+        taskId: b.taskId,
+        title: r.title ?? (b.taskId ? (task?.title ?? "Block") : "Block"),
+        start: start.hour * 60 + start.minute,
+        end: end.toPlainDate().equals(today) ? end.hour * 60 + end.minute : 24 * 60,
+        locked: r.locked === 1,
+        source: r.source ?? null,
+        done: isClosed(task),
+      };
+    })
+    .filter((b): b is TimelineBlock => b !== null)
+    .sort((a, b) => a.start - b.start);
+}
+
+/**
+ * The blocks capacity counts. Completing a task marks its block done (PRODUCT_SPEC.md §10.2), so a closed task's
+ * block keeps only the part already behind `now` — that time was spent — and what it had not reached is free
+ * again, so the hero gives it back. Blocks without a task, and blocks of open tasks, count as they are.
+ */
+export function capacityBlocks(blocks: readonly CapacityBlock[], tasks: ReadonlyMap<string, BlockTask>, now: Instant): CapacityBlock[] {
+  return blocks.flatMap((b) => {
+    if (!b.taskId || !isClosed(tasks.get(b.taskId))) return [b];
+    if (Temporal.Instant.compare(b.startAt, now) >= 0) return [];
+    if (Temporal.Instant.compare(b.endAt, now) <= 0) return [b];
+    return [{ ...b, endAt: now }];
+  });
 }
 
 /** A timed meeting as the timeline labels it: minutes of the local day and the title a person may see. */
@@ -74,6 +137,11 @@ export function useToday(now: Temporal.Instant): TodayModel {
   });
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
+  // The same subscription the closed day's summary takes, so a task completed here stays on the device to say its block is done.
+  const months = useMemo(() => monthsBack(localDate(todayIso), 1), [todayIso]);
+  const { data: blockTaskRows } = useQuery<{ id: string; title: string | null; state: string | null }>(BLOCK_TASKS_SQL, [from, to], {
+    streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }],
+  });
 
   return useMemo(() => {
     const tasks = (taskRows ?? []).map(toTask);
@@ -81,6 +149,9 @@ export function useToday(now: Temporal.Instant): TodayModel {
     const carriedIds = new Set(carried.map((t) => t.id));
     const onDay = tasks.filter((t) => !carriedIds.has(t.id) && t.doDate?.equals(today));
     const readByCalendar = new Map((calendarRows ?? []).map((c) => [c.id, c.read !== 0]));
+    // Each block's task: the open ones from the list at once, then every state (done included) once its query lands.
+    const blockTasks = new Map<string, BlockTask>(tasks.map((t) => [t.id, { title: t.title, state: t.state }]));
+    for (const r of blockTaskRows ?? []) blockTasks.set(r.id, { title: r.title, state: r.state });
 
     const capacity = settings
       ? capacityFor({
@@ -88,33 +159,18 @@ export function useToday(now: Temporal.Instant): TodayModel {
           settings: { timezone: settings.timezone, bufferPct: settings.bufferPct, defaultEstimateMin: settings.defaultEstimateMin },
           workHours: (workRows ?? []).map(toWorkWindow).filter((w): w is NonNullable<typeof w> => w !== null),
           events: (eventRows ?? []).map((e) => toCapacityEvent(e, readByCalendar.get(e.calendar_id ?? "") ?? true)),
-          blocks: (blockRows ?? []).map(toCapacityBlock).filter((b): b is NonNullable<typeof b> => b !== null),
+          blocks: capacityBlocks(
+            (blockRows ?? []).map(toCapacityBlock).filter((b): b is NonNullable<typeof b> => b !== null),
+            blockTasks,
+            now,
+          ),
           tasks: (taskRows ?? []).map(toCapacityTask),
           now,
         })
       : null;
 
-    const titles = new Map(tasks.map((t) => [t.id, t.title]));
     const zone = settings?.timezone ?? "UTC";
-    const blocks: TimelineBlock[] = (blockRows ?? [])
-      .map((r): TimelineBlock | null => {
-        const b = toCapacityBlock(r);
-        if (!b) return null;
-        const start = b.startAt.toZonedDateTimeISO(zone);
-        const end = b.endAt.toZonedDateTimeISO(zone);
-        if (!start.toPlainDate().equals(today)) return null;
-        return {
-          id: b.id,
-          taskId: b.taskId,
-          title: r.title ?? (b.taskId ? (titles.get(b.taskId) ?? "Block") : "Block"),
-          start: start.hour * 60 + start.minute,
-          end: end.toPlainDate().equals(today) ? end.hour * 60 + end.minute : 24 * 60,
-          locked: r.locked === 1,
-          source: r.source ?? null,
-        };
-      })
-      .filter((b): b is TimelineBlock => b !== null)
-      .sort((a, b) => a.start - b.start);
+    const blocks = timelineBlocks(blockRows ?? [], blockTasks, zone, today);
     const blockByTask = new Map<string, TimelineBlock>(blocks.filter((b) => b.taskId).map((b) => [b.taskId as string, b]));
     // PRODUCT_SPEC.md §10.3 rule 7: a private calendar shows its events as "Busy"; a calendar switched off does not show at all.
     const privateIds = new Set((calendarRows ?? []).filter((c) => c.private === 1).map((c) => c.id));
@@ -150,7 +206,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
       calendarConnected: (calendarRows ?? []).length > 0,
       calendarIssue: calendarIssueFrom(connectionRows ?? []),
     };
-  }, [taskRows, blockRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
+  }, [taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
 }
 
 export interface CalendarIssue {

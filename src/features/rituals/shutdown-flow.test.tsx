@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
+import type { CarryRow } from "./shutdown";
 import { ShutdownFlow, type ShutdownFlowProps } from "./shutdown-flow";
 
 const task = (id: string, title: string, estimateMin: number | null, state: Task["state"] = "active"): Task => ({
@@ -34,6 +35,8 @@ const task = (id: string, title: string, estimateMin: number | null, state: Task
   routineRunId: null,
 });
 
+const waiting = (t: Task): CarryRow => ({ task: t, outcome: null });
+
 function setup(over: Partial<ShutdownFlowProps> = {}) {
   const handlers = {
     onCarry: vi.fn(),
@@ -46,7 +49,7 @@ function setup(over: Partial<ShutdownFlowProps> = {}) {
   };
   const props: ShutdownFlowProps = {
     done: [task("d1", "Reply to Priya", 15, "done"), task("d2", "Draft the proposal", 90, "done")],
-    unfinished: [task("u1", "Book dentist", 10), task("u2", "Research CalDAV", 60)],
+    unfinished: [waiting(task("u1", "Book dentist", 10)), waiting(task("u2", "Research CalDAV", 60))],
     defaultEstimateMin: 30,
     rating: null,
     highlight: "",
@@ -72,15 +75,41 @@ describe("<ShutdownFlow>", () => {
     expect(screen.getByText("Tomorrow: 4h 10m spare, 3 things already on it.")).toBeInTheDocument();
   });
 
-  it("carried rows offer Tomorrow · Someday · Drop, plus Move all", async () => {
+  it("carried rows offer Tomorrow · Someday · Drop · Keep for today, plus Move all", async () => {
     const { user, onCarry, onCarryAll } = setup();
     await user.click(screen.getByRole("button", { name: "Step 2: Carried to tomorrow" }));
     await user.click(screen.getAllByRole("button", { name: "Tomorrow" })[0]);
     expect(onCarry).toHaveBeenCalledWith("u1", "tomorrow");
     await user.click(screen.getAllByRole("button", { name: "Someday" })[1]);
     expect(onCarry).toHaveBeenCalledWith("u2", "someday");
+    await user.click(screen.getAllByRole("button", { name: "Keep for today" })[0]);
+    expect(onCarry).toHaveBeenCalledWith("u1", "keep");
     await user.click(screen.getByRole("button", { name: "Move all to tomorrow" }));
     expect(onCarryAll).toHaveBeenCalled();
+  });
+
+  it("answered rows stay in the list with their outcome, the lead still counts them, and Move all leaves once nothing waits", async () => {
+    const [u1, u2, u3] = [task("u1", "Book dentist", 10), task("u2", "Research CalDAV", 60), task("u3", "Water the plants", 5)];
+    const { user } = setup({
+      unfinished: [
+        { task: u1, outcome: "tomorrow" },
+        { task: u2, outcome: "someday" },
+        { task: u3, outcome: "kept" },
+      ],
+    });
+    await user.click(screen.getByRole("button", { name: "Step 2: Carried to tomorrow" }));
+    // Not "Everything you planned happened": three things did not.
+    expect(screen.getByText("3 things didn’t happen. That’s normal.")).toBeInTheDocument();
+    expect(screen.getByTestId("outcome-u1")).toHaveTextContent("Moved to tomorrow");
+    expect(screen.getByTestId("outcome-u2")).toHaveTextContent("Moved to Someday");
+    expect(screen.getByTestId("outcome-u3")).toHaveTextContent("Kept for today");
+    // A moved row has nothing left to answer; a kept one can still change its mind.
+    for (const title of ["Book dentist", "Research CalDAV", "Water the plants"]) expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Tomorrow" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Move all to tomorrow" })).not.toBeInTheDocument();
+    // The close counts what goes on to tomorrow: the moved row, not the parked or the kept one.
+    await user.click(screen.getByRole("button", { name: "Step 6: Close the day" }));
+    expect(screen.getByText("Carried to tomorrow").nextElementSibling).toHaveTextContent("1 thing");
   });
 
   it("rates with a tap or a number key", async () => {

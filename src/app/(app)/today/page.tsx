@@ -19,7 +19,9 @@ import { closedLine } from "@/features/rituals/shutdown";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon } from "@/features/today/ribbon";
+import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
 import { Timeline } from "@/features/today/timeline";
+import { useHideQuickAddFab } from "@/features/shell/fab-visibility";
 import { ViewHeader } from "@/features/shell/view-header";
 import { BLOCK_GLYPH, CarryAsk, MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { useListSelection } from "@/features/selection/selection-provider";
@@ -30,9 +32,7 @@ import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
 import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
-import { Icon } from "@/ui/icons";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
-import { Segmented } from "@/ui/segmented";
 import { Loading } from "../loading-view";
 
 const NOTHING_SQL = `select * from tasks where 0`;
@@ -50,16 +50,6 @@ function BlockChip({ block }: { block: TimelineBlock }) {
     <Chip tone="block" size="auto" title={`Blocked ${formatTime(timeFromMinutes(block.start))}–${formatTime(timeFromMinutes(block.end))}`}>
       {formatTime(timeFromMinutes(block.start))}
     </Chip>
-  );
-}
-
-/** A ritual link: "Morning plan ›", "Shutdown ›". 44 px on the phone's ritual row, 36 px in the desktop header. */
-function RitualLink({ href, quiet = false, className, children }: { href: string; quiet?: boolean; className?: string; children: string }) {
-  return (
-    <Link href={href} className={cx(buttonClass({ variant: "link" }), quiet && "text-ink-2", className)}>
-      {children}
-      <Icon name="chevron-right" size={16} className="text-ink-3" />
-    </Link>
   );
 }
 
@@ -105,7 +95,7 @@ export default function TodayPage() {
   const projectNames = useProjectNames();
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [view, setView] = useState<"list" | "day">("list");
+  const [view, setView] = useState<TodayView>("list");
   const windows = model.capacity?.windows ?? [];
   const dayStart = windows[0]?.start ?? 9 * 60;
   const dayEnd = windows[windows.length - 1]?.end ?? 17 * 60;
@@ -261,10 +251,12 @@ export default function TodayPage() {
   const dropInToday = dropInto(model.todayTasks, false);
   const dropInEvening = dropInto(model.eveningTasks, true);
 
-  if (!model.ready) return <Loading />;
-
   const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
   const showDay = hasDay && view === "day";
+  // The phone's Day view is a timeline, not a task list: its free gaps are what a tap schedules into, so the FAB steps aside.
+  useHideQuickAddFab(showDay);
+
+  if (!model.ready) return <Loading />;
   const finish = model.capacity?.projectedFinish ?? null;
   // The phone's ritual row turns to the shutdown once the plan is projected to be done, or the day is two hours from its end.
   const shutdownTime = shutdownReady || (finish !== null && nowMinute >= finish.hour * 60 + finish.minute);
@@ -340,52 +332,20 @@ export default function TodayPage() {
           )
         )}
 
-        {/* The ritual row (DESIGN_SYSTEM.md §5): on the phone the ritual of the hour with its status, "Morning plan" until the day
-            nears its end and "Shutdown" from then on, with the List | Day control to its right, dropping to its own line only below
-            390 px. Above the phone the rituals sit in the header and only the control remains here, until the wide band shows both panes. */}
-        {(hasDay || !closedAt) && (
-          <div className="-my-3 flex flex-wrap items-center gap-x-2 lg:hidden">
-            {!closedAt &&
-              (shutdownTime ? (
-                <span className="-ml-2 flex items-center gap-1 sm:hidden">
-                  <RitualLink href="/shutdown">Shutdown</RitualLink>
-                  {finish ? <span className="text-label text-ink-3 num">done by {formatTime(finish)}</span> : dayOver ? <span className="text-label text-ink-3">Day&rsquo;s over</span> : null}
-                </span>
-              ) : (
-                <span className="-ml-2 flex items-center gap-1 sm:hidden">
-                  {plannedAt ? (
-                    <span className="px-2 text-label text-ink-3 num">{plannedLabel(plannedAt)}</span>
-                  ) : (
-                    <>
-                      <RitualLink href="/plan">Morning plan</RitualLink>
-                      <span className="text-label text-ink-3">Not planned yet</span>
-                    </>
-                  )}
-                </span>
-              ))}
-            {!closedAt && hasDay && (
-              <button type="button" aria-expanded={planning.mode !== null} onClick={() => planning.open(nextPlan)} className={cx(buttonClass({ variant: "link" }), "sm:hidden")}>
-                {PLAN_LABEL[nextPlan]}
-              </button>
-            )}
-            {!closedAt && review && review.carried > 0 && (
-              <button type="button" onClick={review.open} className={cx(buttonClass({ variant: "link" }), "text-ink-2 sm:hidden")}>
-                Review carried
-              </button>
-            )}
-            {hasDay && (
-              <Segmented
-                className="ml-auto"
-                options={[
-                  { value: "list", label: "List" },
-                  { value: "day", label: "Day" },
-                ]}
-                value={view}
-                onChange={setView}
-              />
-            )}
-          </div>
-        )}
+        {/* The ritual row (DESIGN_SYSTEM.md §5): the ritual of the hour and the List | Day control on one line, Plan my day
+            and the review beneath on the phone; only the control from the narrow band up, until the wide band shows both panes. */}
+        <RitualRow
+          closed={Boolean(closedAt)}
+          hasDay={hasDay}
+          shutdownTime={shutdownTime}
+          finish={finish}
+          dayOver={dayOver}
+          plannedAt={plannedAt}
+          plan={{ label: PLAN_LABEL[nextPlan], open: planning.mode !== null, onOpen: () => planning.open(nextPlan) }}
+          onReview={review && review.carried > 0 ? review.open : null}
+          view={view}
+          onView={setView}
+        />
 
         {planning.mode && !closedAt && (
           // Beside the timeline from the wide band, above it below that, and a sheet over the Day view on a phone.
@@ -465,7 +425,8 @@ export default function TodayPage() {
                     <>
                       <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(t, -1)} />
                       <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(t, 1)} />
-                      <RowAction label="Tomorrow" text="Tmr" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />
+                      {/* The whole word, in the row and in the phone's menu: what is seen is what is named (WCAG 2.5.3). */}
+                      <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />
                       {hasDay && !model.blockByTask.has(t.id) && (
                         <RowAction label={`Block ${t.title}`} text="Block" glyph={BLOCK_GLYPH} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} />
                       )}
