@@ -115,6 +115,9 @@ export interface Settings {
   dayRolloverHour: number;
   bufferPct: number;
   defaultEstimateMin: number;
+  /** The longest and shortest block Plan my day makes (SYSTEM_DESIGN.md §5.5). */
+  maxBlockMin: number;
+  minBlockMin: number;
   carryAskAfter: number;
   autoSomedayDays: number;
   eveningStartsAt: LocalTime;
@@ -128,6 +131,8 @@ export function toSettings(r: UserSettingsRow): Settings {
     dayRolloverHour: r.day_rollover_hour ?? 4,
     bufferPct: r.buffer_pct ?? 15,
     defaultEstimateMin: r.default_estimate_min ?? 30,
+    maxBlockMin: r.max_block_min ?? 90,
+    minBlockMin: r.min_block_min ?? 25,
     carryAskAfter: r.carry_ask_after ?? 3,
     autoSomedayDays: r.auto_someday_days ?? 30,
     eveningStartsAt: localTime((r.evening_starts_at ?? "18:00").slice(0, 5)),

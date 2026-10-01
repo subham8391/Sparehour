@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
+import { capacityFixture } from "@/test/fixtures";
 import { MorningPlanFlow, type MorningPlanFlowProps } from "./morning-plan-flow";
 
 const today = localDate("2026-09-14");
@@ -107,5 +108,34 @@ describe("<MorningPlanFlow>", () => {
     expect(onDone).toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Skip" }));
     expect(onSkip).toHaveBeenCalled();
+  });
+
+  describe("step 3 and Plan my day", () => {
+    const drawing = { ghosts: [{ key: "d1", title: "Write proposal", start: 690, end: 780 }], free: [{ start: 540, end: 585 }], replacedIds: [] };
+
+    it("offers Plan my day beside the timeline, and the preview opens inside the step with its ghosts drawn", async () => {
+      const onOpen = vi.fn();
+      const { user } = setup({ capacity: capacityFixture, planMyDay: { open: false, onOpen, preview: null, drawing: null } });
+      await user.click(screen.getByRole("button", { name: "Step 3: Block time" }));
+      expect(screen.getByText(/Plan my day proposes blocks for today’s tasks/)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Plan my day" }));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      expect(screen.queryAllByTestId("plan-ghost")).toHaveLength(0);
+    });
+
+    it("a plan asked for from anywhere opens on the last step, with the preview and the ghosts", () => {
+      setup({ capacity: capacityFixture, planMyDay: { open: true, onOpen: vi.fn(), preview: <section aria-label="The preview">Preview</section>, drawing } });
+      expect(screen.getByRole("heading", { name: "Block time" })).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "The preview" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Plan my day" })).not.toBeInTheDocument();
+      expect(screen.getAllByTestId("plan-ghost").map((g) => g.textContent)).toEqual(["Write proposal11:30–13:00 · 1h 30m"]);
+    });
+
+    it("without it, step 3 keeps its timeline and its words", async () => {
+      const { user } = setup({ capacity: capacityFixture });
+      await user.click(screen.getByRole("button", { name: "Step 3: Block time" }));
+      expect(screen.queryByRole("button", { name: "Plan my day" })).not.toBeInTheDocument();
+      expect(screen.getByTestId("timeline")).toBeInTheDocument();
+    });
   });
 });

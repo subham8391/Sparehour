@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The accessibility sweep (SYSTEM_DESIGN.md §11.5): every presentational
 // surface of M1 renders with realistic content and axe finds nothing.
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { localDate, localTime } from "@/core/time";
@@ -9,6 +9,8 @@ import type { Task } from "@/core/types";
 import { Palette } from "@/features/commands/palette";
 import { COMMANDS } from "@/features/commands/registry";
 import { PushActionSheet } from "@/features/notifications/push-actions";
+import { isoAt, planTask } from "@/features/planning/plan-input";
+import { PlanPreview } from "@/features/planning/plan-preview";
 import { QuickAdd } from "@/features/quickadd/quick-add";
 import { CarryReviewSheet } from "@/features/rituals/carry-review-sheet";
 import { MorningPlanFlow } from "@/features/rituals/morning-plan-flow";
@@ -245,5 +247,30 @@ describe("axe: every M1 surface", () => {
         <InlineAdd ctx={{ now: NOW, zone: "Europe/London" }} onAdd={noop} placeholder="Add a task" />
       </TaskList>,
     );
+  }, 30_000);
+
+  it("the Plan my day preview, choosing which blocks to approve, and its ghosts on the timeline", async () => {
+    const planWriter = { approve: async () => {}, tomorrow: noop, someday: noop, keep: noop };
+    const base = {
+      day: TODAY,
+      capacity: { windows: [{ start: 540, end: 720 }], busy: [{ start: 600, end: 630 }] },
+      blocks: [{ id: "b-old", taskId: "t2", start: 660, end: 690, locked: false, source: "plan" }],
+      candidates: [
+        planTask(taskFixture("t1", "Draft the proposal", { priority: 3, estimateMin: 45, carryCount: 2 }), TODAY),
+        planTask(taskFixture("t2", "Review the deck", { estimateMin: 180 }), TODAY),
+        planTask(taskFixture("t3", "Reorganise the shared drive", { estimateMin: 90 }), TODAY),
+      ],
+      settings: { timezone: "UTC", maxBlockMin: 90, minBlockMin: 25, defaultEstimateMin: 30, eveningStartsAt: localTime("18:00"), bufferPct: 15 },
+      now: NOW.subtract({ minutes: 90 }),
+    };
+    for (const layout of ["dock", "inline"] as const) {
+      const { container } = render(<PlanPreview mode="plan" base={base} blockTitles={new Map([["b-old", "Review the deck"]])} layout={layout} writer={planWriter} toIso={(m) => isoAt(TODAY, m, "UTC")} onClose={noop} />);
+      expect(await a11yViolations(container)).toEqual([]);
+      fireEvent.click(screen.getByRole("button", { name: "Approve some" }));
+      fireEvent.click(screen.getByRole("button", { name: "Remove Draft the proposal from the plan" }));
+      expect(await a11yViolations(container)).toEqual([]);
+      cleanup();
+    }
+    await check(<Timeline c={capacityFixture} now={NOW} zone="UTC" proposed={[{ key: "t1", title: "Draft the proposal", start: 690, end: 735 }, { key: "t2:1", title: "Review the deck (1 of 2)", start: 780, end: 870 }]} />);
   }, 30_000);
 });

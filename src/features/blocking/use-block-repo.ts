@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useLocalDatabase } from "@/data/powersync";
-import { BlockRepo, type NewBlock } from "@/data/repositories/block-repo";
+import { BlockRepo, type ApprovedPlan, type NewBlock } from "@/data/repositories/block-repo";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { schedulePush } from "./push-after-write";
 
@@ -19,6 +19,17 @@ class PushingBlockRepo extends BlockRepo {
   override async remove(id: string): Promise<void> {
     await super.remove(id);
     schedulePush();
+  }
+  // A plan's batch goes to Google like any block, and so does taking it back.
+  override async approvePlan(plan: ApprovedPlan, opts: { afterUndo?: () => void } = {}): Promise<string[]> {
+    const ids = await super.approvePlan(plan, {
+      afterUndo: () => {
+        opts.afterUndo?.();
+        schedulePush();
+      },
+    });
+    schedulePush();
+    return ids;
   }
 }
 

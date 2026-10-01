@@ -16,6 +16,8 @@ import { useProjectNames } from "@/features/projects/use-project-names";
 import { useCarryReview } from "@/features/rituals/carry-review-host";
 import { plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
+import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
+import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon } from "@/features/today/ribbon";
 import { Timeline } from "@/features/today/timeline";
 import { ViewHeader } from "@/features/shell/view-header";
@@ -167,6 +169,27 @@ export default function TodayPage() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [placingId]);
+  // Plan my day (SCREENS.md §2.1, §2.6): the preview shows the Day view with the proposal drawn on it, nothing written until Approve.
+  const planning = usePlanPreview(() => {
+    setView("day");
+    setSelectedBlockId(null);
+    setPlacingId(null);
+    detail.close();
+  });
+  // Once per preview, the first proposed block is brought into view: in the day pane from the wide band, above the sheet on a phone.
+  // Between those the panel sits above the timeline in one column, and scrolling would carry its buttons away.
+  const firstGhost = planning.drawing?.ghosts[0]?.key ?? null;
+  const shownGhostFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!planning.mode) {
+      shownGhostFor.current = null;
+      return;
+    }
+    if (!firstGhost || shownGhostFor.current) return;
+    shownGhostFor.current = firstGhost;
+    if (!window.matchMedia?.("(min-width: 1180px), (max-width: 639px)").matches) return;
+    document.querySelector("[data-plan-ghost]")?.scrollIntoView?.({ block: "start" });
+  }, [planning.mode, firstGhost]);
   const selectedBlock = model.blocks.find((b) => b.id === selectedBlockId) ?? null;
   const removeBlock = (id: string) => {
     setSelectedBlockId((s) => (s === id ? null : s));
@@ -251,6 +274,10 @@ export default function TodayPage() {
   const eveningAt = model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
   // Past the working day: the ritual row says so even when there is no projected finish left to name.
   const dayOver = hasDay && nowMinute >= dayEnd;
+  // Once the day has started and the plan has put blocks on it, the button offers to re-plan what is left.
+  const nextPlan = planMode(nowMinute, dayStart, model.blocks.some((b) => b.source === "plan"));
+  const drawing = planning.drawing;
+  const replacedIds = new Set(drawing?.replacedIds ?? []);
 
   return (
     // Three panes from the wide band: the list column scrolls on its own and the day pane keeps its place beside it.
@@ -277,6 +304,11 @@ export default function TodayPage() {
                   <RitualLink href="/plan" className="max-sm:hidden">
                     Morning plan
                   </RitualLink>
+                )}
+                {hasDay && (
+                  <button type="button" aria-expanded={planning.mode !== null} onClick={() => planning.open(nextPlan)} className={cx(buttonClass({ variant: "link" }), "max-sm:hidden")}>
+                    {PLAN_LABEL[nextPlan]}
+                  </button>
                 )}
                 <RitualLink href="/shutdown" quiet={!shutdownReady} className="max-sm:hidden">
                   Shutdown
@@ -331,6 +363,11 @@ export default function TodayPage() {
                   )}
                 </span>
               ))}
+            {!closedAt && hasDay && (
+              <button type="button" aria-expanded={planning.mode !== null} onClick={() => planning.open(nextPlan)} className={cx(buttonClass({ variant: "link" }), "sm:hidden")}>
+                {PLAN_LABEL[nextPlan]}
+              </button>
+            )}
             {!closedAt && review && review.carried > 0 && (
               <button type="button" onClick={review.open} className={cx(buttonClass({ variant: "link" }), "text-ink-2 sm:hidden")}>
                 Review carried
@@ -350,7 +387,12 @@ export default function TodayPage() {
           </div>
         )}
 
-        <div className={cx("flex-col gap-6", showDay ? "hidden lg:flex" : "flex")}>
+        {planning.mode && !closedAt && (
+          // Beside the timeline from the wide band, above it below that, and a sheet over the Day view on a phone.
+          <LazyPlanIsland mode={planning.mode} model={model} now={now} layout="dock" onDrawing={planning.setDrawing} onClose={planning.close} />
+        )}
+
+        <div className={cx("flex-col gap-6", planning.mode && !closedAt ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
           {model.carried.length > 0 && (
             <section className="flex flex-col gap-2">
               <SectionLabel
@@ -504,6 +546,8 @@ export default function TodayPage() {
             "lg:ml-auto lg:h-full lg:w-86 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7",
             showDay ? "flex" : "hidden",
             detail.selectedId ? "lg:hidden" : "lg:flex",
+            // Room to scroll the whole day above the docked preview sheet.
+            planning.mode && "max-sm:pb-[min(62dvh,36rem)]",
           )}
         >
           <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
@@ -520,10 +564,12 @@ export default function TodayPage() {
               </div>
             )}
             <Timeline
-              c={model.capacity}
+              // While previewing, the gaps are what the proposal leaves; the "done by" marker belongs to the day as it is, so it steps aside.
+              c={drawing ? { ...model.capacity, free: [...drawing.free], projectedFinish: null } : model.capacity}
               now={now}
               zone={zone}
-              blocks={model.blocks}
+              blocks={drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks}
+              proposed={drawing?.ghosts}
               meetings={model.meetings}
               defaultEstimateMin={defaultEstimate}
               selectedBlockId={selectedBlockId}
@@ -552,7 +598,7 @@ export default function TodayPage() {
                 setPlacingId(null);
               }}
             />
-            {model.blocks.length === 0 && !placingTask && (
+            {model.blocks.length === 0 && !placingTask && !planning.mode && (
               <p className="mt-4 text-body-sm text-pretty text-ink-3">
                 <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B.</span>
                 <span className="sm:hidden">Tap “Block” on a task, then a time here.</span>

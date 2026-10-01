@@ -14,6 +14,7 @@ import { blockLength, minuteAtOffset, placeAt, resizeEnd } from "@/core/blocking
 import type { Capacity, Interval } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes, type Instant } from "@/core/time";
 import { asDragData, type BlockDragData } from "@/features/blocking/drag";
+import type { PlanGhost } from "@/features/planning/drawing";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -46,6 +47,8 @@ export interface TimelineProps {
   /** Tap-to-schedule (SCREENS.md §2.8): a task is waiting for a time; a tap on a free spot places it. */
   placing?: { title: string } | null;
   onTapSlot?: (startMin: number) => void;
+  /** Plan my day's proposal while it is previewed: drawn as ghosts, never written (SYSTEM_DESIGN.md §5.5). */
+  proposed?: readonly PlanGhost[];
 }
 
 interface Ghost {
@@ -213,6 +216,28 @@ export function Timeline(p: TimelineProps) {
           onResizeStart={p.onResizeBlock && !b.locked ? beginResize(b) : undefined}
         />
       ))}
+      {/* Proposed blocks: a dashed block-fill outline over a thin block wash, so they read as blocks that are not there yet.
+          The preview panel lists each one with its time and reason, so the drawing is hidden from assistive tech. */}
+      {(p.proposed ?? []).map((g) => {
+        const height = Math.max(24, (g.end - g.start) * PX_PER_MIN - 2);
+        const tall = height >= TWO_LINE_PX;
+        return (
+          <div
+            key={`plan-${g.key}`}
+            aria-hidden="true"
+            data-testid="plan-ghost"
+            data-plan-ghost={g.key}
+            className={cx(
+              "pointer-events-none absolute right-2 left-13 scroll-mt-14 overflow-hidden rounded-sm border-[1.5px] border-dashed border-block-fill bg-block-soft/60 px-2",
+              tall ? "flex flex-col justify-start py-1" : "flex items-center gap-1.5",
+            )}
+            style={{ top: y(g.start) + 1, height }}
+          >
+            <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-ink">{g.title}</span>
+            <span className={cx("block text-micro text-ink-2 num", tall ? "truncate" : "shrink-0 whitespace-nowrap")}>{tall ? rangeLine(g.start, g.end) : formatTime(timeFromMinutes(g.start))}</span>
+          </div>
+        );
+      })}
       {ghost && (
         <div className="pointer-events-none absolute right-2 left-13 flex items-center gap-1.5 overflow-hidden rounded-sm border border-dashed border-line-strong bg-surface/80 px-2 text-label text-ink-2" style={{ top: y(ghost.start) + 1, height: Math.max(12, (ghost.end - ghost.start) * PX_PER_MIN - 2) }}>
           <span className="num">{formatTime(timeFromMinutes(ghost.start))}</span>

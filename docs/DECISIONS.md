@@ -20,6 +20,7 @@
 - Capacity = per-weekday working hours − calendar meetings − 15% buffer. Estimates are optional (default 30 min, flagged "no estimate"). An overload warning shows on Today and on the week view. Learning from actual durations comes after M2.
 - Calendar: two-way Google at M1, Outlook by M3, iCloud/CalDAV later. Reads all calendars; writes blocks to one chosen calendar.
 - Scheduling: manual time-blocking at M1. A suggest-and-preview "Plan my day" by M2 — explainable, blocks can be locked, one-click re-plan. Never full-auto by default.
+  - **Pulled forward 2026-10-01:** Plan my day and "Re-plan the rest of today" are built now, ahead of their M2 tag, at the customer's request. Explanations are templates until the AI module exists. It stays a Pro feature (Q22), but there is no billing yet, so the paywall is one seam, `canApprovePlan()` in `src/features/planning/entitlement.ts`, which returns true until billing exists; when it says no, the preview hides Approve and Approve some.
 
 **AI**
 - M1: none. Natural-language quick-add is deterministic parsing.

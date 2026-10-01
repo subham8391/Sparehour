@@ -21,6 +21,8 @@ export interface TimelineBlock {
   start: number;
   end: number;
   locked: boolean;
+  /** time_blocks.source: 'manual', 'plan', … Plan my day replaces only its own unlocked blocks. */
+  source?: string | null;
 }
 
 /** A timed meeting as the timeline labels it: minutes of the local day and the title a person may see. */
@@ -107,6 +109,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
           start: start.hour * 60 + start.minute,
           end: end.toPlainDate().equals(today) ? end.hour * 60 + end.minute : 24 * 60,
           locked: r.locked === 1,
+          source: r.source ?? null,
         };
       })
       .filter((b): b is TimelineBlock => b !== null)

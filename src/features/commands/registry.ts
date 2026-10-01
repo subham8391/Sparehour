@@ -4,6 +4,7 @@
 import type { Instant, LocalDate } from "@/core/time";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
+import type { PlanMode } from "@/features/planning/drawing";
 import { snoozePresets } from "@/features/tasks/snooze";
 import type { Binding } from "./keys";
 
@@ -34,6 +35,8 @@ export interface CommandContext {
   undo: () => void;
   /** Places the task in the next free gap that fits its estimate (only where a day is in view). */
   blockTask: (id: string) => void;
+  /** Opens the Plan my day preview where the day is (Today, or the morning plan's last step); elsewhere it goes to Today first. */
+  planDay: (mode: PlanMode) => void;
 }
 
 export interface Command {
@@ -122,6 +125,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "go.settings", title: "Settings", group: "Go to", shortcut: "mod+,", run: (ctx) => ctx.go("/settings") },
   { id: "day.plan", title: "Start morning plan", group: "Go to", shortcut: "mod+shift+m", keywords: "plan the day ritual pick", run: (ctx) => ctx.go("/plan") },
   { id: "day.shutdown", title: "Start evening shutdown", group: "Go to", shortcut: "mod+shift+e", keywords: "close the day ritual", run: (ctx) => ctx.go("/shutdown") },
+  { id: "day.plan-my-day", title: "Plan my day", group: "Go to", shortcut: "mod+shift+p", keywords: "schedule suggest timeline blocks", run: (ctx) => ctx.planDay("plan") },
+  { id: "day.replan", title: "Re-plan the rest of today", group: "Go to", keywords: "plan my day schedule blocks afternoon", run: (ctx) => ctx.planDay("replan") },
 
   // ---- list plumbing
   { id: "list.down", title: "Select next", group: "List", shortcut: "j", hidden: true, run: (ctx) => ctx.moveSelection(1) },

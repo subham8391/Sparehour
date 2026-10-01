@@ -2,6 +2,7 @@
 // The morning plan (SCREENS.md §14): three steps, one spare number, and an
 // always-available Skip. Presentational; the page feeds it the day and does
 // the writes as choices are made.
+import type { PlanDrawing } from "@/features/planning/drawing";
 import type { TimelineBlock, TimelineMeeting } from "@/features/today/hooks/use-today";
 import { useId, useState, type ReactNode } from "react";
 import type { Capacity } from "@/core/capacity";
@@ -43,6 +44,16 @@ export interface MorningPlanFlowProps {
   onMoveToTomorrow: (id: string) => void;
   onDone: () => void;
   onSkip: () => void;
+  /** Plan my day inside the last step (SCREENS.md §14 step 3): the button, the open preview, and what it draws on the timeline. */
+  planMyDay?: PlanMyDayStep;
+}
+
+export interface PlanMyDayStep {
+  open: boolean;
+  onOpen: () => void;
+  /** The preview island, shown above the timeline while open. */
+  preview: ReactNode;
+  drawing: PlanDrawing | null;
 }
 
 const TITLES: Record<PlanStep, string> = { frame: "Here’s your day", pick: "Pick today’s tasks", block: "Block time" };
@@ -58,6 +69,13 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
   const move = easiestMove(p.onToday, r.overMin, p.tomorrowSpareMin, p.defaultEstimateMin);
   const coachMove = move && keptAnyway !== move.task.id ? move : null;
   const c = p.capacity;
+  // A plan asked for from the palette or Cmd+Shift+P opens on the last step, wherever the flow is.
+  const planOpen = Boolean(p.planMyDay?.open);
+  const [sawPlanOpen, setSawPlanOpen] = useState(false);
+  if (planOpen !== sawPlanOpen) {
+    setSawPlanOpen(planOpen);
+    if (planOpen) setStep("block");
+  }
 
   let body: ReactNode;
   switch (step) {
@@ -136,20 +154,45 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
       );
       break;
     }
-    case "block":
+    case "block": {
+      const plan = p.planMyDay;
+      const drawing = plan?.open ? plan.drawing : null;
+      const replaced = new Set(drawing?.replacedIds ?? []);
       body = (
         <>
-          <p className="text-body-lg text-pretty text-ink-2">Your day as it stands. Dragging tasks onto it arrives with time blocking; for now the plan is the list.</p>
+          <p className="text-body-lg text-pretty text-ink-2">
+            {plan
+              ? "Your day as it stands. Plan my day proposes blocks for today’s tasks around your meetings, and nothing changes until you approve."
+              : "Your day as it stands. Dragging tasks onto it arrives with time blocking; for now the plan is the list."}
+          </p>
           {c && c.state !== "no_work_day" ? (
-            <div className="overflow-hidden rounded-xl border border-line bg-surface bg-daylight px-3 py-4 sm:px-4">
-              <Timeline c={c} now={p.now} zone={p.zone} meetings={p.meetings} blocks={p.blocks} />
-            </div>
+            <>
+              {plan && !plan.open && (
+                <div>
+                  <Button variant="secondary" onClick={plan.onOpen}>
+                    Plan my day
+                  </Button>
+                </div>
+              )}
+              {plan?.open && plan.preview}
+              <div className="overflow-hidden rounded-xl border border-line bg-surface bg-daylight px-3 py-4 sm:px-4">
+                <Timeline
+                  c={drawing ? { ...c, free: [...drawing.free], projectedFinish: null } : c}
+                  now={p.now}
+                  zone={p.zone}
+                  meetings={p.meetings}
+                  blocks={drawing ? (p.blocks ?? []).filter((b) => !replaced.has(b.id)) : p.blocks}
+                  proposed={drawing?.ghosts}
+                />
+              </div>
+            </>
           ) : (
             <p className="text-body-lg text-ink-3">No working hours today.</p>
           )}
         </>
       );
       break;
+    }
   }
 
   return (

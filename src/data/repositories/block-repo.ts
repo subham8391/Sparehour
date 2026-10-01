@@ -15,6 +15,14 @@ export interface NewBlock {
   endAt: string;
 }
 
+/** What Approve writes: the chosen blocks, and the plan's earlier blocks they replace. */
+export interface ApprovedPlan {
+  spaceId: string;
+  userId: string;
+  blocks: { taskId: string; title: string; startAt: string; endAt: string }[];
+  replaces: readonly string[];
+}
+
 export class BlockRepo {
   constructor(
     private readonly db: LocalDatabase,
@@ -47,6 +55,48 @@ export class BlockRepo {
         undo: () => this.db.execute(`update time_blocks set start_at = ?, end_at = ?, updated_at = ? where id = ?`, [before.start_at, before.end_at, new Date().toISOString(), id]).then(() => undefined),
       });
     }
+  }
+
+  /**
+   * Plan my day's Approve (SYSTEM_DESIGN.md §5.5): every chosen block in one
+   * transaction with source 'plan', and the plan's own earlier blocks it
+   * replaces soft-deleted in the same breath. Only blocks that are still
+   * unlocked plan blocks are replaced, so a block locked since the preview
+   * opened stays. One undo entry takes the whole batch back.
+   */
+  async approvePlan(plan: ApprovedPlan, opts: { afterUndo?: () => void } = {}): Promise<string[]> {
+    const ids = plan.blocks.map(() => crypto.randomUUID());
+    const stamp = new Date().toISOString();
+    let replaced: string[] = [];
+    await this.db.writeTransaction(async (tx) => {
+      if (plan.replaces.length > 0) {
+        const marks = plan.replaces.map(() => "?").join(", ");
+        const rows = await tx.getAll<{ id: string }>(`select id from time_blocks where id in (${marks}) and deleted_at is null and locked = 0 and source = 'plan'`, [...plan.replaces]);
+        replaced = rows.map((r) => r.id);
+        if (replaced.length > 0) await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${replaced.map(() => "?").join(", ")})`, [stamp, stamp, ...replaced]);
+      }
+      for (const [i, b] of plan.blocks.entries()) {
+        await tx.execute(
+          `insert into time_blocks (id, space_id, user_id, task_id, title, start_at, end_at, locked, source, push_state, created_at, updated_at)
+           values (?, ?, ?, ?, ?, ?, ?, 0, 'plan', 'local', ?, ?)`,
+          [ids[i], plan.spaceId, plan.userId, b.taskId, b.title, b.startAt, b.endAt, stamp, stamp],
+        );
+      }
+    });
+    const n = ids.length;
+    this.history?.record({
+      label: `Planned ${n} ${n === 1 ? "block" : "blocks"}`,
+      toast: true,
+      undo: async () => {
+        const at = new Date().toISOString();
+        await this.db.writeTransaction(async (tx) => {
+          if (ids.length > 0) await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${ids.map(() => "?").join(", ")})`, [at, at, ...ids]);
+          if (replaced.length > 0) await tx.execute(`update time_blocks set deleted_at = null, updated_at = ? where id in (${replaced.map(() => "?").join(", ")})`, [at, ...replaced]);
+        });
+        opts.afterUndo?.();
+      },
+    });
+    return ids;
   }
 
   async setLocked(id: string, locked: boolean): Promise<void> {

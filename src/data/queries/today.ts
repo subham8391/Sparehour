@@ -15,6 +15,13 @@ export const TASKS_THROUGH_TODAY_SQL = `
     and (start_date is null or start_date <= ?)
   order by day_sort_key, sort_key, id`;
 
+/** When each open task through today was made, for Plan my day's age term (SYSTEM_DESIGN.md §5.5). */
+export const TASK_AGES_THROUGH_TODAY_SQL = `
+  select id, created_at from tasks
+  where deleted_at is null
+    and state in ('inbox','active')
+    and do_date is not null and do_date <= ?`;
+
 export const BLOCKS_AROUND_SQL = `
   select * from time_blocks
   where deleted_at is null

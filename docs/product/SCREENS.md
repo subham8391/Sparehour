@@ -128,7 +128,7 @@ The screen the product is judged on. Two panes: the plan on the left, the clock 
 | Date | "Tuesday 15 Sep". `[` / `]` step days; stepping off today swaps the header for "Tomorrow ·  ← back to today" and the timeline follows |
 | **Morning plan ▸** | Opens the morning plan flow (§14). Label becomes "Planned at 8:42" once `DayPlan.planned_at` is set, and moves to the overflow |
 | **Shutdown ▸** | Opens the evening shutdown (§15). Dimmed until 2h before the end of the last work segment, then normal; always clickable |
-| **Plan my day** (M2, Pro) | Appears between them. Free accounts see it and get preview-only (`ONBOARDING.md` §5) |
+| **Plan my day** (M2, Pro) | Appears between them. Free accounts see it and get preview-only (`ONBOARDING.md` §5). **As built (2026-10-01, early):** a text button, shown on working days; it reads "Re-plan the rest of today" once the working day has started and plan blocks are on it. Opens the preview in §2.6a |
 | `⋯` overflow | Sort · Show completed · Clear the slate · Trim today · Copy today as text · Print |
 
 ### 2.2 The spare-time ribbon
@@ -212,6 +212,46 @@ Same rows, separate section, separate budget. Evening tasks never consume workin
 | Empty (no calendar) | "No calendar connected — your meetings would show here. Connect" |
 
 **Drag-to-block.** Dragging a task row over the timeline shows a ghost block sized to its estimate, snapping to 5 minutes, with the time under the cursor. Dropping creates the `TimeBlock`, writes it to the chosen calendar (Pro), and leaves the task in the list with a small block indicator. Dragging a block back onto the list removes the block and keeps the task. `Alt+drag` duplicates a block. Dropping onto a meeting is allowed and draws side by side.
+
+### 2.6a Plan my day preview — built 2026-10-01 (M2, early)
+
+PRODUCT_SPEC.md §11; the engine is SYSTEM_DESIGN.md §5.5. Opened from the header button, the phone's ritual row, `Cmd+Shift+P`, or the palette ("Plan my day", "Re-plan the rest of today"; from any other screen the palette goes to Today and opens it there). Opening it switches to the Day view and lets go of a selected block.
+
+```
+ Wide (≥ 1180): the panel takes the list column; the timeline stays on the right
+┌────────────────────────────────────────────────┬─────────────────────────────┐
+│ Plan my day                                    │ 09:00 ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐ │
+│ 3 blocks · 2h 15m. Nothing changes until you   │       ╎ Draft the proposal ╎ │
+│ approve.                                       │ 09:45 └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘ │
+│ 09:00–09:45 Draft the proposal              ✕  │ 10:00 ┌───────────────────┐ │
+│   Due Friday and there are only 2h of free     │       │▦ Acme sync        │ │
+│   time before then.                            │ 10:30 └───────────────────┘ │
+│ 10:30–12:00 Review the deck (1 of 2)        ✕  │       ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐ │
+│   High priority, and this is the longest free  │       ╎ Review the deck…   ╎ │
+│   stretch today.                               │ 12:00 └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘ │
+│ DIDN'T FIT · 1                                 │                             │
+│ Reorganise the shared drive · 1h 30m           │                             │
+│   No gap left today. It stays on Today and     │                             │
+│   will carry over quietly.  [Tomorrow][Someday]│                             │
+│ Left 1h 20m unplanned. That's your buffer.     │                             │
+│ [Approve] [Approve some] [Shuffle] [Discard]   │                             │
+└────────────────────────────────────────────────┴─────────────────────────────┘
+```
+
+| Element | Behaviour |
+|---|---|
+| Ghost blocks | Each proposed block on the timeline as a dashed `block-fill` outline over a thin `block-soft` wash, title and time inside; never green. Meetings and kept blocks draw as usual beside them; the plan's own earlier blocks that the proposal replaces are hidden, and the free-gap labels show what the proposal leaves. Ghosts are not interactive and are hidden from assistive tech (the panel lists them) |
+| Proposed rows | Time range, title (with "(1 of 2)" for a part), and the template explanation. `✕` "Remove … from the plan" takes the task out and re-plans the rest at once; a "Left out: …" line offers `Put back` |
+| Didn't fit | Every task that found no place, with its reason and one-tap `Tomorrow` / `Someday` (named "Move … to tomorrow" / "Move … to Someday"). A partly placed long task appears here too ("Only part 1 of 2 fits today.") |
+| Replaces | When the plan already has unlocked blocks today: "Approving replaces 2 earlier plan blocks. Keep one to lock it where it is." with `Keep` per block, which locks it and re-plans around it. Locking any block on the timeline (`L`, or Lock in its toolbar) re-plans around it the same way |
+| Buffer line | "Left 1h 20m unplanned. That's your buffer." (or "…: your 1h 10m buffer and 35m spare.") |
+| `Approve` | Writes every proposed block in one transaction (`source = 'plan'`), one undo entry, toast "Planned 3 blocks" with Undo; `⌘Z` takes the whole batch back. Written blocks go to Google like any block |
+| `Approve some` | A toggle: a checkbox per block ("Include Draft the proposal, 09:00–09:45"), all ticked; Approve then reads "Approve 2 of 3" and writes only the ticked ones |
+| `Shuffle` | A different arrangement that is just as valid (near-equal tasks trade places, a different fitting gap); "This is the only arrangement that fits." when there is none |
+| `Discard` / `Esc` | Closes; nothing was written |
+| Free accounts | `canApprovePlan()` hides Approve and Approve some (preview-only); it allows everyone until billing exists |
+
+**Responsive.** *Wide:* the panel replaces the lists in the main column, the timeline pane beside it shows the ghosts. *Medium and narrow:* the Day view, with the panel above the timeline. *Phone:* a sheet docked over the Day view (the bottom 62 % of the screen at most, grabber, sheet corners), so the ghosts stay visible above it and the timeline scrolls clear of it; the buttons are a 2 × 2 grid of 44 px targets, the row actions 44 px.
 
 ### 2.7 Today states
 
@@ -742,7 +782,7 @@ Full-screen, three steps (ruled 2026-09-13), a persistent spare-time readout, an
 |---|---|---|---|
 | **1 · Here's your day** | Work hours, meeting count, capacity, spare time, and how many things carried over. The ribbon at full width. Read-only — it sets the frame before any decision | Nothing to do but read | `Next` / `→` |
 | **2 · Pick today's tasks** | One picker, three groups, tick to include. **Carried over**: every carried task with the four one-tap actions; the three-carry ask appears inline (max 2). **Due this week**: deadline in the next 7 days, or starting today. **From your projects**: Inbox and undated tasks, oldest first (max 6 shown, `More` expands). Estimates editable in place. The readout at the bottom — "5h 40m fits today · 6h 20m picked · 7 tasks" — updates on every tick. When over, the coach appears: the overflow in plain words, then **Easiest move** (the largest picked task with no deadline that fits tomorrow, with the reason) and `Move to tomorrow` / `Keep it anyway`. Evening tasks are excluded from the readout and say so | `Space` ticks, `J`/`K` between rows, `T` / `Shift+T` / `S` / `Backspace` on carried rows, `E` for estimate, `N` to add | `Next` works with anything unresolved — it never forces a decision |
-| **3 · Block time** | M1: the day timeline with drag-to-block. M2 (Pro): the Plan my day preview with its explanations and `Approve` / `Approve some` / `Shuffle` / `Discard` | Drag, `B`, `L` | `Done` |
+| **3 · Block time** | M1: the day timeline with drag-to-block. M2 (Pro): the Plan my day preview with its explanations and `Approve` / `Approve some` / `Shuffle` / `Discard`. **As built (2026-10-01):** a `Plan my day` button above the step's timeline opens the same preview (§2.6a) inside the step, as a card on every band, with the ghosts on the step's timeline; `Cmd+Shift+P` or the palette on this screen opens it on this step | Drag, `B`, `L` | `Done` |
 
 **Behaviour.**
 1. The header's spare-time readout updates on every action — this is the feedback loop the ritual exists to create.
@@ -1089,7 +1129,7 @@ Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all s
 |---|---|
 | `Cmd+Shift+M` | Morning plan |
 | `Cmd+Shift+E` | Evening shutdown |
-| `Cmd+Shift+P` | Plan my day (M2, Pro) |
+| `Cmd+Shift+P` | Plan my day (M2, Pro; built 2026-10-01) |
 | `Cmd+Shift+R` | Weekly review (M2) |
 
 ### Conflicts resolved

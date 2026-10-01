@@ -14,6 +14,7 @@ import { DayPlanRepo } from "@/data/repositories/day-plan-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { candidates, type Candidates } from "@/features/rituals/morning-plan";
 import { MorningPlanFlow } from "@/features/rituals/morning-plan-flow";
+import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { useNow } from "@/features/shell/use-local-day";
 import { useToday } from "@/features/today/hooks/use-today";
@@ -32,6 +33,8 @@ export default function PlanPage() {
   const { data: openRows, isLoading: loadingOpen } = useQuery<TaskRowType>(OPEN_TASKS_SQL);
   const open = useMemo(() => (openRows ?? []).map(toTask), [openRows]);
   const { spareMin: tomorrowSpareMin } = useTomorrowSpare(tomorrow, model.settings);
+  // Step 3 offers Plan my day: the same preview as Today, inside the step (SCREENS.md §14).
+  const planning = usePlanPreview();
 
   // Freeze the groups the first time data is there, so rows stay put while choices are made.
   // The query reports an empty list while it loads, so wait for it, or the picker freezes empty.
@@ -84,6 +87,12 @@ export default function PlanPage() {
         router.push("/today");
       }}
       onSkip={() => router.push("/today")}
+      planMyDay={{
+        open: planning.mode !== null,
+        onOpen: () => planning.open("plan"),
+        preview: planning.mode && <LazyPlanIsland mode={planning.mode} model={model} now={now} layout="inline" onDrawing={planning.setDrawing} onClose={planning.close} />,
+        drawing: planning.drawing,
+      }}
     />
   );
 }

@@ -28,6 +28,7 @@ function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: 
     setTheme: vi.fn(),
     undo: vi.fn(),
     blockTask: vi.fn(),
+    planDay: vi.fn(),
     ...over,
     // keep the typed mocks reachable
     ...({} as object),
@@ -86,6 +87,18 @@ describe("command registry", () => {
     await byId("task.block").run(ctx);
     expect(ctx.blockTask).toHaveBeenCalledWith("t1");
     expect(resolveKey({ key: "b", shift: false, mod: false, alt: false }, null, keyBindings()).match?.id).toBe("task.block");
+  });
+
+  it("Cmd+Shift+P plans the day, and the palette offers the re-plan, with nothing selected", async () => {
+    expect(resolveKey({ key: "p", shift: true, mod: true, alt: false }, null, keyBindings()).match?.id).toBe("day.plan-my-day");
+    const ctx = ctxWith({ selectedTaskId: null });
+    await byId("day.plan-my-day").run(ctx);
+    expect(ctx.planDay).toHaveBeenLastCalledWith("plan");
+    await byId("day.replan").run(ctx);
+    expect(ctx.planDay).toHaveBeenLastCalledWith("replan");
+    expect(availability(byId("day.replan"), ctx)).toEqual({ enabled: true });
+    expect(byId("day.plan-my-day").title).toBe("Plan my day");
+    expect(byId("day.replan").title).toBe("Re-plan the rest of today");
   });
 
   it("does nothing without a selection, and says why", async () => {

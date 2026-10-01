@@ -11,6 +11,7 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
+import { requestPlan } from "@/features/planning/plan-request";
 import { useUndoOptional } from "@/features/undo/undo-provider";
 import { chordOf, resolveKey, type SequenceState } from "./keys";
 import { COMMANDS, availability, keyBindings, type Command, type CommandContext, type Theme } from "./registry";
@@ -84,6 +85,10 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       setTheme: (theme: Theme) => applyTheme(theme),
       undo: () => void undoApi?.undo(),
       blockTask: (id) => blocking?.blockTask(id),
+      planDay: (mode) => {
+        // Today and the morning plan take the request where they are; anywhere else it waits for Today to open.
+        if (!requestPlan(mode)) router.push("/today");
+      },
     }),
     [selection, pathname, today, now, zone, tasks, router, quickAdd, detail, onOpenPalette, undoApi, blocking],
   );
