@@ -14,6 +14,7 @@ vi.mock("@/data/powersync", () => ({
 
 import { SelectionProvider, useListSelection, useSelection } from "@/features/selection/selection-provider";
 import { TaskDetailProvider } from "@/features/tasks/task-detail";
+import { UndoProvider } from "@/features/undo/undo-provider";
 import { BulkBar } from "./bulk-bar";
 
 function Rows() {
@@ -32,17 +33,18 @@ function Rows() {
   );
 }
 
-function setup() {
+function setup({ undo = false } = {}) {
   execute.mockClear();
   writeTransaction.mockClear();
-  render(
+  const tree = (
     <TaskDetailProvider>
       <SelectionProvider>
         <Rows />
         <BulkBar />
       </SelectionProvider>
-    </TaskDetailProvider>,
+    </TaskDetailProvider>
   );
+  render(undo ? <UndoProvider>{tree}</UndoProvider> : tree);
   return userEvent.setup();
 }
 
@@ -93,8 +95,10 @@ describe("<BulkBar>", () => {
     await user.click(screen.getByRole("button", { name: "tick t3" }));
     await user.type(screen.getByRole("textbox", { name: "Add a tag" }), "deep{Enter}");
     expect(await screen.findByText("checked: none")).toBeInTheDocument();
-    // One transaction per task: the tag is created once, then linked to each.
-    expect(writeTransaction).toHaveBeenCalledTimes(2);
+    // One transaction for the lot: the tag is created once, then linked to each.
+    expect(writeTransaction).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls.map((c) => String(c[0]).split(" (")[0])).toEqual(["insert into tags", "insert into task_tags", "insert into task_tags"]);
+    expect(execute.mock.calls.slice(1).map((c) => c[1][2])).toEqual(["t1", "t3"]);
     const writesSoFar = execute.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "tick t1" }));
     await user.keyboard("{Escape}");
@@ -103,5 +107,19 @@ describe("<BulkBar>", () => {
     await user.click(screen.getByRole("button", { name: "Clear the selection" }));
     expect(screen.getByText("checked: none")).toBeInTheDocument();
     expect(execute).toHaveBeenCalledTimes(writesSoFar);
+  });
+
+  it("tagging says what it did with an undo toast, and the undo takes back exactly the links it made", async () => {
+    // Seen in the walkthrough: a bulk tag gave no sign it had worked, and ⌘Z undid something older instead.
+    const user = setup({ undo: true });
+    await user.click(screen.getByRole("button", { name: "tick t1" }));
+    await user.click(screen.getByRole("button", { name: "tick t3" }));
+    await user.type(screen.getByRole("textbox", { name: "Add a tag" }), "@urgent{Enter}");
+    expect(await screen.findByRole("status")).toHaveTextContent("Tagged 2 tasks @urgent");
+    const links = execute.mock.calls.filter((c) => String(c[0]).startsWith("insert into task_tags")).map((c) => c[1][0]);
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    const [sql, args] = execute.mock.calls.at(-1)!;
+    expect(sql).toBe("update task_tags set deleted_at = ?, updated_at = ? where id in (?, ?)");
+    expect(args.slice(2)).toEqual(links);
   });
 });

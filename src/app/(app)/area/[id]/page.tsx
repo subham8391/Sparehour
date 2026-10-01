@@ -3,15 +3,14 @@
 // count, the summed estimate and the next deadline, and an "Add project"
 // card last.
 import Link from "next/link";
-import { use, useMemo, useState } from "react";
-import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { use, useState } from "react";
+import { useQuery } from "@/data/powersync";
 import { formatMinutes, localDate } from "@/core/time";
 import { AREA_SQL, AREA_PROJECT_STATS_SQL, type AreaProjectStatsRow } from "@/data/queries/views";
-import { AreaRepo } from "@/data/repositories/area-repo";
-import { ProjectRepo } from "@/data/repositories/project-repo";
 import type { AreaRow } from "@/data/schema.client";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
+import { useAreaRepo, useProjectRepo } from "@/features/tasks/use-repos";
 import { Loading } from "../../loading-view";
 import { buttonClass } from "@/ui/button";
 import { DeadlineChip } from "@/ui/chip";
@@ -25,9 +24,8 @@ const PROJECT_CARD = cx(CARD, "flex h-full flex-col gap-1.5 p-4");
 
 export default function AreaPage({ params }: PageProps<"/area/[id]">) {
   const { id } = use(params);
-  const db = useLocalDatabase();
-  const areaRepo = useMemo(() => new AreaRepo(db), [db]);
-  const projectRepo = useMemo(() => new ProjectRepo(db), [db]);
+  const areaRepo = useAreaRepo();
+  const projectRepo = useProjectRepo();
   const now = useNow();
   const { today, settings } = useLocalDay(now);
   const { data: areas, isLoading } = useQuery<AreaRow>(AREA_SQL, [id]);

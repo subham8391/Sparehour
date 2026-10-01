@@ -5,13 +5,11 @@
 // by the provider below.
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
 import { toChecklistItem, toTask } from "@/data/mappers";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
 import { CHECKLIST_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL } from "@/data/queries/views";
-import { ChecklistRepo } from "@/data/repositories/checklist-repo";
-import { TagRepo } from "@/data/repositories/tag-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
@@ -19,6 +17,7 @@ import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { cx } from "@/ui/cx";
 import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet";
+import { useChecklistRepo, useTagRepo } from "./use-repos";
 import { useTaskRepo } from "./use-task-repo";
 
 // The panel brings the recurrence engine with it, so it stays out of the
@@ -57,10 +56,9 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
 }
 
 function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
-  const db = useLocalDatabase();
   const repo = useTaskRepo();
-  const checklistRepo = useMemo(() => new ChecklistRepo(db), [db]);
-  const tagRepo = useMemo(() => new TagRepo(db), [db]);
+  const checklistRepo = useChecklistRepo();
+  const tagRepo = useTagRepo();
   const now = useNow();
   const { today, zone } = useLocalDay(now);
   const blocking = useBlockingOptional();

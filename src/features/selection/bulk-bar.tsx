@@ -6,15 +6,15 @@
 // way it is the raised panel (DESIGN_SYSTEM.md §4: surface-3, the ink shadow
 // in light, a hairline in dark). Every action is one write with one undo
 // entry, then the ticks clear. Escape clears them without a write.
-import { useEffect, useMemo, useState } from "react";
-import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { useEffect, useState } from "react";
+import { useQuery } from "@/data/powersync";
 import { formatMinutes, localDate } from "@/core/time";
 import type { Priority } from "@/core/types";
 import { PROJECTS_SQL, type ProjectRow } from "@/data/queries/nav";
-import { TagRepo } from "@/data/repositories/tag-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
+import { useTagRepo } from "@/features/tasks/use-repos";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
@@ -49,8 +49,7 @@ export function BulkBar() {
   const sel = useSelection();
   const ids = sel.checkedIds;
   const repo = useTaskRepo();
-  const db = useLocalDatabase();
-  const tagRepo = useMemo(() => new TagRepo(db), [db]);
+  const tagRepo = useTagRepo();
   const now = useNow();
   const { today } = useLocalDay(now);
   const detail = useTaskDetail();
@@ -76,10 +75,11 @@ export function BulkBar() {
   const done = () => sel.clearChecks();
   const patch = (p: TaskPatch, note?: string) => void repo.updateMany(ids, p, note).then(done);
   const tomorrow = today.add({ days: 1 });
+  // One write for the lot, with one undo toast ("Tagged 2 tasks @urgent") that takes back only the new links.
   const addTag = () => {
     const name = tag.trim().replace(/^@/, "");
     if (!name || !spaceId) return;
-    void Promise.all(ids.map((id) => tagRepo.attach(id, spaceId, name))).then(() => {
+    void tagRepo.attachMany(ids, spaceId, name).then(() => {
       setTag("");
       done();
     });

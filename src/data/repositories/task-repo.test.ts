@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { emptyDraft, type TaskDraft } from "@/core/quickadd";
 import { localDate } from "@/core/time";
+import { localSqlite } from "@/test/local-sqlite";
 import type { LocalDatabase } from "../powersync";
 import { TaskRepo, columnsTouched } from "./task-repo";
 
@@ -331,5 +333,237 @@ describe("TaskRepo: a task that leaves a day lets go of its time there", () => {
     await new TaskRepo(db, { record: vi.fn() }).setState("t1", "someday");
     const release = execute.mock.calls.find(([sql]) => String(sql).startsWith("update time_blocks set deleted_at = ?"));
     expect(release?.[1].slice(2)).toEqual(["b-later"]);
+  });
+});
+
+describe("TaskRepo: a drag is undoable like any other move (FEATURES.md §8)", () => {
+  // Seen in the walkthrough: dragging a task to another day or heading showed no toast, and ⌘Z did nothing —
+  // or undid something older. Every drop now records its inverse; a move to another list gets a toast.
+  beforeEach(() => vi.useFakeTimers({ now: new Date("2026-10-01T12:00:00Z"), toFake: ["Date"] }));
+  afterEach(() => vi.useRealTimers());
+
+  function day() {
+    const s = localSqlite();
+    s.insert("tasks", { id: "t1", space_id: "s1", title: "Draft Q4 budget", state: "active", do_date: "2026-10-01", day_sort_key: "a0", evening: 0 });
+    const history = { record: vi.fn() };
+    return { s, history, repo: new TaskRepo(s.db, history), entry: (i = 0) => history.record.mock.calls[i][0] };
+  }
+
+  it("a drop on another day says where it went, lets go of the block it held, and undo brings both back", async () => {
+    const { s, repo, entry } = day();
+    s.insert("time_blocks", { id: "b1", space_id: "s1", task_id: "t1", start_at: "2026-10-01T15:00:00Z", end_at: "2026-10-01T16:00:00Z", locked: 0 });
+    await repo.placeInDay("t1", localDate("2026-10-06"), "a5");
+    expect(s.row("tasks", "t1")).toMatchObject({ do_date: "2026-10-06", day_sort_key: "a5" });
+    expect(s.row("time_blocks", "b1")?.deleted_at).not.toBeNull();
+    expect(entry()).toMatchObject({ label: "Moved “Draft Q4 budget” to Tue 6 Oct", toast: true });
+
+    s.drop("time_blocks", "b1"); // sync has taken the released block off the device
+    s.outside.length = 0;
+    await entry().undo();
+    expect(s.outside).toEqual([]); // the task and its block come back in one transaction
+    expect(s.row("tasks", "t1")).toMatchObject({ do_date: "2026-10-01", day_sort_key: "a0", evening: 0, state: "active" });
+    expect(s.row("time_blocks", "b1")).toMatchObject({ deleted_at: null, start_at: "2026-10-01T15:00:00Z" });
+  });
+
+  it("days near today read as people say them", async () => {
+    const { repo, history } = day();
+    await repo.placeInDay("t1", localDate("2026-10-02"), "a1");
+    await repo.placeInDay("t1", localDate("2026-10-01"), "a2");
+    expect(history.record.mock.calls.map((c) => c[0].label)).toEqual(["Moved “Draft Q4 budget” to tomorrow", "Moved “Draft Q4 budget” to today"]);
+  });
+
+  it("a drop from the Inbox onto a day brings the task in, and undo sends it back", async () => {
+    const { s, repo, entry } = day();
+    s.insert("tasks", { id: "t2", space_id: "s1", title: "Call Dana", state: "inbox", do_date: null, evening: 0 });
+    await repo.placeInDay("t2", localDate("2026-10-05"), "a1");
+    expect(s.row("tasks", "t2")).toMatchObject({ state: "active", do_date: "2026-10-05" });
+    expect(entry().label).toBe("Moved “Call Dana” to Mon 5 Oct");
+    await entry().undo();
+    expect(s.row("tasks", "t2")).toMatchObject({ state: "inbox", do_date: null });
+  });
+
+  it("into or out of the evening on the same day is a move with a toast", async () => {
+    const { s, repo, entry } = day();
+    await repo.placeInDay("t1", localDate("2026-10-01"), "a1", true);
+    expect(entry()).toMatchObject({ label: "Moved “Draft Q4 budget” to the evening", toast: true });
+    await repo.placeInDay("t1", localDate("2026-10-01"), "a2", false);
+    expect(entry(1)).toMatchObject({ label: "Moved “Draft Q4 budget” out of the evening", toast: true });
+    await entry(1).undo();
+    expect(s.row("tasks", "t1")).toMatchObject({ evening: 1, day_sort_key: "a1" });
+  });
+
+  it("a new place in the same list is a silent entry that ⌘Z still takes back", async () => {
+    const { s, repo, entry } = day();
+    await repo.setDayOrder("t1", "a3");
+    expect(entry()).toMatchObject({ label: "Reordered “Draft Q4 budget”", toast: false });
+    await repo.placeInDay("t1", localDate("2026-10-01"), "a4");
+    expect(entry(1)).toMatchObject({ label: "Reordered “Draft Q4 budget”", toast: false });
+    await entry(1).undo();
+    expect(s.row("tasks", "t1")?.day_sort_key).toBe("a3");
+    await entry().undo();
+    expect(s.row("tasks", "t1")?.day_sort_key).toBe("a0");
+  });
+
+  function project() {
+    const s = localSqlite();
+    s.insert("headings", { id: "h1", space_id: "s1", project_id: "p1", title: "Research", sort_key: "a0" });
+    s.insert("headings", { id: "h2", space_id: "s1", project_id: "p1", title: "Budget", sort_key: "a1" });
+    s.insert("tasks", { id: "t1", space_id: "s1", project_id: "p1", heading_id: "h1", title: "Collect quotes", state: "active", sort_key: "a0" });
+    const history = { record: vi.fn() };
+    return { s, history, repo: new TaskRepo(s.db, history), entry: (i = 0) => history.record.mock.calls[i][0] };
+  }
+
+  it("a drag to another heading says which, and undo files it back where it was", async () => {
+    const { s, repo, entry } = project();
+    await repo.setOrder("t1", "a5", "h2");
+    expect(s.row("tasks", "t1")).toMatchObject({ heading_id: "h2", sort_key: "a5" });
+    expect(entry()).toMatchObject({ label: "Moved “Collect quotes” to Budget", toast: true });
+    await entry().undo();
+    expect(s.row("tasks", "t1")).toMatchObject({ heading_id: "h1", sort_key: "a0" });
+  });
+
+  it("out of a heading names the one it left; within the same heading it is a silent reorder", async () => {
+    const { repo, history } = project();
+    await repo.setOrder("t1", "a1", "h1");
+    await repo.setOrder("t1", "a2");
+    await repo.setOrder("t1", "a3", null);
+    await repo.setHeading("t1", "h2");
+    expect(history.record.mock.calls.map((c) => [c[0].label, c[0].toast])).toEqual([
+      ["Reordered “Collect quotes”", false],
+      ["Reordered “Collect quotes”", false],
+      ["Moved “Collect quotes” out of Research", true],
+      ["Moved “Collect quotes” to Budget", true],
+    ]);
+  });
+
+  it("⌘Z after a drag undoes the drag, not the change before it", async () => {
+    // The stack is last-in, first-out: the drop's entry sits above the completion recorded earlier.
+    const s = localSqlite();
+    s.insert("tasks", { id: "done", space_id: "s1", title: "Pay rent", state: "active", do_date: "2026-10-01" });
+    s.insert("tasks", { id: "moved", space_id: "s1", title: "Draft Q4 budget", state: "active", do_date: "2026-10-01", day_sort_key: "a0", evening: 0 });
+    const stack: { undo: () => Promise<void> }[] = [];
+    const repo = new TaskRepo(s.db, { record: (e) => void stack.push(e) });
+    await repo.complete("done");
+    await repo.placeInDay("moved", localDate("2026-10-06"), "a1");
+    await stack.pop()!.undo();
+    expect(s.row("tasks", "moved")?.do_date).toBe("2026-10-01");
+    expect(s.row("tasks", "done")?.state).toBe("done");
+  });
+});
+
+describe("TaskRepo: no date and no project is the Inbox; any date or a project is active (PRODUCT_SPEC.md §5.1 rule 5, §7)", () => {
+  const draft = (over: Partial<TaskDraft>): TaskDraft => ({ ...emptyDraft(), title: "Fix the build", ...over });
+
+  it("quick-add with a project, a do date, a deadline or a start date lands active; with none of them, in the Inbox", async () => {
+    // Seen in the walkthrough: tasks added inside a project landed in the Inbox with an "Inbox" chip.
+    const s = localSqlite();
+    const repo = new TaskRepo(s.db);
+    const ids = {
+      project: await repo.create(draft({}), { spaceId: "s1", projectId: "p1" }),
+      day: await repo.create(draft({ doDate: localDate("2026-10-02") }), { spaceId: "s1" }),
+      deadline: await repo.create(draft({ deadline: localDate("2026-10-09") }), { spaceId: "s1" }),
+      start: await repo.create(draft({ startDate: localDate("2026-10-05") }), { spaceId: "s1" }),
+      nothing: await repo.create(draft({ estimateMin: 30, priority: 2 }), { spaceId: "s1" }),
+    };
+    const state = (id: string) => s.row("tasks", id)?.state;
+    expect(Object.fromEntries(Object.entries(ids).map(([k, id]) => [k, state(id)]))).toEqual({ project: "active", day: "active", deadline: "active", start: "active", nothing: "inbox" });
+  });
+
+  function triage() {
+    const s = localSqlite();
+    s.insert("tasks", { id: "in", space_id: "s1", title: "Call Dana", state: "inbox" });
+    s.insert("tasks", { id: "park", space_id: "s1", title: "Learn Rust", state: "someday" });
+    s.insert("tasks", { id: "done", space_id: "s1", title: "Pay rent", state: "done" });
+    const history = { record: vi.fn() };
+    return { s, history, repo: new TaskRepo(s.db, history), state: (id: string) => s.row("tasks", id)?.state };
+  }
+
+  it("filing an Inbox task into a project takes it out of the Inbox, and undo puts it back", async () => {
+    // Seen in the walkthrough: filing from the detail panel left the task in the Inbox.
+    const { repo, history, state, s } = triage();
+    await repo.update("in", { projectId: "p1" });
+    expect(s.row("tasks", "in")).toMatchObject({ project_id: "p1", state: "active" });
+    await history.record.mock.calls[0][0].undo();
+    expect(s.row("tasks", "in")).toMatchObject({ project_id: null, state: "inbox" });
+    await repo.update("in", { deadline: localDate("2026-10-09") });
+    expect(state("in")).toBe("active");
+  });
+
+  it("a start date takes it out too; the bulk bar's project move does the same for every ticked task", async () => {
+    const { repo, state, s } = triage();
+    s.insert("tasks", { id: "in2", space_id: "s1", title: "Book flights", state: "inbox" });
+    await repo.update("in", { startDate: localDate("2026-10-05") });
+    expect(state("in")).toBe("active");
+    await repo.updateMany(["in2", "park"], { projectId: "p1" }, "Moved {title} to Acme");
+    expect([state("in2"), state("park")]).toEqual(["active", "someday"]);
+  });
+
+  it("a Someday task given a project or a deadline stays parked; only a do date brings it back", async () => {
+    const { repo, state } = triage();
+    await repo.update("park", { projectId: "p1" });
+    await repo.update("park", { deadline: localDate("2026-10-09") });
+    expect(state("park")).toBe("someday");
+    await repo.update("park", { doDate: localDate("2026-10-02"), projectId: "p2" });
+    expect(state("park")).toBe("active");
+  });
+
+  it("clearing a project or a date never changes the state, and a done task stays done", async () => {
+    const { repo, state, s } = triage();
+    s.insert("tasks", { id: "act", space_id: "s1", title: "Ship it", state: "active", project_id: "p1" });
+    await repo.update("act", { projectId: null, deadline: null });
+    await repo.update("done", { projectId: "p1" });
+    expect([state("act"), state("done")]).toEqual(["active", "done"]);
+  });
+
+  it("the undo snapshot covers the state whenever the patch can change it", () => {
+    expect(columnsTouched({ projectId: "p1" })).toEqual(["project_id", "state"]);
+    expect(columnsTouched({ deadline: localDate("2026-10-09") })).toEqual(["deadline", "state"]);
+    expect(columnsTouched({ startDate: localDate("2026-10-05") })).toEqual(["start_date", "state"]);
+    expect(columnsTouched({ projectId: null })).toEqual(["project_id"]);
+  });
+});
+
+describe("TaskRepo: reopening restores the previous state (PRODUCT_SPEC.md §7 rule 2)", () => {
+  function done(rows: Record<string, string | number | null>[]) {
+    const s = localSqlite();
+    for (const r of rows) s.insert("tasks", { space_id: "s1", state: "done", completed_at: "2026-10-01T09:00:00Z", ...r });
+    return { s, repo: new TaskRepo(s.db, { record: vi.fn() }) };
+  }
+
+  it("an Inbox task completed and reopened goes back to the Inbox, with no date", async () => {
+    const { s, repo } = done([{ id: "t1", title: "Call Dana" }]);
+    await repo.reopen("t1");
+    expect(s.row("tasks", "t1")).toMatchObject({ state: "inbox", do_date: null, completed_at: null });
+  });
+
+  it("a task with a project or any date goes back to active, keeping its day", async () => {
+    const { s, repo } = done([
+      { id: "filed", title: "Collect quotes", project_id: "p1" },
+      { id: "dated", title: "Pay rent", do_date: "2026-09-30" },
+      { id: "due", title: "File taxes", deadline: "2026-10-31" },
+      { id: "later", title: "Plan offsite", start_date: "2026-10-12" },
+    ]);
+    for (const id of ["filed", "dated", "due", "later"]) await repo.reopen(id);
+    expect(s.rows("select id, state from tasks order by id")).toEqual([
+      { id: "dated", state: "active" },
+      { id: "due", state: "active" },
+      { id: "filed", state: "active" },
+      { id: "later", state: "active" },
+    ]);
+    expect(s.row("tasks", "dated")?.do_date).toBe("2026-09-30");
+  });
+
+  it("completing an Inbox task and reopening it, or undoing the completion, both end in the Inbox", async () => {
+    const s = localSqlite();
+    s.insert("tasks", { id: "t1", space_id: "s1", title: "Call Dana", state: "inbox" });
+    const history = { record: vi.fn() };
+    const repo = new TaskRepo(s.db, history);
+    await repo.complete("t1");
+    await history.record.mock.calls[0][0].undo();
+    expect(s.row("tasks", "t1")?.state).toBe("inbox");
+    await repo.complete("t1");
+    await repo.reopen("t1");
+    expect(s.row("tasks", "t1")?.state).toBe("inbox");
+    expect(history.record.mock.calls.at(-1)?.[0]).toMatchObject({ label: "Reopened “Call Dana”", toast: false });
   });
 });
