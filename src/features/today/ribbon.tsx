@@ -69,6 +69,9 @@ export function heroState(c: Capacity): HeroState {
   };
 }
 
+/** "1h planned outside working hours" (PRODUCT_SPEC.md §10.2). */
+export const outsideHoursLine = (min: number) => `${formatMinutes(min)} planned outside working hours`;
+
 /**
  * The labels under the ticks: every whole hour, the now time and the finish
  * time. Hour labels within YIELD_MIN of a cursor yield to it; on a narrow
@@ -211,6 +214,8 @@ export function Ribbon({ c, nowMin, compact = false, connected = true }: RibbonP
       </div>
 
       <RibbonTrack c={c} nowMin={nowMin} className={compact ? "mt-3" : "mt-3.5 sm:mt-5"} />
+      {/* Blocks outside the working day are allowed and planned, but not capacity: one quiet line says so (PRODUCT_SPEC.md §10.2). */}
+      {c.outsideHoursMin > 0 && <p className="mt-2 text-label text-ink-2 num sm:text-body-sm">{outsideHoursLine(c.outsideHoursMin)}</p>}
     </section>
   );
 }

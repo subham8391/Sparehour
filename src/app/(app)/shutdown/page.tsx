@@ -8,12 +8,14 @@ import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { capacityFor } from "@/core/capacity";
 import { Temporal } from "@/core/time";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toTask, toWorkWindow } from "@/data/mappers";
-import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams } from "@/data/queries/today";
+import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, WORK_HOURS_SQL, dayWindowParams } from "@/data/queries/today";
 import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, PLANNED_BETWEEN_SQL, dayRangeParams, monthsBack } from "@/data/queries/views";
 import { DayPlanRepo } from "@/data/repositories/day-plan-repo";
 import type { CalendarEventRow, TaskRow as TaskRowType, TimeBlockRow, WorkHoursRow } from "@/data/schema.client";
-import { ShutdownFlow, type CarryChoice } from "@/features/rituals/shutdown-flow";
+import { useShutdownCarry } from "@/features/rituals/shutdown-carry";
+import { ShutdownFlow } from "@/features/rituals/shutdown-flow";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { useSyncChip } from "@/features/shell/use-sync-chip";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
 const USER_SQL = `select id, personal_space_id from users limit 1`;
@@ -45,7 +47,9 @@ export default function ShutdownPage() {
 
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
   const { data: doneRows } = useQuery<TaskRowType>(DONE_BETWEEN_SQL, [dayStart, dayEnd], { streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] });
-  const { data: openRows } = useQuery<TaskRowType>(TASKS_THROUGH_TODAY_SQL, [todayIso, todayIso]);
+  // Step 2's list, frozen once it is read, so "Move all to tomorrow" does not empty it and every row keeps its answer.
+  const sync = useSyncChip();
+  const carried = useShutdownCarry({ today, dayKnown: settings !== null, settled: sync.state !== "connecting" && sync.state !== "syncing", tasks });
   const { data: planRows } = useQuery<DayPlanRow>(DAY_PLAN_SQL, [todayIso]);
   const { data: tomorrowRows } = useQuery<TaskRowType>(PLANNED_BETWEEN_SQL, dayRangeParams(tomorrow, 1));
   const { data: workRows } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
@@ -55,7 +59,6 @@ export default function ShutdownPage() {
   const { data: calendarRows } = useQuery<{ id: string; read: number | null }>(CALENDARS_SQL);
 
   const done = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
-  const unfinished = useMemo(() => (openRows ?? []).map(toTask).filter((t) => !t.evening), [openRows]);
   const plan = planRows?.[0] ?? null;
 
   const tomorrowSpare = useMemo(() => {
@@ -77,24 +80,19 @@ export default function ShutdownPage() {
   const write = (patch: Parameters<DayPlanRepo["upsert"]>[2]) => {
     if (ctx) void dayPlans.upsert(todayIso, ctx, patch);
   };
-  const carry = (id: string, to: CarryChoice) => {
-    if (to === "tomorrow") void tasks.reschedule(id, tomorrow);
-    else if (to === "someday") void tasks.setState(id, "someday");
-    else void tasks.setState(id, "dropped");
-  };
 
-  if (!settings) return <Loading />;
+  if (!settings || !carried.ready) return <Loading />;
 
   return (
     <ShutdownFlow
       done={done}
-      unfinished={unfinished}
+      unfinished={carried.rows}
       defaultEstimateMin={settings.defaultEstimateMin}
       rating={plan?.day_rating ?? null}
       highlight={plan?.highlights ?? ""}
       tomorrow={{ spareMin: tomorrowSpare, planned: (tomorrowRows ?? []).length }}
-      onCarry={carry}
-      onCarryAll={() => unfinished.forEach((t) => void tasks.reschedule(t.id, tomorrow))}
+      onCarry={carried.carry}
+      onCarryAll={carried.carryAll}
       onRating={(r) => write({ dayRating: r })}
       onHighlight={(text) => write({ highlights: text || null })}
       onPlanTomorrow={() => router.push(`/upcoming`)}

@@ -198,7 +198,10 @@ describe("axe: every M1 surface", () => {
     await check(
       <ShutdownFlow
         done={[taskFixture("d1", "Reply to Priya", { state: "done", estimateMin: 15 })]}
-        unfinished={[taskFixture("u1", "Book dentist", { estimateMin: 10 })]}
+        unfinished={[
+          { task: taskFixture("u1", "Book dentist", { estimateMin: 10 }), outcome: null },
+          { task: taskFixture("u2", "Research CalDAV", { estimateMin: 60 }), outcome: "tomorrow" },
+        ]}
         defaultEstimateMin={30}
         rating={null}
         highlight=""

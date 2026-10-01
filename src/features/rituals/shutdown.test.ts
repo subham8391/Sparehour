@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { instant } from "@/core/time";
+import { instant, localDate } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
-import { SHUTDOWN_STEPS, carriedLine, closedLine, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine } from "./shutdown";
+import { SHUTDOWN_STEPS, carriedLine, carriedToTomorrow, carryOutcome, closedLine, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine } from "./shutdown";
 
 const task = (estimateMin: number | null): Task => ({
   id: "t" as TaskId,
@@ -52,7 +52,7 @@ describe("shutdown copy", () => {
   });
 
   it("lays the closing moment out as facts, tomorrow in the spare colour", () => {
-    const rows = closingLedger({ done: [task(60), task(null)], unfinished: [task(10)], defaultEstimateMin: 30, rating: 4, highlight: " Shipped the thing ", tomorrow: { spareMin: 250, planned: 3 } });
+    const rows = closingLedger({ done: [task(60), task(null)], carried: 1, defaultEstimateMin: 30, rating: 4, highlight: " Shipped the thing ", tomorrow: { spareMin: 250, planned: 3 } });
     expect(rows).toEqual([
       { label: "Done", value: "2 things · 1h 30m" },
       { label: "Carried to tomorrow", value: "1 thing" },
@@ -60,13 +60,36 @@ describe("shutdown copy", () => {
       { label: "Worth it", value: "Shipped the thing" },
       { label: "Tomorrow", value: "4h 10m spare", tone: "spare" },
     ]);
-    expect(closingLedger({ done: [], unfinished: [], defaultEstimateMin: 30, rating: null, highlight: "", tomorrow: { spareMin: -40, planned: 6 } })).toEqual([
+    expect(closingLedger({ done: [], carried: 0, defaultEstimateMin: 30, rating: null, highlight: "", tomorrow: { spareMin: -40, planned: 6 } })).toEqual([
       { label: "Done", value: "Nothing" },
       { label: "Carried to tomorrow", value: "Nothing" },
       { label: "Day rating", value: "Not rated", tone: "quiet" },
       { label: "Tomorrow", value: "40m over already", tone: "over" },
     ]);
-    expect(closingLedger({ done: [], unfinished: [], defaultEstimateMin: 30, rating: 2, highlight: "", tomorrow: { spareMin: null, planned: 0 } }).map((r) => r.label)).toEqual(["Done", "Carried to tomorrow", "Day rating"]);
+    expect(closingLedger({ done: [], carried: 0, defaultEstimateMin: 30, rating: 2, highlight: "", tomorrow: { spareMin: null, planned: 0 } }).map((r) => r.label)).toEqual(["Done", "Carried to tomorrow", "Day rating"]);
+  });
+
+  it("reads each unfinished task's outcome from its live row, so an undo puts it back to waiting", () => {
+    const today = localDate("2026-09-14");
+    const open = (over: Partial<Task>): Task => ({ ...task(30), state: "active", doDate: today, ...over });
+    expect(carryOutcome(open({}), today, false)).toBeNull();
+    expect(carryOutcome(open({ doDate: localDate("2026-09-12") }), today, false)).toBeNull();
+    expect(carryOutcome(open({}), today, true)).toBe("kept");
+    expect(carryOutcome(open({ doDate: localDate("2026-09-15") }), today, true)).toBe("tomorrow");
+    expect(carryOutcome(open({ state: "someday", doDate: null }), today, false)).toBe("someday");
+    expect(carryOutcome(open({ state: "dropped" }), today, false)).toBe("dropped");
+    expect(carryOutcome(open({ state: "archived" }), today, false)).toBe("dropped");
+    expect(carryOutcome(open({ state: "done" }), today, false)).toBe("done");
+    expect(carryOutcome(open({ doDate: localDate("2026-09-18") }), today, false)).toBe("moved");
+    expect(carryOutcome(undefined, today, false)).toBeNull();
+  });
+
+  it("counts what goes on to tomorrow: moved there or left waiting, not parked, dropped or kept", () => {
+    const rows = (["tomorrow", "tomorrow", null, "someday", "dropped", "kept", "done"] as const).map((outcome) => ({ task: task(30), outcome }));
+    expect(carriedToTomorrow(rows)).toBe(3);
+    // After "Move all to tomorrow" the ledger names what moved rather than "Nothing".
+    expect(closingLedger({ done: [], carried: carriedToTomorrow(rows.slice(0, 2)), defaultEstimateMin: 30, rating: null, highlight: "", tomorrow: { spareMin: null, planned: 2 } })[1]).toEqual({ label: "Carried to tomorrow", value: "2 things" });
+    expect(carriedToTomorrow(rows.slice(3))).toBe(0);
   });
 
   it("summarises a closed day", () => {

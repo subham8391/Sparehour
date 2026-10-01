@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { instant, localDate } from "@/core/time";
+import { capacityFor } from "@/core/capacity";
+import { compareDates, instant, localDate, localTime, timeFromMinutes, toInstant } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
-import { candidates, easiestMove, frameLine, pullInSuggestions, readout } from "./morning-plan";
+import { candidates, easiestMove, fitsToday, frameLine, onTodayTasks, pullInSuggestions, readout } from "./morning-plan";
 
 const today = localDate("2026-09-14");
 const base: Task = {
@@ -128,5 +129,58 @@ describe("frameLine", () => {
   it("keeps the carry-over when there are no working hours", () => {
     expect(frameLine(null, 3)).toBe("No working hours today. 3 tasks carried over.");
     expect(frameLine({ ...day, state: "no_work_day" }, 0)).toBe("No working hours today. Nothing carried over.");
+  });
+});
+
+describe("the readout starts from Today's spare figure", () => {
+  // Monday 14 Sep, 09:00–18:00 with a meeting at 10:00, a 10 % buffer, an ad-hoc focus block, and tasks on today.
+  const draft = task("draft", { doDate: today, estimateMin: 45 });
+  const call = task("call", { doDate: today, estimateMin: 30 });
+  // On today, but it does not start until tomorrow: Today does not list it, so the plan must not count it either.
+  const later = task("later", { doDate: today, estimateMin: 120, startDate: localDate("2026-09-15") });
+  const evening = task("evening", { doDate: today, estimateMin: 40, evening: true });
+  const open = [draft, call, later, evening];
+  const blocks = [
+    { taskId: null, start: 840, end: 900 },
+    { taskId: "draft", start: 900, end: 945 },
+  ];
+  const at = (minute: number) => toInstant(today, timeFromMinutes(minute), "UTC");
+  const capacity = () =>
+    capacityFor({
+      day: today,
+      settings: { timezone: "UTC", bufferPct: 10, defaultEstimateMin: 30 },
+      workHours: [{ weekday: 1, start: localTime("09:00"), end: localTime("18:00") }],
+      events: [{ id: "e", startAt: at(600), endAt: at(660), startDate: null, endDate: null, allDay: false, busy: true, status: "confirmed", selfResponse: "accepted", eventType: "default", isOurs: false, calendarRead: true }],
+      blocks: blocks.map((b, i) => ({ id: `b${i}`, taskId: b.taskId as TaskId | null, startAt: at(b.start), endAt: at(b.end) })),
+      // What Today reads: TASKS_THROUGH_TODAY_SQL leaves out a task whose start date is still ahead.
+      tasks: open.filter((t) => !t.startDate || compareDates(t.startDate, today) <= 0).map((t) => ({ id: t.id, state: t.state, doDate: t.doDate, estimateMin: t.estimateMin, evening: t.evening, daySortKey: null })),
+      now: at(480),
+    });
+
+  it("picks what Today lists: open, on today, already started, not a routine item", () => {
+    const extra = [task("routine", { doDate: today, routineRunId: "r1" }), task("parked", { doDate: today, state: "someday" }), task("started", { doDate: today, startDate: today })];
+    expect(onTodayTasks([...open, ...extra], today).map((t) => t.id)).toEqual(["draft", "call", "evening", "started"]);
+  });
+
+  it("subtracts the time an ad-hoc block holds, so step 2 opens on the hero's number", () => {
+    const c = capacity();
+    const picked = onTodayTasks(open, today);
+    const fits = fitsToday(c, blocks, new Set(picked.filter((t) => !t.evening).map((t) => t.id)), 480);
+    // 540 working − 60 meeting − 55 buffer − 60 ad-hoc focus block.
+    expect(fits).toBe(365);
+    expect(c.spareMin).toBe(290);
+    expect(readout(picked, fits, 30).line).toBe("4h 50m to spare · 6h 05m fits today · 1h 15m picked · 2 tasks");
+  });
+
+  it("a block of a task that is not picked holds its time; a finished task's block only the part already spent", () => {
+    const c = capacity();
+    const held = [
+      { taskId: "elsewhere", start: 840, end: 900 },
+      { taskId: "finished", start: 600, end: 720, done: true },
+    ];
+    // The finished block runs 10:00–12:00 under the 10:00 meeting; at 11:30 only 11:00–11:30 of it is spent free time.
+    expect(fitsToday(c, held, new Set(), 690)).toBe(540 - 60 - 55 - 60 - 30);
+    expect(fitsToday(null, held, new Set(), 690)).toBe(0);
+    expect(fitsToday({ ...c, state: "no_work_day" }, held, new Set(), 690)).toBe(0);
   });
 });

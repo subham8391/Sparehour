@@ -1,7 +1,8 @@
 // The morning plan's arithmetic and words (SCREENS.md §14): the three
 // candidate groups, the readout that updates on every tick, and the coach's
 // "easiest move" when the day is over. Pure.
-import type { Capacity } from "@/core/capacity";
+import type { Capacity, Interval } from "@/core/capacity";
+import { clip, subtract, totalMinutes } from "@/core/capacity/intervals";
 import { formatMinutes, formatTime, compareDates, timeFromMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 
@@ -46,6 +47,38 @@ export function candidates(tasks: readonly Task[], today: LocalDate): Candidates
   dueThisWeek.sort((a, b) => (a.deadline && b.deadline ? compareDates(a.deadline, b.deadline) : a.deadline ? -1 : b.deadline ? 1 : 0) || a.title.localeCompare(b.title));
   fromProjects.sort((a, b) => a.lastTouchedAt.epochMilliseconds - b.lastTouchedAt.epochMilliseconds || a.title.localeCompare(b.title));
   return { carried, dueThisWeek, fromProjects };
+}
+
+/**
+ * The tasks the plan counts as picked: the ones Today lists under Today and This evening — open, on today, already
+ * started (no start date, or one on or before today, as TASKS_THROUGH_TODAY_SQL has it) — less routine items.
+ */
+export function onTodayTasks(open: readonly Task[], today: LocalDate): Task[] {
+  return open.filter((t) => isOpen(t) && t.doDate?.equals(today) && (!t.startDate || compareDates(t.startDate, today) <= 0) && !t.routineRunId);
+}
+
+/** A block as the plan weighs it: minutes of the day, its task, and whether that task is finished. */
+export interface FitBlock extends Interval {
+  taskId: string | null;
+  done?: boolean;
+}
+
+/**
+ * What fits today before anything is picked, so step 2 starts from the spare figure Today shows: the working
+ * minutes less meetings, the buffer, and the time blocks already hold for something that is not a picked daytime
+ * task — an ad-hoc block, or one whose task is not on today or is an evening task. A picked daytime task counts by
+ * its estimate in the readout instead, so `pickedIds` holds those. A finished task's block keeps only the part
+ * before `nowMin`, as Today's capacity does.
+ */
+export function fitsToday(c: Pick<Capacity, "state" | "workMin" | "busyMin" | "bufferMin" | "windows" | "busy"> | null, blocks: readonly FitBlock[], pickedIds: ReadonlySet<string>, nowMin: number): number {
+  if (!c || c.state === "no_work_day") return 0;
+  const held = blocks.flatMap((b): Interval[] => {
+    if (b.taskId && !b.done && pickedIds.has(b.taskId)) return [];
+    const end = b.done ? Math.min(b.end, nowMin) : b.end;
+    return end > b.start ? [{ start: b.start, end }] : [];
+  });
+  const heldMin = totalMinutes(clip(held, subtract(c.windows, c.busy)));
+  return Math.max(0, c.workMin - c.busyMin - c.bufferMin - heldMin);
 }
 
 export interface Readout {

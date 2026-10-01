@@ -12,11 +12,12 @@ import { toTask } from "@/data/mappers";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
 import { DayPlanRepo } from "@/data/repositories/day-plan-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
-import { candidates, type Candidates } from "@/features/rituals/morning-plan";
+import { candidates, fitsToday, onTodayTasks, type Candidates } from "@/features/rituals/morning-plan";
 import { MorningPlanFlow } from "@/features/rituals/morning-plan-flow";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { useNow } from "@/features/shell/use-local-day";
+import { minuteOnDay } from "@/features/today/day-minute";
 import { useToday } from "@/features/today/hooks/use-today";
 
 const USER_SQL = `select id, personal_space_id from users limit 1`;
@@ -48,10 +49,13 @@ export default function PlanPage() {
     const f = frozen ?? { carried: [], dueThisWeek: [], fromProjects: [] };
     return { carried: live(f.carried), dueThisWeek: live(f.dueThisWeek), fromProjects: live(f.fromProjects) };
   }, [byId, frozen]);
-  const onToday = useMemo(() => open.filter((t) => t.doDate?.equals(model.today) && !t.routineRunId), [open, model.today]);
+  // What Today lists: a task waiting for a later start date is not on today yet (TASKS_THROUGH_TODAY_SQL).
+  const onToday = useMemo(() => onTodayTasks(open, model.today), [open, model.today]);
 
+  // Step 2 starts from Today's spare figure: an ad-hoc block holds its time here as it does on Today.
   const cap = model.capacity;
-  const fitsMin = cap && cap.state !== "no_work_day" ? Math.max(0, cap.workMin - cap.busyMin - cap.bufferMin) : 0;
+  const pickedIds = new Set(onToday.filter((t) => !t.evening).map((t) => t.id));
+  const fitsMin = fitsToday(cap, model.blocks, pickedIds, minuteOnDay(now, model.settings?.timezone ?? "UTC", model.today).minute);
   const user = users?.[0];
 
   if (!model.ready || !model.settings) return <Loading />;

@@ -4,23 +4,32 @@
 // (read-only, titled or "Busy"), blocks (draggable, resizable from the bottom
 // edge, lockable), free gaps of half an hour or more named in spare, the
 // now line with its gutter dot and time, the projected finish with its
-// "done by" pill in the gutter, and the past dimmed by a token swap. A task
+// "done by" pill in the gutter, and the past dimmed by a token swap (a block
+// whose task is finished too, struck through with a check). A task
 // row dragged over it shows a ghost block snapped to five minutes; dropping
 // creates the block. Blocks stay local until a write calendar exists (P7b).
+// The drawn range is the working day with an hour either side, widened to
+// whatever sits outside it and to now; the hours outside the work windows are
+// dimmed but stay usable (SCREENS.md §2.6).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { layoutLanes, type Lane } from "./overlap";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { blockLength, minuteAtOffset, placeAt, resizeEnd } from "@/core/blocking";
 import type { Capacity, Interval } from "@/core/capacity";
+import { subtract } from "@/core/capacity/intervals";
 import { formatMinutes, formatTime, timeFromMinutes, type Instant } from "@/core/time";
 import { asDragData, type BlockDragData } from "@/features/blocking/drag";
 import type { PlanGhost } from "@/features/planning/drawing";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
+import { minuteOnDay } from "./day-minute";
 import type { TimelineBlock, TimelineMeeting } from "./hooks/use-today";
 
 export const PX_PER_MIN = 1.1;
+/** The padding drawn either side of the working day (SCREENS.md §2.6). */
+const PAD_MIN = 60;
+const DAY_MIN = 24 * 60;
 /** A free gap shorter than this is not worth naming. */
 const FREE_LABEL_MIN = 30;
 /** A slot taller than this carries its time range on a second line. */
@@ -66,18 +75,37 @@ function meetingTitle(b: Interval, meetings: readonly TimelineMeeting[] | undefi
   return inside.length === 1 ? inside[0].title : "Busy";
 }
 
+/**
+ * The stretch of the day the timeline draws (SCREENS.md §2.6): the working day plus an hour either side, widened
+ * to take in everything drawn on it (a 07:30 block is allowed, PRODUCT_SPEC.md §10.2) and the now line, in whole
+ * hours inside the day. Without working hours it falls back to 09:00–17:00, as the Today page does.
+ */
+export function drawnRange(windows: readonly Interval[], drawn: readonly Interval[], nowMin: number | null): Interval {
+  let start = (windows[0]?.start ?? 9 * 60) - PAD_MIN;
+  let end = (windows[windows.length - 1]?.end ?? 17 * 60) + PAD_MIN;
+  for (const d of drawn) {
+    start = Math.min(start, d.start);
+    end = Math.max(end, d.end);
+  }
+  if (nowMin !== null) {
+    start = Math.min(start, nowMin);
+    end = Math.max(end, nowMin);
+  }
+  return { start: Math.max(0, Math.floor(start / 60) * 60), end: Math.min(DAY_MIN, Math.ceil(end / 60) * 60) };
+}
+
 export function Timeline(p: TimelineProps) {
   const { c, now, zone } = p;
-  const start = c.windows[0].start;
-  const end = c.windows[c.windows.length - 1].end;
+  const workEnd = c.windows[c.windows.length - 1]?.end ?? 17 * 60;
+  const { minute: nowMin, onDay: nowShown } = minuteOnDay(now, zone, c.day);
+  const { start, end } = drawnRange(c.windows, [...(p.blocks ?? []), ...c.busy, ...(p.proposed ?? [])], nowShown ? nowMin : null);
   const y = (m: number) => (m - start) * PX_PER_MIN;
   // Whatever overlaps shares the width side by side (SCREENS.md §4), a block dropped on a meeting included, so each stays readable and reachable.
   const lanes = layoutLanes([...(p.blocks ?? []), ...c.busy.map((b, i) => ({ id: `m${i}`, ...b }))]);
-  const z = now.toZonedDateTimeISO(zone);
-  const nowMin = z.hour * 60 + z.minute;
-  const nowShown = nowMin >= start && nowMin <= end;
   // Where the day stands: before it starts nothing is past, after it ends everything is.
   const elapsed = Math.min(Math.max(nowMin, start), end);
+  // The hours outside the work windows, the padding and the gap between split windows included: dimmed, still usable.
+  const outside = subtract([{ start, end }], c.windows);
   const finishMin = c.projectedFinish ? c.projectedFinish.hour * 60 + c.projectedFinish.minute : null;
   const rootRef = useRef<HTMLDivElement>(null);
   const [ghost, setGhost] = useState<Ghost | null>(null);
@@ -167,6 +195,10 @@ export function Timeline(p: TimelineProps) {
       aria-label={p.placing ? `Tap a time for ${p.placing.title}` : undefined}
       onClick={onTap}
     >
+      {/* Under the grid: the page's own paper shows through where the working day is not, a step down from the surface in either theme. */}
+      {outside.map((o) => (
+        <div key={`o${o.start}`} aria-hidden="true" data-testid="outside-hours" className="pointer-events-none absolute right-0 left-12 bg-paper/80" style={{ top: y(o.start), height: (o.end - o.start) * PX_PER_MIN }} />
+      ))}
       {hours.map((h) => (
         <div key={h} className="pointer-events-none absolute inset-x-0" style={{ top: y(h) }}>
           <div className="absolute top-0 right-0 left-12 border-t border-line" />
@@ -245,7 +277,7 @@ export function Timeline(p: TimelineProps) {
         </div>
       )}
       {/* The working day's end, a shade firmer than an hour line. */}
-      <div className="pointer-events-none absolute right-0 left-12 border-t border-line-strong" style={{ top: y(end) }} />
+      <div className="pointer-events-none absolute right-0 left-12 border-t border-line-strong" style={{ top: y(workEnd) }} />
       {finishMin !== null && finishMin >= start && finishMin <= end && (
         <>
           <div className="pointer-events-none absolute right-0 left-12 z-2 border-t-[1.5px] border-dashed border-spare-fill" style={{ top: y(finishMin) }} />
@@ -314,15 +346,19 @@ function Block({
   const height = Math.max(24, (end - start) * PX_PER_MIN - 2);
   const tall = height >= TWO_LINE_PX;
   const range = `${formatTime(timeFromMinutes(start))} to ${formatTime(timeFromMinutes(end))}`;
+  // A finished task's block is done (PRODUCT_SPEC.md §10.2): let down like the past, with the check and the struck title of a completed row.
+  const done = Boolean(block.done);
+  const quiet = past || done;
   // The block is a real button; the toolbar and the resize handle sit beside
   // it, never inside it, so nothing interactive is nested (§11.5).
   return (
     <div
       ref={ref}
+      data-done={done ? "true" : undefined}
       className={cx(
         "absolute right-2 left-13 rounded-sm border-l-[3px]",
         // The past is dimmed by a token mix, opaque so nothing beneath shows through.
-        past ? "border-line-strong bg-[color-mix(in_oklab,var(--block-soft)_55%,var(--surface))]" : "border-block-fill bg-block-soft",
+        quiet ? "border-line-strong bg-[color-mix(in_oklab,var(--block-soft)_55%,var(--surface))]" : "border-block-fill bg-block-soft",
         movable && "cursor-grab",
         selected && "outline-2 outline-offset-1 outline-ink",
       )}
@@ -330,7 +366,7 @@ function Block({
     >
       <button
         type="button"
-        aria-label={`Block: ${block.title}, ${range}${block.locked ? ", locked" : ""}`}
+        aria-label={`Block: ${block.title}, ${range}${done ? ", done" : ""}${block.locked ? ", locked" : ""}`}
         aria-pressed={selected}
         onClick={(e) => {
           e.stopPropagation();
@@ -339,9 +375,10 @@ function Block({
         onDoubleClick={onOpenTask}
         className={cx("h-full w-full overflow-hidden rounded-sm px-2 pl-2.5 text-left focus-visible:-outline-offset-2", tall ? "flex flex-col justify-start py-1" : "flex items-center gap-1.5")}
       >
-        <span className={cx("flex min-w-0 items-center gap-1 text-label leading-[15px] font-semibold", past ? "text-ink-3" : "text-ink")}>
+        <span className={cx("flex min-w-0 items-center gap-1 text-label leading-[15px] font-semibold", quiet ? "text-ink-3" : "text-ink")}>
+          {done && <Icon name="check" size={10} strokeWidth={2.2} className="shrink-0" />}
           {block.locked && <Icon name="lock" size={10} className="shrink-0" />}
-          <span className="truncate">{block.title}</span>
+          <span className={cx("truncate", done && "line-through")}>{block.title}</span>
         </span>
         <span className={cx("block text-micro text-ink-2 num", tall ? "truncate" : "shrink-0 whitespace-nowrap")}>{tall ? rangeLine(start, end) : formatTime(timeFromMinutes(start))}</span>
       </button>
