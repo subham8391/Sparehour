@@ -2,7 +2,7 @@
 // Settings (SCREENS.md §18): what the app knows about your day, editable in
 // place, and the way out.
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type SettingsPatch } from "@/data/repositories/settings-repo";
@@ -97,6 +97,13 @@ export default function SettingsPage() {
     return count;
   }
 
+  // A link to a section (/settings#calendar from Today) lands on it once the form has rendered; it paints "Opening…" first.
+  const ready = values !== null;
+  useEffect(() => {
+    if (!ready || !window.location.hash) return;
+    document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: "start" });
+  }, [ready]);
+
   async function signOut(anyway = false) {
     setLeaving(true);
     // Clearing the device with changes still queued would lose them without a word: say so and let the person choose.
@@ -113,7 +120,8 @@ export default function SettingsPage() {
     // The auth client is loaded here rather than with the page (§11.6 budgets).
     const { supabaseBrowser } = await import("@/data/supabase-browser");
     await db.disconnectAndClear();
-    await supabaseBrowser().auth.signOut();
+    // This device only: a global sign-out also ended every other device's session, leaving a phone retrying a dead token.
+    await supabaseBrowser().auth.signOut({ scope: "local" });
     router.replace("/login");
   }
 

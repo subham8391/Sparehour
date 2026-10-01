@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { bufferPreview, longestDayMinutes, rolloverLabel, segmentError, segmentMinutes, timeZoneHint, timeZoneOptions } from "./settings-rules";
 
 describe("work-hours segments", () => {
@@ -41,6 +41,19 @@ describe("rollover and time zones", () => {
     expect(timeZoneHint("Asia/Kolkata", "Asia/Calcutta")).toBeNull();
     expect(timeZoneHint("Europe/Kyiv", "Europe/Kiev")).toBeNull();
     expect(timeZoneHint("Asia/Kolkata", "Asia/Dhaka")).toBe("Detected Asia/Dhaka");
+  });
+
+  it("lists zones by their current names, always with UTC, so Asia/Kolkata can be picked again (Chromium lists Asia/Calcutta)", () => {
+    const spy = vi.spyOn(Intl, "supportedValuesOf").mockReturnValue(["America/New_York", "Asia/Calcutta", "Europe/Kiev", "Europe/London"]);
+    try {
+      const zones = timeZoneOptions("Europe/London");
+      expect(zones).toContain("Asia/Kolkata");
+      expect(zones).toContain("Europe/Kyiv");
+      expect(zones).toContain("UTC");
+      expect(zones).not.toContain("Asia/Calcutta");
+    } finally {
+      spy.mockRestore();
+    }
     expect(timeZoneHint("Europe/London", null)).toBeNull();
   });
 });

@@ -15,8 +15,22 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+/**
+ * Turbopack starts a web worker through a small bootstrap script that reads its chunk list from the script
+ * URL's #fragment. A response handed over by a service worker carries no fragment, so the worker started
+ * without its config ("Missing worker bootstrap config"), PowerSync's database worker never opened, and every
+ * visit after the first stayed on "Opening…" (found by the end-to-end walkthrough). These scripts are left to
+ * the browser: the hashed file sits in its HTTP cache for a year, which also covers an offline start.
+ */
+const isWorkerBootstrap = (url: string) => /\/_next\/static\/chunks\/turbopack-worker-[^/]*\.js$/.test(new URL(url, self.location.origin).pathname);
+
+// Registered before Serwist's own listener, so for these requests that one never runs and nothing answers them.
+self.addEventListener("fetch", (event) => {
+  if (isWorkerBootstrap(event.request.url)) event.stopImmediatePropagation();
+});
+
 const serwist = new Serwist({
-  precacheEntries: self.__SW_MANIFEST,
+  precacheEntries: self.__SW_MANIFEST?.filter((entry) => !isWorkerBootstrap(typeof entry === "string" ? entry : entry.url)),
   skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,

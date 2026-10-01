@@ -47,6 +47,18 @@ async function saveSubscription(sub: PushSubscription, platform: PushPlatform): 
   if (error) throw new Error(error.message);
 }
 
+/**
+ * A failed subscribe in plain words (SCREENS.md §21). The browser's own text ("Registration failed - permission
+ * denied") reads as if permission had been refused when the window simply has no push service (private windows,
+ * some browsers). Messages the app wrote itself pass through.
+ */
+export function pushErrorWords(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  if (e instanceof DOMException || /registration failed|push service|not supported|AbortError|NotAllowedError/i.test(raw))
+    return "This window can’t receive reminders. Private windows and some browsers have no push service; try a normal window or the installed app.";
+  return raw;
+}
+
 export function usePush(): PushApi {
   const [permission, setPermission] = useState<PermissionState>(() => (typeof window === "undefined" ? "unsupported" : readPermission(window)));
   const [subscribed, setSubscribed] = useState(false);
@@ -87,7 +99,7 @@ export function usePush(): PushApi {
       await saveSubscription(sub, platform);
       setSubscribed(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(pushErrorWords(e));
     } finally {
       setBusy(false);
     }

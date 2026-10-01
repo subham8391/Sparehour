@@ -1,7 +1,7 @@
 // The installable shell (SYSTEM_DESIGN.md §10): manifest, a registered service
 // worker in the production build, and the offline page.
 import { expect, test } from "./fixtures";
-import { openApp } from "./helpers";
+import { openApp, waitForSync } from "./helpers";
 
 test("manifest, service worker and the offline page", async ({ page }) => {
   await openApp(page, "/today");
@@ -16,4 +16,23 @@ test("manifest, service worker and the offline page", async ({ page }) => {
 
   await page.goto("/offline");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+// Found by the end-to-end walkthrough: once the service worker controlled the page, it answered the request for
+// Turbopack's worker bootstrap from its cache, the bootstrap lost its #params fragment, the local database never
+// opened, and every reload (or new tab, or reopened app) stayed on "Opening…". Each test here opens a fresh
+// context, which is why the rest of the suite never saw it.
+test("after the service worker takes over, a reload opens the local database and syncs again", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (m) => {
+    if (m.type() === "error" && /worker bootstrap|database or sync worker/i.test(m.text())) errors.push(m.text());
+  });
+  await openApp(page, "/inbox");
+  await expect.poll(async () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)), { timeout: 30_000 }).toBe(true);
+  for (let n = 0; n < 2; n++) {
+    await page.reload();
+    await waitForSync(page);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  }
+  expect(errors).toEqual([]);
 });

@@ -53,7 +53,10 @@ export function rolloverLabel(hour: number): string {
   return hour === 0 ? "Midnight" : `${String(hour).padStart(2, "0")}:00`;
 }
 
-/** Time zones the browser knows, with the current one first when it is not in the list. */
+/**
+ * Time zones the browser knows, by their current names (Chromium still lists Asia/Calcutta, so Asia/Kolkata could
+ * not be picked again once left), with UTC always there and the saved one first when it is not in the list.
+ */
 export function timeZoneOptions(current: string): string[] {
   let zones: string[] = [];
   try {
@@ -62,7 +65,8 @@ export function timeZoneOptions(current: string): string[] {
     zones = [];
   }
   if (zones.length === 0) zones = ["UTC", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "Asia/Kolkata", "Asia/Tokyo", "Australia/Sydney"];
-  return zones.includes(current) ? zones : [current, ...zones];
+  const named = [...new Set([...zones.map(canonicalZone), "UTC"])].sort((a, b) => a.localeCompare(b));
+  return named.includes(current) ? named : [current, ...named];
 }
 
 /**

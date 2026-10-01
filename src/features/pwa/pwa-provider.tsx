@@ -58,7 +58,8 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
     // Report what the browser already decided, without asking yet.
-    navigator.storage?.persisted?.().then((p) => setPersistence(p ? "protected" : "unknown")).catch(() => {});
+    // Not persisted yet is "not protected" (PRODUCT_SPEC.md §19.2.2), not "checking": the answer is already in.
+    navigator.storage?.persisted?.().then((p) => setPersistence(p ? "protected" : "unprotected")).catch(() => {});
     return () => {
       media.removeEventListener("change", sync);
       window.removeEventListener("beforeinstallprompt", onPrompt);
@@ -77,7 +78,8 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     worker.addEventListener("controlling", (event) => {
       if (event.isUpdate) window.location.reload();
     });
-    void worker.register();
+    // Blocked by policy or a private window: the app works without it, so no uncaught error on every load.
+    worker.register().catch(() => {});
     return () => {
       workerRef.current = null;
     };
