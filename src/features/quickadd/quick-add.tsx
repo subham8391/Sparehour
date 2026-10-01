@@ -1,12 +1,13 @@
 "use client";
 // Quick-add (SCREENS.md §11): one line in, a task out. Tokens are painted in
 // place as they complete, the strip below restates the parse as chips, ⏎
-// saves and keeps going, ⌘⏎ saves and closes, esc discards. On a phone it is
-// a bottom sheet docked above the keyboard; from the narrow band up, a
-// dialog under the top edge (DESIGN_SYSTEM.md §5 "Sheet"). Presentational
-// and testable: data arrives as props.
+// saves and keeps going, ⌘⏎ saves and closes, esc discards (with a one-step
+// undo). On a phone it is a bottom sheet docked above the keyboard, headed by
+// "← Quick add"; from the narrow band up, a dialog under the top edge
+// (DESIGN_SYSTEM.md §5 "Sheet"). Presentational and testable: data arrives as
+// props.
 import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { parse, type Span, type TaskDraft } from "@/core/quickadd";
+import { parse, type ParseContext, type ParseResult, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Button } from "@/ui/button";
 import { Chip, chipButtonClass, type ChipTone } from "@/ui/chip";
@@ -14,7 +15,18 @@ import { cx } from "@/ui/cx";
 import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
 import { Sheet } from "@/ui/sheet";
-import { interpret, projectMatches, projectToken, resolveProject, segments, splitPaste, type Fact, type QuickAddProject } from "./interpret";
+import {
+  bestProjectMatch,
+  escapeProjectTokens,
+  interpret,
+  projectMatches,
+  projectToken,
+  resolveProject,
+  segments,
+  splitPaste,
+  type Fact,
+  type QuickAddProject,
+} from "./interpret";
 
 export interface QuickAddContext {
   now: Instant;
@@ -29,6 +41,55 @@ export interface QuickAddSubmission {
   /** Set when the user asked for a project that does not exist yet. */
   createProjectName: string | null;
 }
+
+/** A save, resolved to the id of the task it created (the paste's undo needs them all). */
+export type QuickAddSave = (submission: QuickAddSubmission) => Promise<string | void>;
+
+type Parsed = Extract<ParseResult, { ok: true }>;
+
+/** One line made ready to save: the submission, and the words the notice uses to say where it went. */
+interface Filed {
+  submission: QuickAddSubmission;
+  title: string;
+  /** The project it is filed in (found, guessed from a partial name, or to be created). */
+  project: string | null;
+  /** A `#name` that filed nothing, kept in the title; and whether it was because several projects fit. */
+  unfiled: { name: string; several: boolean } | null;
+}
+
+/**
+ * Where a parsed line goes (PRODUCT_SPEC.md §5.2 "#name"): the project named exactly; else the one project a
+ * partial name fits ("#Q4" → Q4 planning); else a new one when asked for. A name that is none of these files
+ * nothing, and its words stay in the title rather than vanish (§5.3 rule 7).
+ */
+function fileLine(text: string, parsed: Parsed, projects: readonly QuickAddProject[], ctx: ParseContext, createAsked: boolean): Filed {
+  const { draft } = parsed;
+  const name = draft.projectName;
+  const exact = resolveProject(name, projects);
+  const create = Boolean(name) && !exact && (createAsked || draft.projectCreate);
+  const project = exact ?? (name && !create ? bestProjectMatch(name, projects) : null);
+  if (name && !project && !create) {
+    const again = parse(escapeProjectTokens(text, parsed.spans), ctx);
+    const kept = again.ok ? again.draft : { ...draft, projectName: null, projectCreate: false };
+    return { submission: { draft: kept, projectId: null, createProjectName: null }, title: kept.title, project: null, unfiled: { name, several: projectMatches(name, projects).length > 1 } };
+  }
+  return {
+    submission: { draft: { ...draft, projectCreate: create }, projectId: project?.id ?? null, createProjectName: create ? name : null },
+    title: draft.title,
+    project: project?.name ?? (create ? name : null),
+    unfiled: null,
+  };
+}
+
+/** "Added “Email the accountant” to Q4 planning", or why a #name stayed in the title. */
+function addedNotice(f: Filed): string {
+  const added = `Added “${f.title}”${f.project ? ` to ${f.project}` : ""}`;
+  if (!f.unfiled) return added;
+  return `${added} — ${f.unfiled.several ? `#${f.unfiled.name} fits more than one project` : `no project is called “${f.unfiled.name}”`}, so it stays in the title`;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const reason = (e: unknown) => (e instanceof Error && e.message ? e.message : "try again.");
 
 // Tokens in the line are told apart by weight of colour alone: a project is
 // the meet token, everything else steps back to ink-2 (D11: no green, no
@@ -106,13 +167,19 @@ export function QuickAdd({
   ctx,
   onClose,
   onSubmit,
+  onPasted,
+  onDiscard,
 }: {
   open: boolean;
   initial?: string;
   projects: readonly QuickAddProject[];
   ctx: QuickAddContext;
   onClose: () => void;
-  onSubmit: (submission: QuickAddSubmission) => Promise<void>;
+  onSubmit: QuickAddSave;
+  /** A paste saved these tasks: returns how to take them all back, once (the caller also puts that on the undo stack). */
+  onPasted?: (ids: readonly string[]) => (() => Promise<void>) | null | undefined;
+  /** The sheet closed with words in the box: `text` as typed, `title` as the strip would save it (§5.1 rule 4). */
+  onDiscard?: (text: string, title: string) => void;
 }) {
   const [value, setValue] = useState(initial);
   // Keys typed while the sheet was still loading arrive as a longer `initial`; take them unless the box has moved on.
@@ -122,7 +189,8 @@ export function QuickAdd({
     if (initial.startsWith(value)) setValue(initial);
   }
   const [createProject, setCreateProject] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  /** What the last save did; a paste's carries the way to take it back ("4 tasks added · Undo"). */
+  const [notice, setNotice] = useState<{ text: string; undo?: () => void } | null>(null);
   /** Why the last save failed; the words stay in the box so nothing is lost. */
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -150,11 +218,15 @@ export function QuickAdd({
   const warnings = result.ok ? result.warnings : [];
 
   const projectName = draft?.projectName ?? null;
-  const match = resolveProject(projectName, projects);
-  const suggestions = projectName && !match ? projectMatches(projectName, projects).slice(0, 3) : [];
-  const willCreate = Boolean(projectName) && !match && (createProject || Boolean(draft?.projectCreate));
+  const exact = resolveProject(projectName, projects);
+  const suggestions = projectName && !exact ? projectMatches(projectName, projects).slice(0, 3) : [];
+  const willCreate = Boolean(projectName) && !exact && (createProject || Boolean(draft?.projectCreate));
+  // A partial name that fits one project is filed there on save, so the strip says so now: it is the contract.
+  const match = exact ?? (projectName && !willCreate ? bestProjectMatch(projectName, projects) : null);
   const projectLabel = match ? match.name : projectName ? (willCreate ? `new project ${projectName}` : `${projectName}?`) : null;
   const interpretation = draft ? interpret(draft, ctx.today, projectLabel) : null;
+  /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
+  const needsName = !result.ok && value.trim() !== "";
 
   const syncScroll = () => {
     if (paintRef.current && inputRef.current) paintRef.current.scrollLeft = inputRef.current.scrollLeft;
@@ -183,34 +255,35 @@ export function QuickAdd({
   // No manual memo: the compiler handles it, and its view of the dependencies is the right one.
   // Brain-dump mode (PRODUCT_SPEC.md §5.1 rule 4): Enter clears the box at once and the save runs behind it,
   // one after another in the order asked, so the next line can be typed while the last one is still saving.
-  const saves = useRef<Promise<void>>(Promise.resolve());
+  const saves = useRef<Promise<unknown>>(Promise.resolve());
   const submit = (close: boolean) => {
-    if (!draft || busy) return;
+    if (!result.ok || busy) return;
     const text = value;
-    const title = draft.title;
-    const submission: QuickAddSubmission = {
-      draft: { ...draft, projectCreate: willCreate },
-      projectId: match?.id ?? null,
-      createProjectName: willCreate ? projectName : null,
-    };
+    const filed = fileLine(text, result, projects, parseCtx, createProject);
     setValue("");
     setCreateProject(false);
     setError(null);
     saves.current = saves.current
-      .then(() => onSubmit(submission))
+      .then(() => onSubmit(filed.submission))
       .then(
         () => {
-          setNotice(`Added “${title}”`);
+          setNotice({ text: addedNotice(filed) });
           if (close) onClose();
         },
         (e: unknown) => {
           setNotice(null);
-          const why = e instanceof Error && e.message ? e.message : "try again.";
-          setError(`Couldn't save “${title}”: ${why}`);
+          setError(`Couldn't save “${filed.title}”: ${reason(e)}`);
           // The words come back unless something new has been typed since.
           setValue((now) => (now.trim() === "" ? text : now));
         },
       );
+  };
+
+  // Closing with words in the box discards them, and offers them back once (§5.1 rule 4); an empty box just closes.
+  const dismiss = () => {
+    const text = value.trim();
+    if (text) onDiscard?.(text, result.ok ? result.draft.title : text);
+    onClose();
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -219,39 +292,76 @@ export function QuickAdd({
       void submit(e.metaKey || e.ctrlKey);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      onClose();
-    } else if (e.key === "Tab" && projectName && !match) {
+      dismiss();
+    } else if (e.key === "Tab" && projectName && !exact) {
       e.preventDefault();
       if (suggestions.length > 0) pickProject(suggestions[0]);
       else setCreateProject(true);
     }
   };
 
+  // Many lines, many tasks (§5.1 rule 6): each parsed and filed on its own, saved in order after anything still
+  // saving, then one notice with one Undo that takes back exactly what this paste added.
   const onPaste = async (e: ClipboardEvent<HTMLInputElement>) => {
     const lines = splitPaste(e.clipboardData.getData("text"));
     if (lines.length === 0) return;
     e.preventDefault();
     setBusy(true);
+    setError(null);
+    setNotice(null);
+    const ids: string[] = [];
     let added = 0;
+    let unnamed = 0;
     try {
-      for (const line of lines) {
+      await saves.current.catch(() => undefined);
+      for (const [i, line] of lines.entries()) {
         const r = parse(line, parseCtx);
-        if (!r.ok) continue;
-        await onSubmit({ draft: r.draft, projectId: resolveProject(r.draft.projectName, projects)?.id ?? null, createProjectName: null });
-        added += 1;
+        if (!r.ok) {
+          unnamed += 1;
+          continue;
+        }
+        const filed = fileLine(line, r, projects, parseCtx, false);
+        try {
+          const id = await onSubmit(filed.submission);
+          if (typeof id === "string") ids.push(id);
+          added += 1;
+        } catch (err) {
+          const left = lines.length - i - 1;
+          setValue((now) => (now.trim() === "" ? line : now));
+          setError(`Couldn't save “${filed.title}”: ${reason(err)}${left > 0 ? ` ${plural(left, "line after it was", "lines after it were")} not saved either.` : ""}`);
+          break;
+        }
       }
     } finally {
       setBusy(false);
     }
-    setValue("");
-    setNotice(`${added} ${added === 1 ? "task" : "tasks"} added`);
+    if (added === 0 && unnamed === 0) return;
+    const skipped = unnamed > 0 ? ` · ${plural(unnamed, "line", "lines")} with no name skipped` : "";
+    const takeBack = ids.length > 0 ? onPasted?.(ids) : null;
+    setNotice({
+      text: `${plural(added, "task", "tasks")} added${skipped}`,
+      undo: takeBack
+        ? () =>
+            void takeBack().then(
+              () => setNotice({ text: `Took back ${plural(ids.length, "task", "tasks")}` }),
+              (err: unknown) => setError(`Couldn't take them back: ${reason(err)}`),
+            )
+        : undefined,
+    });
   };
 
   if (!open) return null;
 
   return (
-    <Sheet label="Add a task" onClose={onClose} width="lg">
+    <Sheet label="Add a task" onClose={dismiss} width="lg">
       <div className="flex flex-col gap-3 p-4 sm:p-5">
+        {/* The phone sheet's way back (SCREENS.md §22 "← Quick add"): the keyboard hides the scrim and there is no Esc key. */}
+        <div className="-mt-2 -ml-3 flex items-center gap-1 sm:hidden">
+          <Button variant="icon" aria-label="Close" onClick={dismiss}>
+            <Icon name="arrow-left" size={18} />
+          </Button>
+          <h2 className="text-body-lg font-medium text-ink">Quick add</h2>
+        </div>
         <div className="relative">
           {/* The painted line sits under the box: the same metrics, the box's own border width added to the padding, so the glyphs land exactly under the caret. */}
           <div ref={paintRef} aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-lg bg-surface px-[calc(0.875rem+1px)] text-base whitespace-pre text-ink">
@@ -287,6 +397,8 @@ export function QuickAdd({
         <p id={stripId} aria-live="polite" className="flex min-h-[22px] flex-wrap items-center gap-1.5 text-body-sm text-ink-2">
           {interpretation && interpretation.facts.length > 0 ? (
             interpretation.facts.map((f, i) => <FactChip key={i} fact={f} first={i === 0} />)
+          ) : needsName ? (
+            <span className="text-ink-2">Give it a name</span>
           ) : (
             <span className="text-ink-3">Dates, times, ~estimates, #projects, @tags and !priority are understood.</span>
           )}
@@ -306,7 +418,7 @@ export function QuickAdd({
           </p>
         )}
 
-        {projectName && !match && (
+        {projectName && !exact && (
           <div className="flex flex-wrap items-center gap-1.5">
             {suggestions.map((p) => (
               <button key={p.id} type="button" onClick={() => pickProject(p)} className={SUGGEST}>
@@ -346,8 +458,13 @@ export function QuickAdd({
           </Button>
         </div>
         {notice && (
-          <p role="status" className="flex items-center gap-1.5 text-body-sm text-ink-2">
-            <Icon name="check" size={14} className="shrink-0 text-ink-3" /> {notice}
+          <p role="status" className="flex items-center gap-1.5 text-body-sm text-pretty text-ink-2">
+            <Icon name="check" size={14} className="shrink-0 text-ink-3" /> {notice.text}
+            {notice.undo && (
+              <Button variant="link" size="compact" className="-my-2 ml-1" onClick={notice.undo}>
+                Undo
+              </Button>
+            )}
           </p>
         )}
         {error && (

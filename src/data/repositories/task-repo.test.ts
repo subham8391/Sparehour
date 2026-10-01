@@ -568,3 +568,31 @@ describe("TaskRepo: reopening restores the previous state (PRODUCT_SPEC.md §7 r
     expect(history.record.mock.calls.at(-1)?.[0]).toMatchObject({ label: "Reopened “Call Dana”", toast: false });
   });
 });
+
+describe("TaskRepo: taking back what a paste created (PRODUCT_SPEC.md §5.1 rule 6)", () => {
+  it("soft-deletes exactly the given tasks and their tag links, in one transaction, and records nothing", async () => {
+    const s = localSqlite();
+    const history = { record: vi.fn() };
+    const repo = new TaskRepo(s.db, history);
+    const keep = await repo.create({ ...emptyDraft(), title: "Already here" }, { spaceId: "s1" });
+    const a = await repo.create({ ...emptyDraft(), title: "Buy milk", tagNames: ["errands"] }, { spaceId: "s1" });
+    const b = await repo.create({ ...emptyDraft(), title: "Call Dana" }, { spaceId: "s1" });
+    s.drop("tasks", b); // a row sync has already taken away is simply not there to update
+    s.outside.length = 0;
+    await repo.removeCreated([a, b]);
+    expect(s.outside).toEqual([]);
+    expect(s.row("tasks", a)?.deleted_at).not.toBeNull();
+    expect(s.row("tasks", keep)?.deleted_at).toBeNull();
+    const links = s.rows("select deleted_at from task_tags where task_id = ?", [a]);
+    expect(links).toHaveLength(1);
+    expect(links[0].deleted_at).not.toBeNull();
+    expect(history.record).not.toHaveBeenCalled();
+  });
+
+  it("does nothing for an empty list", async () => {
+    const s = localSqlite();
+    s.outside.length = 0;
+    await new TaskRepo(s.db).removeCreated([]);
+    expect(s.outside).toEqual([]);
+  });
+});

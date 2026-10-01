@@ -11,6 +11,7 @@ import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { useUndoSink } from "@/features/undo/undo-provider";
 import { Icon } from "@/ui/icons";
 import type { QuickAddSubmission } from "./quick-add";
 import { Kbd } from "@/ui/kbd";
@@ -44,6 +45,8 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
     [],
   );
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
+  /** A fresh sheet holding exactly `text`: what an Undo of a discard brings back, never appended to anything. */
+  const reopen = useCallback((text: string) => setState((s) => ({ open: true, initial: text, key: s.key + 1 })), []);
   useEffect(() => preloadOnIdle(loadQuickAdd), []);
 
   const now = useNow();
@@ -57,9 +60,10 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   const tasks = useTaskRepo();
   const projectRepo = useMemo(() => new ProjectRepo(db), [db]);
   const pwa = usePwaOptional();
+  const undo = useUndoSink();
 
   const onSubmit = useCallback(
-    async (s: QuickAddSubmission) => {
+    async (s: QuickAddSubmission): Promise<string> => {
       // Right after the first sync the watch query can lag the data by a beat; read the row directly rather than fail.
       const sid = spaceId ?? (await db.getOptional<{ personal_space_id: string | null }>(SPACE_SQL))?.personal_space_id ?? null;
       if (!sid) throw new Error("Your account is still loading — try again in a moment.");
@@ -69,11 +73,30 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
         const existing = await db.getOptional<{ id: string }>(`select id from projects where deleted_at is null and lower(name) = lower(?) limit 1`, [s.createProjectName]);
         projectId = existing?.id ?? (await projectRepo.create(s.createProjectName, { spaceId: sid }));
       }
-      await tasks.create(s.draft, { spaceId: sid, projectId });
+      const id = await tasks.create(s.draft, { spaceId: sid, projectId });
       // The first meaningful action is the moment to ask the browser to keep our storage (§10.4).
       pwa?.requestPersist();
+      return id;
     },
     [spaceId, db, projectRepo, tasks, pwa],
+  );
+
+  // A paste is one undo entry for all its tasks (PRODUCT_SPEC.md §5.1 rule 6: "12 tasks — Undo"). The sheet's own
+  // Undo and the stack's run the same take-back, and it runs once, whichever comes first.
+  const onPasted = useCallback(
+    (ids: readonly string[]) => {
+      let taken: Promise<void> | null = null;
+      const takeBack = () => (taken ??= tasks.removeCreated(ids));
+      undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: true, undo: takeBack });
+      return takeBack;
+    },
+    [tasks, undo],
+  );
+
+  // Esc with words in the box discards them with a one-step undo (§5.1 rule 4): the toast reopens the sheet holding them.
+  const onDiscard = useCallback(
+    (text: string, title: string) => undo?.record({ label: `Discarded “${title}”`, toast: true, undo: async () => reopen(text) }),
+    [undo, reopen],
   );
 
   const api = useMemo(() => ({ open }), [open]);
@@ -89,6 +112,8 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
           ctx={{ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }}
           onClose={close}
           onSubmit={onSubmit}
+          onPasted={onPasted}
+          onDiscard={onDiscard}
         />
       )}
     </QuickAddContext.Provider>

@@ -30,6 +30,8 @@ import { RowActionsLayoutProvider } from "./task-actions";
 const LONG_PRESS_MS = 500;
 /** Check-off (DESIGN_SYSTEM.md §7): the ring fills at once; the row leaves 400 ms later. */
 const COMPLETE_DELAY_MS = 400;
+/** The longest estimate taken without a question: 8 hours (PRODUCT_SPEC.md §5.2 "~ … Max 8h"). */
+export const LONG_ESTIMATE_MIN = 8 * 60;
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -126,23 +128,42 @@ export function TaskRow({
   const ticked = sel?.checkedIds.includes(task.id) ?? false;
   const multi = (sel?.checkedIds.length ?? 0) > 0;
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A long-press just ticked the row: the click the finger's release sends is part of it, not a tap that opens. */
+  const longPressed = useRef(false);
   const cancelPress = () => {
     if (pressTimer.current) clearTimeout(pressTimer.current);
     pressTimer.current = null;
   };
   useEffect(() => cancelPress, []);
   const onPointerDown = (e: ReactPointerEvent<HTMLLIElement>) => {
+    // A new press starts clean, even if the last long-press sent no click (the finger slid off).
+    longPressed.current = false;
     if (!sel || e.pointerType !== "touch") return;
     cancelPress();
     pressTimer.current = setTimeout(() => {
       pressTimer.current = null;
+      longPressed.current = true;
       sel.toggleCheck(task.id);
     }, LONG_PRESS_MS);
   };
+  // Captured before any target in the row sees it, so neither the detail nor the ring answers the release.
+  const onClickCapture = (e: ReactMouseEvent<HTMLLIElement>) => {
+    if (!longPressed.current) return;
+    longPressed.current = false;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  /** Shift-click ticks a range and ⌘/Ctrl-click ticks one row (SCREENS.md §24): selection, nothing else. */
+  const selecting = (e: ReactMouseEvent) => Boolean(sel) && (e.shiftKey || e.metaKey || e.ctrlKey);
   const onClick = (e: ReactMouseEvent<HTMLLIElement>) => {
     if (sel && e.shiftKey) {
       e.preventDefault();
       sel.checkRange(task.id);
+      return;
+    }
+    if (sel && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      sel.toggleCheck(task.id);
       return;
     }
     onSelect?.();
@@ -209,6 +230,8 @@ export function TaskRow({
       <Chip tone={task.estimateMin ? "neutral" : "guess"} size="auto">
         {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
       </Chip>
+      {/* Over 8 hours is saved as asked and gently questioned (PRODUCT_SPEC.md §5.2, §5.4): quiet words, never a warning colour. */}
+      {task.estimateMin != null && task.estimateMin > LONG_ESTIMATE_MIN && <span className="text-ink-2">Long — break it down?</span>}
     </>
   );
 
@@ -229,6 +252,7 @@ export function TaskRow({
       data-ticked={ticked || undefined}
       data-completing={completing || undefined}
       onClick={onClick}
+      onClickCapture={onClickCapture}
       onPointerDown={onPointerDown}
       onPointerUp={cancelPress}
       onPointerMove={cancelPress}
@@ -273,7 +297,10 @@ export function TaskRow({
             {onOpen ? (
               <button
                 type="button"
-                onClick={onOpen}
+                // A selecting click is left to the row (the range or the one tick); it must not open the detail too.
+                onClick={(e) => {
+                  if (!selecting(e)) onOpen();
+                }}
                 className="block w-full min-w-0 rounded-sm text-left focus-visible:-outline-offset-2 max-sm:before:absolute max-sm:before:inset-0 max-sm:before:content-[''] sm:flex sm:min-h-11 sm:items-center sm:pr-3"
               >
                 <span className={titleClass}>{task.title}</span>

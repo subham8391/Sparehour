@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyDraft, parse } from "@/core/quickadd";
 import { instant, localDate } from "@/core/time";
-import { dayLabel, interpret, priorityLabel, projectMatches, projectToken, resolveProject, segments, splitPaste } from "./interpret";
+import { bestProjectMatch, dayLabel, escapeProjectTokens, interpret, priorityLabel, projectMatches, projectToken, resolveProject, segments, splitPaste } from "./interpret";
 
 const today = localDate("2026-09-11"); // Friday, the corpus reference day
 const ctx = { now: instant("2026-09-11T08:00:00Z"), zone: "Europe/London" };
@@ -94,6 +94,33 @@ describe("project resolution", () => {
     expect(projectMatches("  ", projects)).toEqual([]);
   });
 
+  it("finds the one project a partial name stands for, and none when two are as good", () => {
+    const more = [...projects, { id: "p4", name: "Q4 planning" }];
+    expect(bestProjectMatch("Q4", more)?.id).toBe("p4");
+    expect(bestProjectMatch("web", more)?.id).toBe("p3");
+    expect(bestProjectMatch("plan", more)?.id).toBe("p4"); // only inside a name, but only one
+    expect(bestProjectMatch("ac", more)).toBeNull(); // "Acme" and "Acme redesign" both start with it
+    expect(bestProjectMatch("e", more)).toBeNull(); // in four names, at the start of none
+    expect(bestProjectMatch("zzz", more)).toBeNull();
+    expect(bestProjectMatch(null, more)).toBeNull();
+    // Two projects with one name (different areas): nothing is filed by guess (§5.4).
+    expect(bestProjectMatch("Q4", [...more, { id: "p5", name: "Q4 planning" }])).toBeNull();
+  });
+
+  it("escapes #project tokens so a re-parse keeps their words in the title", () => {
+    const value = "Email the accountant #Q4 tomorrow";
+    const { spans } = draftOf(value);
+    const escaped = escapeProjectTokens(value, spans);
+    expect(escaped).toBe("Email the accountant \\#Q4 tomorrow");
+    const again = draftOf(escaped).draft;
+    expect(again.title).toBe("Email the accountant #Q4");
+    expect(again.projectName).toBeNull();
+    expect(again.doDate?.toString()).toBe("2026-09-12");
+    // Every project token, not only the last: none of the words is dropped.
+    const two = "Ship #web #app";
+    expect(draftOf(escapeProjectTokens(two, draftOf(two).spans)).draft.title).toBe("Ship #web #app");
+  });
+
   it("writes a token that parses back to the same name", () => {
     expect(projectToken("Acme")).toBe("#Acme");
     expect(projectToken("Q4 launch")).toBe('#"Q4 launch"');
@@ -135,6 +162,16 @@ describe("splitPaste", () => {
     expect(splitPaste("Buy milk\nCall Dana\n\n  Pay rent  \n")).toEqual(["Buy milk", "Call Dana", "Pay rent"]);
     expect(splitPaste("Buy milk\n")).toEqual([]);
     expect(splitPaste("")).toEqual([]);
+  });
+
+  it("strips a list marker at the start of each line (PRODUCT_SPEC.md §5.1 rule 6)", () => {
+    // Seen in the walkthrough: a pasted list became tasks titled "- Buy milk" and "[ ] Call Dana".
+    const pasted = ["- Buy milk", "* Call Dana tmr", "• Pay rent", "[ ] Book the dentist", "[x] Renew passport", "1. Draft the agenda", "12) Send the invite", "- [ ] Water plants", "  2.   Tidy desk"].join("\n");
+    expect(splitPaste(pasted)).toEqual(["Buy milk", "Call Dana tmr", "Pay rent", "Book the dentist", "Renew passport", "Draft the agenda", "Send the invite", "Water plants", "Tidy desk"]);
+  });
+
+  it("leaves a marker-like start that is part of the words, and drops a line that was only a marker", () => {
+    expect(splitPaste("-5 degrees, bring a coat\n*urgent* call the bank\n2024 taxes\nPlan 1. draft\n- \n[ ]")).toEqual(["-5 degrees, bring a coat", "*urgent* call the bank", "2024 taxes", "Plan 1. draft"]);
   });
 });
 

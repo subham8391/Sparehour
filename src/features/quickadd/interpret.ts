@@ -107,6 +107,30 @@ export function projectMatches(name: string, projects: readonly QuickAddProject[
   return [...starts, ...within];
 }
 
+/**
+ * The one project a partial name stands for, when there is exactly one (PRODUCT_SPEC.md §5.2: "#name … fuzzy
+ * match against existing projects"): the only name that starts with it, else the only one that contains it.
+ * Two candidates at the same rank — or two projects sharing a name — are not a match: nothing is filed by guess.
+ */
+export function bestProjectMatch(name: string | null, projects: readonly QuickAddProject[]): QuickAddProject | null {
+  const key = name ? fold(name) : "";
+  if (!key) return null;
+  const starts = projects.filter((p) => fold(p.name).startsWith(key));
+  if (starts.length > 0) return starts.length === 1 ? starts[0] : null;
+  const within = projects.filter((p) => fold(p.name).includes(key));
+  return within.length === 1 ? within[0] : null;
+}
+
+/**
+ * The line with every `#project` token escaped (`\#Q4`), so a re-parse keeps those words in the title. A name
+ * that files nothing is never dropped (§5.3 rule 7: "a token that fails to parse is left in the title verbatim").
+ */
+export function escapeProjectTokens(value: string, spans: readonly Span[]): string {
+  let out = value;
+  for (const s of [...spans].filter((s) => s.kind === "project").sort((a, b) => b.start - a.start)) out = `${out.slice(0, s.start)}\\${out.slice(s.start)}`;
+  return out;
+}
+
 /** The `#name` token for a project, quoted when the name needs it. */
 export function projectToken(name: string): string {
   return /^[\p{L}\p{N}_-]+$/u.test(name) && /\p{L}/u.test(name) ? `#${name}` : `#"${name}"`;
@@ -131,11 +155,21 @@ export function segments(value: string, spans: readonly Span[]): Segment[] {
   return out;
 }
 
-/** A multi-line paste is many tasks; a single line (or one line plus blanks) is not. */
+/**
+ * A list marker at the very start of a line: a bullet (`-`, `*`, `•`), a number (`1.`, `12)`), a checkbox
+ * (`[ ]`, `[x]`), or a bullet before a checkbox (`- [ ]`). Each needs a space (or the end of the line) after
+ * it, so "-5 degrees" and "*urgent*" keep their first character.
+ */
+const LIST_MARKER = /^(?:(?:[-*•]|\d{1,3}[.)])(?:\s+|$))?(?:\[[ xX]?\](?:\s+|$))?/u;
+
+/**
+ * A multi-line paste is many tasks, one per non-empty line, each without its list marker (PRODUCT_SPEC.md §5.1
+ * rule 6); a single line (or one line plus blanks) is not.
+ */
 export function splitPaste(text: string): string[] {
   const lines = text
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((l) => l.trim().replace(LIST_MARKER, "").trim())
     .filter(Boolean);
   return lines.length >= 2 ? lines : [];
 }
