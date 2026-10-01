@@ -12,7 +12,7 @@ test.describe("Today", () => {
     await expect(page.getByRole("heading", { level: 1, name: DAY_HEADING })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
     await expect(page.getByRole("link", { name: /^Today/ })).toHaveAttribute("aria-current", "page");
-    const ribbon = page.getByText(/spare|over|Not a working day/).first();
+    const ribbon = page.getByText(/spare|over|No working hours today/).first();
     await expect(ribbon).toBeVisible();
   });
 

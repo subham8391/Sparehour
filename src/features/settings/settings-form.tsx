@@ -22,7 +22,7 @@ import { Slider } from "@/ui/slider";
 import { Switch } from "@/ui/switch";
 import { TimeField } from "@/ui/time-field";
 import { ERROR, HINT, LABEL, NOTE, ROW, VALUE } from "./rows";
-import { DEFAULT_SEGMENT, ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, segmentError, timeZoneHint, timeZoneOptions, type Segment } from "./settings-rules";
+import { canonicalZone, DEFAULT_SEGMENT, ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, segmentError, timeZoneHint, timeZoneOptions, type Segment } from "./settings-rules";
 
 export interface SettingsValues {
   timezone: string;
@@ -130,7 +130,7 @@ export function SettingsForm(p: SettingsFormProps) {
 
   return (
     <div className="flex flex-col gap-7">
-      <Section title="Account">
+      <Section title="Account" saved={saved}>
         <div className={ROW}>
           <span className={LABEL}>{p.account.name ?? "You"}</span>
           <span className={cx(VALUE, "min-w-0 truncate")}>{p.account.email ?? "—"}</span>
@@ -148,7 +148,7 @@ export function SettingsForm(p: SettingsFormProps) {
                 </option>
               ))}
             </Select>
-            {hint && <SectionAction onClick={() => change({ timezone: p.detectedTimeZone as string })}>{hint} — use it</SectionAction>}
+            {hint && <SectionAction onClick={() => change({ timezone: canonicalZone(p.detectedTimeZone as string) })}>{hint} — use it</SectionAction>}
           </span>
         </div>
       </Section>
@@ -332,7 +332,7 @@ export function SettingsForm(p: SettingsFormProps) {
       )}
 
       {p.data && (
-        <Section title="Data">
+        <Section id="data" title="Data">
           <div className={cx(ROW, "flex-col items-stretch gap-y-2")}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="flex min-w-0 flex-col">

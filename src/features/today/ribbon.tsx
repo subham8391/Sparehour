@@ -29,6 +29,22 @@ export interface RibbonProps {
   compact?: boolean;
   /** `connected` false is the no-calendar variant (PRODUCT_SPEC.md §9.4): the meetings line becomes the way to get one. */
   connected?: boolean;
+  /** How many things are on the day, for the non-working-day line (SCREENS.md §2.2). */
+  plannedCount?: number;
+}
+
+/** "3 hours 20 minutes", for the live region: a screen reader reads "3h 20m" letter by letter in places. */
+export function spokenMinutes(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  const part = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  if (h === 0) return part(m, "minute");
+  return m === 0 ? part(h, "hour") : `${part(h, "hour")} ${part(m, "minute")}`;
+}
+
+/** SCREENS.md §2.2, non-working day: "No working hours today · 3 things planned". */
+export function noWorkDayLine(planned: number | undefined): string {
+  return planned ? `No working hours today · ${planned} ${planned === 1 ? "thing" : "things"} planned` : "No working hours today";
 }
 
 export interface RibbonLabel {
@@ -173,12 +189,16 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   );
 }
 
-export function Ribbon({ c, nowMin, compact = false, connected = true }: RibbonProps) {
-  if (c.state === "no_work_day") return <p className="text-ink-2">Not a working day.</p>;
+export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount }: RibbonProps) {
+  if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount)}</p>;
   const h = heroState(c);
 
   return (
     <section aria-label="Spare time today" className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
+      {/* Capacity changes are announced politely (DESIGN_SYSTEM.md §9): one region that stays and only changes its words. */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {`${spokenMinutes(h.min)} ${h.over ? "over" : "spare"}`}
+      </p>
       {/* The contributors sit on the number's baseline; a column too narrow for both drops them, whole, to a line of their own. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-6 sm:gap-y-2">
         <p className="flex items-baseline gap-2.5 whitespace-nowrap sm:gap-3.5">

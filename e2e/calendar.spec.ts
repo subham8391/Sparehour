@@ -27,5 +27,5 @@ test("the connected calendar is listed and 'counts as busy' writes through to Po
   await page.getByRole("link", { name: /^Today/ }).click();
   // A connected calendar never asks to be connected; the meetings figure itself only exists on a working day.
   await expect(page.getByRole("link", { name: /connect a calendar/i })).toHaveCount(0);
-  await expect(page.getByText(/in meetings|Not a working day/).first()).toBeVisible();
+  await expect(page.getByText(/in meetings|No working hours today/).first()).toBeVisible();
 });

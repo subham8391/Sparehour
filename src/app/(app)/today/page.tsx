@@ -327,7 +327,7 @@ export default function TodayPage() {
                   </Link>
                 </p>
               )}
-              <Ribbon c={model.capacity} nowMin={nowMinute} connected={model.calendarConnected} />
+              <Ribbon c={model.capacity} nowMin={nowMinute} connected={model.calendarConnected} plannedCount={model.todayTasks.length + model.eveningTasks.length} />
             </>
           )
         )}

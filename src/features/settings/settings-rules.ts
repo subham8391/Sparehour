@@ -93,7 +93,7 @@ const ZONE_LINKS: Record<string, string> = {
   "Etc/GMT": "UTC",
   GMT: "UTC",
 };
-const canonicalZone = (zone: string) => ZONE_LINKS[zone] ?? zone;
+export const canonicalZone = (zone: string) => ZONE_LINKS[zone] ?? zone;
 
 /** "Detected Europe/London" when the device is in a different zone from the saved one; null otherwise. */
 export function timeZoneHint(current: string, detected: string | null): string | null {

@@ -1,7 +1,6 @@
 "use client";
 // Settings (SCREENS.md §18): what the app knows about your day, editable in
 // place, and the way out.
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
@@ -21,7 +20,6 @@ import { LOADING_LINE } from "../loading-view";
 const USER_SQL = `select id, email, display_name, personal_space_id from users limit 1`;
 
 export default function SettingsPage() {
-  const router = useRouter();
   const db = useLocalDatabase();
   const settingsRepo = useMemo(() => new SettingsRepo(db), [db]);
   const hoursRepo = useMemo(() => new WorkHoursRepo(db), [db]);
@@ -119,10 +117,15 @@ export default function SettingsPage() {
     // A shared device must not keep the last person's data: clear the local database, then the session.
     // The auth client is loaded here rather than with the page (§11.6 budgets).
     const { supabaseBrowser } = await import("@/data/supabase-browser");
+    // Deleted rows otherwise stay readable in the database file's free pages (the walkthrough found titles and the
+    // email still in it): zero them as they are deleted, then compact the file. Both are best effort.
+    await db.execute("PRAGMA secure_delete = ON").catch(() => {});
     await db.disconnectAndClear();
+    await db.execute("VACUUM").catch(() => {});
     // This device only: a global sign-out also ended every other device's session, leaving a phone retrying a dead token.
     await supabaseBrowser().auth.signOut({ scope: "local" });
-    router.replace("/login");
+    // A full load, not a client navigation: the router's cache would otherwise bring the signed-in screens back on Back.
+    window.location.replace("/login");
   }
 
   return (

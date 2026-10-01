@@ -69,8 +69,19 @@ describe("<Ribbon>", () => {
     expect(screen.queryByText(/outside working hours/)).not.toBeInTheDocument();
   });
 
-  it("a day without working hours says so", () => {
-    render(<Ribbon c={{ ...capacityFixture, state: "no_work_day" }} />);
-    expect(screen.getByText("Not a working day.")).toBeInTheDocument();
+  it("a day without working hours says so, with what is planned (SCREENS.md §2.2)", () => {
+    const { rerender } = render(<Ribbon c={{ ...capacityFixture, state: "no_work_day" }} plannedCount={3} />);
+    expect(screen.getByText("No working hours today · 3 things planned")).toBeInTheDocument();
+    rerender(<Ribbon c={{ ...capacityFixture, state: "no_work_day" }} plannedCount={0} />);
+    expect(screen.getByText("No working hours today")).toBeInTheDocument();
+  });
+
+  it("announces the spare time in words through a live region that stays on the page", () => {
+    const { container, rerender } = render(<Ribbon c={capacityFixture} />);
+    const region = container.querySelector('[aria-live="polite"]');
+    expect(region?.textContent).toMatch(/^(\d+ hours?( \d+ minutes?)?|\d+ minutes?) (spare|over)$/);
+    rerender(<Ribbon c={{ ...capacityFixture, spareMin: 200, overflowMin: 0 }} />);
+    expect(container.querySelector('[aria-live="polite"]')).toBe(region);
+    expect(region).toHaveTextContent("3 hours 20 minutes spare");
   });
 });
