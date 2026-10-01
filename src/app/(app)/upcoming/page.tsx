@@ -2,20 +2,25 @@
 // Upcoming (SCREENS.md §3): the next seven days from today as an agenda, and
 // what is not yet planned. Today always keeps its own header; a run of free
 // days after it folds into one line and opens into per-day drop targets only
-// while a row is being dragged. Per-day capacity bars arrive with P6.
+// while a row is being dragged. Below the week the agenda keeps going (§6):
+// later dated tasks by day under "Later this month", "Next month" and month
+// names. A task whose start date has not come is hidden from all of it and
+// waits, collapsed, under "Starting later" on its start day. Per-day capacity
+// bars arrive with P6.
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { keyBetween } from "@/core/ordering";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import { formatDay, weekdayName } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { toTask } from "@/data/mappers";
-import { PLANNED_BETWEEN_SQL, UNPLANNED_SQL, dayRangeParams } from "@/data/queries/views";
+import { PLANNED_AFTER_SQL, PLANNED_BETWEEN_SQL, STARTING_LATER_SQL, UNPLANNED_SQL, dayRangeParams } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { useWorkingSetSynced } from "@/features/shell/use-working-set";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { DropZone } from "@/features/tasks/drop-zone";
 import { foldFreeDays } from "@/features/tasks/free-days";
@@ -26,17 +31,15 @@ import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button } from "@/ui/button";
+import { CollapsedGroup } from "@/ui/collapsed-group";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { EmptyCard } from "@/ui/list-card";
 import { EYEBROW, SectionLabel } from "@/ui/section-label";
+import { LOADING_LINE } from "../loading-view";
+import { laterGroups, startingByDay, type AgendaDay } from "./later";
 
 const DAYS = 7;
-
-interface DayGroup {
-  day: LocalDate;
-  tasks: Task[];
-}
 
 const dayLabel = (day: LocalDate) => `${weekdayName(day)} ${day.day}`;
 
@@ -46,11 +49,16 @@ export default function UpcomingPage() {
   const quickAdd = useQuickAdd();
   const now = useNow();
   const { today, settings } = useLocalDay(now);
+  const synced = useWorkingSetSynced();
   const [from, to] = dayRangeParams(today, DAYS);
+  const todayIso = today.toString();
   const { data: planned } = useQuery<TaskRowType>(PLANNED_BETWEEN_SQL, [from, to]);
-  const { data: unplannedRows } = useQuery<TaskRowType>(UNPLANNED_SQL);
+  const { data: unplannedRows } = useQuery<TaskRowType>(UNPLANNED_SQL, [todayIso]);
+  const { data: laterRows } = useQuery<TaskRowType>(PLANNED_AFTER_SQL, [to, todayIso]);
+  const { data: startingRows } = useQuery<TaskRowType>(STARTING_LATER_SQL, [todayIso]);
   const projectNames = useProjectNames();
 
+  const starting = useMemo(() => (startingRows ?? []).map(toTask), [startingRows]);
   const days = useMemo(() => {
     const byDay = new Map<string, Task[]>();
     for (const row of planned ?? []) {
@@ -58,17 +66,38 @@ export default function UpcomingPage() {
       const key = t.doDate?.toString() ?? "";
       byDay.set(key, [...(byDay.get(key) ?? []), t]);
     }
-    return Array.from({ length: DAYS }, (_, i): DayGroup => {
+    const startsOn = startingByDay(starting);
+    return Array.from({ length: DAYS }, (_, i): AgendaDay => {
       const day = today.add({ days: i });
-      return { day, tasks: byDay.get(day.toString()) ?? [] };
+      return { day, tasks: byDay.get(day.toString()) ?? [], startingLater: startsOn.get(day.toString()) ?? [] };
     });
-  }, [planned, today]);
+  }, [planned, starting, today]);
+  const later = useMemo(() => laterGroups((laterRows ?? []).map(toTask), starting, today, today.add({ days: DAYS - 1 })), [laterRows, starting, today]);
   const unplanned = (unplannedRows ?? []).map(toTask);
-  const sel = useListSelection([...days.map((d) => d.tasks.map((t) => t.id)), unplanned.map((t) => t.id)]);
+
+  // J/K walks what can be seen, in display order: the week, the rail, then the later days. A collapsed
+  // "Starting later" group joins only while it is open.
+  const [openStarting, setOpenStarting] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleStarting = useCallback((key: string, open: boolean) => {
+    setOpenStarting((s) => {
+      if (s.has(key) === open) return s;
+      const next = new Set(s);
+      if (open) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+  const dayIds = (d: AgendaDay) => [...d.tasks.map((t) => t.id), ...(openStarting.has(d.day.toString()) ? d.startingLater.map((t) => t.id) : [])];
+  const sel = useListSelection([...days.map(dayIds), unplanned.map((t) => t.id), ...later.flatMap((g) => g.days.map(dayIds))]);
+
   const estimate = (t: Task) => t.estimateMin ?? settings?.defaultEstimateMin ?? 30;
   const [todayGroup, ...rest] = days;
-  const segments = foldFreeDays(rest, (d) => d.tasks.length === 0);
-  const nothingAtAll = planned !== undefined && unplannedRows !== undefined && unplanned.length === 0 && days.every((d) => d.tasks.length === 0);
+  const segments = foldFreeDays(rest, (d) => d.tasks.length === 0 && d.startingLater.length === 0);
+  const loaded = planned !== undefined && unplannedRows !== undefined && laterRows !== undefined && startingRows !== undefined;
+  const empty = loaded && unplanned.length === 0 && later.length === 0 && days.every((d) => d.tasks.length === 0 && d.startingLater.length === 0);
+  // An empty list on a device still on its first sync is not a fact yet (SCREENS.md §21).
+  const nothingAtAll = empty && synced;
+  const waiting = empty && !synced;
 
   // A folded run of free days shows its day targets only while a row is in the air.
   const [dragging, setDragging] = useState(false);
@@ -112,36 +141,61 @@ export default function UpcomingPage() {
       onSomeday={() => void repo.setState(t.id, "someday")}
     />
   );
+  const dayRows = (day: LocalDate, tasks: Task[]) => (
+    <TaskList>
+      {tasks.map((t) => (
+        <TaskRow
+          key={t.id}
+          task={t}
+          today={today}
+          draggable
+          onDropTask={(src, edge) => dropOnRow(day, tasks)(src, t.id, edge)}
+          onOpen={() => detail.open(t.id)}
+          selected={sel.selectedId === t.id}
+          onSelect={() => sel.select(t.id)}
+          onDone={() => void repo.complete(t.id)}
+          meta={meta(t)}
+          actions={dayActions(t, day)}
+        />
+      ))}
+    </TaskList>
+  );
+  // Hidden by a start date: listed on the day it starts, collapsed; opening one is how its dates are changed.
+  const startingGroup = (d: AgendaDay) =>
+    d.startingLater.length > 0 && (
+      <CollapsedGroup label="Starting later" count={d.startingLater.length} onToggle={(open) => toggleStarting(d.day.toString(), open)}>
+        <TaskList>
+          {d.startingLater.map((t) => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              today={today}
+              onOpen={() => detail.open(t.id)}
+              selected={sel.selectedId === t.id}
+              onSelect={() => sel.select(t.id)}
+              onDone={() => void repo.complete(t.id)}
+              meta={meta(t)}
+            />
+          ))}
+        </TaskList>
+      </CollapsedGroup>
+    );
+  const minutes = (tasks: Task[]) => formatMinutes(tasks.reduce((s, t) => s + estimate(t), 0));
 
-  const renderDay = ({ day, tasks }: DayGroup, isToday = false) => (
-    <DropZone key={day.toString()} label={dayLabel(day)} onDropTask={dropOnDay(day, tasks)}>
+  const renderDay = (d: AgendaDay, isToday = false) => (
+    <DropZone key={d.day.toString()} label={dayLabel(d.day)} onDropTask={dropOnDay(d.day, d.tasks)}>
       <section className="flex flex-col gap-2">
-        <SectionLabel className="px-0.5" count={tasks.length > 0 ? tasks.length : undefined} detail={tasks.length > 0 ? formatMinutes(tasks.reduce((s, t) => s + estimate(t), 0)) : undefined}>
-          {dayLabel(day)}
+        <SectionLabel className="px-0.5" count={d.tasks.length > 0 ? d.tasks.length : undefined} detail={d.tasks.length > 0 ? minutes(d.tasks) : undefined}>
+          {dayLabel(d.day)}
           {isToday && <span className="ml-2 font-medium normal-case tracking-normal text-ink-2">today</span>}
         </SectionLabel>
-        {tasks.length === 0 ? (
+        {d.tasks.length === 0 ? (
           // On the title's own column, so an empty day reads as a line in the list rather than a stray note.
           <p className="pl-11 text-body text-ink-3">Free.</p>
         ) : (
-          <TaskList>
-            {tasks.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                today={today}
-                draggable
-                onDropTask={(src, edge) => dropOnRow(day, tasks)(src, t.id, edge)}
-                onOpen={() => detail.open(t.id)}
-                selected={sel.selectedId === t.id}
-                onSelect={() => sel.select(t.id)}
-                onDone={() => void repo.complete(t.id)}
-                meta={meta(t)}
-                actions={dayActions(t, day)}
-              />
-            ))}
-          </TaskList>
+          dayRows(d.day, d.tasks)
         )}
+        {startingGroup(d)}
       </section>
     </DropZone>
   );
@@ -149,7 +203,9 @@ export default function UpcomingPage() {
   return (
     <main className={VIEW_COLUMN}>
       <ViewHeader eyebrow="Upcoming · rolling 7 days" title={`${weekdayName(today)} ${today.day} – ${formatDay(today.add({ days: DAYS - 1 }), { month: "long" })}`} />
-      {nothingAtAll ? (
+      {waiting ? (
+        <p className={LOADING_LINE}>Getting your tasks…</p>
+      ) : nothingAtAll ? (
         <div className="flex flex-col gap-3">
           <Icon name="calendar-week" size={20} className="text-ink-3" />
           <EmptyCard
@@ -195,7 +251,8 @@ export default function UpcomingPage() {
                 Not yet planned
               </SectionLabel>
               {unplanned.length === 0 ? (
-                <p className="pl-11 text-body text-ink-3">Nothing scheduled beyond today.</p>
+                // The rail's own fact; whether anything is scheduled is what the days above say.
+                synced && <p className="pl-11 text-body text-ink-3">Every task has a day.</p>
               ) : (
                 <TaskList>
                   {unplanned.map((t) => (
@@ -216,6 +273,26 @@ export default function UpcomingPage() {
               )}
             </section>
           </DropZone>
+          {/* Past the week the agenda keeps going below the columns (SCREENS.md §6), by month group, then by day. */}
+          {later.map((g) => (
+            <section key={g.key} className="flex flex-col gap-3">
+              <SectionLabel className="px-0.5" count={g.days.reduce((n, d) => n + d.tasks.length, 0) || undefined}>
+                {g.label}
+              </SectionLabel>
+              {g.days.map((d) => (
+                <DropZone key={d.day.toString()} label={formatDay(d.day, { today })} onDropTask={dropOnDay(d.day, d.tasks)}>
+                  <div className="flex flex-col gap-2">
+                    <h3 className="px-0.5 text-body-sm font-medium text-ink-2 num">
+                      {formatDay(d.day, { today })}
+                      {d.tasks.length > 0 && <span className="font-normal text-ink-3"> · {minutes(d.tasks)}</span>}
+                    </h3>
+                    {d.tasks.length > 0 && dayRows(d.day, d.tasks)}
+                    {startingGroup(d)}
+                  </div>
+                </DropZone>
+              ))}
+            </section>
+          ))}
         </>
       )}
     </main>

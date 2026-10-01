@@ -5,6 +5,8 @@
 // and the theme.
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocalDatabase } from "@/data/powersync";
+import { PROJECT_NAME_SQL, TASK_STATE_SQL } from "@/data/queries/views";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -62,6 +64,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   const detail = useTaskDetail();
   const selection = useSelection();
   const tasks = useTaskRepo();
+  const db = useLocalDatabase();
   const undoApi = useUndoOptional();
   const blocking = useBlockingOptional();
   const now = useNow();
@@ -98,8 +101,10 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
         // Today and the morning plan take the request where they are; anywhere else it waits for Today to open.
         if (!requestPlan(mode)) router.push("/today");
       },
+      taskState: async (id) => (await db.getOptional<{ state: string | null }>(TASK_STATE_SQL, [id]))?.state ?? null,
+      projectName: async (id) => (await db.getOptional<{ name: string | null }>(PROJECT_NAME_SQL, [id]))?.name ?? null,
     }),
-    [selection, pathname, today, now, zone, tasks, router, quickAdd, detail, onOpenPalette, undoApi, blocking],
+    [selection, pathname, today, now, zone, tasks, db, router, quickAdd, detail, onOpenPalette, undoApi, blocking],
   );
   const contextRef = useRef(context);
   useEffect(() => {

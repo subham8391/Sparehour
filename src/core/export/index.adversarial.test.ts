@@ -6,7 +6,21 @@ import fc from "fast-check";
 import { keyBetween, sorted } from "../ordering";
 import { csvCell, csvExport, jsonExport, markdownFiles, slug, type ExportSnapshot, type Row } from "./index";
 
-const empty = (): ExportSnapshot => ({ areas: [], projects: [], headings: [], tasks: [], checklist_items: [], tags: [], task_tags: [], time_blocks: [], day_plans: [], work_hours: [], user_settings: [] });
+const empty = (): ExportSnapshot => ({
+  areas: [],
+  projects: [],
+  headings: [],
+  tasks: [],
+  checklist_items: [],
+  tags: [],
+  task_tags: [],
+  task_completions: [],
+  recurrence_exceptions: [],
+  time_blocks: [],
+  day_plans: [],
+  work_hours: [],
+  user_settings: [],
+});
 const taskRow = (id: string, over: Row = {}): Row => ({ id, project_id: null, heading_id: null, title: id, notes_md: null, state: "active", priority: 0, do_date: null, do_time: null, evening: 0, deadline: null, start_date: null, estimate_min: null, carry_count: 0, recurrence_rule: null, sort_key: "a0", created_at: null, completed_at: null, ...over });
 
 /** A small RFC 4180 reader: CRLF rows, quoted fields with doubled quotes and embedded newlines. */
@@ -53,7 +67,7 @@ describe("jsonExport", () => {
 
   it("keeps the table order stable and includes empty tables", () => {
     const out = JSON.parse(jsonExport(empty(), "x")) as { tables: Record<string, unknown[]> };
-    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "time_blocks", "day_plans", "work_hours", "user_settings"]);
+    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "task_completions", "recurrence_exceptions", "time_blocks", "day_plans", "work_hours", "user_settings"]);
     expect(Object.values(out.tables).every((t) => t.length === 0)).toBe(true);
   });
 });

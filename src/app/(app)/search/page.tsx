@@ -7,8 +7,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
 import { toTask } from "@/data/mappers";
-import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
-import { TAGS_SQL } from "@/data/queries/views";
+import { ALL_PROJECTS_SQL, AREAS_SQL, isOpenProject, projectStateLabel, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
+import { TAGS_SQL, logbookStream } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { rankNamed } from "@/features/commands/palette-rank";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
@@ -58,24 +58,31 @@ function SearchScreen() {
   const quickAdd = useQuickAdd();
 
   const statement = useMemo(() => buildTaskSearch(query, filters), [query, filters]);
-  const { data: taskRows, isLoading } = useQuery<TaskRowType>(statement?.sql ?? NONE_SQL, statement?.params ?? []);
+  // Done tasks live outside the working set (supabase/powersync/streams.yaml): while there is a search, the logbook
+  // stream is subscribed so they can match under "Also found" without the Logbook having been opened first.
+  const stream = useMemo(() => logbookStream(today), [today]);
+  const { data: taskRows, isLoading } = useQuery<TaskRowType>(statement?.sql ?? NONE_SQL, statement?.params ?? [], {
+    streams: statement ? [{ ...stream, ttl: 60 * 60 }] : undefined,
+  });
   const { data: itemRows } = useQuery<{ task_id: string; title: string }>(query.trim() ? CHECKLIST_MATCH_SQL : NO_ITEMS_SQL, query.trim() ? [likePattern(query)] : []);
-  const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
+  const { data: projectRows } = useQuery<ProjectStateRow>(ALL_PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: tagRows } = useQuery<TagRef>(TAGS_SQL);
 
-  const projects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project" })), [projectRows]);
+  // Search reaches every project, finished ones included (labelled with their state); the filter menu offers the open ones.
+  const allProjects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", state: p.state })), [projectRows]);
+  const projects = useMemo(() => allProjects.filter((p) => isOpenProject(p.state)).map(({ id, name }) => ({ id, name })), [allProjects]);
   const areas = useMemo(() => (areaRows ?? []).map((a) => ({ id: a.id, name: a.name ?? "Untitled area" })), [areaRows]);
   const { hits, alsoFound } = useMemo(() => {
     const steps = new Map<string, string[]>();
     for (const r of itemRows ?? []) steps.set(r.task_id, [...(steps.get(r.task_id) ?? []), r.title]);
-    const names = new Map(projects.map((p) => [p.id, p.name]));
+    const names = new Map(allProjects.map((p) => [p.id, p.name]));
     const tasks = (taskRows ?? []).map(toTask);
     const split = splitResults(tasks, today);
     const hit = (t: (typeof tasks)[number]): SearchHit => ({ task: t, projectName: t.projectId ? (names.get(t.projectId) ?? null) : null, context: contextFor(t, steps.get(t.id) ?? [], query) });
     return { hits: split.found.map(hit), alsoFound: split.alsoFound.map(hit) };
-  }, [taskRows, itemRows, projects, today, query]);
-  const projectMatches = useMemo(() => rankNamed(query, projects, 5).map((p) => ({ ...p, href: `/project/${p.id}` })), [query, projects]);
+  }, [taskRows, itemRows, allProjects, today, query]);
+  const projectMatches = useMemo(() => rankNamed(query, allProjects, 5).map((p) => ({ id: p.id, name: p.name, href: `/project/${p.id}`, note: projectStateLabel(p.state) })), [query, allProjects]);
   const areaMatches = useMemo(() => rankNamed(query, areas, 5).map((a) => ({ ...a, href: `/area/${a.id}` })), [query, areas]);
 
   const sel = useListSelection([...hits, ...alsoFound].map((h) => h.task.id));

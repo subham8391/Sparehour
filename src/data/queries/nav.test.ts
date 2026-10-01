@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { groupProjects } from "./nav";
+import { LOOSE_GROUP_ID, groupProjects, isOpenProject, projectStateLabel } from "./nav";
+
+describe("project states", () => {
+  it("names the states a finished project can be in, and nothing for an active one", () => {
+    expect(projectStateLabel("done")).toBe("Completed");
+    expect(projectStateLabel("archived")).toBe("Archived");
+    expect(projectStateLabel("someday")).toBe("Someday");
+    expect(projectStateLabel("active")).toBeNull();
+    expect(projectStateLabel(null)).toBeNull();
+  });
+
+  it("work can be filed into active and parked projects, not finished ones", () => {
+    expect(["active", "someday", null].map(isOpenProject)).toEqual([true, true, true]);
+    expect(["done", "archived"].map(isOpenProject)).toEqual([false, false]);
+  });
+});
 
 describe("groupProjects", () => {
   it("nests projects under their area in the given order", () => {
@@ -27,6 +42,9 @@ describe("groupProjects", () => {
     ]);
     expect(tree.map((t) => t.name)).toEqual(["Work", "Projects"]);
     expect(tree[1].projects.map((p) => p.name)).toEqual(["Loose", "Orphan"]);
+    // The group is a heading with no area behind it, so it says so; real areas do not carry the flag.
+    expect(tree[1]).toMatchObject({ id: LOOSE_GROUP_ID, loose: true });
+    expect(tree[0].loose).toBeUndefined();
   });
 
   it("never renders an empty name", () => {

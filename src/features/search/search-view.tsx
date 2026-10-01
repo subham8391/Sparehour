@@ -29,6 +29,8 @@ export interface Named {
   id: string;
   name: string;
   href: string;
+  /** A project's state when it is not active ("Completed", "Archived", "Someday"), shown quietly beside the name. */
+  note?: string | null;
 }
 
 export interface SearchViewProps {
@@ -79,11 +81,29 @@ export function SearchView(p: SearchViewProps) {
   };
   const isSearch = p.query.trim().length > 0 || hasFilters(filters);
   const nothing = isSearch && !p.searching && p.hits.length === 0 && p.alsoFound.length === 0 && p.projectMatches.length === 0 && p.areaMatches.length === 0;
+  // ↓ from the field steps into the results (SCREENS.md §13 "every row supports the full selected-task key
+  // set"): the first row is selected through the shared selection and focus leaves the field for the view, so
+  // J/K, Enter and the task keys reach the keyboard layer. ↑ on the first row comes back to the field.
+  const mainRef = useRef<HTMLElement>(null);
+  const alsoRef = useRef<HTMLDetailsElement>(null);
+  const firstHit = p.hits[0] ?? p.alsoFound[0];
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
       p.onClose();
+    } else if (e.key === "ArrowDown" && firstHit && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      // Only closed matches: open their group, so the selected row can be seen.
+      if (p.hits.length === 0 && alsoRef.current) alsoRef.current.open = true;
+      p.onSelect(firstHit.task.id);
+      mainRef.current?.focus({ preventScroll: true });
     }
+  };
+  const onViewKey = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "ArrowUp" || e.target === inputRef.current || !firstHit || p.selectedId !== firstHit.task.id) return;
+    // Handled here, so the keyboard layer (which skips prevented events) does not also move the selection.
+    e.preventDefault();
+    inputRef.current?.focus();
   };
   const day = (d: LocalDate) => d.toString();
   const presets = (): { label: string; from: string; to: string }[] => {
@@ -98,7 +118,8 @@ export function SearchView(p: SearchViewProps) {
   };
 
   return (
-    <main className={VIEW_COLUMN}>
+    // Focusable from script only: ↓ in the field hands focus here so the list keys work (see onKey).
+    <main ref={mainRef} tabIndex={-1} onKeyDown={onViewKey} className={cx(VIEW_COLUMN, "outline-none")}>
       {/* The header every other view has: the eyebrow with the view's one control beside it, then the serif title. */}
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 sm:gap-x-4">
         <p className={cx(EYEBROW, "flex min-h-11 items-center sm:min-h-0 sm:pb-2")}>Search</p>
@@ -239,7 +260,7 @@ export function SearchView(p: SearchViewProps) {
       )}
 
       {p.alsoFound.length > 0 && (
-        <details className="group">
+        <details ref={alsoRef} className="group">
           <summary className={cx(EYEBROW, "-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-2 transition-colors dur-fast hover:bg-hover sm:min-h-7 [&::-webkit-details-marker]:hidden")}>
             {/* The turn is the disclosure's state, not decoration, so only the transition is gated on motion. */}
             <Icon name="chevron-right" size={14} className="shrink-0 text-ink-3 group-open:rotate-90 motion-safe:transition-transform motion-safe:dur-fast" />
@@ -311,6 +332,11 @@ function NamedList({ items, kind }: { items: readonly Named[]; kind: "project" |
               <Icon name="grid" size={16} className="shrink-0 text-ink-3" />
             )}
             <span className="min-w-0 flex-1 truncate">{x.name}</span>
+            {x.note && (
+              <Chip size="auto" className="shrink-0 text-ink-3">
+                {x.note}
+              </Chip>
+            )}
             <Icon name="chevron-right" size={16} className="shrink-0 text-ink-3" />
           </Link>
         </li>

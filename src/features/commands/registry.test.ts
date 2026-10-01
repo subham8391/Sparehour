@@ -4,10 +4,18 @@ import type { TaskRepo } from "@/data/repositories/task-repo";
 import { parseShortcut, resolveKey } from "./keys";
 import { COMMANDS, availability, keyBindings, type CommandContext } from "./registry";
 
-type Mocked = { update: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn>; complete: ReturnType<typeof vi.fn>; completeMany: ReturnType<typeof vi.fn>; setState: ReturnType<typeof vi.fn>; setStateMany: ReturnType<typeof vi.fn> };
+type Mocked = {
+  update: ReturnType<typeof vi.fn>;
+  updateMany: ReturnType<typeof vi.fn>;
+  complete: ReturnType<typeof vi.fn>;
+  completeMany: ReturnType<typeof vi.fn>;
+  reopen: ReturnType<typeof vi.fn>;
+  setState: ReturnType<typeof vi.fn>;
+  setStateMany: ReturnType<typeof vi.fn>;
+};
 
 function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: Mocked } {
-  const tasks: Mocked = { update: vi.fn(), updateMany: vi.fn(), complete: vi.fn(), completeMany: vi.fn(), setState: vi.fn(), setStateMany: vi.fn() };
+  const tasks: Mocked = { update: vi.fn(), updateMany: vi.fn(), complete: vi.fn(), completeMany: vi.fn(), reopen: vi.fn(), setState: vi.fn(), setStateMany: vi.fn() };
   return {
     selectedTaskId: "t1",
     checkedTaskIds: [],
@@ -29,6 +37,8 @@ function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: 
     undo: vi.fn(),
     blockTask: vi.fn(),
     planDay: vi.fn(),
+    taskState: vi.fn(async () => "active"),
+    projectName: vi.fn(async () => null),
     ...over,
     // keep the typed mocks reachable
     ...({} as object),
@@ -158,5 +168,60 @@ describe("command registry", () => {
     expect(ctx.setTheme).toHaveBeenCalledWith("dark");
     byId("app.shortcuts").run(ctx);
     expect(ctx.openShortcuts).toHaveBeenCalled();
+  });
+
+  it("U un-completes the selected task when it is done, and leaves anything else alone", async () => {
+    expect(resolveKey({ key: "u", shift: false, mod: false, alt: false }, null, keyBindings()).match?.id).toBe("task.uncomplete");
+    expect(byId("task.uncomplete")).toMatchObject({ title: "Un-complete", shortcut: "u", requiresSelection: true });
+    const done = ctxWith({ taskState: vi.fn(async () => "done") });
+    await byId("task.uncomplete").run(done);
+    expect(done.taskState).toHaveBeenCalledWith("t1");
+    expect(done.tasks.reopen).toHaveBeenCalledWith("t1");
+    // An open task, a dropped one, and a repeat's completion row (not a task here) are not reopened.
+    for (const state of ["active", "dropped", null]) {
+      const other = ctxWith({ taskState: vi.fn(async () => state) });
+      await byId("task.uncomplete").run(other);
+      expect(other.tasks.reopen).not.toHaveBeenCalled();
+    }
+    expect(availability(byId("task.uncomplete"), { selectedTaskId: null, checkedTaskIds: [] })).toEqual({ enabled: false, reason: "select a task first" });
+  });
+
+  it("U with rows ticked reopens only the done ones", async () => {
+    const states: Record<string, string> = { t2: "done", t3: "active", t4: "done" };
+    const ctx = ctxWith({ checkedTaskIds: ["t2", "t3", "t4"], taskState: vi.fn(async (id: string) => states[id] ?? null) });
+    await byId("task.uncomplete").run(ctx);
+    expect(ctx.tasks.reopen.mock.calls.map((c) => c[0])).toEqual(["t2", "t4"]);
+  });
+
+  it("N files the new task where the person is: the project's token on a project, today on Today, nothing elsewhere", async () => {
+    const onProject = ctxWith({ pathname: "/project/p1", projectName: vi.fn(async () => "Acme") });
+    await byId("create.task-here").run(onProject);
+    expect(onProject.projectName).toHaveBeenCalledWith("p1");
+    expect(onProject.quickAdd).toHaveBeenCalledWith("#Acme ");
+    const spaced = ctxWith({ pathname: "/project/p2", projectName: vi.fn(async () => "Acme redesign") });
+    await byId("create.task-here").run(spaced);
+    expect(spaced.quickAdd).toHaveBeenCalledWith('#"Acme redesign" ');
+    const today = ctxWith({ pathname: "/today" });
+    await byId("create.task-here").run(today);
+    expect(today.quickAdd).toHaveBeenCalledWith("today ");
+    const inbox = ctxWith({ pathname: "/inbox" });
+    await byId("create.task-here").run(inbox);
+    expect(inbox.quickAdd).toHaveBeenCalledWith(undefined);
+    // A project that is not on this device opens an empty quick-add rather than a wrong token.
+    const missing = ctxWith({ pathname: "/project/gone", projectName: vi.fn(async () => null) });
+    await byId("create.task-here").run(missing);
+    expect(missing.quickAdd).toHaveBeenCalledWith(undefined);
+  });
+
+  it("the palette can add a project and an area, through Browse's own forms", async () => {
+    const ctx = ctxWith({ selectedTaskId: null });
+    expect(byId("create.project")).toMatchObject({ title: "Add project", group: "Create" });
+    expect(byId("create.area")).toMatchObject({ title: "Add area", group: "Create" });
+    expect(byId("create.project").hidden).toBeFalsy();
+    await byId("create.project").run(ctx);
+    expect(ctx.go).toHaveBeenLastCalledWith("/browse?add=project");
+    await byId("create.area").run(ctx);
+    expect(ctx.go).toHaveBeenLastCalledWith("/browse?add=area");
+    expect(availability(byId("create.area"), ctx)).toEqual({ enabled: true });
   });
 });
