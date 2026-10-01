@@ -27,6 +27,14 @@ const snapshot: ExportSnapshot = {
     { id: "l1", task_id: "t1", tag_id: "g2" },
     { id: "l2", task_id: "t1", tag_id: "g1" },
   ],
+  task_completions: [
+    { id: "k1", task_id: "t2", occurrence_date: "2026-09-07", completed_at: "2026-09-07T09:00:00Z", actual_min: null },
+    { id: "k2", task_id: "t2", occurrence_date: "2026-09-14", completed_at: "2026-09-14T09:10:00Z", actual_min: 20 },
+  ],
+  recurrence_exceptions: [
+    { id: "x2", series_id: "t2", occurrence_date: "2026-09-28", kind: "move", moved_to: "2026-09-29" },
+    { id: "x1", series_id: "t2", occurrence_date: "2026-09-21", kind: "skip", moved_to: null },
+  ],
   time_blocks: [{ id: "b1", task_id: "t1", title: null, start_at: "2026-09-14T09:30:00Z", end_at: "2026-09-14T10:15:00Z", locked: 1 }],
   day_plans: [{ id: "d1", date: "2026-09-13", planned_at: "2026-09-13T08:05:00Z", shutdown_at: "2026-09-13T17:40:00Z", highlights: "Shipped the thing.", day_rating: 4, capacity_spare_min: 80 }],
   work_hours: [{ id: "w1", weekday: 0, start_time: "09:00:00", end_time: "18:00:00" }],
@@ -36,9 +44,16 @@ const snapshot: ExportSnapshot = {
 describe("jsonExport", () => {
   it("is the rows as stored, with a format stamp, and parses back", () => {
     const out = JSON.parse(jsonExport(snapshot, "2026-09-14T12:00:00Z"));
-    expect(out).toMatchObject({ format: "sparehour-export", version: 1, exported_at: "2026-09-14T12:00:00Z" });
+    expect(out).toMatchObject({ format: "sparehour-export", version: 1, exported_at: "2026-09-14T12:00:00Z", finished_tasks_included: true });
     expect(out.tables.tasks).toEqual(snapshot.tasks);
-    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "time_blocks", "day_plans", "work_hours", "user_settings"]);
+    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "task_completions", "recurrence_exceptions", "time_blocks", "day_plans", "work_hours", "user_settings"]);
+  });
+
+  it("carries the completions and exceptions of repeating tasks, and says when finished tasks are missing", () => {
+    const out = JSON.parse(jsonExport(snapshot, "2026-09-14T12:00:00Z"));
+    expect(out.tables.task_completions).toEqual(snapshot.task_completions);
+    expect(out.tables.recurrence_exceptions).toEqual(snapshot.recurrence_exceptions);
+    expect(JSON.parse(jsonExport(snapshot, "x", { finishedTasks: false })).finished_tasks_included).toBe(false);
   });
 });
 
@@ -86,10 +101,27 @@ describe("markdownFiles", () => {
     expect(byPath["projects/acme-proposal-2.md"]).toContain("State: someday");
   });
 
+  it("a repeating task lists its skipped and moved occurrences in date order", () => {
+    expect(byPath["projects/acme-proposal.md"]).toContain('- [ ] Read last year\'s, "quickly" · repeats FREQ=WEEKLY;BYDAY=MO\n    - skipped 2026-09-21\n    - moved 2026-09-28 → 2026-09-29');
+  });
+
+  it("the logbook keeps every completed occurrence of a repeating task, newest first, with its project", () => {
+    const md = byPath["logbook.md"];
+    expect(md).not.toContain("_Nothing here._");
+    expect(md).toContain("## Repeating tasks\n\n- [x] Read last year's, \"quickly\" · 2026-09-14 · #Acme proposal · 20m\n- [x] Read last year's, \"quickly\" · 2026-09-07 · #Acme proposal\n");
+  });
+
+  it("an export without the finished tasks says so in the index and the logbook", () => {
+    const partial = Object.fromEntries(markdownFiles(snapshot, "2026-09-14", { finishedTasks: false }).map((f) => [f.path, f.content]));
+    expect(partial["README.md"]).toContain("Finished tasks are not in this export");
+    expect(partial["logbook.md"]).toContain("Finished tasks are not in this export");
+    expect(byPath["README.md"]).not.toContain("Finished tasks are not in this export");
+  });
+
   it("tasks without a project land in the inbox, Someday and logbook files; blocks and day plans have their own", () => {
     expect(byPath["inbox.md"]).toContain("- [ ] Call Mum");
     expect(byPath["someday.md"]).toContain("- [ ] Learn Welsh");
-    expect(byPath["logbook.md"]).toContain("_Nothing here._");
+    expect(markdownFiles({ ...snapshot, task_completions: [] }, "2026-09-14").find((f) => f.path === "logbook.md")?.content).toContain("_Nothing here._");
     expect(byPath["time-blocks.md"]).toContain("- 2026-09-14T09:30:00Z – 2026-09-14T10:15:00Z · Draft the proposal · locked");
     expect(byPath["day-plans.md"]).toContain("- **2026-09-13** · planned 08:05 · closed 17:40 · ★★★★ · 80m spare\n    Shipped the thing.");
   });

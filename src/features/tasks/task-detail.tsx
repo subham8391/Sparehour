@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, u
 import { useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
 import { toChecklistItem, toTask } from "@/data/mappers";
-import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
+import { ALL_PROJECTS_SQL, AREAS_SQL, isOpenProject, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
 import { CHECKLIST_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL } from "@/data/queries/views";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
@@ -63,15 +63,17 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { today, zone } = useLocalDay(now);
   const blocking = useBlockingOptional();
   const { data: rows, isLoading } = useQuery<TaskRowType>(TASK_SQL, [id]);
-  const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
+  const { data: projectRows } = useQuery<ProjectStateRow>(ALL_PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: checklistRows } = useQuery<ChecklistRow>(CHECKLIST_SQL, [id]);
   const { data: tagRows } = useQuery<TagRef>(TASK_TAGS_SQL, [id]);
   const { data: allTagRows } = useQuery<TagRef>(TAGS_SQL);
   const checklist = useMemo(() => (checklistRows ?? []).map(toChecklistItem), [checklistRows]);
   const task = rows?.[0] ? toTask(rows[0]) : null;
-  const projects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", areaId: p.area_id })), [projectRows]);
-  const project = projects.find((p) => p.id === task?.projectId) ?? null;
+  // The picker offers projects work can still go into; the label names the task's own project whatever its state.
+  const allProjects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", areaId: p.area_id, open: isOpenProject(p.state) })), [projectRows]);
+  const projects = useMemo(() => allProjects.filter((p) => p.open), [allProjects]);
+  const project = allProjects.find((p) => p.id === task?.projectId) ?? null;
   const area = (areaRows ?? []).find((a) => a.id === project?.areaId) ?? null;
 
   // The task left this device (completed elsewhere, dropped, synced away): close rather than show a blank.

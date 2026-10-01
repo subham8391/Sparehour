@@ -6,8 +6,10 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, localDate } from "@/core/time";
-import { AREA_SQL, AREA_PROJECT_STATS_SQL, type AreaProjectStatsRow } from "@/data/queries/views";
+import type { ProjectStateRow } from "@/data/queries/nav";
+import { AREA_FINISHED_PROJECTS_SQL, AREA_SQL, AREA_PROJECT_STATS_SQL, type AreaProjectStatsRow } from "@/data/queries/views";
 import type { AreaRow } from "@/data/schema.client";
+import { FinishedProjects } from "@/features/projects/finished-projects";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { useAreaRepo, useProjectRepo } from "@/features/tasks/use-repos";
@@ -30,6 +32,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
   const { today, settings } = useLocalDay(now);
   const { data: areas, isLoading } = useQuery<AreaRow>(AREA_SQL, [id]);
   const { data: projects } = useQuery<AreaProjectStatsRow>(AREA_PROJECT_STATS_SQL, [settings?.defaultEstimateMin ?? 30, id]);
+  const { data: finished } = useQuery<ProjectStateRow>(AREA_FINISHED_PROJECTS_SQL, [id]);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const area = areas?.[0];
@@ -119,6 +122,8 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
           )}
         </li>
       </ul>
+      {/* Finished projects stay reachable from their area, collapsed (PRODUCT_SPEC.md §6). */}
+      <FinishedProjects projects={finished ?? []} />
     </main>
   );
 }

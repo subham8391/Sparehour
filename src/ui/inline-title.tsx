@@ -63,11 +63,14 @@ export function InlineTitle({
   }
   return (
     <Tag className={className}>
-      {/* The dashed rule says "editable" without a hover, and the 44 px minimum makes it a target on a phone. */}
+      {/* The dashed rule says "editable" without a hover, and the 44 px minimum makes it a target on a phone.
+          The button (and so the heading) is named by the visible title with ", edit" after it: the name starts
+          with the words on screen (WCAG 2.5.3 Label in Name), and the text itself stays just the title. */}
       <button
         type="button"
         onClick={start}
-        aria-label={`Edit ${label.toLowerCase()}`}
+        aria-label={`${value}, edit`}
+        title={`Edit ${label.toLowerCase()}`}
         className="inline-flex min-h-11 max-w-full items-center rounded-sm text-left underline decoration-line decoration-dashed decoration-1 underline-offset-[6px] transition-[text-decoration-color] dur-fast hover:decoration-line-strong sm:min-h-0"
       >
         <span className="min-w-0 truncate">{value}</span>

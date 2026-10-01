@@ -25,8 +25,24 @@ describe("<Sidebar>", () => {
   it("lists the fixed views in order, then areas with their projects, then sync and settings", () => {
     render(<Sidebar pathname="/today" counts={{ inbox: 3, today: 4 }} areas={areas} sync={sync} />);
     const nav = screen.getByRole("navigation", { name: "Main" });
-    const links = within(nav).getAllByRole("link").map((l) => l.textContent?.trim());
-    expect(links).toEqual(["Sparehour", "Inbox3", "Today4", "Upcoming", "Calendar", "Someday", "Logbook", "Work", "Acme", "Website", "Personal", "Settings"]);
+    const links = within(nav).getAllByRole("link").map((l) => l.getAttribute("aria-label") ?? l.textContent?.trim());
+    expect(links).toEqual(["Sparehour — Today", "Inbox3", "Today4", "Upcoming", "Calendar", "Someday", "Logbook", "Add area", "Work", "Acme", "Website", "Personal", "Settings"]);
+  });
+
+  it("offers a new area beside the Areas heading, even before there is one", () => {
+    render(<Sidebar pathname="/today" counts={{ inbox: 0, today: 0 }} areas={[]} sync={sync} />);
+    const areasSection = screen.getByRole("region", { name: "Areas" });
+    expect(within(areasSection).getByRole("link", { name: "Add area" })).toHaveAttribute("href", "/browse?add=area");
+  });
+
+  it("the Projects group for projects without an area is a heading, not a link to a page that isn't there", () => {
+    const loose: NavArea[] = [...areas, { id: "__loose", name: "Projects", projects: [{ id: "p9", name: "Side quest" }], loose: true }];
+    render(<Sidebar pathname="/today" counts={{ inbox: 0, today: 0 }} areas={loose} sync={sync} />);
+    expect(screen.queryByRole("link", { name: "Projects" })).not.toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Side quest" })).toHaveAttribute("href", "/project/p9");
+    expect(screen.getByRole("button", { name: "Collapse Projects" })).toBeInTheDocument();
+    expect(document.querySelector('a[href="/area/__loose"]')).toBeNull();
   });
 
   it("marks the current view and only that view", () => {
@@ -59,6 +75,8 @@ describe("<Sidebar>", () => {
     expect(within(nav).getByRole("link", { name: "Inbox, 3" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Today, 4" })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Acme" })).not.toBeInTheDocument();
+    // No room for the areas tree in the rail: Browse is how areas and projects are reached there.
+    expect(within(nav).getByRole("link", { name: "Browse" })).toHaveAttribute("href", "/browse");
     expect(within(nav).getByRole("button", { name: "Synced 10s ago" })).toBeInTheDocument();
   });
 });

@@ -37,6 +37,10 @@ export interface CommandContext {
   blockTask: (id: string) => void;
   /** Opens the Plan my day preview where the day is (Today, or the morning plan's last step); elsewhere it goes to Today first. */
   planDay: (mode: PlanMode) => void;
+  /** A task's state as this device has it, or null when the id is not a task here (a repeat's completion row in the Logbook). */
+  taskState: (id: string) => Promise<string | null>;
+  /** A project's name, or null when it is not on this device. */
+  projectName: (id: string) => Promise<string | null>;
 }
 
 export interface Command {
@@ -87,11 +91,37 @@ const snooze = (presetId: "evening" | "tomorrow" | "in4h" | "weekend" | "nextwee
 
 const priority = (value: Priority) => onTargets((ctx, ids) => applyPatch(ctx, ids, { priority: value }));
 
+/**
+ * U (SCREENS.md §8, §24): un-complete. Only a done task is reopened — anything else the selection lands on is
+ * left as it is, so the key is harmless outside the Logbook. Each reopen is its own undo entry.
+ */
+const uncomplete = onTargets(async (ctx, ids) => {
+  for (const id of ids) {
+    if ((await ctx.taskState(id)) === "done") await ctx.tasks.reopen(id);
+  }
+});
+
+/**
+ * N (SCREENS.md §24 "Add a task in the current list"): quick-add opened with the words that file the task where
+ * the person is — the project's token on a project, "today" on Today — and empty anywhere else.
+ */
+export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName">): Promise<string | undefined> {
+  if (ctx.pathname === "/today") return "today ";
+  const id = /^\/project\/([^/?#]+)/.exec(ctx.pathname)?.[1];
+  if (!id) return undefined;
+  const name = await ctx.projectName(decodeURIComponent(id));
+  if (!name) return undefined;
+  // The token rules live with the quick-add parser, which stays out of the shell (SYSTEM_DESIGN.md §11.6).
+  const { projectToken } = await import("@/features/quickadd/interpret");
+  return `${projectToken(name)} `;
+}
+
 export const COMMANDS: readonly Command[] = [
   // ---- selected task (or every ticked row)
   { id: "task.open", title: "Open", group: "Selected task", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.peek", title: "Peek", group: "Selected task", shortcut: "space", requiresSelection: true, hidden: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.complete", title: "Complete", group: "Selected task", shortcut: "mod+enter", requiresSelection: true, run: onTargets((ctx, ids) => (ids.length === 1 ? ctx.tasks.complete(ids[0]) : ctx.tasks.completeMany(ids))) },
+  { id: "task.uncomplete", title: "Un-complete", group: "Selected task", shortcut: "u", requiresSelection: true, keywords: "reopen restore done logbook", run: uncomplete },
   { id: "task.today", title: "Move to Today", group: "Selected task", shortcut: "t", requiresSelection: true, run: onTargets((ctx, ids) => applyPatch(ctx, ids, { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today")) },
   { id: "task.tomorrow", title: "Tomorrow", group: "Selected task", shortcut: "shift+t", requiresSelection: true, run: snooze("tomorrow") },
   { id: "task.evening", title: "This evening", group: "Selected task", shortcut: "shift+e", requiresSelection: true, run: snooze("evening") },
@@ -112,7 +142,9 @@ export const COMMANDS: readonly Command[] = [
 
   // ---- create
   { id: "create.task", title: "Add task", group: "Create", shortcut: "q", keywords: "new quick add", run: (ctx) => ctx.quickAdd() },
-  { id: "create.task-here", title: "Add a task in this list", group: "Create", shortcut: "n", hidden: true, run: (ctx) => ctx.quickAdd() },
+  { id: "create.task-here", title: "Add a task in this list", group: "Create", shortcut: "n", hidden: true, run: async (ctx) => ctx.quickAdd(await prefillHere(ctx)) },
+  { id: "create.project", title: "Add project", group: "Create", keywords: "new project", run: (ctx) => ctx.go("/browse?add=project") },
+  { id: "create.area", title: "Add area", group: "Create", keywords: "new area", run: (ctx) => ctx.go("/browse?add=area") },
 
   // ---- go to
   { id: "go.today", title: "Go to Today", group: "Go to", shortcut: "g t", run: (ctx) => ctx.go("/today") },

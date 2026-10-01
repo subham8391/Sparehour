@@ -26,6 +26,8 @@ describe("<ViewHeader>", () => {
     expect(headings).toHaveLength(1);
     expect(headings[0]).toHaveTextContent("Acme");
     expect(headings[0].querySelector("h1")).toBeNull();
-    expect(screen.getByRole("button", { name: "Edit project name" })).toBeInTheDocument();
+    // The heading reads as the project's name (WCAG 2.5.3): the edit control adds ", edit" after it.
+    expect(headings[0]).toHaveAccessibleName(/^Acme/);
+    expect(screen.getByRole("button", { name: "Acme, edit" })).toBeInTheDocument();
   });
 });

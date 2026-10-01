@@ -32,6 +32,8 @@ export interface NavArea {
   id: string;
   name: string;
   projects: NavProject[];
+  /** The trailing "Projects" group for projects without an area: a heading, with no page behind it. */
+  loose?: boolean;
 }
 
 // One item look for views, areas and projects: 36 px, radius 10, ink text with the icon a step quieter.
@@ -65,7 +67,7 @@ function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathnam
 
 function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
   const [open, setOpen] = useState(true);
-  const activeArea = isActive(pathname, `/area/${area.id}`);
+  const activeArea = !area.loose && isActive(pathname, `/area/${area.id}`);
   return (
     <li>
       <div className={cx(ITEM, "font-medium", activeArea && ACTIVE)}>
@@ -79,9 +81,14 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
         >
           <Icon name={open ? "chevron-down" : "chevron-right"} size={16} />
         </button>
-        <Link href={`/area/${area.id}`} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate">
-          {area.name}
-        </Link>
+        {area.loose ? (
+          // Projects without an area: there is no area page to go to, so the group's name is plain text.
+          <span className="min-w-0 flex-1 truncate">{area.name}</span>
+        ) : (
+          <Link href={`/area/${area.id}`} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate">
+            {area.name}
+          </Link>
+        )}
       </div>
       {open && area.projects.length > 0 && (
         <ul className="flex flex-col gap-0.5">
@@ -142,16 +149,35 @@ export function Sidebar({
               <NavItem view={v} pathname={pathname} rail={rail} icon={VIEW_ICONS[v.id]} count={v.count ? counts[v.count] : undefined} />
             </li>
           ))}
+          {/* The rail has no room for the areas tree, so Browse (where areas and projects live on a phone) stands in for it. */}
+          {rail && (
+            <li>
+              <NavItem view={VIEWS.browse} pathname={pathname} rail icon={VIEW_ICONS.browse} />
+            </li>
+          )}
         </ul>
 
-        {!rail && areas.length > 0 && (
+        {!rail && (
           <section aria-label="Areas" className="pt-5">
-            <h2 className={cx(EYEBROW, "px-3 pb-2")}>Areas</h2>
-            <ul className="flex flex-col gap-0.5">
-              {areas.map((a) => (
-                <AreaGroup key={a.id} area={a} pathname={pathname} />
-              ))}
-            </ul>
+            <div className="flex items-center justify-between pr-1.5 pb-2 pl-3">
+              <h2 className={EYEBROW}>Areas</h2>
+              {/* The way to a new area on a desktop: Browse's own form, opened (SCREENS.md §12 "Add area"). */}
+              <Link
+                href="/browse?add=area"
+                aria-label="Add area"
+                title="Add area"
+                className="-my-1 flex size-7 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:bg-hover hover:text-ink"
+              >
+                <Icon name="plus" size={14} />
+              </Link>
+            </div>
+            {areas.length > 0 && (
+              <ul className="flex flex-col gap-0.5">
+                {areas.map((a) => (
+                  <AreaGroup key={a.id} area={a} pathname={pathname} />
+                ))}
+              </ul>
+            )}
           </section>
         )}
       </div>
