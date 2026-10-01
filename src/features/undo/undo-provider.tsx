@@ -89,8 +89,15 @@ export function UndoProvider({ children }: { children: ReactNode }) {
   return (
     <UndoContext.Provider value={api}>
       {children}
+      {/* The announcement lives in one region that is always on the page and only changes its words: a live region
+          inserted already filled is not read by many screen readers (VoiceOver on iOS among them). The visual toast
+          below keeps its role but stays quiet, so nothing is read twice. */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {toast?.label ?? ""}
+      </div>
       {toast && (
         <Toast
+          aria-live="off"
           key={toast.label}
           onMouseEnter={holdToast}
           onMouseLeave={releaseToast}

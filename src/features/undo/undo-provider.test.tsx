@@ -56,6 +56,22 @@ describe("<UndoProvider>", () => {
     expect(undoFn).toHaveBeenCalledTimes(1);
   });
 
+  it("announces through one live region that is on the page before the toast, and the toast itself stays quiet", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <UndoProvider>
+        <Harness undoFn={vi.fn().mockResolvedValue(undefined)} />
+      </UndoProvider>,
+    );
+    const region = container.querySelector('[aria-live="polite"]');
+    expect(region).not.toBeNull();
+    expect(region).toHaveTextContent("");
+    await user.click(screen.getByRole("button", { name: "drop" }));
+    expect(container.querySelector('[aria-live="polite"]')).toBe(region);
+    expect(region).toHaveTextContent("Dropped “Draft the proposal”");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "off");
+  });
+
   it("the toast stays ten seconds, then goes away on its own (PRODUCT_SPEC.md §7 rule 3)", async () => {
     vi.useFakeTimers();
     try {
