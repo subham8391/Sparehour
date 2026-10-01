@@ -90,7 +90,7 @@ function Frame({ children }: { children: ReactNode }) {
           role="region"
           aria-label="Content"
           tabIndex={0}
-          className="flex flex-1 flex-col outline-none sm:min-h-0 sm:overflow-y-auto sm:focus-visible:outline-2 sm:focus-visible:-outline-offset-2 sm:focus-visible:outline-ink"
+          className="flex flex-1 flex-col focus-visible:-outline-offset-2 sm:min-h-0 sm:overflow-y-auto"
         >
           {children}
         </div>

@@ -77,6 +77,10 @@ export interface SettingsFormProps {
   onWorkHours: (weekday: number, segment: Segment | null) => void;
   onSignOut: () => void;
   signingOut?: boolean;
+  /** Changes that have not reached the account yet, when signing out would lose them; null when there are none. */
+  unsynced?: number | null;
+  onSignOutAnyway?: () => void;
+  onStaySignedIn?: () => void;
 }
 
 function useSavedFlash(): [boolean, () => void] {
@@ -361,10 +365,30 @@ export function SettingsForm(p: SettingsFormProps) {
       )}
 
       <section className="flex flex-col gap-2">
-        <Button variant="secondary" onClick={p.onSignOut} disabled={p.signingOut} className="self-start">
-          {p.signingOut ? "Signing out…" : "Sign out"}
-        </Button>
-        <p className={NOTE}>Signing out removes your data from this device. It stays safe in your account.</p>
+        {p.unsynced ? (
+          // Signing out clears this device; anything not uploaded yet would go with it (PRODUCT_SPEC.md §5.4: offline work is kept).
+          <div role="alert" className="flex flex-col gap-3">
+            <p className="text-body text-pretty text-ink">
+              {p.unsynced === 1 ? "1 change hasn’t" : `${p.unsynced} changes haven’t`} reached your account yet. Signing out now loses {p.unsynced === 1 ? "it" : "them"}.
+            </p>
+            <p className={NOTE}>Once you’re back online it syncs by itself, then signing out is safe.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={p.onStaySignedIn}>
+                Stay signed in
+              </Button>
+              <Button variant="secondary" tone="destructive" onClick={p.onSignOutAnyway} disabled={p.signingOut}>
+                {p.unsynced === 1 ? "Sign out and lose it" : "Sign out and lose them"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={p.onSignOut} disabled={p.signingOut} className="self-start">
+              {p.signingOut ? "Signing out…" : "Sign out"}
+            </Button>
+            <p className={NOTE}>Signing out removes your data from this device. It stays safe in your account.</p>
+          </>
+        )}
       </section>
     </div>
   );

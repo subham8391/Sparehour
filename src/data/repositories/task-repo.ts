@@ -172,7 +172,9 @@ export class TaskRepo {
     this.history.record({
       label: label.includes("{title}") ? label.replace("{title}", title) : `${label} ${title}`,
       toast,
-      undo: () => this.restore(this.db, before, id, columns, new Date().toISOString()),
+      // One transaction: sync takes a done or deleted row off the device a moment after it uploads, and
+      // that must not land between restore's presence check and its write (the write would hit nothing).
+      undo: () => this.db.writeTransaction((tx) => this.restore(tx, before, id, columns, new Date().toISOString())),
     });
   }
 

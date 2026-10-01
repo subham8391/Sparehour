@@ -4,7 +4,7 @@
 // Where it appears (context pane, right sheet, full-screen sheet) is decided
 // by the provider below.
 import dynamic from "next/dynamic";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
 import { toChecklistItem, toTask } from "@/data/mappers";
@@ -18,7 +18,7 @@ import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { cx } from "@/ui/cx";
-import { Grabber, Scrim } from "@/ui/sheet";
+import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet";
 import { useTaskRepo } from "./use-task-repo";
 
 // The panel brings the recurrence engine with it, so it stays out of the
@@ -131,20 +131,45 @@ export function TaskDetailPane() {
   }, [selectedId, close]);
 
   if (!selectedId) return null;
+  return <DetailSurface id={selectedId} onClose={close} />;
+}
+
+const OVERLAY_QUERY = "(max-width: 47.9375rem)";
+const subscribeOverlay = (onChange: () => void) => {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const query = window.matchMedia(OVERLAY_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+};
+const readOverlay = () => typeof window.matchMedia === "function" && window.matchMedia(OVERLAY_QUERY).matches;
+
+/**
+ * Below `md` the detail covers the list (a full-screen sheet on the phone, a side sheet in the narrow band), so it
+ * is a modal dialog there: focus moves in, stays in, and goes back to the row on close (SCREENS.md §1 rules 5 and 6).
+ * From `md` up it is a pane beside the list, and focus stays where the person is working.
+ */
+function DetailSurface({ id, onClose }: { id: string; onClose: () => void }) {
+  const overlay = useSyncExternalStore(subscribeOverlay, readOverlay, () => false);
+  const surface = useDialogFocus<HTMLElement>(overlay);
   return (
     <>
-      <Scrim onClose={close} className="fixed z-20 md:hidden" />
+      <Scrim onClose={onClose} className="fixed z-20 md:hidden" />
       <aside
+        ref={surface}
         aria-label="Task"
+        role={overlay ? "dialog" : undefined}
+        aria-modal={overlay ? true : undefined}
+        tabIndex={overlay ? -1 : undefined}
+        onKeyDown={overlay ? trapTab : undefined}
         className={cx(
-          "fixed inset-0 z-30 flex flex-col bg-surface pt-[env(safe-area-inset-top)]",
+          "fixed inset-0 z-30 flex flex-col bg-surface pt-[env(safe-area-inset-top)] outline-none",
           // The phone sheet rises from the bottom, the narrow band's from the right; the pane from `md` up just appears.
           "max-md:transition-[translate,opacity] max-md:dur-slow max-md:ease-drawer max-sm:starting:translate-y-full sm:max-md:starting:translate-x-full",
           "sm:left-auto sm:w-[420px] sm:border-l sm:border-line sm:pt-0 sm:shadow-sheet md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-96 md:shrink-0 md:shadow-none",
         )}
       >
         <Grabber />
-        <TaskDetail key={selectedId} id={selectedId} onClose={close} />
+        <TaskDetail key={id} id={id} onClose={onClose} />
       </aside>
     </>
   );

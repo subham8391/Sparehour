@@ -115,6 +115,12 @@ export function QuickAdd({
   onSubmit: (submission: QuickAddSubmission) => Promise<void>;
 }) {
   const [value, setValue] = useState(initial);
+  // Keys typed while the sheet was still loading arrive as a longer `initial`; take them unless the box has moved on.
+  const [seenInitial, setSeenInitial] = useState(initial);
+  if (initial !== seenInitial) {
+    setSeenInitial(initial);
+    if (initial.startsWith(value)) setValue(initial);
+  }
   const [createProject, setCreateProject] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   /** Why the last save failed; the words stay in the box so nothing is lost. */
@@ -175,26 +181,36 @@ export function QuickAdd({
   };
 
   // No manual memo: the compiler handles it, and its view of the dependencies is the right one.
-  const submit = async (close: boolean) => {
+  // Brain-dump mode (PRODUCT_SPEC.md §5.1 rule 4): Enter clears the box at once and the save runs behind it,
+  // one after another in the order asked, so the next line can be typed while the last one is still saving.
+  const saves = useRef<Promise<void>>(Promise.resolve());
+  const submit = (close: boolean) => {
     if (!draft || busy) return;
-    setBusy(true);
+    const text = value;
+    const title = draft.title;
+    const submission: QuickAddSubmission = {
+      draft: { ...draft, projectCreate: willCreate },
+      projectId: match?.id ?? null,
+      createProjectName: willCreate ? projectName : null,
+    };
+    setValue("");
+    setCreateProject(false);
     setError(null);
-    try {
-      await onSubmit({
-        draft: { ...draft, projectCreate: willCreate },
-        projectId: match?.id ?? null,
-        createProjectName: willCreate ? projectName : null,
-      });
-      setValue("");
-      setCreateProject(false);
-      setNotice(`Added “${draft.title}”`);
-      if (close) onClose();
-    } catch (e) {
-      setNotice(null);
-      setError(e instanceof Error && e.message ? e.message : "Couldn't save that — try again.");
-    } finally {
-      setBusy(false);
-    }
+    saves.current = saves.current
+      .then(() => onSubmit(submission))
+      .then(
+        () => {
+          setNotice(`Added “${title}”`);
+          if (close) onClose();
+        },
+        (e: unknown) => {
+          setNotice(null);
+          const why = e instanceof Error && e.message ? e.message : "try again.";
+          setError(`Couldn't save “${title}”: ${why}`);
+          // The words come back unless something new has been typed since.
+          setValue((now) => (now.trim() === "" ? text : now));
+        },
+      );
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {

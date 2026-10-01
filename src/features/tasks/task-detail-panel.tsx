@@ -225,7 +225,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const hasQuiet = (task.state !== "someday" && !done) || task.state !== "dropped";
 
   return (
-    <div className="flex h-full flex-col">
+    // flex-1, not h-full: on the phone the sheet's grabber sits above, and a full height pushed the footer off the screen.
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-start gap-2 px-4 pt-2 pb-2 sm:px-5 sm:pt-4">
         <button
           type="button"

@@ -72,8 +72,14 @@ export default function PlanPage() {
       now={now}
       zone={settings.timezone}
       onPick={(task, picked) => {
-        if (picked) void model.repo.reschedule(task.id, model.today);
-        else if (groups.carried.some((t) => t.id === task.id)) void model.repo.reschedule(task.id, task.lastCarriedAt ?? model.today.subtract({ days: 1 }));
+        if (picked) {
+          void model.repo.reschedule(task.id, model.today);
+          return;
+        }
+        // Unticking puts the task back on the day it had when the plan opened (the frozen list keeps it): a carried
+        // task is carried again. last_carried_at is no guide, because the rollover stamps it with today.
+        const was = frozen && [...frozen.carried, ...frozen.dueThisWeek, ...frozen.fromProjects].find((t) => t.id === task.id);
+        if (was?.doDate && !was.doDate.equals(model.today)) void model.repo.reschedule(task.id, was.doDate);
         else void model.repo.update(task.id, { doDate: null });
       }}
       onCarry={(id, to) => {

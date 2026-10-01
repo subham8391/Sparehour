@@ -2,7 +2,7 @@
 // Composes the local data with the core engines: capacity, carried-over and
 // today's list, all reactive to the local database.
 import { useMemo } from "react";
-import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { useQuery } from "@/data/powersync";
 import { capacityFor, type Capacity } from "@/core/capacity";
 import { carriedOver, shouldAsk } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
 import { Temporal, instant, todayFor, type LocalDate } from "@/core/time";
@@ -10,7 +10,8 @@ import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
-import { TaskRepo } from "@/data/repositories/task-repo";
+import type { TaskRepo } from "@/data/repositories/task-repo";
+import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 
 /** A block as the timeline draws it: minutes of the local day. */
@@ -54,8 +55,8 @@ export interface TodayModel {
 }
 
 export function useToday(now: Temporal.Instant): TodayModel {
-  const db = useLocalDatabase();
-  const repo = useMemo(() => new TaskRepo(db), [db]);
+  // The undoable repo: everything done on Today answers ⌘Z and shows its toast, like every other list (FEATURES.md §8).
+  const repo = useTaskRepo();
 
   const { data: settingsRows } = useQuery<UserSettingsRow>(SETTINGS_SQL);
   const settings = settingsRows?.[0] ? toSettings(settingsRows[0]) : null;

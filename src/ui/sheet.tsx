@@ -5,9 +5,11 @@
 // shadow, sliding up in 240 ms on the drawer curve; from the narrow band up
 // it is a centred dialog with the raised shadow that simply appears, as
 // keyboard-driven things should. Reduced motion keeps the fades and drops
-// the slide. Escape and focus are the caller's: every dialog already owns
-// its own keys.
-import { useEffect, useRef, type HTMLAttributes } from "react";
+// the slide. The sheet owns the dialog's focus (SCREENS.md §1 rules 5 and 6):
+// Tab stays inside it, Escape from anywhere in it closes it unless a child
+// already handled the key, focus moves in when nothing inside has it, and it
+// goes back to whatever opened the sheet when the sheet closes.
+import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from "react";
 import { cx } from "./cx";
 
 export type SheetAlign = "top" | "center";
@@ -69,6 +71,62 @@ function useKeyboardInset() {
   return ref;
 }
 
+const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1']), [contenteditable='true']";
+
+/** What Tab can reach inside `root`, in order; hidden elements are skipped. */
+function focusables(root: HTMLElement): HTMLElement[] {
+  // checkVisibility is missing before Safari 17.4 (and in jsdom): there, everything that matches counts.
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => (typeof el.checkVisibility === "function" ? el.checkVisibility() : true));
+}
+
+/**
+ * The dialog's focus: in on open, kept in while open, back to the opener on
+ * close. The opener is read while rendering, before a child's effect (quick-add
+ * focuses its input) has moved focus into the sheet.
+ */
+export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(active = true) {
+  const panel = useRef<T>(null);
+  const [opener] = useState<HTMLElement | null>(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
+  useEffect(() => {
+    const el = panel.current;
+    if (!el || !active) return;
+    if (!el.contains(document.activeElement)) el.focus({ preventScroll: true });
+    // Focus that lands behind the scrim (a click on the page, a script) comes back in; another dialog on top keeps it.
+    const onFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target || el.contains(target) || target.closest?.("[role='dialog']")) return;
+      (focusables(el)[0] ?? el).focus({ preventScroll: true });
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      const lost = !document.activeElement || document.activeElement === document.body || el.contains(document.activeElement);
+      if (lost && opener?.isConnected && !el.contains(opener)) opener.focus({ preventScroll: true });
+    };
+  }, [opener, active]);
+  return panel;
+}
+
+/** Tab and Shift+Tab wrap inside the dialog `e.currentTarget` instead of walking out behind its scrim. */
+export function trapTab(e: KeyboardEvent<HTMLElement>): void {
+  if (e.key !== "Tab") return;
+  const items = focusables(e.currentTarget);
+  if (items.length === 0) {
+    e.preventDefault();
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  const at = document.activeElement;
+  if (e.shiftKey && (at === first || at === e.currentTarget)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && at === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 export function Sheet({
   label,
   onClose,
@@ -76,6 +134,7 @@ export function Sheet({
   width = "lg",
   className,
   children,
+  onKeyDown,
   ...rest
 }: Omit<HTMLAttributes<HTMLDivElement>, "role"> & {
   /** The dialog's accessible name. */
@@ -86,10 +145,30 @@ export function Sheet({
   width?: SheetWidth;
 }) {
   const frame = useKeyboardInset();
+  const panel = useDialogFocus();
+  const keys = (e: KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(e);
+    if (e.defaultPrevented) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    trapTab(e);
+  };
   return (
     <div ref={frame} className={cx("fixed inset-0 z-40 flex items-end pb-[var(--kb,0px)] sm:justify-center sm:px-6", align === "top" ? "sm:items-start sm:pt-[12vh]" : "sm:items-center sm:pt-0")}>
       <Scrim onClose={onClose} />
-      <div role="dialog" aria-modal="true" aria-label={label} className={cx(SHEET_PANEL, SHEET_RISE, WIDTH[width], "max-h-[calc(100dvh-1rem)]", className)} {...rest}>
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        tabIndex={-1}
+        onKeyDown={keys}
+        className={cx(SHEET_PANEL, SHEET_RISE, WIDTH[width], "max-h-[calc(100dvh-1rem)] outline-none", className)}
+        {...rest}
+      >
         <Grabber />
         {children}
       </div>

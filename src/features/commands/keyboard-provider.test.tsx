@@ -21,6 +21,8 @@ import { useListSelection, useSelection, SelectionProvider } from "@/features/se
 import { TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { KeyboardProvider } from "./keyboard-provider";
 
+const pressed = vi.fn();
+
 function List() {
   const { selectedId } = useListSelection(["t1", "t2", "t3"]);
   const { checkedIds } = useSelection();
@@ -33,6 +35,9 @@ function List() {
       <label>
         Other field <input />
       </label>
+      <button type="button" onClick={pressed}>
+        Plan my day
+      </button>
     </div>
   );
 }
@@ -75,6 +80,18 @@ describe("<KeyboardProvider>", () => {
     expect(execute.mock.calls[0][1]?.at(-1)).toBe("t1");
     await user.keyboard("{Enter}");
     expect(screen.getByText("open: t1")).toBeInTheDocument();
+  });
+
+  it("Enter and Space on a focused button press that button and leave the selected task alone", async () => {
+    // Seen in the walkthrough: the global Enter (Open) and Space (Peek) swallowed every button and link outside dialogs.
+    const { user } = setup();
+    await user.keyboard("j");
+    pressed.mockClear();
+    screen.getByRole("button", { name: "Plan my day" }).focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    expect(pressed).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("open: none")).toBeInTheDocument();
   });
 
   it("selected-task keys do nothing without a selection", async () => {

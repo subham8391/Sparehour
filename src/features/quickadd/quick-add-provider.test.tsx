@@ -16,9 +16,22 @@ import { QuickAddBar, QuickAddFab, QuickAddProvider, useQuickAdd } from "./quick
 function Opener() {
   const { open } = useQuickAdd();
   return (
-    <button type="button" onClick={() => open("Prefilled")}>
-      open prefilled
-    </button>
+    <>
+      <button type="button" onClick={() => open("Prefilled")}>
+        open prefilled
+      </button>
+      {/* Typing anywhere: three keys reach the provider before the lazy sheet can take focus. */}
+      <button
+        type="button"
+        onClick={() => {
+          open("P");
+          open("i");
+          open("c");
+        }}
+      >
+        type three keys
+      </button>
+    </>
   );
 }
 
@@ -44,6 +57,12 @@ describe("<QuickAddProvider>", () => {
     expect(input).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keys that arrive before the sheet has focus all reach the box, in order", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: "type three keys" }));
+    expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue("Pic");
   });
 
   it("a second open starts fresh", async () => {

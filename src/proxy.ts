@@ -3,6 +3,7 @@
 // security boundary; this is convenience, not protection.
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeNext } from "@/features/auth/safe-next";
 
 const PUBLIC_PATHS = ["/", "/login", "/auth"];
 
@@ -32,8 +33,16 @@ export async function proxy(request: NextRequest) {
   if (!user && !isPublic && !path.startsWith("/api/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", path);
+    // The whole destination, query included (/search?q=dentist comes back with its query), and nothing else on /login.
+    url.search = "";
+    url.searchParams.set("next", `${path}${request.nextUrl.search}`);
     return NextResponse.redirect(url);
+  }
+  // Someone already signed in who opens the sign-in page (a bookmark, Back) goes on into the app (ONBOARDING.md §1a).
+  if (user && path === "/login") {
+    const onward = NextResponse.redirect(new URL(safeNext(request.nextUrl.searchParams.get("next")), request.url));
+    for (const cookie of response.cookies.getAll()) onward.cookies.set(cookie);
+    return onward;
   }
   return response;
 }

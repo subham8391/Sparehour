@@ -402,6 +402,22 @@ export function arrangementKey(p: Pick<Proposal, "blocks">): string {
 }
 
 export function plan(input: PlanInput): Proposal {
+  // A re-plan replaces the plan's own future blocks only for tasks it places again (SYSTEM_DESIGN.md §5.5).
+  // Which tasks those are is known only after placing, so a task that lost its block and found no new one
+  // gets its block back as a fixed one and the day is planned again around it. Each pass holds at least one
+  // more block, so this settles within as many passes as there are blocks to replace.
+  const blockTask = new Map(input.blocks.map((b) => [b.id, b.taskId]));
+  let hold: ReadonlySet<string> = new Set();
+  for (;;) {
+    const proposal = planWith(input, hold);
+    const placedAgain = new Set(proposal.blocks.map((b) => b.taskId));
+    const lost = proposal.replaces.filter((id) => !placedAgain.has(blockTask.get(id) ?? ""));
+    if (lost.length === 0) return proposal;
+    hold = new Set([...hold, ...lost]);
+  }
+}
+
+function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
   const w = input.weights ?? PLAN_WEIGHTS;
   const seed = input.seed ?? 0;
   const s = input.settings;
@@ -437,7 +453,7 @@ export function plan(input: PlanInput): Proposal {
   }
 
   // ---- 1. which blocks stay where they are
-  const isPinned = (b: PlanBlock) => b.locked || b.source !== "plan" || b.start < nowMin;
+  const isPinned = (b: PlanBlock) => b.locked || b.source !== "plan" || b.start < nowMin || hold.has(b.id);
   const keptIds = new Set(blocks.filter((b) => isPinned(b) && b.taskId && b.end > nowMin && byId.has(b.taskId)).map((b) => b.taskId as string));
   // Only the plan's own future blocks for tasks it is planning again are replaced; anything else stays put.
   const replaceable = blocks.filter((b) => !isPinned(b) && b.taskId !== null && byId.has(b.taskId) && !keptIds.has(b.taskId));

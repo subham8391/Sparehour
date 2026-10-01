@@ -205,6 +205,29 @@ describe("TaskRepo undo after the row has left the device", () => {
     expect(args.slice(0, 2)).toEqual(["inbox", null]);
   });
 
+  it("the presence check and the write share one transaction, so sync cannot take the row away between them", async () => {
+    // Seen in the e2e suite under load: the done row left the device after the check said it was here,
+    // the update then hit nothing, and the undo was lost without a word.
+    let inside = false;
+    const execute = vi.fn(async () => ({ inside }));
+    const getOptional = vi.fn(async () => ({ ...full, inside }));
+    const writeTransaction = vi.fn(async (fn: (tx: { execute: typeof execute; getOptional: typeof getOptional }) => Promise<void>) => {
+      inside = true;
+      try {
+        await fn({ execute, getOptional });
+      } finally {
+        inside = false;
+      }
+    });
+    const history = { record: vi.fn() };
+    await new TaskRepo({ execute, getOptional, getAll: vi.fn(), writeTransaction } as unknown as LocalDatabase, history).complete("t1");
+    const before = { checks: getOptional.mock.calls.length, writes: execute.mock.calls.length };
+    await history.record.mock.calls[0][0].undo();
+    expect(writeTransaction).toHaveBeenCalledTimes(1);
+    expect(await Promise.all(getOptional.mock.results.slice(before.checks).map((r) => r.value))).toEqual([expect.objectContaining({ inside: true })]);
+    expect(await Promise.all(execute.mock.results.slice(before.writes).map((r) => r.value))).toEqual([{ inside: true }]);
+  });
+
   it("a batch undo re-inserts only the rows that are gone", async () => {
     const rows = [full, { ...full, id: "t2", title: "Call Mum" }];
     const { db, execute, getOptional } = fakeDb(full, rows);

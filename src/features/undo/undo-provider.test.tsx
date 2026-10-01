@@ -56,7 +56,7 @@ describe("<UndoProvider>", () => {
     expect(undoFn).toHaveBeenCalledTimes(1);
   });
 
-  it("the toast goes away on its own", async () => {
+  it("the toast stays ten seconds, then goes away on its own (PRODUCT_SPEC.md §7 rule 3)", async () => {
     vi.useFakeTimers();
     try {
       const undoFn = vi.fn().mockResolvedValue(undefined);
@@ -70,7 +70,11 @@ describe("<UndoProvider>", () => {
       });
       expect(screen.getByRole("status")).toBeInTheDocument();
       act(() => {
-        vi.advanceTimersByTime(6500);
+        vi.advanceTimersByTime(9500);
+      });
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(1000);
       });
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
     } finally {

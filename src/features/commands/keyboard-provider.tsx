@@ -42,6 +42,15 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return Boolean(el.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']"));
 }
 
+/** A focused control that Enter or Space already presses (a button, a link, a menu item, a switch…). */
+function isActivatable(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || typeof el.closest !== "function") return false;
+  return Boolean(
+    el.closest("a[href], button, summary, [role='button'], [role='link'], [role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox'], [role='checkbox'], [role='switch'], [role='radio'], [role='tab'], [role='option']"),
+  );
+}
+
 function modalOpen(): boolean {
   return Boolean(document.querySelector("[role='dialog'][aria-modal='true']"));
 }
@@ -111,6 +120,12 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
         pendingRef.current = null;
         return;
       }
+      // A focused control keeps its own keys: Enter and Space press the button or follow the link
+      // (SCREENS.md §1 focus model). Only with nothing pressable focused do they open the selected task.
+      if ((e.key === "Enter" || e.key === " ") && isActivatable(e.target)) {
+        pendingRef.current = null;
+        return;
+      }
       const chord = chordOf(e, isMac);
       const r = resolveKey(chord, pendingRef.current, BINDINGS);
       pendingRef.current = r.pending;
@@ -124,7 +139,8 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
         return;
       }
       // Rule 4: an unbound printable key opens quick-add and types itself. No keystroke is lost.
-      if (!chord.mod && !chord.alt && e.key.length === 1 && !/\s/.test(e.key)) {
+      // Any modifier makes it a chord, not typing: Control+Z on a Mac (where ⌘ is the app's modifier) must not type a "z".
+      if (!chord.mod && !chord.alt && !e.ctrlKey && !e.metaKey && e.key.length === 1 && !/\s/.test(e.key)) {
         e.preventDefault();
         contextRef.current().quickAdd(e.key);
       }

@@ -37,6 +37,10 @@ describe("rollover and time zones", () => {
   it("hints at the detected zone only when it differs", () => {
     expect(timeZoneHint("Europe/London", "Asia/Kolkata")).toBe("Detected Asia/Kolkata");
     expect(timeZoneHint("Europe/London", "Europe/London")).toBeNull();
+    // Chrome in India reports the old name of the same zone: no hint (seen in the walkthrough).
+    expect(timeZoneHint("Asia/Kolkata", "Asia/Calcutta")).toBeNull();
+    expect(timeZoneHint("Europe/Kyiv", "Europe/Kiev")).toBeNull();
+    expect(timeZoneHint("Asia/Kolkata", "Asia/Dhaka")).toBe("Detected Asia/Dhaka");
     expect(timeZoneHint("Europe/London", null)).toBeNull();
   });
 });

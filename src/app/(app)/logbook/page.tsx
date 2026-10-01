@@ -65,7 +65,7 @@ export default function LogbookPage() {
 
   return (
     <main className={VIEW_COLUMN}>
-      <ViewHeader eyebrow="Logbook" title="Done" subtitle={groups.length > 0 ? `The last ${months.length} months` : undefined} />
+      <ViewHeader eyebrow="Logbook" title="Done" subtitle={groups.length > 0 ? "Kept for a week" : undefined} />
       {!isLoading && groups.length === 0 ? (
         <div className="flex flex-col gap-3">
           <Icon name="book" size={20} className="text-ink-3" />

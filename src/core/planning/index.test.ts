@@ -264,6 +264,30 @@ describe("blocks already on the day", () => {
     expect(now.blocks.map((b) => [b.taskId, b.start])).toEqual([["b", m("10:00")]]);
   });
 
+  it("a re-plan that cannot place a task again keeps that task's block, and nothing is placed over it", () => {
+    // Seen in the walkthrough: an over-full day; the low-ranked task lost its 16:00 block and found no new one.
+    const earlier: PlanBlock[] = [{ id: "old-low", taskId: "low", start: m("16:00"), end: m("16:30"), locked: false, source: "plan" }];
+    const p = plan(
+      input({
+        now: at("13:00"),
+        blocks: earlier,
+        // 13:00–17:00 is four hours, and the three important tasks fill all of it.
+        candidates: [task("big", { estimateMin: 90, priority: 3 }), task("big2", { estimateMin: 90, priority: 3 }), task("big3", { estimateMin: 60, priority: 3 }), task("low", { estimateMin: 30, priority: 0 })],
+      }),
+    );
+    expect(p.replaces).toEqual([]);
+    expect(p.kept).toEqual(["low"]);
+    expect(p.unplaced.map((u) => u.taskId)).not.toContain("low");
+    for (const b of p.blocks) expect(b.end <= m("16:00") || b.start >= m("16:30")).toBe(true);
+  });
+
+  it("a re-plan that places a task again still replaces that task's earlier block", () => {
+    const earlier: PlanBlock[] = [{ id: "old-a", taskId: "a", start: m("15:00"), end: m("15:30"), locked: false, source: "plan" }];
+    const p = plan(input({ now: at("13:00"), blocks: earlier, candidates: [task("a", { priority: 3 })] }));
+    expect(p.replaces).toEqual(["old-a"]);
+    expect(p.blocks.map((b) => b.taskId)).toEqual(["a"]);
+  });
+
   it("a block that starts at the current minute but not second has already started", () => {
     const p = plan(input({ now: toInstant(DAY0, localTime("12:00:30"), ZONE), blocks: [{ id: "mine", taskId: "a", start: m("12:00"), end: m("13:00"), locked: false, source: "plan" }], candidates: [task("a")] }));
     expect(p.replaces).toEqual([]);

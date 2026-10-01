@@ -26,13 +26,40 @@ describe("<QuickAdd>", () => {
       .mockResolvedValueOnce();
     const { user, input } = setup({ onSubmit });
     await user.type(input, "Call Dana{Enter}");
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Your account is still loading — try again in a moment."));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Couldn't save “Call Dana”: Your account is still loading — try again in a moment."));
     expect(input).toHaveValue("Call Dana");
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     await user.keyboard("{Enter}");
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Added “Call Dana”"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(input).toHaveValue("");
+  });
+
+  it("brain-dump: Enter clears at once, and a line typed while the last one is still saving is kept and saved next", async () => {
+    // Seen in the walkthrough: a save took a second, the late clear erased the next line being typed.
+    let finish!: () => void;
+    const onSubmit = vi
+      .fn<(s: QuickAddSubmission) => Promise<void>>()
+      .mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)))
+      .mockResolvedValue();
+    const { user, input } = setup({ onSubmit });
+    await user.type(input, "Buy printer ink{Enter}");
+    expect(input).toHaveValue("");
+    await user.type(input, "Order new chair");
+    finish();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Added “Buy printer ink”"));
+    expect(input).toHaveValue("Order new chair");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    expect(onSubmit.mock.calls.map((c) => c[0].draft.title)).toEqual(["Buy printer ink", "Order new chair"]);
+  });
+
+  it("keys typed while the sheet was loading arrive as a longer opening line and are all kept", async () => {
+    const onSubmit = vi.fn<(s: QuickAddSubmission) => Promise<void>>().mockResolvedValue();
+    const { rerender } = render(<QuickAdd open initial="P" projects={projects} ctx={ctx} onClose={vi.fn()} onSubmit={onSubmit} />);
+    rerender(<QuickAdd open initial="Pi" projects={projects} ctx={ctx} onClose={vi.fn()} onSubmit={onSubmit} />);
+    rerender(<QuickAdd open initial="Pic" projects={projects} ctx={ctx} onClose={vi.fn()} onSubmit={onSubmit} />);
+    expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("Pic");
   });
 
   it("restates the parse as chips as you type and paints the tokens", async () => {

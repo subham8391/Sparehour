@@ -2,7 +2,7 @@
 // block from the keyboard — every write proven in Postgres.
 import { expect, test } from "./fixtures";
 import { waitForRow } from "./db";
-import { openApp, quickAdd, uniqueTitle } from "./helpers";
+import { openApp, quickAdd, uniqueTitle, waitForSync } from "./helpers";
 
 const DAY_HEADING = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) \d{1,2} [A-Z][a-z]+$/;
 
@@ -57,5 +57,14 @@ test.describe("Today", () => {
     await expect(row.getByText(/^\d\d:\d\d$/)).toHaveCount(0);
     const removed = await waitForRow<{ id: string }>("select id from public.time_blocks where id = $1 and deleted_at is not null", [created!.id]);
     expect(removed).not.toBeNull();
+
+    // Undo from the toast once the removal has synced: by then sync has taken the deleted block off
+    // this device, and the undo has to put it back from what it remembered (it used to do nothing).
+    await waitForSync(page);
+    await page.waitForTimeout(1500);
+    await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
+    await expect(block).toBeVisible();
+    const back = await waitForRow<{ id: string }>("select id from public.time_blocks where id = $1 and deleted_at is null", [created!.id]);
+    expect(back).not.toBeNull();
   });
 });

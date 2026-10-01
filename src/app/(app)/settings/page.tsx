@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const calendar = useCalendar();
   const [testResult, setTestResult] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [unsynced, setUnsynced] = useState<number | null>(null);
   const { data: settings } = useQuery<UserSettingsRow & { id: string }>(SETTINGS_SQL);
   const { data: hours } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
   const { data: users } = useQuery<{ id: string; email: string | null; display_name: string | null; personal_space_id: string | null }>(USER_SQL);
@@ -85,8 +86,29 @@ export default function SettingsPage() {
     else void hoursRepo.clear(weekday);
   };
 
-  async function signOut() {
+  /** Changes still waiting to upload. A connection that is up gets a few seconds to send them first. */
+  async function waitForUploads(): Promise<number> {
+    const until = Date.now() + 8000;
+    let { count } = await db.getUploadQueueStats();
+    while (count > 0 && navigator.onLine && Date.now() < until) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      ({ count } = await db.getUploadQueueStats());
+    }
+    return count;
+  }
+
+  async function signOut(anyway = false) {
     setLeaving(true);
+    // Clearing the device with changes still queued would lose them without a word: say so and let the person choose.
+    if (!anyway) {
+      const waiting = await waitForUploads();
+      if (waiting > 0) {
+        setUnsynced(waiting);
+        setLeaving(false);
+        return;
+      }
+    }
+    setUnsynced(null);
     // A shared device must not keep the last person's data: clear the local database, then the session.
     // The auth client is loaded here rather than with the page (§11.6 budgets).
     const { supabaseBrowser } = await import("@/data/supabase-browser");
@@ -121,6 +143,9 @@ export default function SettingsPage() {
           onWorkHours={onWorkHours}
           onSignOut={() => void signOut()}
           signingOut={leaving}
+          unsynced={unsynced}
+          onSignOutAnyway={() => void signOut(true)}
+          onStaySignedIn={() => setUnsynced(null)}
         />
       ) : (
         <p className={LOADING_LINE}>Opening…</p>

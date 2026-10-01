@@ -37,7 +37,12 @@ export function useQuickAdd(): QuickAddApi {
 
 export function QuickAddProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState({ open: false, initial: "", key: 0 });
-  const open = useCallback((prefill = "") => setState((s) => ({ open: true, initial: prefill, key: s.key + 1 })), []);
+  // Typing anywhere opens quick-add with the key (SCREENS.md §1 rule 4). Until the lazy sheet has taken focus every
+  // further key lands here too: those are appended to the same opening, never a fresh sheet that drops the earlier ones.
+  const open = useCallback(
+    (prefill = "") => setState((s) => (s.open && prefill && s.initial ? { ...s, initial: s.initial + prefill } : { open: true, initial: prefill, key: s.key + 1 })),
+    [],
+  );
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
   useEffect(() => preloadOnIdle(loadQuickAdd), []);
 
@@ -59,7 +64,11 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
       const sid = spaceId ?? (await db.getOptional<{ personal_space_id: string | null }>(SPACE_SQL))?.personal_space_id ?? null;
       if (!sid) throw new Error("Your account is still loading — try again in a moment.");
       let projectId = s.projectId;
-      if (!projectId && s.createProjectName) projectId = await projectRepo.create(s.createProjectName, { spaceId: sid });
+      if (!projectId && s.createProjectName) {
+        // Two quick lines can both name the same new project before the list catches up: the second one joins the first.
+        const existing = await db.getOptional<{ id: string }>(`select id from projects where deleted_at is null and lower(name) = lower(?) limit 1`, [s.createProjectName]);
+        projectId = existing?.id ?? (await projectRepo.create(s.createProjectName, { spaceId: sid }));
+      }
       await tasks.create(s.draft, { spaceId: sid, projectId });
       // The first meaningful action is the moment to ask the browser to keep our storage (§10.4).
       pwa?.requestPersist();

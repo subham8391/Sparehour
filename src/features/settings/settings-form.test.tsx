@@ -177,4 +177,16 @@ describe("<SettingsForm>", () => {
     await user.click(screen.getByRole("button", { name: "Sign out" }));
     expect(onSignOut).toHaveBeenCalled();
   });
+
+  it("with changes not yet synced, says how many would be lost and lets the person choose", async () => {
+    const onSignOutAnyway = vi.fn();
+    const onStaySignedIn = vi.fn();
+    const { user } = setup({ unsynced: 2, onSignOutAnyway, onStaySignedIn });
+    expect(screen.getByRole("alert")).toHaveTextContent("2 changes haven’t reached your account yet. Signing out now loses them.");
+    expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Stay signed in" }));
+    expect(onStaySignedIn).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Sign out and lose them" }));
+    expect(onSignOutAnyway).toHaveBeenCalled();
+  });
 });

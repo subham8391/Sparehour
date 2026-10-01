@@ -57,6 +57,31 @@ describe.skipIf(admin === null)("hardening contract", () => {
       expect((await c.query("select carry_count from public.tasks where id = $1", [rows[0].id])).rows[0]).toEqual({ carry_count: 7 });
     }));
 
+  it("Someday, Drop and Archive reset the carry count; nothing else a person writes moves it (20261001000100)", () =>
+    inTx(admin, async (c) => {
+      const me = await newUser(c, "hard-carry@contract.test");
+      const mine = await spaceOf(c, me);
+      const task = async (title: string) =>
+        (await c.query<{ id: string }>("insert into public.tasks (space_id, title, sort_key, state, do_date, carry_count) values ($1, $2, 'a0', 'active', current_date - 1, 3) returning id", [mine, title])).rows[0].id;
+      const parked = await task("parked");
+      const dropped = await task("dropped");
+      const archived = await task("archived");
+      const moved = await task("moved");
+      await asUser(c, me);
+      await c.query("update public.tasks set state = 'someday', do_date = null where id = $1", [parked]);
+      await c.query("update public.tasks set state = 'dropped' where id = $1", [dropped]);
+      await c.query("update public.tasks set state = 'archived', do_date = null where id = $1", [archived]);
+      // A plain reschedule (or a client trying its own number) keeps the server's count.
+      await c.query("update public.tasks set do_date = current_date + 1, carry_count = 0 where id = $1", [moved]);
+      const counts = await c.query<{ title: string; carry_count: number }>("select title, carry_count from public.tasks where id = any($1::uuid[]) order by title", [[parked, dropped, archived, moved]]);
+      expect(counts.rows).toEqual([
+        { title: "archived", carry_count: 0 },
+        { title: "dropped", carry_count: 0 },
+        { title: "moved", carry_count: 3 },
+        { title: "parked", carry_count: 0 },
+      ]);
+    }));
+
   it("blocks: Google's columns are the worker's; a moved synced block still re-queues", () =>
     inTx(admin, async (c) => {
       const me = await newUser(c, "hard-d@contract.test");

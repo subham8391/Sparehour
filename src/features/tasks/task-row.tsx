@@ -283,7 +283,9 @@ export function TaskRow({
                 <span className={titleClass}>{task.title}</span>
               </span>
             )}
-            <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:fade-end sm:contents">
+            {/* No target of its own on a phone: the fade's mask makes a layer over the title's stretched tap area, and the
+                whole row opens the task there (DESIGN_SYSTEM.md §5 Task row), so taps pass through to it. */}
+            <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:pointer-events-none max-sm:fade-end sm:contents">
               {meta && <span className={META_RUN}>{meta}</span>}
               {/* A completed row quietens its chips to ink-3 rather than fading them: at 60 % opacity the estimate fell to 2.4:1 on surface-2. */}
               <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", task.state === "done" && "[&>*]:text-ink-3!")}>{chipRun}</span>

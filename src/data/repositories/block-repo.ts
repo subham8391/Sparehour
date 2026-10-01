@@ -23,6 +23,29 @@ export interface ApprovedPlan {
   replaces: readonly string[];
 }
 
+type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0];
+type BlockRow = Record<string, string | number | null> & { id: string };
+
+/**
+ * Brings soft-deleted blocks back for an undo. Sync takes a deleted block off
+ * the device a moment after the deletion uploads (the stream carries live
+ * blocks only), so a block that is gone is re-inserted from its snapshot, and
+ * the explicit write after it carries `deleted_at = null`, which the sync layer
+ * leaves out of an insert. It runs in the caller's transaction, so sync cannot
+ * take a block away between the presence check and the write.
+ */
+async function revive(tx: Pick<Tx, "execute" | "getOptional">, rows: readonly BlockRow[], at: string): Promise<void> {
+  for (const before of rows) {
+    const present = await tx.getOptional<{ id: string }>(`select id from time_blocks where id = ?`, [before.id]);
+    if (!present) {
+      const row: Record<string, string | number | null> = { ...before, deleted_at: null, updated_at: at };
+      const cols = Object.keys(row);
+      await tx.execute(`insert into time_blocks (${cols.join(", ")}) values (${cols.map(() => "?").join(", ")})`, cols.map((c) => row[c] ?? null));
+    }
+    await tx.execute(`update time_blocks set deleted_at = null, updated_at = ? where id = ?`, [at, before.id]);
+  }
+}
+
 export class BlockRepo {
   constructor(
     private readonly db: LocalDatabase,
@@ -67,13 +90,13 @@ export class BlockRepo {
   async approvePlan(plan: ApprovedPlan, opts: { afterUndo?: () => void } = {}): Promise<string[]> {
     const ids = plan.blocks.map(() => crypto.randomUUID());
     const stamp = new Date().toISOString();
-    let replaced: string[] = [];
+    // Whole rows, not ids: by the time someone undoes, sync may have taken the replaced blocks off the device.
+    let replaced: BlockRow[] = [];
     await this.db.writeTransaction(async (tx) => {
       if (plan.replaces.length > 0) {
         const marks = plan.replaces.map(() => "?").join(", ");
-        const rows = await tx.getAll<{ id: string }>(`select id from time_blocks where id in (${marks}) and deleted_at is null and locked = 0 and source = 'plan'`, [...plan.replaces]);
-        replaced = rows.map((r) => r.id);
-        if (replaced.length > 0) await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${replaced.map(() => "?").join(", ")})`, [stamp, stamp, ...replaced]);
+        replaced = await tx.getAll<BlockRow>(`select * from time_blocks where id in (${marks}) and deleted_at is null and locked = 0 and source = 'plan'`, [...plan.replaces]);
+        if (replaced.length > 0) await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${replaced.map(() => "?").join(", ")})`, [stamp, stamp, ...replaced.map((r) => r.id)]);
       }
       for (const [i, b] of plan.blocks.entries()) {
         await tx.execute(
@@ -91,7 +114,7 @@ export class BlockRepo {
         const at = new Date().toISOString();
         await this.db.writeTransaction(async (tx) => {
           if (ids.length > 0) await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${ids.map(() => "?").join(", ")})`, [at, at, ...ids]);
-          if (replaced.length > 0) await tx.execute(`update time_blocks set deleted_at = null, updated_at = ? where id in (${replaced.map(() => "?").join(", ")})`, [at, ...replaced]);
+          await revive(tx, replaced, at);
         });
         opts.afterUndo?.();
       },
@@ -105,14 +128,14 @@ export class BlockRepo {
 
   /** Soft-deletes the block; the task stays exactly where it was. */
   async remove(id: string): Promise<void> {
-    const before = this.history ? await this.db.getOptional<{ title: string | null }>(`select title from time_blocks where id = ?`, [id]) : null;
+    const before = this.history ? await this.db.getOptional<BlockRow>(`select * from time_blocks where id = ?`, [id]) : null;
     const now = new Date().toISOString();
     await this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [now, now, id]);
     if (before) {
       this.history?.record({
         label: `Removed the block${before.title ? ` for “${before.title}”` : ""}`,
         toast: true,
-        undo: () => this.db.execute(`update time_blocks set deleted_at = null, updated_at = ? where id = ?`, [new Date().toISOString(), id]).then(() => undefined),
+        undo: () => this.db.writeTransaction((tx) => revive(tx, [before], new Date().toISOString())),
       });
     }
   }

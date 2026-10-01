@@ -34,7 +34,8 @@ export function useUndo(): UndoApi {
   return api;
 }
 
-const TOAST_MS = 6000;
+/** Ten seconds to change your mind (PRODUCT_SPEC.md §7 rule 3, SCREENS.md §19); hovering or focusing the toast holds it. */
+const TOAST_MS = 10_000;
 
 export function UndoProvider({ children }: { children: ReactNode }) {
   const [stack, setStack] = useState<UndoEntry[]>([]);

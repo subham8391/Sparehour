@@ -65,7 +65,33 @@ export function timeZoneOptions(current: string): string[] {
   return zones.includes(current) ? zones : [current, ...zones];
 }
 
-/** "Detected Europe/London" when the device disagrees with the saved zone; null otherwise. */
+/**
+ * Old names that browsers still report for zones that were renamed (IANA links). Chrome in India says
+ * Asia/Calcutta for an account saved as Asia/Kolkata: the same zone, so no hint. Browsers stopped
+ * canonicalising these in Intl, so the common ones are listed here.
+ */
+const ZONE_LINKS: Record<string, string> = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Asia/Dacca": "Asia/Dhaka",
+  "Asia/Thimbu": "Asia/Thimphu",
+  "Asia/Ulan_Bator": "Asia/Ulaanbaatar",
+  "Asia/Ujung_Pandang": "Asia/Makassar",
+  "Europe/Kiev": "Europe/Kyiv",
+  "America/Godthab": "America/Nuuk",
+  "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
+  "Atlantic/Faeroe": "Atlantic/Faroe",
+  "Pacific/Truk": "Pacific/Chuuk",
+  "Pacific/Ponape": "Pacific/Pohnpei",
+  "Etc/UTC": "UTC",
+  "Etc/GMT": "UTC",
+  GMT: "UTC",
+};
+const canonicalZone = (zone: string) => ZONE_LINKS[zone] ?? zone;
+
+/** "Detected Europe/London" when the device is in a different zone from the saved one; null otherwise. */
 export function timeZoneHint(current: string, detected: string | null): string | null {
-  return detected && detected !== current ? `Detected ${detected}` : null;
+  return detected && canonicalZone(detected) !== canonicalZone(current) ? `Detected ${detected}` : null;
 }

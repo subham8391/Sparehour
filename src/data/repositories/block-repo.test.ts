@@ -5,8 +5,9 @@ import { BlockRepo } from "./block-repo";
 function fakeDb(row: Record<string, string | number | null> | null = null) {
   const execute = vi.fn().mockResolvedValue({});
   const getOptional = vi.fn().mockResolvedValue(row);
-  const db = { execute, getOptional } as unknown as LocalDatabase;
-  return { db, execute, getOptional };
+  const writeTransaction = vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ execute, getOptional }));
+  const db = { execute, getOptional, writeTransaction } as unknown as LocalDatabase;
+  return { db, execute, getOptional, writeTransaction };
 }
 
 describe("BlockRepo", () => {
@@ -39,6 +40,24 @@ describe("BlockRepo", () => {
     expect(String(execute.mock.calls.at(-1)?.[0])).toMatch(/set deleted_at = null/);
   });
 
+  it("undoing a removal after sync took the block off the device puts it back as it was, in one transaction", async () => {
+    // Seen in the walkthrough: Remove, then Undo on the toast a few seconds later did nothing.
+    const block = { id: "b1", space_id: "s", user_id: "u", task_id: "t1", title: "Draft", start_at: "2026-09-14T08:00:00Z", end_at: "2026-09-14T08:45:00Z", locked: 0, source: "manual", deleted_at: null };
+    const { db, execute, getOptional, writeTransaction } = fakeDb(block);
+    const history = { record: vi.fn() };
+    await new BlockRepo(db, history).remove("b1");
+    getOptional.mockResolvedValueOnce(null); // the presence check: gone
+    execute.mockClear();
+    await history.record.mock.calls[0][0].undo();
+    expect(writeTransaction).toHaveBeenCalledTimes(1);
+    const [insertSql, insertArgs] = execute.mock.calls[0];
+    expect(String(insertSql)).toMatch(/^insert into time_blocks \(id, space_id, user_id, task_id, title, start_at, end_at, locked, source, deleted_at, updated_at\)/);
+    expect(insertArgs.slice(0, 10)).toEqual(["b1", "s", "u", "t1", "Draft", "2026-09-14T08:00:00Z", "2026-09-14T08:45:00Z", 0, "manual", null]);
+    // the explicit write carries deleted_at = null, which the sync layer leaves out of an insert
+    expect(String(execute.mock.calls[1][0])).toBe("update time_blocks set deleted_at = null, updated_at = ? where id = ?");
+    expect(execute.mock.calls[1][1][1]).toBe("b1");
+  });
+
   it("locks and unlocks", async () => {
     const { db, execute } = fakeDb();
     await new BlockRepo(db).setLocked("b1", true);
@@ -49,8 +68,9 @@ describe("BlockRepo", () => {
     function txDb(stillReplaceable: { id: string }[] = []) {
       const execute = vi.fn().mockResolvedValue({});
       const getAll = vi.fn().mockResolvedValue(stillReplaceable);
-      const writeTransaction = vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ execute, getAll }));
-      return { db: { writeTransaction } as unknown as LocalDatabase, execute, getAll, writeTransaction };
+      const getOptional = vi.fn(async (_sql: string, args: string[]): Promise<{ id: string } | null> => ({ id: args[0] }));
+      const writeTransaction = vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ execute, getAll, getOptional }));
+      return { db: { writeTransaction } as unknown as LocalDatabase, execute, getAll, getOptional, writeTransaction };
     }
     const plan = {
       spaceId: "s",
@@ -93,9 +113,26 @@ describe("BlockRepo", () => {
       await entry.undo();
       expect(String(execute.mock.calls[0][0])).toMatch(/set deleted_at = \?/);
       expect(execute.mock.calls[0][1].slice(2)).toEqual(ids);
-      expect(String(execute.mock.calls[1][0])).toMatch(/set deleted_at = null/);
-      expect(execute.mock.calls[1][1].slice(1)).toEqual(["old1", "old2"]);
+      const revived = execute.mock.calls.slice(1);
+      expect(revived.map(([sql]) => String(sql))).toEqual(Array(2).fill("update time_blocks set deleted_at = null, updated_at = ? where id = ?"));
+      expect(revived.map(([, args]) => args[1])).toEqual(["old1", "old2"]);
       expect(afterUndo).toHaveBeenCalledTimes(1);
+    });
+
+    it("undo re-inserts a replaced block that sync already took off the device", async () => {
+      const old1 = { id: "old1", space_id: "s", user_id: "u", task_id: "t9", title: "Earlier plan", start_at: "2026-10-01T13:00:00Z", end_at: "2026-10-01T13:30:00Z", locked: 0, source: "plan", deleted_at: null };
+      const { db, execute, getAll, getOptional } = txDb([old1]);
+      const history = { record: vi.fn() };
+      await new BlockRepo(db, history).approvePlan(plan);
+      // the replaced block was read whole, not just its id
+      expect(String(getAll.mock.calls[0][0])).toMatch(/^select \* from time_blocks/);
+      getOptional.mockResolvedValueOnce(null);
+      execute.mockClear();
+      await history.record.mock.calls[0][0].undo();
+      const sqls = execute.mock.calls.map(([sql]) => String(sql));
+      expect(sqls[1]).toMatch(/^insert into time_blocks \(id, space_id, user_id, task_id, title, start_at, end_at, locked, source, deleted_at, updated_at\)/);
+      expect(execute.mock.calls[1][1].slice(0, 9)).toEqual(["old1", "s", "u", "t9", "Earlier plan", "2026-10-01T13:00:00Z", "2026-10-01T13:30:00Z", 0, "plan"]);
+      expect(sqls[2]).toBe("update time_blocks set deleted_at = null, updated_at = ? where id = ?");
     });
 
     it("says one block in the singular and replaces nothing when there is nothing to replace", async () => {
