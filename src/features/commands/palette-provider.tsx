@@ -2,8 +2,9 @@
 // Palette state lives above the keyboard layer (which opens it) while the
 // palette itself renders inside it (it runs commands): PaletteProvider holds
 // open/query, PaletteHost draws it.
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@/data/powersync";
 import { toTask } from "@/data/mappers";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
@@ -13,7 +14,7 @@ import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useCommands } from "./keyboard-provider";
-import { Palette } from "./palette";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { pushRecent } from "./palette-rank";
 import { availability, type Command } from "./registry";
 
@@ -22,6 +23,11 @@ interface PaletteApi {
   close: () => void;
   isOpen: boolean;
 }
+
+// The palette is an island like quick-add (CLAUDE.md: the shells stay under 320 KB): fetched when the browser is idle,
+// so ⌘K opens it at once without it riding in every first download.
+const loadPalette = () => import("./palette");
+const Palette = dynamic(() => loadPalette().then((m) => m.Palette), { ssr: false });
 
 const PaletteContext = createContext<PaletteApi | null>(null);
 
@@ -44,6 +50,7 @@ export function PaletteProvider({ children }: { children: ReactNode }) {
   const open = useCallback((query = "") => setState((s) => ({ open: true, initialQuery: query, key: s.key + 1 })), []);
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
   const api = useMemo(() => ({ open, close, isOpen: state.open }), [open, close, state.open]);
+  useEffect(() => preloadOnIdle(loadPalette), []);
   return (
     <PaletteContext.Provider value={api}>
       <PaletteStateContext.Provider value={state}>{children}</PaletteStateContext.Provider>

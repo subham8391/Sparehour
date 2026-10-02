@@ -19,7 +19,8 @@ import { requestPlan } from "@/features/planning/plan-request";
 import { useUndoOptional } from "@/features/undo/undo-provider";
 import { chordOf, resolveKey, type SequenceState } from "./keys";
 import { COMMANDS, availability, keyBindings, type Command, type CommandContext, type Theme } from "./registry";
-import { ShortcutsDialog } from "./shortcuts-dialog";
+import dynamic from "next/dynamic";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { applyTheme, readTheme } from "./theme";
 
 const BINDINGS = keyBindings(COMMANDS);
@@ -39,6 +40,10 @@ export function useCommands(): CommandsApi {
   if (!api) throw new Error("useCommands needs a KeyboardProvider above it");
   return api;
 }
+
+// The ? overlay loads on idle rather than with every page (the shells' 320 KB budget).
+const loadShortcuts = () => import("./shortcuts-dialog");
+const ShortcutsDialog = dynamic(() => loadShortcuts().then((m) => m.ShortcutsDialog), { ssr: false });
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -77,6 +82,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   useEffect(() => {
     applyTheme(readTheme());
   }, []);
+  useEffect(() => preloadOnIdle(loadShortcuts), []);
   // Appearance is an account setting (SCREENS.md §18): the stored choice follows the person to every device. This
   // device's copy (localStorage, read before paint) catches up once the settings row is here.
   const { data: settingsRows } = useQuery<{ id: string; theme: string | null }>(SETTINGS_SQL);

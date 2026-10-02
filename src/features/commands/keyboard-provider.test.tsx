@@ -151,7 +151,8 @@ describe("<KeyboardProvider>", () => {
     await user.keyboard("{Control>}k{/Control}");
     expect(onOpenPalette).toHaveBeenCalled();
     await user.keyboard("?");
-    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    // The overlay is an island: it mounts once its module has loaded.
+    expect(await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
