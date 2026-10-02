@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/inbox" }));
 import { SyncChip, relativeTime, syncChipModel, type SyncChipInput } from "./sync-chip";
-import { errorKind } from "./use-sync-chip";
+import { describeChange, errorKind } from "./use-sync-chip";
 
 const now = new Date("2026-09-14T09:00:00Z");
 const base: SyncChipInput = {
@@ -120,5 +120,24 @@ describe("sync chip: a session the server turned away, and failures by kind (fou
     expect(errorKind(new Error("retryable upload failure: 503"))).toBe("server");
     expect(errorKind(new Error("auth"))).toBe("other");
     expect(errorKind(undefined)).toBeNull();
+  });
+});
+
+describe("the offline chip lists what is waiting (SCREENS.md §20)", () => {
+  it("names the first changes in words and counts the rest", async () => {
+    const model = syncChipModel({ ...base, online: false, pending: 7, waiting: ["Added “Order new desk lamp”", "Changed a task"] });
+    expect(model).toMatchObject({ state: "offline", waiting: ["Added “Order new desk lamp”", "Changed a task"], more: 5 });
+    render(<SyncChip model={model} />);
+    await userEvent.setup().click(screen.getByRole("button"));
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("Added “Order new desk lamp”")).toBeInTheDocument();
+    expect(screen.getByText("+5 more")).toBeInTheDocument();
+  });
+
+  it("describes a queued PowerSync change", () => {
+    expect(describeChange(JSON.stringify({ op: "PUT", type: "tasks", id: "1", data: { title: "Order new desk lamp" } }))).toBe("Added “Order new desk lamp”");
+    expect(describeChange(JSON.stringify({ op: "PATCH", type: "tasks", id: "1", data: { state: "done" } }))).toBe("Changed a task");
+    expect(describeChange(JSON.stringify({ op: "PATCH", type: "time_blocks", id: "1", data: { deleted_at: "2026-10-01T10:00:00Z" } }))).toBe("Removed a block");
+    expect(describeChange("not json")).toBe("A change");
   });
 });

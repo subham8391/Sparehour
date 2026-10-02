@@ -29,6 +29,8 @@ export interface SyncChipInput {
   unreachable?: boolean;
   /** The last failure was the server's own (5xx). */
   serverError?: boolean;
+  /** The first few waiting changes in words, oldest first. */
+  waiting?: readonly string[];
 }
 
 export interface SyncChipModel {
@@ -38,6 +40,10 @@ export interface SyncChipModel {
   detail: string;
   /** The one thing to do about it (SCREENS.md §20 "one action to fix it"). */
   action?: "sign_in";
+  /** What is waiting to go up, shown under the detail while it cannot (SCREENS.md §20 Offline: "a list of the pending changes"). */
+  waiting?: readonly string[];
+  /** How many more are waiting beyond the list. */
+  more?: number;
 }
 
 export function relativeTime(from: Date, now: Date): string {
@@ -49,6 +55,11 @@ export function relativeTime(from: Date, now: Date): string {
   const h = Math.round(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.round(h / 24)}d ago`;
+}
+
+function pendingList(i: SyncChipInput): Pick<SyncChipModel, "waiting" | "more"> {
+  if (!i.waiting?.length || i.pending === 0) return {};
+  return { waiting: i.waiting, more: Math.max(0, i.pending - i.waiting.length) };
 }
 
 export function syncChipModel(i: SyncChipInput): SyncChipModel {
@@ -65,6 +76,7 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
           ? `Your session here has ended. Sign in again to send ${them}; ${i.pending === 1 ? "it stays" : "they stay"} on this device until then.`
           : "Your session here has ended. Sign in again to keep this device in sync.",
       action: "sign_in",
+      ...pendingList(i),
     };
   }
   // First launch: nothing has synced yet and the socket is still opening — that is not "offline".
@@ -83,6 +95,7 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
       icon: "cloud-off",
       label: `Offline${waiting}`,
       detail: "Everything you do is saved on this device and will sync when you're back.",
+      ...pendingList(i),
     };
   }
   if (i.hasError) {
@@ -214,6 +227,16 @@ export function SyncChip({
         >
           <p className="mb-1 font-medium text-ink">{model.label}</p>
           <p>{model.detail}</p>
+          {model.waiting && model.waiting.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-0.5 text-ink">
+              {model.waiting.map((w, n) => (
+                <li key={n} className="truncate">
+                  {w}
+                </li>
+              ))}
+              {(model.more ?? 0) > 0 && <li className="text-ink-3 num">+{model.more} more</li>}
+            </ul>
+          )}
           {model.action === "sign_in" && (
             <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
               Sign in again

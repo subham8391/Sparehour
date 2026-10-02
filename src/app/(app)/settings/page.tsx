@@ -2,6 +2,7 @@
 // Settings (SCREENS.md §18): what the app knows about your day, editable in
 // place, and the way out.
 import { useEffect, useMemo, useState } from "react";
+import { useUndoSink } from "@/features/undo/undo-provider";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type SettingsPatch } from "@/data/repositories/settings-repo";
@@ -36,7 +37,7 @@ export default function SettingsPage() {
   const s = settings?.[0];
   const user = users?.[0];
 
-  const values: SettingsValues | null = s
+  const base: SettingsValues | null = s
     ? {
         timezone: s.timezone ?? "UTC",
         weekStart: s.week_start ?? 0,
@@ -58,6 +59,15 @@ export default function SettingsPage() {
         quietHoursEnd: (s.quiet_hours_end ?? "").slice(0, 5),
       }
     : null;
+  // Writes are local and land at once, but the query that redraws the controls can trail them by a second while an
+  // upload holds the write lock: the walkthrough saw controls snap back to the old value. The choice shows straight
+  // away and stays until the row says the same.
+  const [pending, setPending] = useState<SettingsPatch>({});
+  const pendingKeys = Object.keys(pending) as (keyof SettingsPatch)[];
+  if (base && pendingKeys.length > 0 && pendingKeys.every((k) => (base[k] ?? "") === (pending[k] ?? ""))) setPending({});
+  const values: SettingsValues | null = base ? { ...base, ...asValues(pending) } : null;
+  const undo = useUndoSink();
+
   const workHours = useMemo(() => {
     const byDay: (Segment | null)[] = [null, null, null, null, null, null, null];
     for (const h of hours ?? []) {
@@ -73,15 +83,26 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const onChange = (patch: SettingsPatch) => {
-    if (!s) return;
+  // Every change answers ⌘Z (SCREENS.md §18: "saves immediately with an inline Saved and a Cmd+Z undo"); silent, as
+  // the inline Saved already confirms it.
+  const write = (id: string, patch: SettingsPatch) => {
+    setPending((p) => ({ ...p, ...patch }));
     if (patch.theme) applyTheme(patch.theme);
-    void settingsRepo.update(s.id, patch);
+    return settingsRepo.update(id, patch);
+  };
+  const onChange = (patch: SettingsPatch) => {
+    if (!s || !values) return;
+    const previous = asPatch(values, Object.keys(patch) as (keyof SettingsPatch)[]);
+    void write(s.id, patch);
+    undo?.record({ label: "Changed a setting", toast: false, undo: () => write(s.id, previous) });
   };
   const onWorkHours = (weekday: number, segment: Segment | null) => {
     if (!user?.personal_space_id) return;
-    if (segment) void hoursRepo.set(weekday, segment.start, segment.end, { spaceId: user.personal_space_id, userId: user.id });
-    else void hoursRepo.clear(weekday);
+    const ctx = { spaceId: user.personal_space_id, userId: user.id };
+    const apply = (seg: Segment | null) => (seg ? hoursRepo.set(weekday, seg.start, seg.end, ctx) : hoursRepo.clear(weekday));
+    const previous = workHours[weekday];
+    void apply(segment);
+    undo?.record({ label: "Changed working hours", toast: false, undo: () => apply(previous) });
   };
 
   /** Changes still waiting to upload. A connection that is up gets a few seconds to send them first. */
@@ -163,4 +184,21 @@ export default function SettingsPage() {
       )}
     </main>
   );
+}
+
+/** The form's shape of a patch: a cleared nudge time is "" there, null in the row. */
+function asValues(patch: SettingsPatch): Partial<SettingsValues> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) out[k] = v ?? "";
+  return out as Partial<SettingsValues>;
+}
+
+/** What the given keys were, as a patch that writes them back. */
+function asPatch(values: SettingsValues, keys: readonly (keyof SettingsPatch)[]): SettingsPatch {
+  const out: Record<string, unknown> = {};
+  for (const k of keys) {
+    const v = values[k as keyof SettingsValues];
+    out[k] = v === "" ? null : v;
+  }
+  return out as SettingsPatch;
 }
