@@ -2,11 +2,13 @@
 // The sync chip (SCREENS.md §20): four states, never blocking, always
 // reassuring. The model is pure so every state is unit-tested; the hook that
 // feeds it from PowerSync lives in use-sync-chip.ts.
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useId, useState } from "react";
 import { Icon, type IconName } from "@/ui/icons";
 import { RAISED } from "@/ui/sheet";
 
-export type SyncChipState = "connecting" | "synced" | "syncing" | "offline" | "problem" | "unprotected";
+export type SyncChipState = "connecting" | "synced" | "syncing" | "offline" | "problem" | "unprotected" | "signed_out";
 
 export interface SyncChipInput {
   /** navigator.onLine — the browser's view, which wins over the socket's. */
@@ -21,6 +23,12 @@ export interface SyncChipInput {
   now: Date;
   /** Whether the browser has exempted this origin from storage eviction (§10.4); undefined = unknown. */
   persisted?: boolean;
+  /** The sync server turned the session away (401): it was revoked or has expired. */
+  signedOut?: boolean;
+  /** The last failure was the network (the request never got an answer), not the server saying no. */
+  unreachable?: boolean;
+  /** The last failure was the server's own (5xx). */
+  serverError?: boolean;
 }
 
 export interface SyncChipModel {
@@ -28,6 +36,8 @@ export interface SyncChipModel {
   icon: IconName;
   label: string;
   detail: string;
+  /** The one thing to do about it (SCREENS.md §20 "one action to fix it"). */
+  action?: "sign_in";
 }
 
 export function relativeTime(from: Date, now: Date): string {
@@ -43,6 +53,20 @@ export function relativeTime(from: Date, now: Date): string {
 
 export function syncChipModel(i: SyncChipInput): SyncChipModel {
   const waiting = i.pending > 0 ? ` · ${i.pending} ${i.pending === 1 ? "change" : "changes"} waiting` : "";
+  const them = i.pending === 1 ? "it" : "them";
+  // A revoked or expired session: nothing syncs until the person signs in again, so say that and offer it.
+  if (i.online && i.signedOut) {
+    return {
+      state: "signed_out",
+      icon: "alert",
+      label: `Signed out${waiting}`,
+      detail:
+        i.pending > 0
+          ? `Your session here has ended. Sign in again to send ${them}; ${i.pending === 1 ? "it stays" : "they stay"} on this device until then.`
+          : "Your session here has ended. Sign in again to keep this device in sync.",
+      action: "sign_in",
+    };
+  }
   // First launch: nothing has synced yet and the socket is still opening — that is not "offline".
   if (i.online && !i.connected && !i.lastSyncedAt) {
     return {
@@ -52,8 +76,8 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
       detail: "Getting this device its copy of your account.",
     };
   }
-  // A server we cannot reach is the offline state, verbatim — no separate "server error" experience.
-  if (!i.online || !i.connected) {
+  // A server we cannot reach is the offline state, verbatim — no separate "server error" experience (SCREENS.md §21).
+  if (!i.online || !i.connected || (i.hasError && i.unreachable)) {
     return {
       state: "offline",
       icon: "cloud-off",
@@ -66,7 +90,7 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
       state: "problem",
       icon: "alert",
       label: "Sync problem",
-      detail: `The server didn't accept the last sync${waiting ? `; ${i.pending} ${i.pending === 1 ? "change is" : "changes are"} waiting` : ""}. Nothing is lost — it retries on its own.`,
+      detail: `${i.serverError ? "The server couldn't save the last sync" : "The server didn't accept the last sync"}${waiting ? `; ${i.pending} ${i.pending === 1 ? "change is" : "changes are"} waiting` : ""}. Nothing is lost — it retries on its own.`,
     };
   }
   if (i.uploading || i.downloading) {
@@ -103,6 +127,7 @@ const TONE: Record<SyncChipState, string> = {
   // A sync that is failing is an error; storage the browser has not protected is a note, not a warning.
   problem: "text-deadline",
   unprotected: "text-ink-2",
+  signed_out: "text-deadline",
 };
 
 // The dot beside the word in the sidebar footer: filled when all is well, hollow when offline,
@@ -115,6 +140,7 @@ const DOT: Record<SyncChipState, string> = {
   offline: "border border-line-control",
   problem: "bg-deadline",
   unprotected: "border border-line-control",
+  signed_out: "bg-deadline",
 };
 
 /** What the live region says: one sentence per state, so it speaks on a change and never on the minute tick. */
@@ -125,6 +151,7 @@ const STATE_WORDING: Record<SyncChipState, string> = {
   offline: "Offline. Your work is saved on this device.",
   problem: "Sync problem. Nothing is lost.",
   unprotected: "Storage not protected",
+  signed_out: "Signed out. Sign in again to sync.",
 };
 
 /**
@@ -134,7 +161,7 @@ const STATE_WORDING: Record<SyncChipState, string> = {
  */
 export function syncAttention(state: SyncChipState): "offline" | "look" | null {
   if (state === "offline") return "offline";
-  return state === "problem" || state === "unprotected" ? "look" : null;
+  return state === "problem" || state === "unprotected" || state === "signed_out" ? "look" : null;
 }
 
 /**
@@ -156,6 +183,7 @@ export function SyncChip({
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const pathname = usePathname();
   return (
     <div className={`relative ${className}`}>
       {/* Only a change of state is worth announcing; the label's "12s ago" re-renders every twelve seconds and would talk over everything. */}
@@ -186,6 +214,11 @@ export function SyncChip({
         >
           <p className="mb-1 font-medium text-ink">{model.label}</p>
           <p>{model.detail}</p>
+          {model.action === "sign_in" && (
+            <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
+              Sign in again
+            </Link>
+          )}
         </div>
       )}
     </div>

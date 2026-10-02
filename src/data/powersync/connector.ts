@@ -8,6 +8,7 @@
 // validation rejections complete the transaction and let the server row win.
 import type { AbstractPowerSyncDatabase, PowerSyncBackendConnector, PowerSyncCredentials } from "@powersync/web";
 import { BUILD_ID } from "../build-id";
+import { setSyncSignedOut } from "./auth-state";
 
 export interface UploadRejection {
   client_id: string;
@@ -22,8 +23,13 @@ export class SparehourConnector implements PowerSyncBackendConnector {
 
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
     const res = await fetch("/api/sync/token", { credentials: "include", cache: "no-store" });
-    if (res.status === 401) return null; // signed out → the SDK stops syncing
+    if (res.status === 401) {
+      // Signed out (here, or the session was revoked elsewhere): the SDK stops syncing, and the chip asks to sign in.
+      setSyncSignedOut(true);
+      return null;
+    }
     if (!res.ok) throw new Error(`sync token: ${res.status}`); // retried by the SDK
+    setSyncSignedOut(false);
     const { token, expires_at } = (await res.json()) as { token: string; expires_at: number };
     return { endpoint: this.endpoint, token, expiresAt: new Date(expires_at * 1000) };
   }
@@ -53,7 +59,11 @@ export class SparehourConnector implements PowerSyncBackendConnector {
     });
 
     if (res.status >= 500 || res.status === 429) throw new Error(`retryable upload failure: ${res.status}`);
-    if (res.status === 401) throw new Error("auth"); // triggers fetchCredentials + retry
+    if (res.status === 401) {
+      // The changes stay queued (nothing is dropped); the chip says to sign in again, and they go up once that is done.
+      setSyncSignedOut(true);
+      throw new Error("auth"); // triggers fetchCredentials + retry
+    }
     if (res.status === 400) {
       // our own bug — never block the queue on it
       console.error("upload rejected as malformed", await res.text());

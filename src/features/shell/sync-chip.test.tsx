@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ usePathname: () => "/inbox" }));
 import { SyncChip, relativeTime, syncChipModel, type SyncChipInput } from "./sync-chip";
+import { errorKind } from "./use-sync-chip";
 
 const now = new Date("2026-09-14T09:00:00Z");
 const base: SyncChipInput = {
@@ -92,5 +95,30 @@ describe("<SyncChip>", () => {
   it("compact keeps the label for assistive tech", () => {
     render(<SyncChip model={syncChipModel(base)} compact />);
     expect(screen.getByRole("button", { name: "Synced 12s ago" })).toBeInTheDocument();
+  });
+});
+
+describe("sync chip: a session the server turned away, and failures by kind (found by the walkthrough)", () => {
+  it("a revoked or expired session says Signed out, counts what waits, and offers to sign in again", async () => {
+    const model = syncChipModel({ ...base, hasError: true, signedOut: true, pending: 1 });
+    expect(model).toMatchObject({ state: "signed_out", label: "Signed out · 1 change waiting", action: "sign_in" });
+    expect(model.detail).toMatch(/Sign in again to send it; it stays on this device/);
+    const user = userEvent.setup();
+    render(<SyncChip model={model} />);
+    await user.click(screen.getByRole("button"));
+    expect(screen.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/login?next=%2Finbox");
+  });
+
+  it("a server that cannot be reached is the offline state, verbatim; a 5xx says the server could not save", () => {
+    expect(syncChipModel({ ...base, hasError: true, unreachable: true, pending: 2 })).toMatchObject({ state: "offline", label: "Offline · 2 changes waiting" });
+    expect(syncChipModel({ ...base, hasError: true, serverError: true }).detail).toMatch(/^The server couldn't save the last sync/);
+    expect(syncChipModel({ ...base, hasError: true }).detail).toMatch(/^The server didn't accept the last sync/);
+  });
+
+  it("errorKind tells the network from the server", () => {
+    expect(errorKind(new TypeError("Failed to fetch"))).toBe("network");
+    expect(errorKind(new Error("retryable upload failure: 503"))).toBe("server");
+    expect(errorKind(new Error("auth"))).toBe("other");
+    expect(errorKind(undefined)).toBeNull();
   });
 });

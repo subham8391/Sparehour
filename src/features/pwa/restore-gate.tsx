@@ -2,8 +2,8 @@
 // Eviction recovery is a designed path, not a crash (SYSTEM_DESIGN.md §10.4):
 // a valid session with an empty local database means the browser cleared
 // storage — show "Restoring your data…" with progress, never a blank Today.
-import type { ReactNode } from "react";
-import { useQuery, useSyncStatus } from "@/data/powersync";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { readSyncSignedOut, subscribeSyncSignedOut, useQuery, useSyncStatus } from "@/data/powersync";
 import { EYEBROW } from "@/ui/section-label";
 
 const USER_COUNT_SQL = `select count(*) as n from users`;
@@ -12,6 +12,11 @@ export function RestoreGate({ children }: { children: ReactNode }) {
   const status = useSyncStatus();
   const { data, isLoading } = useQuery<{ n: number }>(USER_COUNT_SQL);
   const empty = !isLoading && (data?.[0]?.n ?? 0) === 0;
+  const signedOut = useSyncExternalStore(subscribeSyncSignedOut, readSyncSignedOut, () => false);
+  // Nothing on this device and no session to fetch it with: "Restoring" would wait forever, so go and sign in.
+  useEffect(() => {
+    if (empty && signedOut) window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+  }, [empty, signedOut]);
   if (!empty || status.hasSynced) return <>{children}</>;
 
   const progress = status.downloadProgress;
