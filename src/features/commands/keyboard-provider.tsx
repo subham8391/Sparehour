@@ -5,7 +5,9 @@
 // and the theme.
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useLocalDatabase } from "@/data/powersync";
+import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { SETTINGS_SQL } from "@/data/queries/today";
+import { SettingsRepo } from "@/data/repositories/settings-repo";
 import { PROJECT_NAME_SQL, TASK_STATE_SQL } from "@/data/queries/views";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useSelection } from "@/features/selection/selection-provider";
@@ -75,6 +77,15 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   useEffect(() => {
     applyTheme(readTheme());
   }, []);
+  // Appearance is an account setting (SCREENS.md §18): the stored choice follows the person to every device. This
+  // device's copy (localStorage, read before paint) catches up once the settings row is here.
+  const { data: settingsRows } = useQuery<{ id: string; theme: string | null }>(SETTINGS_SQL);
+  const account = settingsRows?.[0];
+  const accountTheme: Theme | null = account ? (account.theme === "light" || account.theme === "dark" ? account.theme : "system") : null;
+  useEffect(() => {
+    if (accountTheme && accountTheme !== readTheme()) applyTheme(accountTheme);
+  }, [accountTheme]);
+  const accountId = account?.id ?? null;
 
   const context = useCallback(
     (): CommandContext => ({
@@ -94,7 +105,11 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       moveSelection: (delta) => selection.moveSelection(delta),
       openPalette: (query) => onOpenPalette?.(query),
       openShortcuts: () => setShortcutsOpen(true),
-      setTheme: (theme: Theme) => applyTheme(theme),
+      // The palette's theme commands save to the account like Settings does, so the two never disagree.
+      setTheme: (theme: Theme) => {
+        applyTheme(theme);
+        if (accountId) void new SettingsRepo(db).update(accountId, { theme });
+      },
       undo: () => void undoApi?.undo(),
       blockTask: (id) => blocking?.blockTask(id),
       planDay: (mode) => {
@@ -104,7 +119,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       taskState: async (id) => (await db.getOptional<{ state: string | null }>(TASK_STATE_SQL, [id]))?.state ?? null,
       projectName: async (id) => (await db.getOptional<{ name: string | null }>(PROJECT_NAME_SQL, [id]))?.name ?? null,
     }),
-    [selection, pathname, today, now, zone, tasks, db, router, quickAdd, detail, onOpenPalette, undoApi, blocking],
+    [selection, pathname, today, now, zone, tasks, db, router, quickAdd, detail, onOpenPalette, undoApi, blocking, accountId],
   );
   const contextRef = useRef(context);
   useEffect(() => {

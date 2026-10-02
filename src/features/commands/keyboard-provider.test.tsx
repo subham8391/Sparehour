@@ -6,8 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 const execute = vi.fn().mockResolvedValue(undefined);
 const push = vi.fn();
 
+// The account's settings row, for the theme tests; every other query answers nothing.
+const account = vi.hoisted(() => ({ rows: [] as { id: string; theme: string | null }[] }));
+
 vi.mock("@/data/powersync", () => ({
-  useQuery: () => ({ data: [], isLoading: false, isFetching: false, error: undefined }),
+  useQuery: (sql: string) => ({ data: /from user_settings/.test(sql) ? account.rows : [], isLoading: false, isFetching: false, error: undefined }),
   // A move reads the task's blocks to let go of the ones on the day it left (none here).
   useLocalDatabase: () => ({ execute, getAll: vi.fn().mockResolvedValue([]), writeTransaction: vi.fn() }),
   useSyncStatus: () => ({ connected: false, dataFlowStatus: { uploading: false, downloading: false } }),
@@ -20,7 +23,7 @@ vi.mock("next/navigation", () => ({
 import { QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { useListSelection, useSelection, SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
-import { KeyboardProvider } from "./keyboard-provider";
+import { KeyboardProvider, useCommands } from "./keyboard-provider";
 
 const pressed = vi.fn();
 
@@ -59,6 +62,45 @@ function setup(onOpenPalette = vi.fn()) {
   );
   return { user: userEvent.setup(), onOpenPalette };
 }
+
+describe("<KeyboardProvider> theme is an account setting (found by the walkthrough)", () => {
+  it("applies the account's theme on a device that had another, and the palette's Light theme saves to the account", async () => {
+    localStorage.removeItem("sparehour.theme");
+    delete document.documentElement.dataset.theme;
+    account.rows = [{ id: "settings-1", theme: "dark" }];
+    function RunLight() {
+      const { commands, run } = useCommands();
+      return (
+        <button type="button" onClick={() => run(commands.find((c) => c.id === "view.theme-light")!)}>
+          light
+        </button>
+      );
+    }
+    try {
+      render(
+        <QuickAddProvider>
+          <TaskDetailProvider>
+            <SelectionProvider>
+              <KeyboardProvider>
+                <RunLight />
+              </KeyboardProvider>
+            </SelectionProvider>
+          </TaskDetailProvider>
+        </QuickAddProvider>,
+      );
+      expect(document.documentElement.dataset.theme).toBe("dark");
+      execute.mockClear();
+      await userEvent.setup().click(screen.getByRole("button", { name: "light" }));
+      expect(document.documentElement.dataset.theme).toBe("light");
+      const write = execute.mock.calls.find(([sql]) => /update user_settings set theme = \?/.test(String(sql)));
+      expect(write?.[1]).toEqual(["light", expect.any(String), "settings-1"]);
+    } finally {
+      account.rows = [];
+      localStorage.removeItem("sparehour.theme");
+      delete document.documentElement.dataset.theme;
+    }
+  });
+});
 
 describe("<KeyboardProvider>", () => {
   it("J and K move the selection through the registered list", async () => {
