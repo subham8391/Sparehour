@@ -93,7 +93,8 @@ export function BulkBar() {
       className={cx(
         RAISED,
         // The phone: a sheet flush above the tab bar.
-        "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 flex flex-col rounded-t-sheet max-sm:shadow-sheet",
+        // From `sm` up it floats over the list column it is mounted in (app-shell), never over the sidebar or the detail pane.
+        "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 flex flex-col rounded-t-sheet max-sm:shadow-sheet sm:absolute",
         // From `sm` up: one floating line that wraps rather than scrolls.
         "sm:inset-x-6 sm:bottom-16 sm:mx-auto sm:max-w-5xl sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-0.5 sm:gap-y-1 sm:rounded-xl sm:px-2 sm:py-2",
       )}

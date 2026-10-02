@@ -9,7 +9,7 @@ import { useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
 import { toChecklistItem, toTask } from "@/data/mappers";
 import { ALL_PROJECTS_SQL, AREAS_SQL, isOpenProject, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
-import { CHECKLIST_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL } from "@/data/queries/views";
+import { CHECKLIST_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL, PROJECT_HEADINGS_SQL } from "@/data/queries/views";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
@@ -67,6 +67,8 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: checklistRows } = useQuery<ChecklistRow>(CHECKLIST_SQL, [id]);
   const { data: tagRows } = useQuery<TagRef>(TASK_TAGS_SQL, [id]);
+  const projectId = rows?.[0]?.project_id ?? null;
+  const { data: headingRows } = useQuery<{ id: string; title: string | null }>(projectId ? PROJECT_HEADINGS_SQL : `select * from headings where 0`, projectId ? [projectId] : []);
   const { data: allTagRows } = useQuery<TagRef>(TAGS_SQL);
   const checklist = useMemo(() => (checklistRows ?? []).map(toChecklistItem), [checklistRows]);
   const task = rows?.[0] ? toTask(rows[0]) : null;
@@ -89,6 +91,8 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
       projectName={project?.name ?? null}
       areaName={area?.name ?? null}
       projects={projects}
+      headings={(headingRows ?? []).map((h) => ({ id: h.id, title: h.title ?? "Untitled heading" }))}
+      onHeading={(headingId) => void repo.setHeading(task.id, headingId)}
       checklist={checklist}
       tags={tagRows ?? []}
       allTags={allTagRows ?? []}

@@ -63,6 +63,40 @@ function setup(over: Partial<TaskDetailPanelProps> = {}) {
   return { ...handlers, user: userEvent.setup() };
 }
 
+describe("<TaskDetailPanel> title", () => {
+  // Found by the walkthrough: a single-line input cut ordinary titles off mid-letter at 1440 px.
+  it("is a textarea that wraps; a pasted line break becomes a space, and Enter saves", async () => {
+    const { user, onPatch } = setup();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    expect(title.tagName).toBe("TEXTAREA");
+    await user.clear(title);
+    await user.click(title);
+    await user.paste("Call the dentist\nabout the crown");
+    expect(title).toHaveValue("Call the dentist about the crown");
+    await user.keyboard("{Enter}");
+    expect(onPatch).toHaveBeenCalledWith({ title: "Call the dentist about the crown" });
+  });
+});
+
+describe("<TaskDetailPanel> Heading field", () => {
+  // The tap path for moving a task under another heading (DECISIONS.md: a tap alternative for every drag).
+  it("shows the project's headings and moves the task under the one picked, or out of all of them", async () => {
+    const onHeading = vi.fn();
+    const { user } = setup({ headings: [{ id: "h1", title: "Budget" }, { id: "h2", title: "Hiring" }], onHeading });
+    await user.click(screen.getByRole("button", { name: /^Heading/ }));
+    await user.click(screen.getByRole("button", { name: "Hiring" }));
+    expect(onHeading).toHaveBeenCalledWith("h2");
+    await user.click(screen.getByRole("button", { name: /^Heading/ }));
+    await user.click(screen.getByRole("button", { name: "No heading" }));
+    expect(onHeading).toHaveBeenLastCalledWith(null);
+  });
+
+  it("is not there when the project has no headings", () => {
+    setup({ headings: [], onHeading: vi.fn() });
+    expect(screen.queryByRole("button", { name: /^Heading/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("<TaskDetailPanel>", () => {
   it("shows the task, its place and every field's value", () => {
     setup();

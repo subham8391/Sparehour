@@ -81,7 +81,7 @@ function Frame({ children }: { children: ReactNode }) {
       <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
       <div
         className={cx(
-          "flex min-w-0 flex-1 flex-col sm:pb-0",
+          "flex min-w-0 flex-1 flex-col sm:relative sm:pb-0",
           // Room under the tab bar, and under the FAB where there is one, so the last row is never covered.
           tabs && (adds ? "pb-[calc(9rem+env(safe-area-inset-bottom))]" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))]"),
         )}
@@ -98,11 +98,11 @@ function Frame({ children }: { children: ReactNode }) {
           <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
         </div>
         {adds && <QuickAddBar />}
+        <BulkBar />
       </div>
       <TaskDetailPane />
       {tabs && <TabBar pathname={pathname} counts={counts} sync={sync} className="sm:hidden" />}
       {adds && <QuickAddFab hidden={detail.selectedId !== null || viewHidesFab} />}
-      <BulkBar />
     </div>
   );
 }

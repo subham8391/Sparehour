@@ -107,6 +107,15 @@ export function MoveActions({
   );
 }
 
+/**
+ * Actions for the phone's row menu only, where a drag has no tap path otherwise (moving a task under another
+ * heading). The inline zone on a pointer device keeps its few icons; the detail's Heading field serves every device.
+ */
+export function MenuOnly({ children }: { children: ReactNode }) {
+  const { layout } = useContext(LayoutContext);
+  return layout === "menu" ? <>{children}</> : null;
+}
+
 /** The 7 px square that stands for a time block, in the current colour; drawn by the one glyph in `src/ui/chip`. */
 export const BLOCK_GLYPH = <BlockGlyph />;
 

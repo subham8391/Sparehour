@@ -20,7 +20,8 @@ import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { Loading } from "../../loading-view";
 import { dayChip } from "@/features/tasks/day-chip";
 import { InlineAdd } from "@/features/tasks/inline-add";
-import { DayChipTag, MoveActions } from "@/features/tasks/task-actions";
+import { DayChipTag, MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
+import { keyBetween } from "@/core/ordering";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useHeadingRepo, useProjectRepo } from "@/features/tasks/use-repos";
@@ -108,6 +109,22 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
       edge,
     );
     if (plan) void tasksRepo.setOrder(sourceId, plan.key, g.heading?.id ?? null);
+  };
+  // The tap path for reordering (DECISIONS.md: a tap alternative for every drag): one step up or down inside the section.
+  const move = (g: HeadingGroup, taskId: string, dir: -1 | 1) => {
+    const list = g.tasks;
+    const i = list.findIndex((x) => x.id === taskId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    const before = dir === -1 ? list[j - 1] : list[j];
+    const after = dir === -1 ? list[j] : list[j + 1];
+    void tasksRepo.setOrder(taskId, keyBetween(before?.sortKey ?? null, after?.sortKey ?? null));
+  };
+  // Under another heading, at the end of its section.
+  const moveToHeading = (taskId: string, headingId: string | null) => {
+    const target = groups.find((x) => (x.heading?.id ?? null) === headingId);
+    const last = target?.tasks[target.tasks.length - 1];
+    void tasksRepo.setOrder(taskId, keyBetween(last?.sortKey ?? null, null), headingId);
   };
   const addHeading = () => {
     const title = newHeading.trim();
@@ -239,6 +256,22 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
                 onSelect={() => sel.select(t.id)}
                 onDone={() => void tasksRepo.complete(t.id)}
                 chips={<DayChipTag chip={dayChip(t, today)} count={false} />}
+                actions={
+                  <>
+                    <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(g, t.id, -1)} />
+                    <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(g, t.id, 1)} />
+                    {headings.length > 0 && (
+                      <MenuOnly>
+                        {g.heading && <RowAction label="Move out of the heading" text="No heading" onClick={() => moveToHeading(t.id, null)} />}
+                        {headings
+                          .filter((h) => h.id !== g.heading?.id)
+                          .map((h) => (
+                            <RowAction key={h.id} label={`Move to ${h.title}`} onClick={() => moveToHeading(t.id, h.id)} />
+                          ))}
+                      </MenuOnly>
+                    )}
+                  </>
+                }
               />
             ))}
             <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
@@ -280,7 +313,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
         </button>
         {showDone &&
           (done.length === 0 ? (
-            <p className="px-4 text-body text-ink-3">Nothing completed in the last {months.length} months.</p>
+            <p className="px-4 text-body text-ink-3">Nothing completed in the last week.</p>
           ) : (
             <TaskList>
               {done.map((t) => (

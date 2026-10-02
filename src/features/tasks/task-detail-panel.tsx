@@ -6,7 +6,7 @@
 // header, 48 px field rows that open popovers, then the checklist, tags and
 // notes under section labels, and a footer with Complete first; on a phone
 // the footer sits above the safe area and the quiet actions fold into a menu.
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, useLayoutEffect } from "react";
 import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
 import { formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
@@ -34,6 +34,9 @@ export interface TaskDetailPanelProps {
   projectName: string | null;
   areaName: string | null;
   projects: readonly { id: string; name: string }[];
+  /** The headings of the task's project, for the Heading field: the tap path for what a drag does in the project. */
+  headings?: readonly { id: string; title: string }[];
+  onHeading?: (headingId: string | null) => void;
   checklist?: readonly ChecklistItem[];
   tags?: readonly TagRef[];
   /** Every tag in the space, for suggestions. */
@@ -179,16 +182,25 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
     if (next && next !== task.title) onPatch({ title: next });
     else setTitle(task.title);
   };
-  const onTitleKey = (e: KeyboardEvent<HTMLInputElement>) => {
+  const onTitleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      (e.target as HTMLInputElement).blur();
+      (e.target as HTMLTextAreaElement).blur();
     } else if (e.key === "Escape") {
       e.preventDefault();
       setTitle(task.title);
-      (e.target as HTMLInputElement).blur();
+      (e.target as HTMLTextAreaElement).blur();
     }
   };
+  // The title wraps rather than being cut off mid-word: a textarea that grows with its text (field-sizing where the
+  // browser has it, the measured height elsewhere). A title is still one line: a pasted line break becomes a space.
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
   const applyRepeat = (spec: string) => {
     const parsed = specToRule(spec.trim().replace(/^every\s+/i, ""));
     if (!parsed) return false;
@@ -240,13 +252,15 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           </span>
         </button>
         <div className="min-w-0 flex-1 pt-1.5">
-          <input
+          <textarea
+            ref={titleRef}
+            rows={1}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value.replace(/\s*[\r\n]+\s*/g, " "))}
             onBlur={commitTitle}
             onKeyDown={onTitleKey}
             aria-label="Title"
-            className={cx("w-full font-display text-pane font-book text-ink [text-wrap:balance]", BARE, done && "text-ink-3 line-through")}
+            className={cx("block w-full resize-none overflow-hidden font-display text-pane font-book text-ink [field-sizing:content] [text-wrap:balance]", BARE, done && "text-ink-3 line-through")}
           />
           {(p.areaName || p.projectName) && <p className="mt-1 text-body-sm text-ink-2">{[p.areaName, p.projectName].filter(Boolean).join(" › ")}</p>}
         </div>
@@ -340,6 +354,23 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
               </div>
             )}
           </FieldRow>
+
+          {task.projectId && p.headings && p.headings.length > 0 && p.onHeading && (
+            <FieldRow label="Heading" value={p.headings.find((h) => h.id === task.headingId)?.title ?? <Muted>None</Muted>}>
+              {(close) => (
+                <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
+                  <button type="button" aria-pressed={task.headingId === null} className={cx(MENU_ITEM, "text-ink-2 aria-pressed:bg-surface-2")} onClick={() => (p.onHeading?.(null), close())}>
+                    No heading
+                  </button>
+                  {(p.headings ?? []).map((h) => (
+                    <button key={h.id} type="button" aria-pressed={task.headingId === h.id} className={cx(MENU_ITEM, "aria-pressed:bg-surface-2")} onClick={() => (p.onHeading?.(h.id), close())}>
+                      {h.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </FieldRow>
+          )}
 
           <FieldRow label="Repeat" value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>}>
             {(close) => (

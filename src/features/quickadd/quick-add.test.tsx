@@ -216,7 +216,7 @@ describe("<QuickAdd>", () => {
       let n = 0;
       const onSubmit = vi.fn<QuickAddSave>().mockImplementation(async () => `task-${++n}`);
       const takeBack = vi.fn<() => Promise<void>>().mockResolvedValue();
-      const onPasted = vi.fn((_ids: readonly string[]) => takeBack);
+      const onPasted = vi.fn<(ids: readonly string[]) => () => Promise<void>>(() => takeBack);
       const { user, input } = setup({ onSubmit, onPasted });
       await user.click(input);
       await user.paste("- Buy milk\n* Call Dana tmr\n[ ] Pay rent\n1. Book the dentist\n");

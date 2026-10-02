@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { MoveActions, RowAction, RowActionsLayoutProvider } from "./task-actions";
+import { MenuOnly, MoveActions, RowAction, RowActionsLayoutProvider } from "./task-actions";
 
 describe("<RowAction> in the phone's menu", () => {
   it("shows the whole word its name is, never an abbreviation of it (WCAG 2.5.3)", () => {
@@ -39,5 +39,26 @@ describe("<RowAction> in the phone's menu", () => {
     );
     expect(screen.getByRole("menuitem", { name: "Tomorrow" })).toHaveTextContent(/^Tomorrow$/);
     expect(screen.getByRole("button", { name: "Tomorrow" })).toHaveTextContent(/^Tomorrow$/);
+  });
+});
+
+describe("<MenuOnly>", () => {
+  it("shows its actions in the phone's menu and nowhere else", () => {
+    const { rerender } = render(
+      <RowActionsLayoutProvider layout="menu">
+        <MenuOnly>
+          <RowAction label="Move to Budget" onClick={vi.fn()} />
+        </MenuOnly>
+      </RowActionsLayoutProvider>,
+    );
+    expect(screen.getByRole("menuitem", { name: "Move to Budget" })).toBeInTheDocument();
+    rerender(
+      <RowActionsLayoutProvider layout="inline">
+        <MenuOnly>
+          <RowAction label="Move to Budget" onClick={vi.fn()} />
+        </MenuOnly>
+      </RowActionsLayoutProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "Move to Budget" })).not.toBeInTheDocument();
   });
 });
