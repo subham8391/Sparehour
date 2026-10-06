@@ -66,6 +66,85 @@
 
 **Stack ruling (2026-09-14).** **PowerSync + Supabase** (Postgres + Auth), decided by the P0 spike — results in `docs/engineering/SYSTEM_DESIGN.md` Appendix A′. Hard gates A3 and A6 pass; A1 passes provisionally (local writes 8–41 ms, foreground paint numbers still to take on a production build); **A4 (installed iOS PWA storage) is not yet run** and needs the first HTTPS preview on a real iPhone — if it fails, Firestore per §4.9, nothing built so far is wasted. Rulings that came out of the spike: sync streams are keyed by month, not date range (parameters only support `=`/`IN`); PowerSync verifies Supabase's ES256 tokens through the project JWKS; `apply_mutations` runs as the user with an RLS-protected idempotency ledger and reports refused rows per op; database contract tests run against the local stack and are required in CI.
 
+## M1 gap rulings (2026-10-06)
+
+Answers to the questions the M1 gap analysis raised; ones marked *(assumed — confirm)* were not decided by any doc and follow the smallest option that loses no data.
+
+**Capture**
+- **Evening alone.** `call mum evening` means this evening: do-date today and the evening flag on (PRODUCT_SPEC §5.2 and §8.6); the quick-add corpus row "Read chapter evening" changes to match. A time typed with it is kept (`Call mum tonight 8pm` stays 20:00), so §5.2's "clears do_time" applies only when the flag is set on a task that already has a time. *(assumed — confirm)*
+- **A bare time that has passed.** It resolves to tomorrow, otherwise today (A10, taken as assumed).
+- **Removing a chip.** The in-input highlight stays as built; Backspace right after a token un-parses it, and each fact chip in the strip below has a remove control that does the same, leaving the token as literal title text. *(assumed — confirm)*
+- **Unknown @tag on Enter.** Still created on save and matched case-insensitively; "Create @x" leads the suggestions and the strip marks the tag as new (SYSTEM_DESIGN §5.1, create-if-missing).
+- **Deadline before the do-date.** Quick-add saves both as typed with no swap, and the strip and the detail panel say "Due before you plan to do it" (PRODUCT_SPEC §5.4 over SYSTEM_DESIGN §5.1 step 8).
+
+**Today and planning**
+- **Recurring deadlines.** Each next occurrence, after a completion or a skip, gets its do-date plus the old offset between deadline and scheduled date; the `{…}` token is not stored or re-read. *(assumed — confirm)*
+- **Deadline on a skip.** It moves with the occurrence, because a skip closes it and the next one has its own deadline, so no occurrence starts overdue; a carry moves only the do-date. The skip step is then the one place rollover writes a deadline, against a literal reading of PRODUCT_SPEC §8.2 rule 7 and SYSTEM_DESIGN §5.3. *(assumed — confirm)*
+- **Default miss policy (A6).** Built as assumed: one-off tasks carry, a task created with or given a repeat skips, and Stop repeating turns skip back to carry.
+- **Non-recurring Skip.** A missed one loses its do-date and stays active and undated with its carry count unchanged; PRODUCT_SPEC §8.2 rule 4 supersedes the "leave alone" note in SYSTEM_DESIGN §14.2.
+- **Convert task to project.** The task is archived in a one-task batch, so Settings › Data › Archive can restore it after the toast (out of the Logbook, carry count reset by the guard); the project takes its title, note, deadline and area, steps become tasks in order, and tags, dates, estimate and priority stay on the archived task. *(assumed — confirm)*
+- **Carry count after undo or restore.** Undoing Break it down, Someday or Drop, and restoring a Clear-the-slate batch, bring back everything except the server-owned carry count, which stays 0. Clear the slate stops clearing do-dates (PRODUCT_SPEC §6 "keeps everything", §23), so a restored task returns to its day, or to Carried over when that day has passed. *(assumed — confirm)*
+- **Sort.** Only Today (its Today and This Evening sections) gets Sort, as a non-destructive view preference. *(assumed — confirm)*
+- **Ribbon ░ segment.** Dropped: the ribbon draws meetings and blocks only, and unblocked planned time shows through the finish cursor and the prose (the 2026-09-18 ribbon ruling, DESIGN_SYSTEM §5).
+- **Evening budget.** It runs from the end of the day's last work segment (evening start only on a day without working hours) to a new evening cut-off setting, default 22:00, with no buffer (PRODUCT_SPEC §9.1, A5).
+- **Morning plan readout.** Desktop keeps the live readout at the end of step 2 as built; the phone pins it as a sticky summary at the top (SCREENS §14).
+- **Today on another day.** A future day shows its tasks, its ribbon without the now cursor and a timeline you can block on; a past day shows what was finished that day and its blocks and meetings, read-only, and Carried over, the morning review and the ritual row stay on the real today. *(assumed — confirm)*
+- **Plan tomorrow now.** It opens Today stepped to tomorrow once day stepping exists, and Upcoming until then. *(assumed — confirm)*
+- **Medium and narrow Today.** The built in-place List | Day view is M1 below 1180 px, with three panes only on wide, replacing the sheet and two panes of SCREENS §2.8 and DESIGN_SYSTEM §4a (SCREENS §2.6a assumes this Day view, but only for the plan preview). *(assumed — confirm)*
+- **Auto-file scope.** Only active tasks are filed to Someday, never Inbox ones (PRODUCT_SPEC §8.4 rule 2).
+- **Auto-file exemptions.** A future deadline, any recurrence rule (paused or not), a block in the next 7 days and priority 1 (A8, taken as assumed), plus a do-date today or later, so auto-file never erases a plan still ahead. *(assumed — confirm)*
+- **Bring them all back.** It restores the state and touches the tasks; they come back undated, with no old date stored, and because dated-ahead tasks are exempt the date auto-file cleared was always one already missed. *(assumed — confirm)*
+- **Clear the slate scope.** Today + backlog takes active tasks only and leaves the Inbox alone (PRODUCT_SPEC §8.5 rule 2).
+
+**Week and calendar**
+- **Plan your week.** The empty Upcoming's action opens the Not yet planned rail, or its sheet on narrow screens. *(assumed — confirm)*
+- **`M` on the timeline.** `M` is the project and area Move picker everywhere (SCREENS §24); a block's Move to… has no single key and lives in its toolbar and the palette.
+- **`B`.** It places the block in the next free gap at once, as built (PRODUCT_SPEC §10.2, SCREENS §24).
+- **`[` and `]` in Upcoming.** They step the window by 7 days, never earlier than the window that starts today (SCREENS §3, §6, §24).
+- **Not yet planned on the phone.** A strip pinned at the bottom above the tab bar opens the sheet (SCREENS §3), not the mockup's top placement.
+- **Timeline zoom.** 66 px per hour is the default 30-minute step, with 15- and 5-minute steps; the phone gets a visible − / + control and no pinch (DESIGN_SYSTEM §5, SCREENS §24).
+- **`Cmd+1/2/3` in a browser tab.** No fallback keys; they work in the installed app, and the on-screen control and the palette cover the browser. *(assumed — confirm)*
+- **Calendar rail in week modes.** It stays today's unblocked tasks (SCREENS §4); dropping one on another day moves its do-date there and blocks it in one undo step. *(assumed — confirm)*
+- **All-day events (A12).** No per-calendar switch at M1, so all-day events never count as busy (PRODUCT_SPEC §22 item 15).
+
+**Rows and lists**
+- **Long-press.** It stays multi-select; Move to… and the other row actions live in the trailing `⋯` sheet and on swipe (SCREENS §2.8, §5, §22; the 2026-09-18 phone rules).
+- **Shortcuts with rows ticked.** `D`, `Shift+D` and `E` act on every ticked row, else the selected one, as built (SYSTEM_DESIGN P4, PRODUCT_SPEC §6).
+- **Series delete.** None at M1: Stop repeating, then Drop (PRODUCT_SPEC §6, §22 item 10).
+- **Time-only change on a repeat.** It applies to every occurrence without the Just this once prompt, which stays for date changes. *(assumed — confirm)*
+- **"This week" in Inbox triage.** It makes the task active and undated, so it lands in Upcoming's Not yet planned rail. *(assumed — confirm)*
+- **Phone tap on an Inbox row.** It opens the detail like every phone row (the 2026-09-18 phone rules); the four triage actions head the row's `⋯` sheet and the swipes stay.
+- **Triage all keys.** `T`, `Shift+T`, `S`, `Backspace`, `#`, `E` and `Shift+D` as in SCREENS §24, `→` or `J` to skip, `K` to go back, `Esc` to leave.
+- **Note checkboxes.** `- [ ]` in a note is display-only; the checklist is the tickable list. *(assumed — confirm)*
+- **One step to its own task.** Out of M1; Convert to project converts the whole task (SCREENS §10, PRODUCT_SPEC §23).
+- **Loose tasks in an area.** Add a nullable `tasks.area_id`; a task has a project or an area, never both, and `M` offers both (PRODUCT_SPEC §4 and §6, SCREENS §9).
+- **Project progress bar.** It shows tasks finished in the last 7 days against those plus the open ones, labelled "3 done this week · 9 open". *(assumed — confirm)*
+- **Removing an area.** Areas have no archive; Delete area removes only the area, its projects and loose tasks stay without one, and one undo restores the area with them back in it. *(assumed — confirm)*
+- **Copy link.** It copies `<origin>/today?task=<id>`; a task that isn't on the opening device shows Today with "That task isn't on this device." *(assumed — confirm)*
+- **Swipes on Someday and the Logbook.** Someday: right = Today, left reveals Drop; Logbook: right = Reopen and no left swipe (the DESIGN_SYSTEM §5 swipe rule).
+- **Inline rename.** `Enter` on a row is a plain rename and parses no tokens. *(assumed — confirm)*
+
+**Settings and notifications**
+- **Settings on phone and narrow.** Two-level push navigation below 900 px and two columns from 900 px (SCREENS §18 over DESIGN_SYSTEM §4a).
+- **Reduce motion.** System (the default) or Reduce, stored per device like the theme. *(assumed — confirm)*
+- **Planning defaults.** The default miss policy covers new one-off tasks only (repeats keep skip, A6), and the sort default is one setting, for Today. *(assumed — confirm)*
+- **Notification actions.** Keep the SCREENS §19 buttons; the snooze presets live in the app, not on notifications (the 2026-09-14 engineering rulings, PRODUCT_SPEC §14 rule 4).
+- **Quiet hours.** Everything inside them is dropped, deadline and morning included, with a default of 21:00–08:00 (PRODUCT_SPEC §14); rows still on the old 21:30–07:30 default move to it. *(assumed — confirm)*
+- **"Fits today".** It means capacity: work − meetings − buffer (PRODUCT_SPEC §9.1).
+- **Morning nudge time.** It derives from the day's first work segment, the old column stays as an optional override and rows on 08:30 migrate to derived; day-of deadline reminders fall back to 08:30 on a day off. *(assumed — confirm)*
+- **Account deletion.** The 30-day grace from SYSTEM_DESIGN §9.6 with restore on sign-in and tokens revoked at once; the emailed receipt and the analytics deletion wait until those services exist. *(assumed — confirm)*
+- **About content.** A short changelog for What's new, a short factual privacy page, and no Contact row until an address is supplied. *(assumed — confirm)*
+
+**Platform**
+- **Minimal first run.** M1: working hours (1b) and the brain dump (step 3), shown once to accounts not yet set up, with existing accounts marked done (ONBOARDING header and B1, PRODUCT_SPEC §22).
+- **Progressive tips.** M2; the ruled ONBOARDING header and PRODUCT_SPEC §22 outrank the M1 tags in ONBOARDING §5.
+- **Brain dump past 20.** Tasks 21 and on go to the Inbox with the quiet line (B5, taken as assumed).
+- **Touch targets.** "Touch" means a no-hover pointer at any width, so such devices get 44 px hit areas everywhere; segmented controls follow R7 by width (SCREENS §0, DESIGN_SYSTEM §5).
+- **Redo.** The toast after an undo offers Redo. *(assumed — confirm)*
+- **Private browsing.** The in-memory fallback is not M1; storage that cannot open shows the inline error state, never a blank screen (PRODUCT_SPEC §22, SCREENS §21).
+- **iOS 26 install coaching.** The copy covers both Share and `···` then Share, and is checked on a real iPhone with the A4 test. *(assumed — confirm)*
+- **Palette Add tag and Add time block.** Add tag creates a tag from the typed name; Add time block places an untitled 30-minute block in Today's next free gap, ready to rename. *(assumed — confirm)*
+
 ## Deferred (decide later)
 - **Team features' shape** — after the personal app is built. Suggested: shared spaces where planning stays personal.
 
