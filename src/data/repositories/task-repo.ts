@@ -3,12 +3,13 @@
 // is what makes per-column last-writer-wins work (§4.3).
 import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
-import { Temporal, localDate, todayFor, type LocalDate, type LocalTime } from "@/core/time";
+import { Temporal, todayFor, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import type { MissPolicy, Priority, RecurrenceException, RecurrenceMode } from "@/core/types";
+import type { MissPolicy, Priority, RecurrenceMode } from "@/core/types";
 import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
 import { reviveBlocks, type BlockRow } from "./block-repo";
+import type { RecurringRow } from "./recurring-completion";
 import { placeholders, quoted, restoreRow, type Tx, type UndoRecorder } from "./undo";
 
 export type { UndoRecorder } from "./undo";
@@ -284,68 +285,12 @@ export class TaskRepo {
   }
 
   /**
-   * SYSTEM_DESIGN.md §5.2 "Completion": a recurring task is one row that
-   * rolls forward. Completing it writes a completion for the scheduled
-   * occurrence and moves the row to the next one (or marks it done when the
-   * series ends); the checklist resets, the deadline moves with the
-   * occurrence and the carry count starts again at 0 (the server does the
-   * same when the completion lands). Undo removes the completion, which puts
-   * the server's count back, and restores the row as it was.
+   * SYSTEM_DESIGN.md §5.2 "Completion": the row rolls forward to its next occurrence (recurring-completion.ts).
+   * It and the recurrence engine (rrule) stay out of the app shell: they load the first time a repeat is completed.
    */
   private async completeRecurring(task: RecurringRow, before: RowSnapshot): Promise<void> {
-    // The recurrence engine (rrule) stays out of the app shell: it is loaded the first time a repeat is completed.
-    const { nextOccurrence, deadlineForOccurrence } = await import("@/core/recurrence");
-    const today = await this.localToday();
-    const occurrence = task.do_date ? localDate(task.do_date) : today;
-    const rows = await this.db.getAll<{ occurrence_date: string; kind: string; moved_to: string | null }>(
-      `select occurrence_date, kind, moved_to from recurrence_exceptions where deleted_at is null and series_id = ?`,
-      [task.recurrence_series_id ?? task.id],
-    );
-    const exceptions: RecurrenceException[] = rows.map((e) =>
-      e.kind === "move" && e.moved_to ? { occurrenceDate: localDate(e.occurrence_date), kind: "move", movedTo: localDate(e.moved_to) } : { occurrenceDate: localDate(e.occurrence_date), kind: "skip" },
-    );
-    const next = nextOccurrence({
-      rule: task.recurrence_rule as string,
-      mode: task.recurrence_mode as RecurrenceMode,
-      doDate: occurrence,
-      completedOn: today,
-      pausedUntil: task.recurrence_paused_until ? localDate(task.recurrence_paused_until) : null,
-      exceptions,
-    });
-    // The next occurrence gets its own deadline at the old offset (DECISIONS.md 2026-10-06), and starts clean:
-    // the server resets carry_count when the completion lands (it is server-owned), this is the same on the device.
-    const deadline = next ? deadlineForOccurrence(task.deadline ? localDate(task.deadline) : null, occurrence, next) : null;
-    const cols = ["do_date", "deadline", "state", "completed_at", "carry_count", "last_carried_at"];
-    const now = new Date().toISOString();
-    const completionId = crypto.randomUUID();
-    await this.db.writeTransaction(async (tx) => {
-      await tx.execute(
-        `insert into task_completions (id, space_id, task_id, occurrence_date, completed_at, actual_min, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [completionId, task.space_id, task.id, occurrence.toString(), now, task.actual_min ?? null, now, now],
-      );
-      if (next) {
-        await tx.execute(`update tasks set do_date = ?, deadline = ?, state = 'active', completed_at = null, carry_count = 0, last_carried_at = null, updated_at = ? where id = ?`, [
-          next.toString(),
-          deadline?.toString() ?? null,
-          now,
-          task.id,
-        ]);
-        await tx.execute(`update checklist_items set done = 0, updated_at = ? where task_id = ? and done = 1 and deleted_at is null`, [now, task.id]);
-      } else {
-        await tx.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, task.id]);
-      }
-    });
-    if (!this.history) return;
-    this.history.record({
-      label: `Completed ${quoted(before.title)}`,
-      toast: true,
-      undo: () =>
-        this.db.writeTransaction(async (tx) => {
-          const at = new Date().toISOString();
-          await tx.execute(`update task_completions set deleted_at = ?, updated_at = ? where id = ?`, [at, at, completionId]);
-          await this.restore(tx, before, task.id, cols, at);
-        }),
-    });
+    const { completeRecurring } = await import("./recurring-completion");
+    await completeRecurring(this.db, this.history, task, before, await this.localToday());
   }
 
   async completeMany(ids: readonly string[]): Promise<void> {
@@ -506,17 +451,6 @@ export class TaskRepo {
 }
 
 type Snapshot = Record<string, string | number | null>;
-interface RecurringRow {
-  id: string;
-  space_id: string;
-  do_date: string | null;
-  deadline: string | null;
-  recurrence_rule: string | null;
-  recurrence_mode: string | null;
-  recurrence_series_id: string | null;
-  recurrence_paused_until: string | null;
-  actual_min: number | null;
-}
 type RowSnapshot = Snapshot & { id: string };
 
 const text = (v: string | number | null | undefined): string | null => (v == null ? null : String(v));
