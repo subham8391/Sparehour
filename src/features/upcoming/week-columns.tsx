@@ -109,9 +109,9 @@ function DayBlock({ d, p, open, onExpand }: { d: ColumnDay; p: WeekColumnsProps;
     <section className="flex flex-col gap-2" aria-label={d.past ? label : undefined}>
       <header className="flex flex-col gap-1.5 px-0.5">
         <h2 className="flex flex-wrap items-baseline gap-1.5">
-          <span className={EYEBROW}>{weekdayName(d.day)}</span>
+          <span className={EYEBROW}>{weekdayName(d.day)}</span>{" "}
           <span className={cx("font-display text-pane font-book leading-none num", off || d.past ? "text-ink-2" : "text-ink")}>{d.day.day}</span>
-          {d.isToday && <span className="text-label font-medium text-ink-2">today</span>}
+          {d.isToday && <span className="text-label font-medium text-ink-2"> today</span>}
         </h2>
         {d.capacity && d.readout && (
           <>
@@ -151,11 +151,12 @@ function DayBlock({ d, p, open, onExpand }: { d: ColumnDay; p: WeekColumnsProps;
   );
   // A day already gone takes no drops: a task put there would only be carried over.
   return (
-    <div data-day={iso} className="flex flex-col">
+    // The whole column is the target, down to its foot, not only the rows it has.
+    <div data-day={iso} className="flex flex-1 flex-col">
       {d.past ? (
         body
       ) : (
-        <DropZone label={label} onDropTask={p.onDropDay(d, null)} className="h-full">
+        <DropZone label={label} onDropTask={p.onDropDay(d, null)} className="flex-1">
           {body}
         </DropZone>
       )}
