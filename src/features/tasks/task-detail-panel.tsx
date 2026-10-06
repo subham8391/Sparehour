@@ -26,6 +26,7 @@ import { SectionLabel } from "@/ui/section-label";
 import { Grabber, RAISED, Scrim, SHEET_RISE } from "@/ui/sheet";
 import { TimeField } from "@/ui/time-field";
 import { dayLabel } from "@/features/quickadd/interpret";
+import { repeatPolicy } from "./repeat-policy";
 import { BLOCK_GLYPH } from "./task-actions";
 import { snoozePresets } from "./snooze";
 
@@ -204,7 +205,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const applyRepeat = (spec: string) => {
     const parsed = specToRule(spec.trim().replace(/^every\s+/i, ""));
     if (!parsed) return false;
-    onPatch({ recurrenceRule: parsed.rule, recurrenceMode: task.recurrenceMode ?? "fixed" });
+    onPatch({ recurrenceRule: parsed.rule, recurrenceMode: task.recurrenceMode ?? "fixed", ...repeatPolicy(task, parsed.rule) });
     setRepeatSpec("");
     return true;
   };
@@ -395,7 +396,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                       <Checkbox className="-ml-3" checked={task.recurrenceMode === "after_completion"} onChange={(e) => onPatch({ recurrenceMode: e.target.checked ? "after_completion" : "fixed" })} />
                       Count from when I complete it
                     </label>
-                    <Clear onClick={() => (onPatch({ recurrenceRule: null, recurrenceMode: null }), close())}>Never</Clear>
+                    <Clear onClick={() => (onPatch({ recurrenceRule: null, recurrenceMode: null, ...repeatPolicy(task, null) }), close())}>Never</Clear>
                   </>
                 )}
               </>

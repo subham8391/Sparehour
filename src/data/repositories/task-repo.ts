@@ -503,12 +503,6 @@ function buildSets(patch: TaskPatch): { sets: string[]; args: (string | number |
     set("recurrence_rule", patch.recurrenceRule ?? null);
     set("recurrence_mode", patch.recurrenceRule ? (patch.recurrenceMode ?? "fixed") : null);
     sets.push(patch.recurrenceRule ? `recurrence_series_id = coalesce(recurrence_series_id, id)` : `recurrence_series_id = null`);
-    // A6 (DECISIONS.md 2026-10-06): a first repeat turns the one-off default "carry" into "skip", and Stop
-    // repeating turns "skip" back into "carry"; a policy the person chose otherwise is left as it is.
-    if (!("missPolicy" in patch)) {
-      const [from, to] = patch.recurrenceRule ? ["carry", "skip"] : ["skip", "carry"];
-      sets.push(`miss_policy = case when recurrence_rule is ${patch.recurrenceRule ? "" : "not "}null and miss_policy = '${from}' then '${to}' else miss_policy end`);
-    }
   } else if ("recurrenceMode" in patch) {
     set("recurrence_mode", patch.recurrenceMode ?? null);
   }
@@ -534,7 +528,7 @@ const PATCH_COLUMNS: Record<keyof TaskPatch, readonly string[]> = {
   priority: ["priority"],
   missPolicy: ["miss_policy"],
   projectId: ["project_id"],
-  recurrenceRule: ["recurrence_rule", "recurrence_mode", "recurrence_series_id", "miss_policy"],
+  recurrenceRule: ["recurrence_rule", "recurrence_mode", "recurrence_series_id"],
   recurrenceMode: ["recurrence_mode"],
 };
 

@@ -108,7 +108,7 @@ export default function SomedayPage() {
                 Moved here automatically
               </SectionLabel>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
-                <p className="mr-auto text-body-sm text-ink-2">You hadn&rsquo;t touched these in {days} days.</p>
+                <p className="min-w-0 flex-1 text-body-sm text-ink-2">You hadn&rsquo;t touched these in {days} days.</p>
                 <Button variant="link" size="compact" onClick={review}>
                   Review
                 </Button>

@@ -168,7 +168,7 @@ describe("TaskRepo undo", () => {
 describe("columnsTouched", () => {
   it("maps patch keys to the columns the write changes, without duplicates", () => {
     expect(columnsTouched({ doDate: localDate("2026-09-14"), doTime: null })).toEqual(["do_date", "do_time", "state"]);
-    expect(columnsTouched({ recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed" })).toEqual(["recurrence_rule", "recurrence_mode", "recurrence_series_id", "miss_policy"]);
+    expect(columnsTouched({ recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed" })).toEqual(["recurrence_rule", "recurrence_mode", "recurrence_series_id"]);
     expect(columnsTouched({})).toEqual([]);
   });
 });
@@ -616,32 +616,24 @@ describe("TaskRepo: the default miss policy follows the repeat (A6, DECISIONS.md
   function seeded() {
     const s = localSqlite();
     s.insert("tasks", { id: "one", space_id: "s1", title: "Water the plants", state: "active", miss_policy: "carry", recurrence_rule: null });
-    s.insert("tasks", { id: "kept", space_id: "s1", title: "Renew the passport", state: "active", miss_policy: "expire", recurrence_rule: null });
     s.insert("tasks", { id: "rep", space_id: "s1", title: "Weekly review", state: "active", miss_policy: "skip", recurrence_rule: "FREQ=WEEKLY", recurrence_mode: "fixed", recurrence_series_id: "rep" });
-    s.insert("tasks", { id: "chosen", space_id: "s1", title: "Pay rent", state: "active", miss_policy: "carry", recurrence_rule: "FREQ=MONTHLY", recurrence_mode: "fixed", recurrence_series_id: "chosen" });
     const history = { record: vi.fn() };
     return { s, history, repo: new TaskRepo(s.db, history), policy: (id: string) => s.row("tasks", id)?.miss_policy };
   }
 
-  it("a first repeat turns carry into skip, and undo turns it back", async () => {
-    const { repo, history, policy } = seeded();
-    await repo.update("one", { recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed" });
+  it("a first repeat turns carry into skip, and one undo turns both back", async () => {
+    const { repo, history, policy, s } = seeded();
+    // the detail panel adds the policy to the repeat's patch (features/tasks/repeat-policy)
+    await repo.update("one", { recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed", missPolicy: "skip" });
     expect(policy("one")).toBe("skip");
     await history.record.mock.calls[0][0].undo();
     expect(policy("one")).toBe("carry");
+    expect(s.row("tasks", "one")?.recurrence_rule).toBeNull();
   });
 
-  it("Stop repeating turns skip back into carry; a policy the person chose is left alone", async () => {
+  it("Stop repeating turns skip back into carry", async () => {
     const { repo, policy } = seeded();
-    await repo.update("rep", { recurrenceRule: null });
+    await repo.update("rep", { recurrenceRule: null, recurrenceMode: null, missPolicy: "carry" });
     expect(policy("rep")).toBe("carry");
-    await repo.update("kept", { recurrenceRule: "FREQ=DAILY" });
-    expect(policy("kept")).toBe("expire");
-    // a repeat whose person chose carry keeps it when the rule changes
-    await repo.update("chosen", { recurrenceRule: "FREQ=WEEKLY" });
-    expect(policy("chosen")).toBe("carry");
-    // an explicit policy in the same patch wins
-    await repo.update("one", { recurrenceRule: "FREQ=DAILY", missPolicy: "expire" });
-    expect(policy("one")).toBe("expire");
   });
 });

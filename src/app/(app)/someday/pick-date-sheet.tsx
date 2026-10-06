@@ -29,7 +29,7 @@ export function PickDateSheet({ title, today, onPick, onClose }: { title: string
             onClose();
           }}
         />
-        <Button variant="quiet" className="self-end" onClick={onClose}>
+        <Button variant="quiet" className="ml-auto" onClick={onClose}>
           Cancel
         </Button>
       </div>

@@ -43,7 +43,7 @@ export function SomedayReview({
   const touched = task?.last_touched_at ? instant(normaliseTimestamp(task.last_touched_at)).toZonedDateTimeISO(zone).toPlainDate() : null;
   return (
     <Sheet label="Review what moved to Someday" onClose={onClose} width="sm" align="center" className="max-sm:h-dvh max-sm:max-h-dvh max-sm:rounded-none">
-      <div className="flex min-h-0 flex-1 flex-col gap-5 px-5 pt-2 pb-5 sm:pt-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-5 pt-2 pb-5 sm:pt-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-body-sm text-ink-2 num">{task ? `${index + 1} of ${batch.length}` : "Reviewed"}</p>
           <button type="button" aria-label="Close" onClick={onClose} className={cx(iconButtonClass({ size: "auto" }), "-mr-2")}>
