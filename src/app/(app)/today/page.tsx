@@ -13,6 +13,7 @@ import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, OPEN_TASKS_SQL, monthsBack } from "@/da
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlocking } from "@/features/blocking/blocking-provider";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
+import { useBlockNudgePending } from "@/features/notifications/block-nudge-store";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useCarryReview } from "@/features/rituals/carry-review-host";
 import { plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
@@ -38,6 +39,8 @@ import { Loading } from "../loading-view";
 
 // The once-only expired digest (PRODUCT_SPEC.md §8.2 rule 5): a lazy island, out of the first download.
 const ExpiredDigest = dynamic(() => import("@/features/today/expired-digest"), { ssr: false });
+// "Want a nudge when this starts?" after the first block on a device not yet asked (PRODUCT_SPEC.md §14 rule 7): loaded only then.
+const BlockNudge = dynamic(() => import("@/features/notifications/block-nudge"), { ssr: false });
 const NOTHING_SQL = `select * from tasks where 0`;
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
@@ -94,6 +97,7 @@ export default function TodayPage() {
 
   // ---- time blocks (SCREENS.md §2.6): local for now, on the calendar with P7b.
   const blocks = useBlockRepo();
+  const blockNudge = useBlockNudgePending();
   const blocking = useBlocking();
   const projectNames = useProjectNames();
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
@@ -314,6 +318,7 @@ export default function TodayPage() {
         />
 
         <ExpiredDigest />
+        {blockNudge && <BlockNudge />}
         {closedAt ? (
           <div className="rounded-xl border border-line bg-surface px-5 py-5">
             <p className="font-display text-pane font-medium text-ink">That&rsquo;s the day.</p>
