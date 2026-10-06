@@ -195,7 +195,8 @@ export default function UpcomingPage() {
   const noneAhead = loaded && synced && offset === 0 && later.length === 0 && days.every((d) => d.isToday || d.past || (d.tasks.length === 0 && d.startingLater.length === 0));
 
   // ---- moves
-  const lastKey = (list: readonly Task[]) => list[list.length - 1]?.daySortKey ?? null;
+  /** The day's last place, so a task moved there goes to the end of it. Keys compare as plain strings (§5.6). */
+  const lastKey = (list: readonly Task[]) => list.reduce<string | null>((max, t) => (t.daySortKey && (max === null || t.daySortKey > max) ? t.daySortKey : max), null);
   const dayTasks = (day: LocalDate) => allTasks.filter((t) => t.doDate?.equals(day) && t.state !== "done");
   /** A drop on a day keeps the task's evening flag; a drop on the day's evening puts it there. */
   const dropOnDay = (d: AgendaDay, evening: boolean | null) => (sourceId: string) => {
