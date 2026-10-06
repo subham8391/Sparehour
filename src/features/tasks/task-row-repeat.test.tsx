@@ -34,7 +34,7 @@ const base: Task = {
   missPolicy: "skip",
   recurrenceRule: "FREQ=WEEKLY;BYDAY=MO",
   recurrenceMode: "fixed",
-  recurrenceSeriesId: "t1",
+  recurrenceSeriesId: "t1" as TaskId,
   recurrencePausedUntil: null,
   sortKey: "a0",
   daySortKey: null,
