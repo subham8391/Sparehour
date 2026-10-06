@@ -4,7 +4,7 @@
 // never green: a toast reports, it does not celebrate.
 import type { HTMLAttributes, ReactNode } from "react";
 import { cx } from "./cx";
-import { RAISED } from "./sheet";
+import { RAISED } from "./sheet-parts";
 
 export function Toast({
   action,

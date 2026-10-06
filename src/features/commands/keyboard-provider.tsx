@@ -19,16 +19,17 @@ import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { requestPlan } from "@/features/planning/plan-request";
 import { useUndoOptional } from "@/features/undo/undo-provider";
 import { chordOf, resolveKey, type SequenceState } from "./keys";
-import { COMMANDS, availability, keyBindings, type Command, type CommandContext, type Theme } from "./registry";
+// The registry's runs only: titles and keywords load with the palette and the ? overlay (registry.ts).
+import { RUNS, availability, keyBindings, type CommandContext, type CommandRun, type Theme } from "./command-runs";
 import dynamic from "next/dynamic";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { applyTheme, readTheme } from "./theme";
 
-const BINDINGS = keyBindings(COMMANDS);
+const BINDINGS = keyBindings(RUNS);
 
 interface CommandsApi {
-  commands: readonly Command[];
-  run: (command: Command) => void;
+  commands: readonly CommandRun[];
+  run: (command: CommandRun) => void;
   context: () => CommandContext;
   isMac: boolean;
   openShortcuts: () => void;
@@ -134,7 +135,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
     contextRef.current = context;
   });
 
-  const run = useCallback((command: Command) => {
+  const run = useCallback((command: CommandRun) => {
     const ctx = contextRef.current();
     if (availability(command, ctx).enabled) void command.run(ctx);
     else command.unselected?.(ctx);
@@ -179,7 +180,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
     return () => window.removeEventListener("keydown", onKey);
   }, [isMac, run]);
 
-  const api = useMemo<CommandsApi>(() => ({ commands: COMMANDS, run, context: () => contextRef.current(), isMac, openShortcuts: () => setShortcutsOpen(true) }), [run, isMac]);
+  const api = useMemo<CommandsApi>(() => ({ commands: RUNS, run, context: () => contextRef.current(), isMac, openShortcuts: () => setShortcutsOpen(true) }), [run, isMac]);
 
   return (
     <CommandsContext.Provider value={api}>

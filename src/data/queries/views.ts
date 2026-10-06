@@ -1,10 +1,9 @@
 // Named SQL for the list views. Each is the simplest true statement of what
 // the view shows; the engines do the thinking on the rows.
-import type { LocalDate } from "@/core/time";
-import { monthsBack } from "./shell";
 
-// The few the shell and Today read live in shell.ts, so the first download carries only them (SYSTEM_DESIGN.md §11.6).
-export { DAY_PLAN_SQL, DONE_BETWEEN_SQL, PLANNED_BETWEEN_SQL, PROJECT_NAME_SQL, TASK_STATE_SQL, dayRangeParams, monthsBack } from "./shell";
+// The few the shells read (the keyboard layer, the morning review, Today, Settings' export) live in shell.ts, so a
+// first download carries only them (SYSTEM_DESIGN.md §11.6).
+export { DAY_PLAN_SQL, DONE_BETWEEN_SQL, LOGBOOK_MONTHS, PLANNED_BETWEEN_SQL, PROJECT_NAME_SQL, TASK_STATE_SQL, dayRangeParams, logbookStream, monthsBack } from "./shell";
 
 /** Untriaged, newest first — the inbox is a queue. */
 export const INBOX_SQL = `select * from tasks where deleted_at is null and state = 'inbox' order by created_at desc, id`;
@@ -163,16 +162,4 @@ export interface AreaProjectStatsRow {
   open_count: number;
   open_min: number;
   next_deadline: string | null;
-}
-
-/**
- * How many months of the logbook stream hold every finished task there is: the server removes a done task a
- * week after it was completed (DECISIONS.md 2026-09-28), so this month and the last cover all of them. The
- * Logbook, search and the export ask for the same months, so they share one subscription.
- */
-export const LOGBOOK_MONTHS = 2;
-
-/** The logbook stream's subscription for "every finished task", as of `today`. */
-export function logbookStream(today: LocalDate): { name: "logbook"; parameters: { months: string[] } } {
-  return { name: "logbook", parameters: { months: monthsBack(today, LOGBOOK_MONTHS) } };
 }

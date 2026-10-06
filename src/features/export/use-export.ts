@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ExportFormat } from "@/core/export";
 import type { LocalDate } from "@/core/time";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
-import { logbookStream } from "@/data/queries/views";
+import { logbookStream } from "@/data/queries/shell";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 

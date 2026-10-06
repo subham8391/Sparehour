@@ -1,6 +1,6 @@
-// The named SQL the app shell and Today read (the keyboard layer, the morning review, Today's day plan and
-// done list, tomorrow's spare time). Kept apart from views.ts, which re-exports them, so the first download
-// carries these few rather than every list's query (SYSTEM_DESIGN.md §11.6).
+// The named SQL the shells read: the keyboard layer, the morning review, Today's day plan and done list,
+// tomorrow's spare time and the logbook stream Settings' export subscribes to. Kept apart from views.ts, which
+// re-exports them, so a first download carries these few rather than every list's query (SYSTEM_DESIGN.md §11.6).
 import type { LocalDate } from "@/core/time";
 
 /**
@@ -39,4 +39,16 @@ export function dayRangeParams(day: LocalDate, days: number): [string, string] {
 export function monthsBack(day: LocalDate, n: number): string[] {
   const month = day.toPlainYearMonth();
   return Array.from({ length: Math.max(1, n) }, (_, i) => month.subtract({ months: i }).toString());
+}
+
+/**
+ * How many months of the logbook stream hold every finished task there is: the server removes a done task a
+ * week after it was completed (DECISIONS.md 2026-09-28), so this month and the last cover all of them. The
+ * Logbook, search and the export ask for the same months, so they share one subscription.
+ */
+export const LOGBOOK_MONTHS = 2;
+
+/** The logbook stream's subscription for "every finished task", as of `today`. */
+export function logbookStream(today: LocalDate): { name: "logbook"; parameters: { months: string[] } } {
+  return { name: "logbook", parameters: { months: monthsBack(today, LOGBOOK_MONTHS) } };
 }
