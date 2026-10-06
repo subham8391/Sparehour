@@ -3,9 +3,11 @@
 // security boundary; this is convenience, not protection.
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { deleteAfter } from "@/features/account/deletion";
 import { safeNext } from "@/features/auth/safe-next";
 
-const PUBLIC_PATHS = ["/", "/login", "/auth"];
+// /account holds the page for an account waiting for deletion, signed in or not; /privacy is readable by anyone.
+const PUBLIC_PATHS = ["/", "/login", "/auth", "/account", "/privacy"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -37,6 +39,13 @@ export async function proxy(request: NextRequest) {
     url.search = "";
     url.searchParams.set("next", `${path}${request.nextUrl.search}`);
     return NextResponse.redirect(url);
+  }
+  // An account waiting for deletion (SYSTEM_DESIGN.md §9.6) sees only the page that offers Restore; the APIs refuse it.
+  const waiting = user ? deleteAfter(user.app_metadata) : null;
+  if (waiting && !path.startsWith("/api/") && !path.startsWith("/account") && !path.startsWith("/auth") && path !== "/privacy") {
+    const away = NextResponse.redirect(new URL("/account/deleted", request.url));
+    for (const cookie of response.cookies.getAll()) away.cookies.set(cookie);
+    return away;
   }
   // Someone already signed in who opens the sign-in page (a bookmark, Back) goes on into the app (ONBOARDING.md §1a).
   if (user && path === "/login") {
