@@ -433,6 +433,24 @@ export class TaskRepo {
     });
   }
 
+  /**
+   * Convert task → project ("Break it down", PRODUCT_SPEC.md §6, §8.3.3): one transaction and one undo entry. The
+   * conversion lives in its own module, loaded on the click that asks for it, so no shell carries it.
+   */
+  async convertToProject(id: string): Promise<{ projectId: string; taskIds: string[] } | null> {
+    const { convertTaskToProject } = await import("./convert");
+    return convertTaskToProject(this.db, this.history, id);
+  }
+
+  /**
+   * Records that the three-carry ask was shown for these tasks (PRODUCT_SPEC.md §8.3.4: once per task per seven
+   * days, two a day). Bookkeeping, not an edit: no undo entry, and the server does not count it as a touch.
+   */
+  async markAsked(ids: readonly string[], at: string = new Date().toISOString()): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db.execute(`update tasks set carry_asked_at = ?, updated_at = ? where id in (${placeholders(ids)})`, [at, at, ...ids]);
+  }
+
   /** `note` names the change for a toast ("Brought back {title}"); without one, bringing a task back is a silent undo entry. */
   async setState(id: string, state: TaskState, note?: string): Promise<void> {
     const cols = ["state", "do_date"];
