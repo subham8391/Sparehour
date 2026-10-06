@@ -4,7 +4,7 @@
 // an action sheet offers the same choices. Either way the URL is cleaned so
 // a reload does not repeat it.
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalDatabase } from "@/data/powersync";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -60,15 +60,8 @@ export function usePushActions(): (link: DeepLink, action: PushAction) => Promis
   );
 }
 
-export function PushDeepLink() {
-  return (
-    <Suspense>
-      <DeepLinkInner />
-    </Suspense>
-  );
-}
-
-function DeepLinkInner() {
+/** Acts on the URL a notification opened; the shell mounts it through push-deep-link.tsx. */
+export function DeepLinkHandler() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();

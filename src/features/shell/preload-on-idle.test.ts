@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { preloadOnIdle } from "./preload-on-idle";
+import { preloadOnIdle, useIdleMount } from "./preload-on-idle";
 
 describe("preloadOnIdle", () => {
   afterEach(() => {
@@ -43,5 +44,53 @@ describe("preloadOnIdle", () => {
     cleanup();
     vi.advanceTimersByTime(2000);
     expect(load).not.toHaveBeenCalled();
+  });
+});
+
+describe("useIdleMount", () => {
+  afterEach(() => {
+    cleanup(); // unmount (which cancels the idle request) while the stubs are still in place
+    vi.unstubAllGlobals();
+  });
+
+  /** Stubs requestIdleCallback; the returned function plays the browser going idle. */
+  function idle() {
+    const callbacks: IdleRequestCallback[] = [];
+    vi.stubGlobal("requestIdleCallback", (cb: IdleRequestCallback) => callbacks.push(cb));
+    vi.stubGlobal("cancelIdleCallback", vi.fn());
+    return () => callbacks.forEach((cb) => cb({ didTimeout: false, timeRemaining: () => 50 }));
+  }
+
+  it("mounts once the module has loaded in idle time, and stays mounted", async () => {
+    const fire = idle();
+    const load = vi.fn(() => Promise.resolve());
+    const { result, rerender } = renderHook(({ needed }) => useIdleMount(load, needed), { initialProps: { needed: false } });
+    expect(result.current).toBe(false);
+    await act(async () => fire());
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(result.current).toBe(true);
+    rerender({ needed: false });
+    expect(result.current).toBe(true);
+  });
+
+  it("mounts at once when it is needed before idle time, and stays mounted when the need goes away", () => {
+    idle();
+    const load = vi.fn(() => new Promise<void>(() => undefined));
+    const { result, rerender } = renderHook(({ needed }) => useIdleMount(load, needed), { initialProps: { needed: false } });
+    expect(result.current).toBe(false);
+    rerender({ needed: true });
+    expect(result.current).toBe(true);
+    rerender({ needed: false });
+    expect(result.current).toBe(true);
+  });
+
+  it("a module that fails to load in idle time stays unmounted until it is needed", async () => {
+    const fire = idle();
+    const load = vi.fn(() => Promise.reject(new Error("offline")));
+    const { result, rerender } = renderHook(({ needed }) => useIdleMount(load, needed), { initialProps: { needed: false } });
+    await act(async () => fire());
+    expect(result.current).toBe(false);
+    rerender({ needed: true });
+    expect(result.current).toBe(true);
   });
 });

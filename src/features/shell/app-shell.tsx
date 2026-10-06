@@ -7,11 +7,11 @@
 // and the command palette are mounted once here.
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
-import { PushDeepLink } from "@/features/notifications/push-actions";
+import { PushDeepLink } from "@/features/notifications/push-deep-link";
 import { useAppBadge } from "@/features/notifications/use-app-badge";
 import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
@@ -22,7 +22,7 @@ import { UndoProvider } from "@/features/undo/undo-provider";
 import { cx } from "@/ui/cx";
 import { FabRoomContext } from "./fab-visibility";
 import { showsQuickAdd, showsTabBar } from "./nav";
-import { preloadOnIdle } from "./preload-on-idle";
+import { useIdleMount } from "./preload-on-idle";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
 import { useNavData } from "./use-nav-data";
@@ -35,9 +35,7 @@ const BulkBar = dynamic(() => loadBulkBar().then((m) => m.BulkBar), { ssr: false
 
 function BulkBarIsland() {
   const { checkedIds } = useSelection();
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => preloadOnIdle(() => loadBulkBar().then(() => setLoaded(true))), []);
-  return loaded || checkedIds.length > 0 ? <BulkBar /> : null;
+  return useIdleMount(loadBulkBar, checkedIds.length > 0) ? <BulkBar /> : null;
 }
 
 function Keyboard({ children }: { children: ReactNode }) {
