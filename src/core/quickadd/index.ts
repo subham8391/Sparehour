@@ -4,6 +4,8 @@ export { specToRule, ruleToSpec, ruleWeekdays } from "./recurrence";
 export { findDates, findTimes, weekdayOnOrAfter, nextWeekMonday } from "./datetime";
 export type {
   ParseContext,
+  ParseOptions,
+  Range,
   ParseResult,
   ParseWarning,
   Priority,
