@@ -12,6 +12,7 @@ import {
   segmentsOverlap,
   timeZoneHint,
   timeZoneOptions,
+  withPendingDays,
 } from "./settings-rules";
 
 describe("work-hours segments", () => {
@@ -74,6 +75,25 @@ describe("work-hours segments", () => {
     expect(hoursSummary([nine, nine, [{ start: "09:00", end: "12:30" }, { start: "13:30", end: "18:00" }], [], [], [], []])).toBe("Mon–Wed · hours vary");
     expect(hoursSummary([[{ start: "09:00", end: "12:30" }, { start: "13:30", end: "18:00" }], [], [], [], [], [], []])).toBe("Mon · 09:00–12:30, 13:30–18:00");
     expect(hoursSummary([[], [], [], [], [], [], []])).toBe("No working days");
+  });
+
+  it("a day just written shows as written until the synced rows catch up, so its undo starts from there", () => {
+    const nine = [{ start: "09:00", end: "18:00" }];
+    const split = [
+      { start: "09:00", end: "12:30" },
+      { start: "13:30", end: "18:00" },
+    ];
+    const saved = [nine, nine, [], [], [], [], []];
+    // Monday split, Tuesday turned off; the query has not caught up with either.
+    const ahead = withPendingDays(saved, { 0: split, 1: [] });
+    expect(ahead.week[0]).toEqual(split);
+    expect(ahead.week[1]).toEqual([]);
+    expect(ahead.week[2]).toEqual([]);
+    expect(ahead.settled).toEqual([]);
+    // The rows now say the same for Monday (in any order): Monday is settled, Tuesday still waits.
+    const caught = withPendingDays([[split[1], split[0]], nine, [], [], [], [], []], { 0: split, 1: [] });
+    expect(caught.settled).toEqual([0]);
+    expect(caught.week[1]).toEqual([]);
   });
 });
 

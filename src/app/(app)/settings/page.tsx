@@ -20,7 +20,7 @@ import { applyMotion, readMotion, subscribeMotion, type MotionChoice } from "@/f
 import { SECTION_VIEWS, loadAllSections } from "@/features/settings/section-islands";
 import { SECTIONS, sectionSummary } from "@/features/settings/sections";
 import { SettingsLayout, useSettingsSection } from "@/features/settings/settings-layout";
-import type { Segment } from "@/features/settings/settings-rules";
+import { withPendingDays, type Segment } from "@/features/settings/settings-rules";
 import type { SettingsFormProps, SettingsValues } from "@/features/settings/types";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
@@ -90,7 +90,7 @@ export default function SettingsPage() {
   const undo = useUndoSink();
 
   // Each weekday's segments in start order (0 = Monday); an empty list is a day off.
-  const workHours = useMemo(() => {
+  const savedHours = useMemo(() => {
     const byDay: Segment[][] = [[], [], [], [], [], [], []];
     for (const h of hours ?? []) {
       if (h.weekday != null && h.weekday >= 0 && h.weekday <= 6 && h.start_time && h.end_time) byDay[h.weekday].push({ start: h.start_time.slice(0, 5), end: h.end_time.slice(0, 5) });
@@ -98,6 +98,11 @@ export default function SettingsPage() {
     for (const day of byDay) day.sort((a, b) => a.start.localeCompare(b.start));
     return byDay;
   }, [hours]);
+  // The same trailing query as the settings row: a day just written shows (and is what its ⌘Z goes back from) until
+  // the rows say the same, so a quick second edit does not take an undo point from before the first.
+  const [hoursPending, setHoursPending] = useState<Partial<Record<number, Segment[]>>>({});
+  const { week: workHours, settled } = useMemo(() => withPendingDays(savedHours, hoursPending), [savedHours, hoursPending]);
+  if (settled.length > 0) setHoursPending((p) => Object.fromEntries(Object.entries(p).filter(([d]) => !settled.includes(Number(d)))));
   const detected = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
@@ -124,8 +129,12 @@ export default function SettingsPage() {
     if (!user?.personal_space_id) return;
     const ctx = { spaceId: user.personal_space_id, userId: user.id };
     const previous = workHours[weekday] ?? [];
-    void hoursRepo.replaceDay(weekday, segments, ctx);
-    undo?.record({ label: "Changed working hours", toast: false, undo: () => hoursRepo.replaceDay(weekday, previous, ctx) });
+    const writeDay = (segs: readonly Segment[]) => {
+      setHoursPending((p) => ({ ...p, [weekday]: [...segs].sort((a, b) => a.start.localeCompare(b.start)) }));
+      return hoursRepo.replaceDay(weekday, segs, ctx);
+    };
+    void writeDay(segments);
+    undo?.record({ label: "Changed working hours", toast: false, undo: () => writeDay(previous) });
   };
   // Reduce motion is this device's choice, like the theme; it answers ⌘Z too.
   const onMotion = (next: MotionChoice) => {

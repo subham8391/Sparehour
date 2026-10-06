@@ -115,6 +115,18 @@ export function hoursSummary(week: readonly (readonly Segment[])[]): string {
   return `${daysLabel(working)} · ${labels.size === 1 ? [...labels][0] : "hours vary"}`;
 }
 
+/**
+ * The week as last written: a day just saved shows its new stretches until the synced rows say the same (the local
+ * query can trail a write by a second), and `settled` names the days whose rows have caught up.
+ */
+export function withPendingDays(saved: readonly (readonly Segment[])[], pending: Partial<Record<number, readonly Segment[]>>): { week: Segment[][]; settled: number[] } {
+  const settled = Object.keys(pending)
+    .map(Number)
+    .filter((d) => segmentsLabel(saved[d] ?? []) === segmentsLabel(pending[d] ?? []));
+  const week = saved.map((segs, d) => [...(d in pending && !settled.includes(d) ? (pending[d] ?? []) : segs)]);
+  return { week, settled };
+}
+
 /** "15% · 1h 20m held back on a 9h day" — the live preview under the buffer slider. */
 export function bufferPreview(pct: number, workMinutes: number): string {
   const held = Math.round((workMinutes * pct) / 100 / 5) * 5;
