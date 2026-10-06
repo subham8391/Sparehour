@@ -62,7 +62,7 @@ export function chordMatches(event: KeyChord, spec: KeyChord): boolean {
 
 /** Marks a shortcut for display: "shift+t" → "⇧T", "mod+enter" → "⌘⏎" (Mac) / "Ctrl+⏎", "g t" → "G T". */
 export function displayShortcut(spec: string, isMac: boolean): string {
-  const NAMED: Record<string, string> = { enter: "⏎", escape: "esc", backspace: "⌫", space: "space", arrowup: "↑", arrowdown: "↓" };
+  const NAMED: Record<string, string> = { enter: "⏎", escape: "esc", backspace: "⌫", space: "space", arrowup: "↑", arrowdown: "↓", arrowleft: "←", arrowright: "→" };
   return parseShortcut(spec)
     .map((c) => {
       const key = NAMED[c.key] ?? c.key.toUpperCase();

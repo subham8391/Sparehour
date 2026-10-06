@@ -1,7 +1,9 @@
 // Upcoming past its first seven days (SCREENS.md §6): dated tasks keep going,
 // grouped by day under "Later this month", "Next month", then month names;
-// and tasks hidden by a start date sit in a collapsed "Starting later" group
-// on the day they start (PRODUCT_SPEC.md §7). Pure.
+// tasks hidden by a start date sit in a collapsed "Starting later" group on
+// the day they start (PRODUCT_SPEC.md §7); and a task whose deadline falls on
+// a day it is not planned for sits in that day's thin "Due" group, so a
+// deadline is never a surprise. Pure.
 import { compareDates, type LocalDate } from "@/core/time";
 import { monthName } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
@@ -11,6 +13,8 @@ export interface AgendaDay {
   tasks: Task[];
   /** Tasks whose start date is this day: hidden until then, listed collapsed. */
   startingLater: Task[];
+  /** Open tasks due this day and planned for another day, or for none. */
+  due: Task[];
 }
 
 export interface LaterGroup {
@@ -29,34 +33,43 @@ export function laterLabel(day: LocalDate, today: LocalDate): string {
   return day.year === today.year ? monthName(day, "long") : `${monthName(day, "long")} ${day.year}`;
 }
 
-/** Tasks by the day they start, for the rolling week's own days. */
-export function startingByDay(tasks: readonly Task[]): Map<string, Task[]> {
+/** Tasks by one of their dates, keyed by the ISO day, for the week's own days. */
+function byDate(tasks: readonly Task[], dateOf: (t: Task) => LocalDate | null): Map<string, Task[]> {
   const out = new Map<string, Task[]>();
   for (const t of tasks) {
-    if (!t.startDate) continue;
-    const key = t.startDate.toString();
+    const day = dateOf(t);
+    if (!day) continue;
+    const key = day.toString();
     out.set(key, [...(out.get(key) ?? []), t]);
   }
   return out;
 }
 
+/** Tasks by the day they start. */
+export const startingByDay = (tasks: readonly Task[]) => byDate(tasks, (t) => t.startDate);
+
+/** Tasks by the day they are due; a task due on its own do-date is listed there already, so it is left out. */
+export const dueByDay = (tasks: readonly Task[]) => byDate(tasks, (t) => (t.deadline && !(t.doDate && t.doDate.equals(t.deadline)) ? t.deadline : null));
+
 /**
- * Everything after `weekEnd` (the rolling week's last day), by month group then by day, in date order:
- * the tasks dated on each day, and the tasks that start on it.
+ * Everything after `weekEnd` (the week's last day), by month group then by day, in date order: the tasks dated on
+ * each day, the tasks that start on it and the tasks due on it.
  */
-export function laterGroups(dated: readonly Task[], starting: readonly Task[], today: LocalDate, weekEnd: LocalDate): LaterGroup[] {
+export function laterGroups(dated: readonly Task[], starting: readonly Task[], today: LocalDate, weekEnd: LocalDate, due: readonly Task[] = []): LaterGroup[] {
   const byDay = new Map<string, AgendaDay>();
   const dayFor = (day: LocalDate) => {
     const key = day.toString();
     let entry = byDay.get(key);
     if (!entry) {
-      entry = { day, tasks: [], startingLater: [] };
+      entry = { day, tasks: [], startingLater: [], due: [] };
       byDay.set(key, entry);
     }
     return entry;
   };
-  for (const t of dated) if (t.doDate && compareDates(t.doDate, weekEnd) > 0) dayFor(t.doDate).tasks.push(t);
-  for (const t of starting) if (t.startDate && compareDates(t.startDate, weekEnd) > 0) dayFor(t.startDate).startingLater.push(t);
+  const after = (d: LocalDate | null): d is LocalDate => d !== null && compareDates(d, weekEnd) > 0;
+  for (const t of dated) if (after(t.doDate)) dayFor(t.doDate).tasks.push(t);
+  for (const t of starting) if (after(t.startDate)) dayFor(t.startDate).startingLater.push(t);
+  for (const [, tasks] of dueByDay(due)) for (const t of tasks) if (after(t.deadline)) dayFor(t.deadline).due.push(t);
 
   const groups: LaterGroup[] = [];
   for (const entry of [...byDay.values()].sort((a, b) => compareDates(a.day, b.day))) {

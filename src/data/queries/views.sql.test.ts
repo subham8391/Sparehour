@@ -16,6 +16,7 @@ import {
   dayRangeParams,
   logbookStream,
 } from "./views";
+import { DAY_LOAD_SQL, DUE_FROM_SQL } from "./week";
 
 const TODAY = localDate("2026-10-01");
 
@@ -60,6 +61,30 @@ describe("Upcoming's statements", () => {
 
   it("everything hidden by a start date is listed by the day it starts", () => {
     expect(titles(db.rows(STARTING_LATER_SQL, [TODAY.toString()]))).toEqual(["Dated, starts Friday", "No day, starts in two weeks", "Later, starts later"]);
+  });
+
+  it("each day's capacity counts the open tasks that will be on its list that day, started by then", () => {
+    const load = withTasks([
+      { id: "a", title: "Planned", state: "active", do_date: "2026-10-02" },
+      { id: "b", title: "Still in the inbox", state: "inbox", do_date: "2026-10-03" },
+      { id: "c", title: "Starts by its day", state: "active", do_date: "2026-10-05", start_date: "2026-10-04" },
+      { id: "d", title: "Starts after its day", state: "active", do_date: "2026-10-05", start_date: "2026-10-06" },
+      { id: "e", title: "Parked", state: "someday", do_date: "2026-10-03" },
+      { id: "f", title: "Outside", state: "active", do_date: "2026-10-09" },
+    ]);
+    expect(titles(load.rows(DAY_LOAD_SQL, ["2026-10-01", "2026-10-07"])).sort()).toEqual(["Planned", "Starts by its day", "Still in the inbox"]);
+  });
+
+  it("Due lists open tasks by deadline from a day on, unless due on the day they are planned for (SCREENS.md §6)", () => {
+    const dueDb = withTasks([
+      { id: "a", title: "Planned earlier", state: "active", do_date: "2026-10-02", deadline: "2026-10-04" },
+      { id: "b", title: "No day", state: "active", deadline: "2026-10-03" },
+      { id: "c", title: "Due on its day", state: "active", do_date: "2026-10-04", deadline: "2026-10-04" },
+      { id: "d", title: "Missed", state: "active", deadline: "2026-09-30" },
+      { id: "e", title: "Parked", state: "someday", deadline: "2026-10-05" },
+      { id: "f", title: "Dropped", state: "dropped", deadline: "2026-10-05" },
+    ]);
+    expect(titles(dueDb.rows(DUE_FROM_SQL, [TODAY.toString()]))).toEqual(["No day", "Planned earlier", "Parked"]);
   });
 });
 

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -24,6 +24,7 @@ import { QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { useListSelection, useSelection, SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { KeyboardProvider, useCommands } from "./keyboard-provider";
+import { registerViewKeys } from "./view-keys";
 
 const pressed = vi.fn();
 
@@ -186,6 +187,25 @@ describe("<KeyboardProvider>", () => {
     expect(execute).toHaveBeenCalledTimes(1);
     expect(String(execute.mock.calls[0][0])).toMatch(/where id in \(\?, \?, \?\)$/);
     expect(execute.mock.calls[0][1]?.slice(-3)).toEqual(["t1", "t2", "t3"]);
+  });
+
+  it("← → [ ] are the view's where it takes them, and otherwise go on as if unbound", async () => {
+    const { user } = setup();
+    // No view gives them a meaning here: the arrow keeps its default (it scrolls) and `[` types itself.
+    expect(fireEvent.keyDown(document.body, { key: "ArrowRight" })).toBe(true);
+    const later = vi.fn();
+    const off = registerViewKeys({ later });
+    try {
+      // A view that moves the selected task a day, with nothing selected: still the browser's.
+      expect(fireEvent.keyDown(document.body, { key: "ArrowRight" })).toBe(true);
+      await user.keyboard("j");
+      expect(fireEvent.keyDown(document.body, { key: "ArrowRight" })).toBe(false);
+      expect(later).toHaveBeenCalledWith("t1");
+    } finally {
+      off();
+    }
+    fireEvent.keyDown(document.body, { key: "[" });
+    expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue("[");
   });
 
   it("while quick-add is open, list keys are not intercepted", async () => {
