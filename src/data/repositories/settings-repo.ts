@@ -1,4 +1,5 @@
 // Settings writes: the one user_settings row and the work_hours rows.
+import type { TodaySort } from "@/core/today/sort";
 import type { MissPolicy } from "@/core/types";
 import type { LocalDatabase } from "../powersync";
 
@@ -33,6 +34,10 @@ export interface SettingsPatch {
   // planning defaults (SCREENS.md §18 Planning)
   defaultMissPolicy?: MissPolicy;
   defaultView?: OpenTo;
+  /** Today's ⋯ Sort and its default (a view preference over the Today and This evening sections). */
+  todaySort?: TodaySort;
+  /** Today's ⋯ Show completed. */
+  showCompleted?: boolean;
 }
 
 const COLUMNS: Record<keyof SettingsPatch, string> = {
@@ -58,6 +63,8 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   badgeEnabled: "badge_enabled",
   defaultMissPolicy: "default_miss_policy",
   defaultView: "default_view",
+  todaySort: "today_sort",
+  showCompleted: "show_completed",
 };
 
 export class SettingsRepo {

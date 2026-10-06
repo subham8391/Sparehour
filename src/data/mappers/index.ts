@@ -2,6 +2,7 @@
 // (LocalDate, LocalTime, boolean). Engines never see raw rows.
 import type { CapacityBlock, CapacityEvent, CapacityTask, WorkWindow } from "@/core/capacity";
 import { instant, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
+import { isTodaySort, type TodaySort } from "@/core/today/sort";
 import type { ChecklistItem, Heading, MissPolicy, Priority, Project, ProjectId, ProjectState, RecurrenceMode, SpaceId, Task, TaskId, TaskState } from "@/core/types";
 import type { CalendarEventRow, HeadingRow, ProjectRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "../schema.client";
 
@@ -66,6 +67,7 @@ export function toTask(r: TaskRow): Task {
     sortKey: r.sort_key ?? "",
     daySortKey: r.day_sort_key ?? null,
     routineRunId: r.routine_run_id ?? null,
+    carryAskedAt: ts(r.carry_asked_at),
   };
 }
 
@@ -123,6 +125,10 @@ export interface Settings {
   eveningStartsAt: LocalTime;
   /** Offer the morning review of carried-over tasks on the first open of a new day (on by default; null before the column has synced). */
   carryReview: boolean;
+  /** Today's ⋯ Sort, also Settings › Planning's default (a view preference; nothing is rewritten). */
+  todaySort: TodaySort;
+  /** Today's ⋯ Show completed. */
+  showCompleted: boolean;
 }
 
 export function toSettings(r: UserSettingsRow): Settings {
@@ -137,5 +143,7 @@ export function toSettings(r: UserSettingsRow): Settings {
     autoSomedayDays: r.auto_someday_days ?? 30,
     eveningStartsAt: localTime((r.evening_starts_at ?? "18:00").slice(0, 5)),
     carryReview: r.carry_review == null ? true : bool(r.carry_review),
+    todaySort: isTodaySort(r.today_sort) ? r.today_sort : "manual",
+    showCompleted: bool(r.show_completed),
   };
 }

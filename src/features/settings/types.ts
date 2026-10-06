@@ -2,6 +2,7 @@
 // device's panels, and the callbacks that write. Presentational sections:
 // values in, patches out; the page owns the data and the undo.
 import type { ExportFormat } from "@/core/export";
+import type { TodaySort } from "@/core/today/sort";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo, SettingsPatch } from "@/data/repositories/settings-repo";
 import type { CalendarPanel } from "@/features/calendar/calendar-section";
@@ -36,6 +37,10 @@ export interface SettingsValues {
   badgeEnabled: boolean;
   defaultMissPolicy: MissPolicy;
   defaultView: OpenTo;
+  /** Today's sort, as its ⋯ menu sets it (SCREENS.md §18 Planning "sort defaults"). */
+  todaySort: TodaySort;
+  /** Today's Show completed. */
+  showCompleted: boolean;
 }
 
 /** This device's push state (SYSTEM_DESIGN.md §7.3), owned by the page. */

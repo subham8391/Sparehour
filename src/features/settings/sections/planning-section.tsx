@@ -3,10 +3,12 @@
 // about a carried-over task, when an untouched one goes to Someday, the
 // morning review, what a new one-off task does when its day passes, and the
 // view the app opens to.
+import { TODAY_SORTS, isTodaySort } from "@/core/today/sort";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo } from "@/data/repositories/settings-repo";
 import { cx } from "@/ui/cx";
 import { Segmented } from "@/ui/segmented";
+import { Select } from "@/ui/select";
 import { HINT, LABEL, ROW } from "../rows";
 import { NumberRow, Section, SwitchRow, useSavedFlash } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
@@ -57,6 +59,21 @@ export function PlanningSection(p: SettingsFormProps) {
         </span>
         <Segmented label="Open to" options={OPEN_TO} value={values.defaultView} onChange={(v) => change({ defaultView: v })} />
       </div>
+      {/* The same values Today's ⋯ menu sets (one setting each, for Today). The five sorts are a list, not a segmented control: they never fit 360 px. */}
+      <div className={cx(ROW, "items-start")}>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className={LABEL}>Sort Today by</span>
+          <span className={HINT}>Manual keeps the order you set by hand; the others never change it.</span>
+        </span>
+        <Select aria-label="Sort Today by" value={values.todaySort} onChange={(e) => isTodaySort(e.target.value) && change({ todaySort: e.target.value })} className="w-auto shrink-0">
+          {TODAY_SORTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <SwitchRow id="show-completed" label="Show completed on Today" hint="Today’s finished tasks under a Done divider" checked={values.showCompleted} onChange={(v) => change({ showCompleted: v })} />
     </Section>
   );
 }
