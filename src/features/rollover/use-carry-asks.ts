@@ -28,8 +28,6 @@ export interface CarryAskOptions {
   today: LocalDate;
   zone: string;
   now: Instant;
-  /** Where a newly shown ask is recorded (TaskRepo.markAsked); without it the asks are read, not recorded. */
-  markAsked?: (ids: readonly string[], at: string) => Promise<void>;
 }
 
 const instantOf = (v: string | null): Instant | null => {
@@ -41,8 +39,15 @@ const instantOf = (v: string | null): Instant | null => {
   }
 };
 
-/** The ids of the carried tasks that show the ask now. Records the ones not yet recorded today. */
-export function useCarryAsks(carried: readonly Task[], { carryAskAfter, today, zone, now, markAsked }: CarryAskOptions): ReadonlySet<string> {
+export interface CarryAsks {
+  /** The carried tasks that show the ask now. */
+  asks: ReadonlySet<string>;
+  /** Those of them not yet recorded today: what `useRecordAsks` writes once the asks are on screen. */
+  fresh: readonly string[];
+}
+
+/** Which carried tasks show the ask now, and which of those are new today. Reads only. */
+export function useCarryAsks(carried: readonly Task[], { carryAskAfter, today, zone, now }: CarryAskOptions): CarryAsks {
   const dayStart = useMemo(() => today.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant(), [today, zone]);
   const since = dayStart.toZonedDateTimeISO("UTC").toPlainDate().subtract({ days: 1 }).toString();
   const anyAtThreshold = carryAskAfter !== null && carried.some((t) => t.carryCount >= carryAskAfter);
@@ -59,16 +64,21 @@ export function useCarryAsks(carried: readonly Task[], { carryAskAfter, today, z
     return { asks: picked as ReadonlySet<string>, fresh: [...picked].filter((id) => !askedToday.has(id)) };
   }, [anyAtThreshold, carryAskAfter, isLoading, rows, dayStart, carried, now]);
 
-  // Each newly shown ask is written once; the query then says it was asked today and it stops being fresh.
+  return useMemo(() => ({ asks, fresh }), [asks, fresh]);
+}
+
+/**
+ * Records the asks a screen has just put in front of the person (tasks.carry_asked_at), once each. `visible` false
+ * (a folded section, a step not reached yet) records nothing: an ask that was never seen does not start the week.
+ */
+export function useRecordAsks(fresh: readonly string[], markAsked: ((ids: readonly string[], at: string) => Promise<void>) | undefined, visible = true): void {
   const written = useRef(new Set<string>());
   const freshKey = fresh.join(",");
   useEffect(() => {
-    if (!markAsked || !freshKey) return;
+    if (!markAsked || !visible || !freshKey) return;
     const ids = freshKey.split(",").filter((id) => !written.current.has(id));
     if (ids.length === 0) return;
     for (const id of ids) written.current.add(id);
     void markAsked(ids, new Date().toISOString());
-  }, [freshKey, markAsked]);
-
-  return asks;
+  }, [freshKey, markAsked, visible]);
 }

@@ -5,7 +5,7 @@
 // "Not now", Escape and the scrim record only that, so nothing is ever lost.
 // A bottom sheet on a phone, a centred dialog from `sm` up; the list scrolls
 // inside it and the footer keeps the bottom edge above the safe area.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Temporal, formatMinutes, localDate, type Instant, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { Button, buttonClass } from "@/ui/button";
@@ -14,7 +14,7 @@ import { cx } from "@/ui/cx";
 import { DateField } from "@/ui/date-field";
 import { Segmented } from "@/ui/segmented";
 import { Sheet } from "@/ui/sheet";
-import { useCarryAsks } from "@/features/rollover/use-carry-asks";
+import { useCarryAsks, useRecordAsks } from "@/features/rollover/use-carry-asks";
 import { DEFAULT_CHOICE, allFromYesterday, applyChoices, reviewLine, type Choice, type ChoiceRepo } from "./carry-review";
 
 /** The dialog's accessible name. */
@@ -66,7 +66,9 @@ export interface CarryReviewSheetProps {
 export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose, carryAskAfter = null, zone = "UTC", now, onOpenProject }: CarryReviewSheetProps) {
   const [choices, setChoices] = useState<ReadonlyMap<string, SheetChoice>>(() => new Map());
   const [opened] = useState(() => now ?? Temporal.Now.instant());
-  const asks = useCarryAsks(tasks, { carryAskAfter, today, zone, now: now ?? opened, markAsked: repo.markAsked?.bind(repo) });
+  const { asks, fresh } = useCarryAsks(tasks, { carryAskAfter, today, zone, now: now ?? opened });
+  const markAsked = repo.markAsked;
+  useRecordAsks(fresh, useCallback((ids: readonly string[], at: string) => markAsked?.call(repo, ids, at) ?? Promise.resolve(), [markAsked, repo]));
   // Rows whose "Pick a day" has been opened but not yet answered.
   const [picking, setPicking] = useState<ReadonlySet<string>>(() => new Set());
   const [busy, setBusy] = useState(false);

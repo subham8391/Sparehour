@@ -104,6 +104,9 @@ export interface TodayModel {
   settings: Settings | null;
   /** The settings row, for Today's own preferences (⋯ Sort, Show completed). */
   settingsId: string | null;
+  /** Asks shown now that are new today, and how a screen that shows them records them (`useRecordAsks`). */
+  freshAsks: readonly string[];
+  markAsked: (ids: readonly string[], at: string) => Promise<void>;
   capacity: Capacity | null;
   carried: (Task & { ask: boolean })[];
   todayTasks: Task[];
@@ -120,8 +123,7 @@ export interface TodayModel {
   calendarIssue: CalendarIssue | null;
 }
 
-/** `recordAsks`: this screen shows the three-carry ask, so the asks it starts showing are recorded (Today, the morning plan). */
-export function useToday(now: Temporal.Instant, { recordAsks = false }: { recordAsks?: boolean } = {}): TodayModel {
+export function useToday(now: Temporal.Instant): TodayModel {
   // The undoable repo: everything done on Today answers ⌘Z and shows its toast, like every other list (FEATURES.md §8).
   const repo = useTaskRepo();
 
@@ -150,9 +152,9 @@ export function useToday(now: Temporal.Instant, { recordAsks = false }: { record
   const tasks = useMemo(() => (taskRows ?? []).map(toTask), [taskRows]);
   const hasSettings = settings !== null;
   const carriedTasks = useMemo(() => (hasSettings ? carriedOver(tasks, today) : []), [hasSettings, tasks, today]);
-  // At most two asks a day, once per task per seven days, recorded as they are shown (PRODUCT_SPEC.md §8.3.4).
+  // At most two asks a day, once per task per seven days (PRODUCT_SPEC.md §8.3.4); the screen that shows them records them.
+  const { asks, fresh: freshAsks } = useCarryAsks(carriedTasks, { carryAskAfter: settings?.carryAskAfter ?? null, today, zone: settings?.timezone ?? "UTC", now });
   const markAsked = useCallback((ids: readonly string[], at: string) => repo.markAsked(ids, at), [repo]);
-  const asks = useCarryAsks(carriedTasks, { carryAskAfter: settings?.carryAskAfter ?? null, today, zone: settings?.timezone ?? "UTC", now, markAsked: recordAsks ? markAsked : undefined });
 
   return useMemo(() => {
     const carried = carriedTasks.map((t) => ({ ...t, ask: asks.has(t.id) }));
@@ -205,6 +207,8 @@ export function useToday(now: Temporal.Instant, { recordAsks = false }: { record
       today,
       settings,
       settingsId: settingsRows?.[0]?.id ?? null,
+      freshAsks,
+      markAsked,
       capacity,
       carried,
       todayTasks: onDay.filter((t) => !t.evening),
@@ -217,7 +221,7 @@ export function useToday(now: Temporal.Instant, { recordAsks = false }: { record
       calendarConnected: (calendarRows ?? []).length > 0,
       calendarIssue: calendarIssueFrom(connectionRows ?? []),
     };
-  }, [tasks, carriedTasks, asks, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
+  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
 }
 
 export interface CalendarIssue {

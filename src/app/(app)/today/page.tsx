@@ -33,6 +33,7 @@ import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { ViewHeader } from "@/features/shell/view-header";
 import { BLOCK_GLYPH, CarryAsk, MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { useConvertToProject } from "@/features/tasks/use-convert";
+import { useRecordAsks } from "@/features/rollover/use-carry-asks";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
@@ -108,7 +109,7 @@ export default function TodayPage() {
     const id = setInterval(() => setNow(Temporal.Now.instant()), 60_000);
     return () => clearInterval(id);
   }, []);
-  const model = useToday(now, { recordAsks: true });
+  const model = useToday(now);
   const detail = useTaskDetail();
   const review = useCarryReview();
   const time = useInteractionTimer();
@@ -156,6 +157,10 @@ export default function TodayPage() {
   useEffect(() => registerTodayHandler((r) => onRequest.current(r)), []);
   // Above eight rows Carried over starts folded; unfolding it holds for the rest of the day on this device.
   const [carriedOpenOn, setCarriedOpenOn] = useState<string | null>(null);
+  const todayIsoNow = model.today.toString();
+  const carriedFolded = model.carried.length > CARRIED_FOLD_AT && carriedOpenOn !== todayIsoNow && !readCarriedOpen(todayIsoNow);
+  // An ask is recorded once it is on screen: a folded pile shows none.
+  useRecordAsks(model.freshAsks, model.markAsked, model.ready && !carriedFolded);
   const openCarried = () => {
     const day = model.today.toString();
     setCarriedOpenOn(day);
@@ -353,8 +358,6 @@ export default function TodayPage() {
   const shutdownTime = shutdownReady || (finish !== null && nowMinute >= finish.hour * 60 + finish.minute);
   const manual = sort === "manual";
   const carriedIds = model.carried.map((t) => t.id);
-  const todayIsoNow = model.today.toString();
-  const carriedFolded = model.carried.length > CARRIED_FOLD_AT && carriedOpenOn !== todayIsoNow && !readCarriedOpen(todayIsoNow);
   const clearSlate = () => void time("clear-the-slate", () => model.repo.archiveMany(carriedIds));
   // The row's menu on a phone: Convert to project (PRODUCT_SPEC.md §6), beside the moves it already has.
   const convertItem = (id: string) => (

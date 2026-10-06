@@ -4,7 +4,7 @@
 // the writes as choices are made.
 import type { PlanDrawing } from "@/features/planning/drawing";
 import type { TimelineBlock, TimelineMeeting } from "@/features/today/hooks/use-today";
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, type Instant, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
@@ -39,6 +39,8 @@ export interface MorningPlanFlowProps {
   asks: ReadonlySet<string>;
   /** "Break it down": converts the task into a project and opens it. */
   onBreakDown?: (id: string) => void;
+  /** Step 2, where the asks are, is on screen: they can be recorded as shown. */
+  onAsksShown?: () => void;
   today: LocalDate;
   now: Instant;
   zone: string;
@@ -79,6 +81,11 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
     setSawPlanOpen(planOpen);
     if (planOpen) setStep("block");
   }
+
+  const onAsksShown = p.onAsksShown;
+  useEffect(() => {
+    if (step === "pick") onAsksShown?.();
+  }, [step, onAsksShown]);
 
   let body: ReactNode;
   switch (step) {

@@ -104,4 +104,12 @@ describe("the morning plan's ask", () => {
     await user.click(within(ask).getByRole("button", { name: "Keep today" }));
     expect(onCarry).toHaveBeenCalledWith("a", "today");
   });
+
+  it("says the asks are on screen only once step 2 is reached, so a plan skipped at step 1 records none", async () => {
+    const onAsksShown = vi.fn();
+    const { user } = plan({ onAsksShown });
+    expect(onAsksShown).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(onAsksShown).toHaveBeenCalled();
+  });
 });
