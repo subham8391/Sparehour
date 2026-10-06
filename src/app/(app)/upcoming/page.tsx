@@ -20,7 +20,6 @@ import { useQuery } from "@/data/powersync";
 import { toTask } from "@/data/mappers";
 import { DUE_FROM_SQL, PLANNED_AFTER_SQL, PLANNED_BETWEEN_SQL, STARTING_LATER_SQL, UNPLANNED_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
-import { registerViewKeys } from "@/features/commands/view-keys";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useListSelection } from "@/features/selection/selection-provider";
@@ -39,8 +38,9 @@ import { CompactRow } from "@/features/upcoming/compact-row";
 import { dueByDay, laterGroups, startingByDay, type AgendaDay } from "@/features/upcoming/later";
 import { RailColumn, UnplannedButton, UnplannedSheet } from "@/features/upcoming/unplanned";
 import { useWeekCapacity } from "@/features/upcoming/use-week-capacity";
+import { useWeekKeys } from "@/features/upcoming/use-week-keys";
 import { useWeekBand, useWeekMode } from "@/features/upcoming/use-week-view";
-import { clampOffset, dayPrefill, dayReadout, neighbourColumn, shiftDay, stepInColumn, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
+import { clampOffset, dayPrefill, dayReadout, shiftDay, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
 import { WeekColumns, bandColumns, columnIds, dayLabel, type ColumnDay } from "@/features/upcoming/week-columns";
 import { Button, iconButtonClass } from "@/ui/button";
 import { CollapsedGroup } from "@/ui/collapsed-group";
@@ -228,55 +228,7 @@ export default function UpcomingPage() {
     void repo.placeInDay(id, target, keyBetween(lastKey(section), null), task.evening);
   };
 
-  // ---- the keys this view gives a meaning (SCREENS.md §3 "Keyboard", §24)
-  const keys = useRef({ navColumns, moveByDay, select: sel.select });
-  useEffect(() => {
-    keys.current = { navColumns, moveByDay, select: sel.select };
-  });
-  useEffect(
-    () =>
-      registerViewKeys({
-        prev: () => setOffset((o) => clampOffset(o - 1)),
-        next: () => setOffset((o) => o + 1),
-        home: () => setOffset(0),
-        earlier: (id) => id !== null && keys.current.moveByDay(id, -1),
-        later: (id) => id !== null && keys.current.moveByDay(id, 1),
-        down: (id) => stepWithin(id, 1),
-        up: (id) => stepWithin(id, -1),
-      }),
-    [],
-  );
-  /** J/K stay inside a column where the days are columns; elsewhere they walk the whole view. */
-  const stepWithin = (id: string | null, delta: 1 | -1): boolean => {
-    if (!columnsRef.current) return false;
-    const next = stepInColumn(keys.current.navColumns, id, delta);
-    if (next === null) return false;
-    keys.current.select(next);
-    return true;
-  };
-  const columnsRef = useRef(columnsLayout);
-  useEffect(() => {
-    columnsRef.current = columnsLayout;
-  });
-  // Tab between columns while a row is selected, from the page or from a row; at either end it carries on as Tab.
-  useEffect(() => {
-    if (!columnsLayout) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
-      if (document.querySelector("[role='dialog'][aria-modal='true']")) return;
-      const target = e.target as HTMLElement | null;
-      const onRow = Boolean(target?.closest?.("[data-week] li, [data-rail] li"));
-      const onPage = !target || target === document.body || target.matches?.("[role='region'], main");
-      if (!onRow && !onPage) return;
-      const next = neighbourColumn(tabColumns, sel.selectedId, e.shiftKey ? -1 : 1);
-      if (!next) return;
-      e.preventDefault();
-      sel.select(next);
-      if (onRow) document.querySelector<HTMLElement>(`li[data-id="${CSS.escape(next)}"] [data-title]`)?.focus();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [columnsLayout, tabColumns, sel]);
+  useWeekKeys({ columns: columnsLayout ? navColumns : null, tabColumns, selectedId: sel.selectedId, select: sel.select, moveByDay, setOffset });
 
   // ---- the rail: a column in the wide band, a sheet below it
   const [sheetOpen, setSheetOpen] = useState(false);
