@@ -22,6 +22,7 @@ import { UndoProvider } from "@/features/undo/undo-provider";
 import { cx } from "@/ui/cx";
 import { FabRoomContext } from "./fab-visibility";
 import { showsQuickAdd, showsTabBar } from "./nav";
+import { OpenTo } from "./open-to";
 import { useIdleMount } from "./preload-on-idle";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
@@ -58,6 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </CarryReviewHost>
                     <PaletteHost />
                     <PushDeepLink />
+                    <OpenTo />
                   </Keyboard>
                 </BlockingProvider>
               </PaletteProvider>
