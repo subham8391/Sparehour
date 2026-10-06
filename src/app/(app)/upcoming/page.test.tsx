@@ -15,7 +15,7 @@ import { WEEK_MODE_KEY } from "@/features/upcoming/use-week-view";
 import { localSqlite, type Row } from "@/test/local-sqlite";
 
 const h = vi.hoisted(() => ({
-  answer: (_sql: string, _params: readonly unknown[]): unknown[] => [],
+  answer: (() => []) as (sql: string, params: readonly unknown[]) => unknown[],
   repo: {} as Record<string, ReturnType<typeof vi.fn>>,
   quickAdd: { open: (() => {}) as (prefill?: string) => void },
   detail: { open: (() => {}) as (id: string) => void },
