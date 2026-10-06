@@ -344,7 +344,7 @@ describe("<QuickAdd>", () => {
     it("Tab on a new tag in the middle of the line finishes it and moves on", async () => {
       const { user, input } = setup({ tags, initial: "Call @zz about it" });
       await user.click(input);
-      input.setSelectionRange(8, 8);
+      (input as HTMLInputElement).setSelectionRange(8, 8);
       await user.keyboard("z");
       expect(input).toHaveValue("Call @zzz about it");
       expect(screen.getByRole("group", { name: "Tags" })).toHaveTextContent("Create @zzz");
