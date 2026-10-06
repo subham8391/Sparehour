@@ -400,6 +400,7 @@ The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
 - M2 adds **backlog suggestions** — a "Worth another look" group ranked by age, reschedule count and deadline proximity (`07` §B16).
 - Milestone: M1.
 - **Responsive.** Phone: reached from **Browse**; same rows; actions on tap (sheet) or swipe; long-press for bulk; `Review` walks full-screen. All bands: same grouping.
+- **As built (2026-10-06).** Groups follow the sidebar's order (areas first, the area named beside each project; projects without an area after them), then "Not in a project". The pinned group shows when the rollover filed tasks that nobody has touched since (`tasks.auto_filed_at`): "Moved here automatically · N" with "You hadn't touched these in 30 days." (the setting's number), `Review` and `Bring them all back` (one undo; the tasks come back undated, DECISIONS.md "Bring them all back"). A new batch is announced once above the groups, "N tasks moved to Someday while you weren't looking" with `Review` and a dismiss, remembered on the settings row. `Review` (a lazy island; full-screen on the phone) offers `Keep in Someday` (clears the stamp, so the task joins its project's group) · `Today` · `Pick a date` · `Drop`. Row actions are `Today` · `Pick a date` (a short sheet with the date picker) · `Back to active` · `Drop`, each with an undo toast; on the phone they are in the row's ⋯ menu. Swipes are not built yet.
 
 ---
 
@@ -415,6 +416,7 @@ The Logbook shows the last week: a finished task is removed for good seven days 
 - Day rating and highlights from the shutdown appear as a quiet line under the day header.
 - Milestone: M1. Year heatmap and Year in Review: Later.
 - **Responsive.** Phone: reached from **Browse**; same rows; filters in a sheet behind a `Filter` button; swipe right = Reopen (the `U` action). Narrow and up: as drawn.
+- **As built (2026-10-06).** A task the rollover dropped under the expire policy says "Expired" in its row, and `/logbook?show=expired` (Review on Today's expired digest) lists only those, each with `Restore` (undo toast).
 
 ---
 
@@ -912,7 +914,7 @@ Two-column: a section list on the left, the section on the right. Every change s
 | Surface | Use |
 |---|---|
 | **Toast** (bottom-left, 10s, stacking to 3) | Every undoable action: "Dropped *Expenses* — Undo" |
-| **Inline banner** (above the ribbon, dismissible) | Connection and sync problems, permission prompts, the expired-tasks digest |
+| **Inline banner** (above the ribbon, dismissible) | Connection and sync problems, permission prompts, the expired-tasks digest ("2 time-sensitive tasks expired overnight" · `Review` · dismiss; built 2026-10-06, shown once per batch, never red) |
 | **Row-level hint** | "Long — break it down?", "block removed in Google Calendar" |
 | **App-icon badge** | Today's remaining planned count. Neutral, clears at shutdown, only after notification permission is granted |
 | Never used | Modal dialogs for anything other than destructive confirmations. No interstitials, no upsell popovers |
