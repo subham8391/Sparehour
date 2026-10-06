@@ -18,6 +18,7 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { Opening, type FieldRequest } from "./task-detail";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useChecklistRepo, useTagRepo } from "./use-repos";
+import { useConvertToProject } from "./use-convert";
 import { useTaskRepo } from "./use-task-repo";
 
 type ChecklistRow = Parameters<typeof toChecklistItem>[0];
@@ -29,6 +30,8 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
   const now = useNow();
   const { today, zone } = useLocalDay(now);
   const blocking = useBlockingOptional();
+  // Convert to project closes the detail and opens the new project, cursor in its add row.
+  const convert = useConvertToProject(repo, onClose);
   const { data: rows, isLoading } = useQuery<TaskRowType>(TASK_SQL, [id]);
   const { data: projectRows } = useQuery<ProjectStateRow>(ALL_PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
@@ -81,6 +84,7 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onSomeday={() => void repo.setState(task.id, "someday").then(onClose)}
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
+      onConvert={() => void convert(task.id)}
       onClose={onClose}
       fieldRequest={field}
     />

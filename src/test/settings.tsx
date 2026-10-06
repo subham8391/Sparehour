@@ -50,6 +50,8 @@ export const SETTINGS_VALUES: SettingsValues = {
   badgeEnabled: true,
   defaultMissPolicy: "carry",
   defaultView: "today",
+  todaySort: "manual",
+  showCompleted: false,
 };
 
 /** Monday to Friday, 09:00–18:00. */

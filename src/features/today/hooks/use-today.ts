@@ -1,10 +1,10 @@
 "use client";
 // Composes the local data with the core engines: capacity, carried-over and
 // today's list, all reactive to the local database.
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { capacityFor, type Capacity, type CapacityBlock } from "@/core/capacity";
-import { carriedOver, shouldAsk } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
+import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
 import { Temporal, instant, localDate, todayFor, type Instant, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
@@ -12,6 +12,7 @@ import { BLOCKS_AROUND_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY
 import { monthsBack } from "@/data/queries/views";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import type { TaskRepo } from "@/data/repositories/task-repo";
+import { useCarryAsks } from "@/features/rollover/use-carry-asks";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 
@@ -101,6 +102,11 @@ export interface TodayModel {
   ready: boolean;
   today: LocalDate;
   settings: Settings | null;
+  /** The settings row, for Today's own preferences (⋯ Sort, Show completed). */
+  settingsId: string | null;
+  /** Asks shown now that are new today, and how a screen that shows them records them (`useRecordAsks`). */
+  freshAsks: readonly string[];
+  markAsked: (ids: readonly string[], at: string) => Promise<void>;
   capacity: Capacity | null;
   carried: (Task & { ask: boolean })[];
   todayTasks: Task[];
@@ -143,9 +149,15 @@ export function useToday(now: Temporal.Instant): TodayModel {
     streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }],
   });
 
+  const tasks = useMemo(() => (taskRows ?? []).map(toTask), [taskRows]);
+  const hasSettings = settings !== null;
+  const carriedTasks = useMemo(() => (hasSettings ? carriedOver(tasks, today) : []), [hasSettings, tasks, today]);
+  // At most two asks a day, once per task per seven days (PRODUCT_SPEC.md §8.3.4); the screen that shows them records them.
+  const { asks, fresh: freshAsks } = useCarryAsks(carriedTasks, { carryAskAfter: settings?.carryAskAfter ?? null, today, zone: settings?.timezone ?? "UTC", now });
+  const markAsked = useCallback((ids: readonly string[], at: string) => repo.markAsked(ids, at), [repo]);
+
   return useMemo(() => {
-    const tasks = (taskRows ?? []).map(toTask);
-    const carried = settings ? carriedOver(tasks, today).map((t) => ({ ...t, ask: shouldAsk(t, settings) })) : [];
+    const carried = carriedTasks.map((t) => ({ ...t, ask: asks.has(t.id) }));
     const carriedIds = new Set(carried.map((t) => t.id));
     const onDay = tasks.filter((t) => !carriedIds.has(t.id) && t.doDate?.equals(today));
     const readByCalendar = new Map((calendarRows ?? []).map((c) => [c.id, c.read !== 0]));
@@ -194,6 +206,9 @@ export function useToday(now: Temporal.Instant): TodayModel {
       ready: !isLoading && settings !== null,
       today,
       settings,
+      settingsId: settingsRows?.[0]?.id ?? null,
+      freshAsks,
+      markAsked,
       capacity,
       carried,
       todayTasks: onDay.filter((t) => !t.evening),
@@ -206,7 +221,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
       calendarConnected: (calendarRows ?? []).length > 0,
       calendarIssue: calendarIssueFrom(connectionRows ?? []),
     };
-  }, [taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
+  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
 }
 
 export interface CalendarIssue {

@@ -51,7 +51,7 @@ function setup(over: Partial<MorningPlanFlowProps> = {}) {
     fitsMin: 340,
     tomorrowSpareMin: 250,
     defaultEstimateMin: 30,
-    carryAskAfter: 3,
+    asks: new Set(["c1"]),
     today,
     now: instant("2026-09-14T08:00:00Z"),
     zone: "Europe/London",

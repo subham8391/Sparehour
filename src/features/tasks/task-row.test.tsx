@@ -2,10 +2,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { instant } from "@/core/time";
+import { instant, localDate } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
 import { SelectionProvider, useListSelection, useSelection } from "@/features/selection/selection-provider";
-import { TaskList, TaskRow } from "./task-row";
+import { TaskList, TaskRow, carriedLabel } from "./task-row";
 
 const task = (id: string, title: string): Task => ({
   id: id as TaskId,
@@ -314,5 +314,40 @@ describe("<TaskRow> completion feedback (DESIGN_SYSTEM.md §7)", () => {
     const row = screen.getByText("Draft the proposal").closest("li")!;
     expect(row.querySelector("svg")).not.toBeNull();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+describe("<TaskRow> carried over (SCREENS.md §2.3)", () => {
+  it("the ×N chip says how often and since when, from the day it was first missed", () => {
+    const today = localDate("2026-09-14");
+    render(
+      <TaskList>
+        <TaskRow task={{ ...tasks[0], carryCount: 3, doDate: localDate("2026-09-09") }} today={today} />
+        <TaskRow task={{ ...tasks[1], carryCount: 2, doDate: today }} today={today} />
+      </TaskList>,
+    );
+    expect(screen.getByLabelText("Moved 3 times since Wed 9 Sep")).toHaveTextContent("×3");
+    expect(screen.getByLabelText("Moved 3 times since Wed 9 Sep")).toHaveAttribute("title", "Moved 3 times since Wed 9 Sep");
+    // Kept for today, it is no longer behind: the count stands alone.
+    expect(screen.getByLabelText("Moved 2 times")).toHaveTextContent("×2");
+    expect(carriedLabel({ carryCount: 4, doDate: null }, today)).toBe("Moved 4 times");
+  });
+
+  it("a long estimate's hint is answered by Break it down, in the row's actions and its phone menu", async () => {
+    const onBreakDown = vi.fn();
+    render(
+      <TaskList>
+        <TaskRow task={{ ...tasks[0], estimateMin: 9 * 60 }} onBreakDown={onBreakDown} />
+        <TaskRow task={{ ...tasks[1], estimateMin: 60 }} onBreakDown={vi.fn()} />
+      </TaskList>,
+    );
+    expect(screen.getByText("Long — break it down?")).toBeInTheDocument();
+    const buttons = screen.getAllByRole("button", { name: "Break it down" });
+    expect(buttons).toHaveLength(1);
+    await userEvent.click(buttons[0]);
+    expect(onBreakDown).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Break it down" }));
+    expect(onBreakDown).toHaveBeenCalledTimes(2);
   });
 });

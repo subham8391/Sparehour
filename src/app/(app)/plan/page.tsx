@@ -19,6 +19,8 @@ import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { useNow } from "@/features/shell/use-local-day";
 import { minuteOnDay } from "@/features/today/day-minute";
 import { useToday } from "@/features/today/hooks/use-today";
+import { useConvertToProject } from "@/features/tasks/use-convert";
+import { useRecordAsks } from "@/features/rollover/use-carry-asks";
 
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
@@ -28,6 +30,12 @@ export default function PlanPage() {
   const dayPlans = useMemo(() => new DayPlanRepo(db), [db]);
   const now = useNow();
   const model = useToday(now);
+  // Recorded once step 2 is on screen, where the asks are (PRODUCT_SPEC.md §8.3.4).
+  const [asksSeen, setAsksSeen] = useState(false);
+  useRecordAsks(model.freshAsks, model.markAsked, asksSeen);
+  // Step 2's asks are Today's: the same two a day, the same seven-day memory (PRODUCT_SPEC.md §8.3.4).
+  const asks = useMemo(() => new Set(model.carried.filter((t) => t.ask).map((t) => t.id)), [model.carried]);
+  const breakDown = useConvertToProject(model.repo);
   const sync = useSyncChip();
   const tomorrow = model.today.add({ days: 1 });
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
@@ -71,7 +79,9 @@ export default function PlanPage() {
       fitsMin={fitsMin}
       tomorrowSpareMin={tomorrowSpareMin}
       defaultEstimateMin={settings.defaultEstimateMin}
-      carryAskAfter={settings.carryAskAfter}
+      asks={asks}
+      onAsksShown={() => setAsksSeen(true)}
+      onBreakDown={(id) => void breakDown(id)}
       today={model.today}
       now={now}
       zone={settings.timezone}

@@ -73,6 +73,10 @@ export const user_settings = new Table({
   block_start_lead_min: column.integer,
   /** Settings › Notifications "Badge on the app icon". */
   badge_enabled: column.integer,
+  /** Today's ⋯ Sort and Settings › Planning: 'manual' | 'time' | 'priority' | 'deadline' | 'estimate'. */
+  today_sort: column.text,
+  /** Today's ⋯ Show completed: today's finished tasks under a Done divider. */
+  show_completed: column.integer,
   created_at: column.text,
   updated_at: column.text,
 });
@@ -138,6 +142,12 @@ export const tasks = new Table(
     expired_at: column.text,
     /** Server-owned: when the rollover job filed it to Someday untouched; cleared once a person touches it. */
     auto_filed_at: column.text,
+    /** When the three-carry ask was last shown (once per task per 7 days, two a day); not a touch. */
+    carry_asked_at: column.text,
+    /** The archive batch it went into: Clear the slate, or a one-task batch when converted to a project. */
+    archive_batch_id: column.text,
+    /** The state it had before it was archived, for restoring its batch. */
+    archived_from_state: column.text,
   },
   {
     indexes: {

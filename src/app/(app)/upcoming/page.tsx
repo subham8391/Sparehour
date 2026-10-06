@@ -33,6 +33,7 @@ import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { MoveActions } from "@/features/tasks/task-actions";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useConvertToProject } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { DayBar, ReadoutText } from "@/features/upcoming/capacity-bar";
 import { CompactRow } from "@/features/upcoming/compact-row";
@@ -75,6 +76,8 @@ interface DragOver {
 export default function UpcomingPage() {
   const repo = useTaskRepo();
   const detail = useTaskDetail();
+  // "Long — break it down?" answers itself: the row offers Convert to project (PRODUCT_SPEC.md §5.4, §6).
+  const breakDown = useConvertToProject(repo, detail.close);
   const quickAdd = useQuickAdd();
   const now = useNow();
   const { today, settings } = useLocalDay(now);
@@ -270,6 +273,7 @@ export default function UpcomingPage() {
       onSelect={() => sel.select(t.id)}
       onDone={() => void repo.complete(t.id)}
       meta={meta(t)}
+      onBreakDown={opts.actions === false ? undefined : () => void breakDown(t.id)}
       actions={opts.actions === false ? undefined : moveActions(t)}
     />
   );

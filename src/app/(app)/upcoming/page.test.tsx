@@ -35,6 +35,7 @@ vi.mock("@/features/quickadd/quick-add-provider", () => ({ useQuickAdd: () => h.
 vi.mock("@/features/tasks/task-detail", () => ({ useTaskDetail: () => h.detail }));
 vi.mock("@/features/tasks/use-task-repo", () => ({ useTaskRepo: () => h.repo }));
 vi.mock("@/features/commands/palette-provider", () => ({ usePalette: () => ({ open: () => {} }) }));
+vi.mock("next/navigation", async (actual) => ({ ...(await actual<typeof import("next/navigation")>()), useRouter: () => ({ push: vi.fn(), back: vi.fn() }) }));
 
 import UpcomingPage from "./page";
 

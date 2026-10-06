@@ -4,6 +4,7 @@
 // 900 px, a list that pushes into each section below it. The page owns the
 // data, the writes and their undo; each section's controls are an island.
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { isTodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
@@ -78,6 +79,8 @@ export default function SettingsPage() {
         badgeEnabled: (s.badge_enabled ?? 1) === 1,
         defaultMissPolicy: MISS_POLICIES.includes(s.default_miss_policy as MissPolicy) ? (s.default_miss_policy as MissPolicy) : "carry",
         defaultView: OPEN_TO.includes(s.default_view as OpenTo) ? (s.default_view as OpenTo) : "today",
+        todaySort: isTodaySort(s.today_sort) ? s.today_sort : "manual",
+        showCompleted: s.show_completed === 1,
       }
     : null;
   // Writes are local and land at once, but the query that redraws the controls can trail them by a second while an

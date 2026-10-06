@@ -1890,7 +1890,7 @@ end $$;
 
 #### Ask-after-3 and Clear the slate
 
-The "Still want this?" prompt is **not** a stored flag — it is `carry_count >= settings.carry_ask_after` evaluated in the UI, which means changing the setting takes effect instantly and retroactively, and the prompt cannot get stuck. Choosing *Someday* / *Break it down* / *Drop* resets `carry_count = 0` as part of the action.
+The "Still want this?" prompt is **not** a stored flag — it is `carry_count >= settings.carry_ask_after` evaluated in the UI, which means changing the setting takes effect instantly and retroactively, and the prompt cannot get stuck. Choosing *Someday* / *Break it down* / *Drop* resets `carry_count = 0` as part of the action. **As built (2026-10-06):** the threshold is still evaluated live; what is stored is only when an ask was shown (`tasks.carry_asked_at`, the person's column, ignored by `touch_task`), so `pickAsks` (`core/rollover/carried.ts`) can hold it to two a day and once per task in seven days. The reset is the server's: `tasks_guard` zeroes the count when a person moves a task to Someday, Dropped or Archived — Break it down archives the task in a one-task batch — and undo does not bring the count back.
 
 ```
 clearTheSlate(userId, scope) :=

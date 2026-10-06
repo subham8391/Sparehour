@@ -2,30 +2,38 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@/data/powersync";
+import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { blockLength, chooseSlot, placeAt } from "@/core/blocking";
 import { keyBetween } from "@/core/ordering";
 import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, toInstant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
+import { sortToday, type TodaySort } from "@/core/today/sort";
 import type { Task } from "@/core/types";
 import { normaliseTimestamp, toTask } from "@/data/mappers";
 import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, OPEN_TASKS_SQL, monthsBack } from "@/data/queries/views";
+import { SettingsRepo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlocking } from "@/features/blocking/blocking-provider";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { useBlockNudgePending } from "@/features/notifications/block-nudge-store";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useCarryReview } from "@/features/rituals/carry-review-host";
-import { plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
+import { easiestMove, plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
+import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { closedLine } from "@/features/rituals/shutdown";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
-import { Ribbon } from "@/features/today/ribbon";
+import { Ribbon, heroState } from "@/features/today/ribbon";
+import { dayState } from "@/features/today/day-state";
+import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
 import { Timeline } from "@/features/today/timeline";
 import { useHideQuickAddFab } from "@/features/shell/fab-visibility";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { ViewHeader } from "@/features/shell/view-header";
-import { BLOCK_GLYPH, CarryAsk, MoveActions, RowAction } from "@/features/tasks/task-actions";
+import { BLOCK_GLYPH, CarryAsk, MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
+import { useConvertToProject } from "@/features/tasks/use-convert";
+import { useRecordAsks } from "@/features/rollover/use-carry-asks";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
@@ -34,13 +42,31 @@ import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
 import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
-import { SectionAction, SectionLabel } from "@/ui/section-label";
+import { MenuButton } from "@/ui/popover";
+import { EYEBROW, SectionAction, SectionLabel } from "@/ui/section-label";
+import { Toast } from "@/ui/toast";
 import { Loading } from "../loading-view";
 
 // The once-only expired digest (PRODUCT_SPEC.md §8.2 rule 5): a lazy island, out of the first download.
 const ExpiredDigest = dynamic(() => import("@/features/today/expired-digest"), { ssr: false });
 // "Want a nudge when this starts?" after the first block on a device not yet asked (PRODUCT_SPEC.md §14 rule 7): loaded only then.
 const BlockNudge = dynamic(() => import("@/features/notifications/block-nudge"), { ssr: false });
+// Today's ⋯ contents and the Trim today panel (SCREENS.md §2.1, PRODUCT_SPEC.md §9.4): out of the shell, fetched on idle.
+const loadTodayMenu = () => import("@/features/today/today-menu");
+const loadTrimToday = () => import("@/features/today/trim-today");
+const TodayMenu = dynamic(loadTodayMenu, { ssr: false });
+const TrimToday = dynamic(loadTrimToday, { ssr: false });
+const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday()]);
+/** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
+const CARRIED_FOLD_AT = 8;
+const CARRIED_OPEN_KEY = "sparehour:carried-open";
+function readCarriedOpen(day: string): boolean {
+  try {
+    return localStorage.getItem(CARRIED_OPEN_KEY) === day;
+  } catch {
+    return false;
+  }
+}
 const NOTHING_SQL = `select * from tasks where 0`;
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
@@ -86,7 +112,6 @@ export default function TodayPage() {
   const model = useToday(now);
   const detail = useTaskDetail();
   const review = useCarryReview();
-  const sel = useListSelection([model.carried.map((t) => t.id), model.todayTasks.map((t) => t.id), model.eveningTasks.map((t) => t.id)]);
   const time = useInteractionTimer();
   useEffect(() => {
     lastCommit = performance.now();
@@ -94,6 +119,55 @@ export default function TodayPage() {
 
   const zone = model.settings?.timezone ?? "UTC";
   const tomorrow: LocalDate = model.today.add({ days: 1 });
+  const db = useLocalDatabase();
+  useEffect(() => preloadOnIdle(preloadTodayIslands), []);
+  // Convert task → project ("Break it down", the row's menu): the project opens with the cursor in its add row.
+  const breakDown = useConvertToProject(model.repo, detail.close);
+
+  // Today's view preferences (⋯ Sort, Show completed): one setting each, also in Settings › Planning. The choice
+  // shows at once and stays until the settings row says the same.
+  const [prefs, setPrefs] = useState<SettingsPatch>({});
+  if (model.settings && Object.keys(prefs).length > 0 && (prefs.todaySort ?? model.settings.todaySort) === model.settings.todaySort && (prefs.showCompleted ?? model.settings.showCompleted) === model.settings.showCompleted) setPrefs({});
+  const sort: TodaySort = prefs.todaySort ?? model.settings?.todaySort ?? "manual";
+  const showCompleted = prefs.showCompleted ?? model.settings?.showCompleted ?? false;
+  const savePref = (patch: SettingsPatch) => {
+    setPrefs((p) => ({ ...p, ...patch }));
+    if (model.settingsId) void new SettingsRepo(db).update(model.settingsId, patch);
+  };
+  // Sort is a view over the two lists (SCREENS.md §2.4): a sorted copy, never a rewritten day_sort_key.
+  const todayList = sortToday(model.todayTasks, sort, model.settings?.defaultEstimateMin ?? 30);
+  const eveningList = sortToday(model.eveningTasks, sort, model.settings?.defaultEstimateMin ?? 30);
+  const [trimOpen, setTrimOpen] = useState(false);
+  // A short confirmation the ⋯ menu leaves behind ("Copied today as text"); it reports, it has nothing to undo.
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
+  // The palette's Trim today, Sort by… and Show completed (features/today/today-request.ts).
+  const onRequest = useRef<(r: TodayRequest) => void>(() => undefined);
+  useEffect(() => {
+    onRequest.current = (r) => {
+      if (r.kind === "trim") setTrimOpen(true);
+      else if (r.kind === "sort") savePref({ todaySort: r.sort });
+      else savePref({ showCompleted: !showCompleted });
+    };
+  });
+  useEffect(() => registerTodayHandler((r) => onRequest.current(r)), []);
+  // Above eight rows Carried over starts folded; unfolding it holds for the rest of the day on this device.
+  const [carriedOpenOn, setCarriedOpenOn] = useState<string | null>(null);
+  const todayIsoNow = model.today.toString();
+  const carriedFolded = model.carried.length > CARRIED_FOLD_AT && carriedOpenOn !== todayIsoNow && !readCarriedOpen(todayIsoNow);
+  const openCarried = () => {
+    const day = model.today.toString();
+    setCarriedOpenOn(day);
+    try {
+      localStorage.setItem(CARRIED_OPEN_KEY, day);
+    } catch {
+      // storage unavailable: it unfolds for this visit only
+    }
+  };
 
   // ---- time blocks (SCREENS.md §2.6): local for now, on the calendar with P7b.
   const blocks = useBlockRepo();
@@ -217,19 +291,32 @@ export default function TodayPage() {
   const localTimeOf = (iso: string) => formatTime(instant(normaliseTimestamp(iso)).toZonedDateTimeISO(zone).toPlainTime());
   const closedAt = plan?.shutdown_at ? localTimeOf(plan.shutdown_at) : null;
   const plannedAt = plan?.planned_at ? localTimeOf(plan.planned_at) : null;
-  const emptyDay = model.ready && !closedAt && model.carried.length === 0 && model.todayTasks.length === 0;
-  const { data: openRows } = useQuery<TaskRowType>(emptyDay ? OPEN_TASKS_SQL : NOTHING_SQL);
-  const suggestions = useMemo(() => (emptyDay ? pullInSuggestions((openRows ?? []).map(toTask), model.today) : []), [emptyDay, openRows, model.today]);
   const dayBounds = useMemo(() => {
     const start = model.today.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
     const end = tomorrow.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
     return [start, end] as [string, string];
   }, [model.today, tomorrow, zone]);
   const months = useMemo(() => monthsBack(model.today, 1), [model.today]);
-  const { data: doneRows } = useQuery<TaskRowType>(closedAt ? DONE_BETWEEN_SQL : NOTHING_SQL, closedAt ? dayBounds : [], {
-    streams: closedAt ? [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] : undefined,
-  });
+  // What was finished today: the closed day's summary, Show completed, and the all-done state all read it. The
+  // logbook subscription is the one use-today already holds for block states, so this costs no extra sync.
+  const { data: doneRows } = useQuery<TaskRowType>(DONE_BETWEEN_SQL, dayBounds, { streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] });
   const doneToday = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
+  // J/K walk the rows in the order they are drawn, Done last when it shows.
+  const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
+  // Everything planned for today is done (SCREENS.md §2.7 "All done"): at least one thing finished and nothing left on
+  // today or this evening. Nothing planned and nothing finished is still the empty day below.
+  const bodyState = dayState({ closed: Boolean(closedAt), carried: model.carried.length, today: model.todayTasks.length, evening: model.eveningTasks.length, done: doneToday.length });
+  const allDone = model.ready && bodyState === "all-done";
+  const emptyDay = model.ready && bodyState === "empty";
+  const [pulling, setPulling] = useState(false);
+  const wantsSuggestions = emptyDay || (allDone && pulling);
+  const { data: openRows } = useQuery<TaskRowType>(wantsSuggestions ? OPEN_TASKS_SQL : NOTHING_SQL);
+  const suggestions = useMemo(() => (wantsSuggestions ? pullInSuggestions((openRows ?? []).map(toTask), model.today) : []), [wantsSuggestions, openRows, model.today]);
+  // Over (PRODUCT_SPEC.md §9.4): the ribbon names one move, the largest task with no deadline that fits tomorrow.
+  const hero = model.capacity && model.capacity.state !== "no_work_day" ? heroState(model.capacity) : null;
+  const overMin = hero?.over ? hero.min : 0;
+  const { spareMin: tomorrowSpare } = useTomorrowSpare(tomorrow, model.settings, overMin > 0);
+  const suggested = overMin > 0 ? easiestMove(model.todayTasks, overMin, tomorrowSpare, model.settings?.defaultEstimateMin ?? 30) : null;
   const shutdownReady = !model.capacity || model.capacity.state === "no_work_day" || nowMinute >= model.capacity.windows[model.capacity.windows.length - 1].end - 120;
 
   const move = (t: Task, dir: -1 | 1) => {
@@ -262,11 +349,37 @@ export default function TodayPage() {
   const showDay = hasDay && view === "day";
   // The phone's Day view is a timeline, not a task list: its free gaps are what a tap schedules into, so the FAB steps aside.
   useHideQuickAddFab(showDay);
+  // An ask is recorded once it is on screen: a folded pile shows none, and neither does Plan my day's preview, which
+  // takes the lists' place.
+  useRecordAsks(model.freshAsks, model.markAsked, model.ready && !carriedFolded && !(planning.mode && !closedAt));
 
   if (!model.ready) return <Loading />;
   const finish = model.capacity?.projectedFinish ?? null;
   // The phone's ritual row turns to the shutdown once the plan is projected to be done, or the day is two hours from its end.
   const shutdownTime = shutdownReady || (finish !== null && nowMinute >= finish.hour * 60 + finish.minute);
+  const manual = sort === "manual";
+  const carriedIds = model.carried.map((t) => t.id);
+  const clearSlate = () => void time("clear-the-slate", () => model.repo.archiveMany(carriedIds));
+  // The row's menu on a phone: Convert to project (PRODUCT_SPEC.md §6), beside the moves it already has.
+  const convertItem = (id: string) => (
+    <MenuOnly>
+      <RowAction label="Convert to project" onClick={() => void breakDown(id)} />
+    </MenuOnly>
+  );
+  const pullIn = (
+    <TaskList>
+      {suggestions.map(({ task: t, source }) => (
+        <TaskRow
+          key={t.id}
+          task={t}
+          today={model.today}
+          onOpen={() => detail.open(t.id)}
+          meta={source !== "deadline" && <span>{source}</span>}
+          actions={<MoveActions onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))} />}
+        />
+      ))}
+    </TaskList>
+  );
   const sectionMinutes = (list: Task[]) => formatMinutes(list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0));
   // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
@@ -281,9 +394,9 @@ export default function TodayPage() {
   return (
     // Three panes from the wide band: the list column scrolls on its own and the day pane keeps its place beside it.
     // Below that the day pane takes the list's place when "Day" is chosen, and the page (or the shell's region) scrolls.
-    <main className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+    <main data-print="today" className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
       {/* Below the wide band the Day view replaces only the lists: the header, the hero and the ritual row (with the List/Day control) stay. */}
-      <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto", showDay ? "pb-0 lg:pb-7" : "flex-1")}>
+      <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible", showDay ? "pb-0 lg:pb-7" : "flex-1")}>
         <ViewHeader
           eyebrow={`Today · ${partOfDay(nowMinute, eveningAt)}`}
           title={formatDay(model.today, { weekday: "long", month: "long" })}
@@ -315,6 +428,25 @@ export default function TodayPage() {
               </>
             )
           }
+          compactActions={
+            // Today's ⋯ on every band (SCREENS.md §2.1); its contents are a lazy island.
+            <MenuButton label="Today options">
+              {(close) => (
+                <TodayMenu
+                  close={close}
+                  sort={sort}
+                  onSort={(v) => savePref({ todaySort: v })}
+                  showCompleted={showCompleted}
+                  onShowCompleted={(v) => savePref({ showCompleted: v })}
+                  carriedCount={model.carried.length}
+                  onClearSlate={clearSlate}
+                  onTrim={() => setTrimOpen(true)}
+                  text={{ day: model.today, carried: model.carried, today: todayList, evening: eveningList, blockStart: (id) => model.blockByTask.get(id)?.start ?? null, defaultEstimateMin: defaultEstimate }}
+                  onNotice={setNotice}
+                />
+              )}
+            </MenuButton>
+          }
         />
 
         <ExpiredDigest />
@@ -336,13 +468,21 @@ export default function TodayPage() {
                   </Link>
                 </p>
               )}
-              <Ribbon c={model.capacity} nowMin={nowMinute} connected={model.calendarConnected} plannedCount={model.todayTasks.length + model.eveningTasks.length} />
+              <Ribbon
+                c={model.capacity}
+                nowMin={nowMinute}
+                connected={model.calendarConnected}
+                plannedCount={model.todayTasks.length + model.eveningTasks.length}
+                onTrim={() => setTrimOpen(true)}
+                suggestion={suggested?.task.title ?? null}
+              />
             </>
           )
         )}
 
         {/* The ritual row (DESIGN_SYSTEM.md §5): the ritual of the hour and the List | Day control on one line, Plan my day
             and the review beneath on the phone; only the control from the narrow band up, until the wide band shows both panes. */}
+        <div className="contents print:hidden">
         <RitualRow
           closed={Boolean(closedAt)}
           hasDay={hasDay}
@@ -355,6 +495,7 @@ export default function TodayPage() {
           view={view}
           onView={setView}
         />
+        </div>
 
         {planning.mode && !closedAt && (
           // Beside the timeline from the wide band, above it below that, and a sheet over the Day view on a phone.
@@ -362,88 +503,141 @@ export default function TodayPage() {
         )}
 
         <div className={cx("flex-col gap-6", planning.mode && !closedAt ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
-          {model.carried.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <SectionLabel
-                className="px-0.5"
-                count={model.carried.length}
-                action={
-                  <SectionAction onClick={() => void time("clear-the-slate", () => model.repo.archiveMany(model.carried.map((t) => t.id)))} title="Archive everything carried over — one undo brings it all back">
-                    Clear the slate
-                  </SectionAction>
-                }
-              >
-                Carried over
-              </SectionLabel>
-              <TaskList>
-                {model.carried.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    today={model.today}
-                    draggable
-                    timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
-                    meta={meta(t)}
-                    onOpen={() => detail.open(t.id)}
-                    selected={sel.selectedId === t.id}
-                    onSelect={() => sel.select(t.id)}
-                    onDone={() => void time("complete", () => model.repo.complete(t.id))}
-                    actions={
-                      <MoveActions
-                        onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))}
-                        onTomorrow={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))}
-                        onSomeday={() => void time("someday", () => model.repo.setState(t.id, "someday"))}
-                        onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
-                      />
-                    }
-                    footer={
-                      t.ask && (
-                        <CarryAsk
-                          count={t.carryCount}
-                          onKeep={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}
-                          onSomeday={() => void time("someday", () => model.repo.setState(t.id, "someday"))}
-                          onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
-                        />
-                      )
-                    }
-                  />
-                ))}
-              </TaskList>
-            </section>
-          )}
+          {model.carried.length > 0 &&
+            (carriedFolded ? (
+              // More than eight carried: one summary line until it is opened (SCREENS.md §2.3, PRODUCT_SPEC.md §8.2 rule 10).
+              <section className="flex flex-col gap-2">
+                <button type="button" aria-expanded={false} onClick={openCarried} className={cx(EYEBROW, "-mx-2 flex min-h-11 items-center gap-2 rounded-sm px-2 text-left hover:bg-hover sm:min-h-7")}>
+                  Carried over
+                  <span className="font-medium normal-case tracking-normal num">
+                    <b className="font-semibold text-ink-2">{model.carried.length}</b>
+                    <span className="text-ink-3"> — </span>
+                    <span className="text-ink-2 underline decoration-line-strong underline-offset-2">Expand</span>
+                  </span>
+                </button>
+              </section>
+            ) : (
+              <section className="flex flex-col gap-2">
+                <SectionLabel
+                  className="px-0.5"
+                  count={model.carried.length}
+                  action={
+                    <SectionAction onClick={clearSlate} title="Archive everything carried over — one undo brings it all back" className="print:hidden">
+                      Clear the slate
+                    </SectionAction>
+                  }
+                >
+                  Carried over
+                </SectionLabel>
+                <TaskList>
+                  {model.carried.map((t) => (
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      today={model.today}
+                      draggable
+                      timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+                      meta={meta(t)}
+                      onOpen={() => detail.open(t.id)}
+                      selected={sel.selectedId === t.id}
+                      onSelect={() => sel.select(t.id)}
+                      onDone={() => void time("complete", () => model.repo.complete(t.id))}
+                      onBreakDown={t.ask ? undefined : () => void breakDown(t.id)}
+                      // The three-carry ask takes the place of the four quick actions, in place (SCREENS.md §2.3).
+                      actions={
+                        !t.ask && (
+                          <>
+                            <MoveActions
+                              onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))}
+                              onTomorrow={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))}
+                              onSomeday={() => void time("someday", () => model.repo.setState(t.id, "someday"))}
+                              onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
+                            />
+                            {convertItem(t.id)}
+                          </>
+                        )
+                      }
+                      footer={
+                        t.ask && (
+                          <CarryAsk
+                            count={t.carryCount}
+                            onKeep={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}
+                            onSomeday={() => void time("someday", () => model.repo.setState(t.id, "someday"))}
+                            onBreakDown={() => void breakDown(t.id)}
+                            onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
+                          />
+                        )
+                      }
+                    />
+                  ))}
+                  {model.carried.length >= 3 && (
+                    // The whole pile at once, each one statement and one undo (SCREENS.md §2.3).
+                    <li className="flex flex-wrap items-center gap-x-1 border-t border-line px-2 py-1 print:hidden sm:px-3">
+                      <SectionAction onClick={() => void time("reschedule", () => model.repo.updateMany(carriedIds, { doDate: tomorrow }, "Moved {title} to tomorrow"))} className="mr-0">
+                        Move all to tomorrow
+                      </SectionAction>
+                      <SectionAction onClick={() => void time("someday", () => model.repo.setStateMany(carriedIds, "someday"))} className="mr-0">
+                        All to Someday
+                      </SectionAction>
+                    </li>
+                  )}
+                </TaskList>
+              </section>
+            ))}
 
           <section className="flex flex-col gap-2">
             <SectionLabel className="px-0.5" count={model.todayTasks.length} detail={sectionMinutes(model.todayTasks)}>
               Today
             </SectionLabel>
             <TaskList>
-              {model.todayTasks.map((t) => (
+              {todayList.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
                   today={model.today}
                   draggable
-                  onDropTask={(src, edge) => dropInToday(src, t.id, edge)}
+                  // A sorted list is a view, not the hand order: reordering waits for Manual (it never rewrites day_sort_key).
+                  onDropTask={manual ? (src, edge) => dropInToday(src, t.id, edge) : undefined}
                   timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                   meta={meta(t)}
                   onOpen={() => detail.open(t.id)}
                   selected={sel.selectedId === t.id}
                   onSelect={() => sel.select(t.id)}
                   onDone={() => void time("complete", () => model.repo.complete(t.id))}
+                  onBreakDown={() => void breakDown(t.id)}
                   actions={
                     <>
-                      <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(t, -1)} />
-                      <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(t, 1)} />
+                      {manual && <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(t, -1)} />}
+                      {manual && <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(t, 1)} />}
                       {/* The whole word, in the row and in the phone's menu: what is seen is what is named (WCAG 2.5.3). */}
                       <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />
                       {hasDay && !model.blockByTask.has(t.id) && (
                         <RowAction label={`Block ${t.title}`} text="Block" glyph={BLOCK_GLYPH} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} />
                       )}
+                      {convertItem(t.id)}
                     </>
                   }
                 />
               ))}
-              {model.todayTasks.length === 0 && !emptyDay && <li className="px-4 py-3 text-body-lg text-ink-3">Nothing planned yet.</li>}
+              {model.todayTasks.length === 0 && !emptyDay && !allDone && <li className="px-4 py-3 text-body-lg text-ink-3">Nothing planned yet.</li>}
+              {allDone && (
+                // All done (SCREENS.md §2.7): the facts and the two ways on, no celebration graphic.
+                <li className="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
+                  <p className="font-display text-pane font-medium text-pretty text-ink">
+                    That&rsquo;s everything you planned.
+                    {model.capacity && model.capacity.state !== "no_work_day" && model.capacity.spareMin > 0 && <> {formatMinutes(model.capacity.spareMin)} left.</>}
+                  </p>
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row print:hidden">
+                    <button type="button" aria-expanded={pulling} onClick={() => setPulling((v) => !v)} className={cx(buttonClass({ variant: "secondary" }), "w-full sm:w-auto")}>
+                      Pull something in
+                    </button>
+                    <Link href="/shutdown" className={cx(buttonClass({ variant: "quiet" }), "w-full sm:w-auto")}>
+                      Shutdown ›
+                    </Link>
+                  </div>
+                  {pulling && (suggestions.length > 0 ? pullIn : <p className="text-body-sm text-ink-2">Nothing waiting to pull in.</p>)}
+                </li>
+              )}
               {emptyDay && (
                 // The returning-user empty day (ONBOARDING.md §4): a planning prompt, not an empty illustration.
                 <li className="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
@@ -457,18 +651,7 @@ export default function TodayPage() {
                   {suggestions.length > 0 && (
                     <div className="flex w-full flex-col gap-2">
                       <p className="text-body-sm text-ink-2">or pull something in:</p>
-                      <TaskList>
-                        {suggestions.map(({ task: t, source }) => (
-                          <TaskRow
-                            key={t.id}
-                            task={t}
-                            today={model.today}
-                            onOpen={() => detail.open(t.id)}
-                            meta={source !== "deadline" && <span>{source}</span>}
-                            actions={<MoveActions onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))} />}
-                          />
-                        ))}
-                      </TaskList>
+                      {pullIn}
                     </div>
                   )}
                   <p className="text-body-sm text-ink-3">Or just start typing.</p>
@@ -483,19 +666,44 @@ export default function TodayPage() {
                 This evening
               </SectionLabel>
               <TaskList>
-                {model.eveningTasks.map((t) => (
+                {eveningList.map((t) => (
                   <TaskRow
                     key={t.id}
                     task={t}
                     today={model.today}
                     draggable
-                    onDropTask={(src, edge) => dropInEvening(src, t.id, edge)}
+                    onDropTask={manual ? (src, edge) => dropInEvening(src, t.id, edge) : undefined}
                     timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
                     meta={meta(t)}
                     onOpen={() => detail.open(t.id)}
                     selected={sel.selectedId === t.id}
                     onSelect={() => sel.select(t.id)}
                     onDone={() => void time("complete", () => model.repo.complete(t.id))}
+                    onBreakDown={() => void breakDown(t.id)}
+                    actions={convertItem(t.id)}
+                  />
+                ))}
+              </TaskList>
+            </section>
+          )}
+
+          {showCompleted && doneToday.length > 0 && (
+            // Show completed (SCREENS.md §2.4): today's finished tasks under a Done divider at the bottom; Reopen (or U) brings one back.
+            <section className="flex flex-col gap-2" aria-label="Done today">
+              <SectionLabel className="px-0.5" count={doneToday.length}>
+                Done
+              </SectionLabel>
+              <TaskList>
+                {doneToday.map((t) => (
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    today={model.today}
+                    meta={meta(t)}
+                    onOpen={() => detail.open(t.id)}
+                    selected={sel.selectedId === t.id}
+                    onSelect={() => sel.select(t.id)}
+                    actions={<RowAction label="Reopen" primary title="Reopen (U)" onClick={() => void model.repo.reopen(t.id)} />}
                   />
                 ))}
               </TaskList>
@@ -514,7 +722,7 @@ export default function TodayPage() {
           className={cx(
             // No outline-none: in Tailwind v4 it also cancels the focus-visible outline, and the ring vanished (the global ring draws it, inset).
             "w-full flex-col px-5 pb-6 focus-visible:-outline-offset-2 sm:px-6 md:px-10 md:pb-7",
-            "lg:ml-auto lg:h-full lg:w-86 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7",
+            "lg:ml-auto lg:h-full lg:w-86 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7 print:hidden!",
             showDay ? "flex" : "hidden",
             detail.selectedId ? "lg:hidden" : "lg:flex",
             // Room to scroll the whole day above the docked preview sheet.
@@ -578,6 +786,18 @@ export default function TodayPage() {
           </div>
         </aside>
       )}
+      {trimOpen && (
+        <TrimToday
+          tasks={model.todayTasks}
+          overMin={overMin}
+          defaultEstimateMin={defaultEstimate}
+          onTomorrow={(id) => void time("reschedule", () => model.repo.reschedule(id, tomorrow))}
+          onSomeday={(id) => void time("someday", () => model.repo.setState(id, "someday"))}
+          onDrop={(id) => void time("drop", () => model.repo.setState(id, "dropped"))}
+          onClose={() => setTrimOpen(false)}
+        />
+      )}
+      {notice && <Toast>{notice}</Toast>}
     </main>
   );
 }

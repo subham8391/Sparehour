@@ -436,3 +436,17 @@
   font-family: var(--font-display-italic);
   font-style: italic;
 }
+
+/* Today's ⋯ Print (SCREENS.md §2.1): the day list and the ribbon's summary on paper, without the app around it.
+   Everything that is neither Today's main nor on the way to it is left out (the sidebar, the tab bar, the quick-add
+   bar and button, toasts, the detail pane), and the scroll regions on the way let the whole list run onto the page. */
+@media print {
+  body:has(main[data-print="today"]) *:not(:has(main[data-print="today"])):not(main[data-print="today"]):not(main[data-print="today"] *) {
+    display: none !important;
+  }
+  body:has(main[data-print="today"]) :is(*:has(> main[data-print="today"]), *:has(main[data-print="today"])) {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}

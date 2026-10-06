@@ -2,11 +2,13 @@
 // the palette can run, as data. Shortcuts are learned from the palette,
 // which shows them beside each command.
 import type { Instant, LocalDate } from "@/core/time";
+import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
 import { snoozePresets } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
+import { requestToday } from "@/features/today/today-request";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
@@ -64,6 +66,8 @@ export interface Command {
   unselected?: (ctx: CommandContext) => void;
   /** True when nothing on screen takes the key, so it goes on as if unbound: an arrow scrolls, `[` types into quick add. */
   passes?: (ctx: CommandContext) => boolean;
+  /** The one view the command belongs to (`/today`): listed elsewhere, but disabled with the reason. */
+  onlyOn?: { path: string; reason: string };
 }
 
 /** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
@@ -154,6 +158,8 @@ export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projec
   return `${projectToken(name)} `;
 }
 
+const ON_TODAY = { path: "/today", reason: "on Today" };
+
 export const COMMANDS: readonly Command[] = [
   // ---- selected task (or every ticked row)
   { id: "task.open", title: "Open", group: "Selected task", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
@@ -187,6 +193,18 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: pickField("estimate") },
   // A rule is set one task at a time: R opens the Repeat picker of the selected task, or of the one ticked row.
   { id: "task.repeat", title: "Repeat", group: "Selected task", shortcut: "r", requiresSelection: true, keywords: "recurring every", run: onOne((ctx, id) => ctx.openTask(id, "repeat")) },
+  // PRODUCT_SPEC.md §6: the task's steps become tasks of a new project, which opens with the cursor in its add row.
+  {
+    id: "task.convert",
+    title: "Convert to project",
+    group: "Selected task",
+    requiresSelection: true,
+    keywords: "break it down steps checklist project",
+    run: onOne(async (ctx, id) => {
+      const out = await ctx.tasks.convertToProject(id);
+      if (out) ctx.go(`/project/${encodeURIComponent(out.projectId)}?add=1`);
+    }),
+  },
   // Where days sit side by side (Upcoming's week); elsewhere the arrows do nothing.
   { id: "task.day-earlier", title: "A day earlier", group: "Selected task", shortcut: "arrowleft", requiresSelection: true, hidden: true, run: viewKey("earlier"), passes: unclaimed("earlier", true) },
   { id: "task.day-later", title: "A day later", group: "Selected task", shortcut: "arrowright", requiresSelection: true, hidden: true, run: viewKey("later"), passes: unclaimed("later", true) },
@@ -209,6 +227,9 @@ export const COMMANDS: readonly Command[] = [
   { id: "day.plan", title: "Start morning plan", group: "Go to", shortcut: "mod+shift+m", keywords: "plan the day ritual pick", run: (ctx) => ctx.go("/plan") },
   { id: "day.shutdown", title: "Start evening shutdown", group: "Go to", shortcut: "mod+shift+e", keywords: "close the day ritual", run: (ctx) => ctx.go("/shutdown") },
   { id: "day.plan-my-day", title: "Plan my day", group: "Go to", shortcut: "mod+shift+p", keywords: "schedule suggest timeline blocks", run: (ctx) => ctx.planDay("plan") },
+  // Trim today (PRODUCT_SPEC.md §9.4): Today opens its panel, at once or as soon as Today is open. The ellipsis says a
+  // panel opens (and keeps "today" finding Go to Today first).
+  { id: "day.trim", title: "Trim today…", group: "Go to", keywords: "over too much fits move tomorrow someday", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
   { id: "day.replan", title: "Re-plan the rest of today", group: "Go to", keywords: "plan my day schedule blocks afternoon", run: (ctx) => ctx.planDay("replan") },
 
   // ---- list plumbing
@@ -233,6 +254,20 @@ export const COMMANDS: readonly Command[] = [
   // ---- view
   { id: "view.prev", title: "Previous week", group: "View", shortcut: "[", hidden: true, run: viewKey("prev"), passes: unclaimed("prev") },
   { id: "view.next", title: "Next week", group: "View", shortcut: "]", hidden: true, run: viewKey("next"), passes: unclaimed("next") },
+  // Sort and Show completed are Today's view preferences (DECISIONS.md "Sort", 2026-10-06): Today only. "Sort by…"
+  // reopens the palette on the five sorts once the palette has closed behind it.
+  { id: "view.sort", title: "Sort by…", group: "View", keywords: "order manual time priority deadline estimate", onlyOn: ON_TODAY, run: (ctx) => void setTimeout(() => ctx.openPalette("Sort Today by "), 0) },
+  ...TODAY_SORTS.map(
+    (o): Command => ({
+      id: `view.sort-${o.value}`,
+      title: `Sort Today by ${o.value === "manual" ? "hand (Manual)" : o.label.toLowerCase()}`,
+      group: "View",
+      keywords: "sort order",
+      onlyOn: ON_TODAY,
+      run: () => void requestToday({ kind: "sort", sort: o.value }),
+    }),
+  ),
+  { id: "view.show-completed", title: "Show completed", group: "View", keywords: "done finished hide", onlyOn: ON_TODAY, run: () => void requestToday({ kind: "completed" }) },
   { id: "view.theme-light", title: "Light theme", group: "View", keywords: "appearance", run: (ctx) => ctx.setTheme("light") },
   { id: "view.theme-dark", title: "Dark theme", group: "View", keywords: "appearance", run: (ctx) => ctx.setTheme("dark") },
   { id: "view.theme-system", title: "Follow the system theme", group: "View", keywords: "appearance auto", run: (ctx) => ctx.setTheme("system") },
@@ -257,7 +292,8 @@ export interface Availability {
 }
 
 /** Commands that need a selection are listed but disabled with the reason (§12 rules). */
-export function availability(command: Command, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds">): Availability {
+export function availability(command: Command, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds"> & { pathname?: string }): Availability {
+  if (command.onlyOn && ctx.pathname !== command.onlyOn.path) return { enabled: false, reason: command.onlyOn.reason };
   if (command.requiresSelection && targets(ctx).length === 0) return { enabled: false, reason: "select a task first" };
   return { enabled: true };
 }

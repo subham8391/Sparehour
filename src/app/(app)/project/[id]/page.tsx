@@ -43,8 +43,11 @@ const TITLE = "font-display text-title font-book text-balance text-ink";
 /** A disclosure line under a list: 44 px on the phone, 36 above, pulled out to the column's edge like a section action. */
 const DISCLOSURE = "-ml-2 flex h-11 items-center gap-1.5 self-start rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-9";
 
-export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
+export default function ProjectPage({ params, searchParams }: PageProps<"/project/[id]">) {
   const { id } = use(params);
+  // `?add=1`: a task just broken down into this project (Convert to project, "Break it down") opens with the
+  // cursor in the add row, ready for the first step it did not have (PRODUCT_SPEC.md §8.3.5).
+  const addFirst = (searchParams ? use(searchParams) : {}).add === "1";
   const tasksRepo = useTaskRepo();
   const projectRepo = useProjectRepo();
   const headingRepo = useHeadingRepo();
@@ -274,7 +277,7 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
                 }
               />
             ))}
-            <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
+            <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={(tasks.length === 0 || addFirst) && !g.heading} />
           </TaskList>
         </section>
       ))}

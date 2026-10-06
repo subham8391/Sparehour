@@ -11,6 +11,7 @@ import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
+import { useConvertToProject } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Icon } from "@/ui/icons";
 import { EmptyCard } from "@/ui/list-card";
@@ -18,6 +19,8 @@ import { EmptyCard } from "@/ui/list-card";
 export default function InboxPage() {
   const repo = useTaskRepo();
   const detail = useTaskDetail();
+  // "Long — break it down?" answers itself: the row offers Convert to project (PRODUCT_SPEC.md §5.4, §6).
+  const breakDown = useConvertToProject(repo, detail.close);
   const now = useNow();
   const { today } = useLocalDay(now);
   const tomorrow = today.add({ days: 1 });
@@ -45,6 +48,7 @@ export default function InboxPage() {
               selected={sel.selectedId === t.id}
               onSelect={() => sel.select(t.id)}
               onDone={() => void repo.complete(t.id)}
+              onBreakDown={() => void breakDown(t.id)}
               meta={t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>}
               actions={
                 <MoveActions

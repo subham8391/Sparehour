@@ -4,7 +4,7 @@ import type { TaskId } from "@/core/types";
 import { NOW, TODAY, capacityFixture, taskFixture } from "@/test/fixtures";
 import { AHEAD_DAYS, aheadDays, aheadThrough, isoAt, planInputFrom } from "./plan-input";
 
-const settings = { timezone: "Europe/London", dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, maxBlockMin: 90, minBlockMin: 25, carryAskAfter: 3, autoSomedayDays: 30, eveningStartsAt: localTime("18:00"), carryReview: true };
+const settings = { timezone: "Europe/London", dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, maxBlockMin: 90, minBlockMin: 25, carryAskAfter: 3, autoSomedayDays: 30, eveningStartsAt: localTime("18:00"), carryReview: true, todaySort: "manual" as const, showCompleted: false };
 
 describe("plan input", () => {
   it("takes every open task Today shows, the day's blocks with their source, and the person's block lengths", () => {

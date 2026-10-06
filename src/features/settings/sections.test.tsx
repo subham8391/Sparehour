@@ -176,6 +176,19 @@ describe("Settings sections", () => {
     expect(onChange).toHaveBeenLastCalledWith({ defaultView: "inbox" });
   });
 
+  it("Planning sets Today's sort and Show completed, the same values as Today's ⋯", async () => {
+    const { user, onChange } = setup();
+    const sort = screen.getByRole("combobox", { name: "Sort Today by" });
+    expect(sort).toHaveValue("manual");
+    expect([...(sort as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(["Manual", "Time", "Priority", "Deadline", "Estimate"]);
+    await user.selectOptions(sort, "deadline");
+    expect(onChange).toHaveBeenLastCalledWith({ todaySort: "deadline" });
+    const done = screen.getByRole("switch", { name: "Show completed on Today" });
+    expect(done).not.toBeChecked();
+    await user.click(done);
+    expect(onChange).toHaveBeenLastCalledWith({ showCompleted: true });
+  });
+
   it("Appearance offers System or Reduce for motion, kept on this device", async () => {
     const onMotion = vi.fn();
     const { user, onChange } = setup({ motion: { value: "system", onChange: onMotion } });

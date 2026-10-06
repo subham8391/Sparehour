@@ -435,3 +435,33 @@ describe("<TaskDetailPanel> project picker", () => {
     expect(onPatch).toHaveBeenLastCalledWith({ projectId: "w2" });
   });
 });
+
+describe("<TaskDetailPanel> Convert to project (PRODUCT_SPEC.md §6, SCREENS.md §10)", () => {
+  const steps = [
+    { id: "c1", taskId: "t1" as TaskId, title: "Pick a date", done: true, sortKey: "a0" },
+    { id: "c2", taskId: "t1" as TaskId, title: "Book venue", done: false, sortKey: "a1" },
+  ];
+
+  it("the footer's ⋯ offers it on every band, and the checklist's ⋯ once there are steps", async () => {
+    const onConvert = vi.fn();
+    const { user } = setup({ onConvert, checklist: steps });
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Convert to project" }));
+    expect(onConvert).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Checklist options" }));
+    await user.click(screen.getByRole("menuitem", { name: "Convert to project" }));
+    expect(onConvert).toHaveBeenCalledTimes(2);
+  });
+
+  it("an empty checklist has no ⋯, and a finished or dropped task cannot be converted", async () => {
+    setup({ onConvert: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Checklist options" })).not.toBeInTheDocument();
+    cleanup();
+    setup({ onConvert: vi.fn(), checklist: steps, task: { ...task, state: "done" } });
+    expect(screen.queryByRole("button", { name: "Checklist options" })).not.toBeInTheDocument();
+    cleanup();
+    const { user } = setup({ onConvert: vi.fn(), task: { ...task, state: "dropped" } });
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByRole("menuitem", { name: "Convert to project" })).not.toBeInTheDocument();
+  });
+});

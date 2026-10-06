@@ -5,8 +5,8 @@
 // "Not now", Escape and the scrim record only that, so nothing is ever lost.
 // A bottom sheet on a phone, a centred dialog from `sm` up; the list scrolls
 // inside it and the footer keeps the bottom edge above the safe area.
-import { useEffect, useRef, useState } from "react";
-import { formatMinutes, localDate, type LocalDate } from "@/core/time";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Temporal, formatMinutes, localDate, type Instant, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { Button, buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
@@ -14,6 +14,7 @@ import { cx } from "@/ui/cx";
 import { DateField } from "@/ui/date-field";
 import { Segmented } from "@/ui/segmented";
 import { Sheet } from "@/ui/sheet";
+import { useCarryAsks, useRecordAsks } from "@/features/rollover/use-carry-asks";
 import { DEFAULT_CHOICE, allFromYesterday, applyChoices, reviewLine, type Choice, type ChoiceRepo } from "./carry-review";
 
 /** The dialog's accessible name. */
@@ -27,28 +28,54 @@ const OPTIONS: readonly { value: Segment; label: string }[] = [
   { value: "someday", label: "Someday" },
   { value: "drop", label: "Drop" },
 ];
+/** A row at the three-carry ask answers the ask instead, in its order (SCREENS.md §2.3): "Break it down" converts it at Done. */
+type AskSegment = "keep" | "someday" | "breakdown" | "drop";
+const ASK_OPTIONS: readonly { value: AskSegment; label: string }[] = [
+  { value: "keep", label: "Keep today" },
+  { value: "someday", label: "Someday" },
+  { value: "breakdown", label: "Break it down" },
+  { value: "drop", label: "Drop" },
+];
+/** A review answer: the four moves, a picked day, or (at the ask) Break it down. */
+type SheetChoice = Choice | "breakdown";
+
+/** What the ask needs from the task repository beyond the moves; `TaskRepo` has both. */
+export interface AskRepo {
+  markAsked?: (ids: readonly string[], at: string) => Promise<void>;
+  convertToProject?: (id: string) => Promise<{ projectId: string } | null>;
+}
 
 export interface CarryReviewSheetProps {
   /** The carried-over tasks, in the Carried over section's order. */
   tasks: readonly Task[];
   today: LocalDate;
   /** Where the answers are written; the task repository. */
-  repo: ChoiceRepo;
+  repo: ChoiceRepo & AskRepo;
+  /** Settings › Planning's ask threshold, the zone and now: the same two-a-day ask as Today (PRODUCT_SPEC.md §8.3.4). */
+  carryAskAfter?: number | null;
+  zone?: string;
+  now?: Instant;
+  /** Opens the project a "Break it down" made, once the sheet has closed. */
+  onOpenProject?: (projectId: string) => void;
   /** Records that the day was reviewed (day_plans.carry_reviewed_at), whichever way the sheet closed. */
   onStamp: () => void | Promise<void>;
   /** The sheet is done with; the host unmounts it. */
   onClose: () => void;
 }
 
-export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose }: CarryReviewSheetProps) {
-  const [choices, setChoices] = useState<ReadonlyMap<string, Choice>>(() => new Map());
+export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose, carryAskAfter = null, zone = "UTC", now, onOpenProject }: CarryReviewSheetProps) {
+  const [choices, setChoices] = useState<ReadonlyMap<string, SheetChoice>>(() => new Map());
+  const [opened] = useState(() => now ?? Temporal.Now.instant());
+  const { asks, fresh } = useCarryAsks(tasks, { carryAskAfter, today, zone, now: now ?? opened });
+  const markAsked = repo.markAsked;
+  useRecordAsks(fresh, useCallback((ids: readonly string[], at: string) => markAsked?.call(repo, ids, at) ?? Promise.resolve(), [markAsked, repo]));
   // Rows whose "Pick a day" has been opened but not yet answered.
   const [picking, setPicking] = useState<ReadonlySet<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
 
-  const choiceOf = (id: string): Choice => choices.get(id) ?? DEFAULT_CHOICE;
-  const choose = (id: string, choice: Choice) => {
+  const choiceOf = (id: string): SheetChoice => choices.get(id) ?? DEFAULT_CHOICE;
+  const choose = (id: string, choice: SheetChoice) => {
     setChoices((m) => new Map(m).set(id, choice));
     if (typeof choice === "string")
       setPicking((s) => {
@@ -76,12 +103,24 @@ export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose }: Carry
     if (busy) return;
     setBusy(true);
     const all = new Map<string, Choice>();
-    for (const t of tasks) all.set(t.id, choiceOf(t.id));
+    const breakDown: string[] = [];
+    for (const t of tasks) {
+      const c = choiceOf(t.id);
+      if (c === "breakdown") breakDown.push(t.id);
+      else all.set(t.id, c);
+    }
+    let project: string | null = null;
     try {
       await applyChoices(repo, all, today);
+      // Each one its own conversion and undo; the first new project opens, cursor in its add row.
+      for (const id of breakDown) {
+        const out = await repo.convertToProject?.(id);
+        project ??= out?.projectId ?? null;
+      }
       await onStamp();
     } finally {
       onClose();
+      if (project) onOpenProject?.(project);
     }
   };
 
@@ -113,7 +152,16 @@ export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose }: Carry
         </div>
         <ul className="min-h-0 flex-1 overflow-y-auto border-t border-line">
           {tasks.map((t) => (
-            <Row key={t.id} task={t} today={today} choice={choiceOf(t.id)} picking={picking.has(t.id)} onChoose={(c) => choose(t.id, c)} onPick={() => setPicking((s) => new Set(s).add(t.id))} />
+            <Row
+              key={t.id}
+              task={t}
+              today={today}
+              ask={asks.has(t.id) && Boolean(repo.convertToProject)}
+              choice={choiceOf(t.id)}
+              picking={picking.has(t.id)}
+              onChoose={(c) => choose(t.id, c)}
+              onPick={() => setPicking((s) => new Set(s).add(t.id))}
+            />
           ))}
         </ul>
         <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-3 sm:py-4">
@@ -135,9 +183,26 @@ export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose }: Carry
  * control (44 px on touch), and a quiet "Pick a day" that opens a date field
  * for any other day. A picked day leaves every segment unchosen.
  */
-function Row({ task, today, choice, picking, onChoose, onPick }: { task: Task; today: LocalDate; choice: Choice; picking: boolean; onChoose: (choice: Choice) => void; onPick: () => void }) {
+function Row({
+  task,
+  today,
+  ask,
+  choice,
+  picking,
+  onChoose,
+  onPick,
+}: {
+  task: Task;
+  today: LocalDate;
+  /** At the three-carry ask: the ask's four answers take the place of the moves. */
+  ask: boolean;
+  choice: SheetChoice;
+  picking: boolean;
+  onChoose: (choice: SheetChoice) => void;
+  onPick: () => void;
+}) {
   const day = typeof choice === "object" ? choice.day.toString() : "";
-  const segment: Segment | "day" = typeof choice === "object" ? "day" : choice;
+  const segment: Segment | AskSegment | "day" = typeof choice === "object" ? "day" : choice;
   return (
     // Phone: a grid where the title spans the row, the quiet run and "Pick a day" share the line under it and the control
     // fills the next; from `sm` one flex row of the title block, the control and the link. The block dissolves on the phone
@@ -150,17 +215,31 @@ function Row({ task, today, choice, picking, onChoose, onPick }: { task: Task; t
           <Chip tone={task.estimateMin ? "neutral" : "guess"} size="sm">
             {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
           </Chip>
+          {ask && <span className="text-over">Carried over {task.carryCount} times — still want this?</span>}
         </p>
       </div>
-      <Segmented
-        label={`Choice for ${task.title}`}
-        options={OPTIONS}
-        value={segment}
-        onChange={(v) => {
-          if (v !== "day") onChoose(v);
-        }}
-        className="col-span-2 row-start-3 max-sm:w-full max-sm:*:flex-1 max-sm:*:px-2"
-      />
+      {ask ? (
+        // Two by two on a phone, where four words do not fit one 44 px rail; one rail from `sm`.
+        <Segmented
+          label={`Choice for ${task.title}`}
+          options={ASK_OPTIONS}
+          value={segment}
+          onChange={(v) => {
+            if (v !== "day") onChoose(v);
+          }}
+          className="col-span-2 row-start-3 max-sm:grid max-sm:h-auto max-sm:w-full max-sm:grid-cols-2 max-sm:*:h-11 max-sm:*:px-2"
+        />
+      ) : (
+        <Segmented
+          label={`Choice for ${task.title}`}
+          options={OPTIONS}
+          value={segment}
+          onChange={(v) => {
+            if (v !== "day") onChoose(v);
+          }}
+          className="col-span-2 row-start-3 max-sm:w-full max-sm:*:flex-1 max-sm:*:px-2"
+        />
+      )}
       <div className="col-start-2 row-start-2 justify-self-end sm:-ml-3 sm:shrink-0">
         {picking || day ? (
           <DateField aria-label={`Day for ${task.title}`} value={day} today={today} min={today.toString()} autoFocus={picking && !day} onChange={(e) => e.target.value && onChoose({ day: localDate(e.target.value) })} />

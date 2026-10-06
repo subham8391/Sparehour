@@ -7,7 +7,7 @@
 // fetched once there is something to review, so the shell's first download
 // does not carry it.
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
@@ -19,6 +19,7 @@ import type { TaskRow } from "@/data/schema.client";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useSyncChip } from "@/features/shell/use-sync-chip";
+import { convertedProjectHref } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { shouldReview } from "./carry-review";
 
@@ -49,6 +50,7 @@ export function useCarryReview(): CarryReviewApi | null {
 
 export function CarryReviewHost({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const now = useNow();
   const { today, settings } = useLocalDay(now);
   const sync = useSyncChip();
@@ -95,7 +97,19 @@ export function CarryReviewHost({ children }: { children: ReactNode }) {
   return (
     <CarryReviewContext.Provider value={{ carried: carried.length, open: () => setManual(true) }}>
       {children}
-      {show && <CarryReviewSheet tasks={carried} today={today} repo={repo} onStamp={stamp} onClose={close} />}
+      {show && (
+        <CarryReviewSheet
+          tasks={carried}
+          today={today}
+          repo={repo}
+          carryAskAfter={settings?.carryAskAfter ?? null}
+          zone={settings?.timezone ?? "UTC"}
+          now={now}
+          onStamp={stamp}
+          onClose={close}
+          onOpenProject={(id) => router.push(convertedProjectHref(id))}
+        />
+      )}
     </CarryReviewContext.Provider>
   );
 }
