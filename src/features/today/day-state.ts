@@ -19,6 +19,6 @@ export interface DayCounts {
 export function dayState(c: DayCounts): "all-done" | "empty" | "planned" {
   if (c.closed) return "planned";
   if (c.today === 0 && c.evening === 0 && c.done > 0) return "all-done";
-  if (c.today === 0 && c.carried === 0) return "empty";
+  if (c.today === 0 && c.carried === 0 && c.done === 0) return "empty";
   return "planned";
 }
