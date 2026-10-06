@@ -67,6 +67,18 @@ describe("convertTaskToProject (PRODUCT_SPEC.md §6, the 2026-10-06 ruling)", ()
     expect(s.rows(`select id from checklist_items where task_id = 't1' and deleted_at is null`)).toHaveLength(3);
   });
 
+  it("the undo keeps what the person added to the new project meanwhile (it leaves the project, not with it) and says it is done", async () => {
+    const { s, history, entry } = setup();
+    const onUndone = vi.fn();
+    const out = await convertTaskToProject(s.db, history, "t1", onUndone);
+    s.insert("tasks", { id: "mine", space_id: "s1", project_id: out!.projectId, title: "Call the venue", state: "active", sort_key: "a9" });
+    expect(onUndone).not.toHaveBeenCalled();
+    await entry().undo();
+    expect(s.row("tasks", "mine")).toMatchObject({ project_id: null, deleted_at: null, state: "active" });
+    for (const id of out!.taskIds) expect(s.row("tasks", id)).toMatchObject({ project_id: out!.projectId });
+    expect(onUndone).toHaveBeenCalledWith(out!.projectId);
+  });
+
   it("a task with no project gives a project with no area; one with no steps gives an empty project", async () => {
     const s = localSqlite();
     s.insert("tasks", { id: "t2", space_id: "s1", title: "Learn Rust", state: "inbox", sort_key: "a0" });

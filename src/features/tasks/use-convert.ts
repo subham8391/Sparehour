@@ -11,12 +11,17 @@ import type { TaskRepo } from "@/data/repositories/task-repo";
 /** Where a converted task's project opens: `?add=1` puts the cursor in its add row. */
 export const convertedProjectHref = (projectId: string): string => `/project/${encodeURIComponent(projectId)}?add=1`;
 
-/** Converts the task and opens the project; resolves false when the task could not be converted. */
+/**
+ * Converts the task and opens the project; resolves false when the task could not be converted. Undoing it while the
+ * project is still on screen steps back to where the conversion was made, rather than leaving a removed project open.
+ */
 export function useConvertToProject(repo: Pick<TaskRepo, "convertToProject">, onDone?: () => void): (taskId: string) => Promise<boolean> {
   const router = useRouter();
   return useCallback(
     async (taskId: string) => {
-      const out = await repo.convertToProject(taskId);
+      const out = await repo.convertToProject(taskId, (projectId) => {
+        if (window.location.pathname === `/project/${encodeURIComponent(projectId)}`) router.back();
+      });
       if (!out) return false;
       onDone?.();
       router.push(convertedProjectHref(out.projectId));

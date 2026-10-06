@@ -437,9 +437,9 @@ export class TaskRepo {
    * Convert task → project ("Break it down", PRODUCT_SPEC.md §6, §8.3.3): one transaction and one undo entry. The
    * conversion lives in its own module, loaded on the click that asks for it, so no shell carries it.
    */
-  async convertToProject(id: string): Promise<{ projectId: string; taskIds: string[] } | null> {
+  async convertToProject(id: string, onUndone?: (projectId: string) => void): Promise<{ projectId: string; taskIds: string[] } | null> {
     const { convertTaskToProject } = await import("./convert");
-    return convertTaskToProject(this.db, this.history, id);
+    return convertTaskToProject(this.db, this.history, id, onUndone);
   }
 
   /**

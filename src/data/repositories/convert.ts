@@ -37,7 +37,13 @@ export const canConvert = (state: string | null | undefined): boolean => OPEN_ST
  * and its new tasks and brings the task back as it was. Resolves null when the task is not here or cannot be
  * converted (done, dropped, already archived).
  */
-export async function convertTaskToProject(db: LocalDatabase, history: UndoRecorder | undefined, taskId: string): Promise<Converted | null> {
+export async function convertTaskToProject(
+  db: LocalDatabase,
+  history: UndoRecorder | undefined,
+  taskId: string,
+  /** Runs once the undo has put the task back, so a screen showing the removed project can step back from it. */
+  onUndone?: (projectId: string) => void,
+): Promise<Converted | null> {
   const now = new Date().toISOString();
   const result = await db.writeTransaction(async (tx) => {
     const before = await tx.getOptional<RowSnapshot>(`select * from tasks where id = ? and deleted_at is null`, [taskId]);
@@ -92,14 +98,19 @@ export async function convertTaskToProject(db: LocalDatabase, history: UndoRecor
   history?.record({
     label: `Converted ${quoted(before.title)} to a project`,
     toast: true,
-    undo: () =>
-      db.writeTransaction(async (tx) => {
+    undo: async () => {
+      await db.writeTransaction(async (tx) => {
         const at = new Date().toISOString();
         if (taskIds.length > 0) await tx.execute(`update tasks set deleted_at = ?, updated_at = ? where id in (${placeholders(taskIds)})`, [at, at, ...taskIds]);
+        // Anything the person added to the new project before undoing is theirs: it leaves the project, never with it.
+        const kept = taskIds.length > 0 ? `and id not in (${placeholders(taskIds)})` : "";
+        await tx.execute(`update tasks set project_id = null, heading_id = null, updated_at = ? where project_id = ? and deleted_at is null ${kept}`, [at, projectId, ...taskIds]);
         await tx.execute(`update projects set deleted_at = ?, updated_at = ? where id = ?`, [at, at, projectId]);
         await restoreRow(tx, "tasks", before, RETIRED, at);
         if (released.length > 0) await reviveBlocks(tx, released, at);
-      }),
+      });
+      onUndone?.(projectId);
+    },
   });
   return { projectId, taskIds };
 }
