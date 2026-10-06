@@ -47,6 +47,16 @@ const readValue = async (page: Page, iso: string) => minutes(await columnReadout
  * The calendar mirror reaches a fresh device on its own stream, after the first sync: until a day's meetings are
  * drawn its readout is not final, so a day with meetings is read only once they are on its bar.
  */
+/**
+ * CI's seed fills the week, and a column shows six rows before "…N more" (SCREENS.md §3): open every fold so
+ * the rows a test looks for are on the page. Locally the days are short and there is nothing to open.
+ */
+async function openFolds(page: Page): Promise<void> {
+  await expect(page.locator("[data-week]")).toBeVisible();
+  const more = page.getByRole("button", { name: /^Show \d+ more on / });
+  for (let i = 0; i < 20 && (await more.count()) > 0; i++) await more.first().click();
+}
+
 async function settled(page: Page, ...days: string[]): Promise<void> {
   for (const iso of days) if (meetings.has(iso)) await expect(page.locator(`[data-day="${iso}"] [data-segment="meeting"]`).first()).toBeAttached({ timeout: 30_000 });
 }
@@ -81,6 +91,7 @@ test.afterAll(async () => {
 
 test("seven day columns, each with its capacity bar and readout; the header sums the week's spare time", async ({ page }) => {
   await openApp(page, "/upcoming");
+  await openFolds(page);
   const week = page.locator('[data-week][data-band="wide"]');
   await expect(week).toBeVisible();
   // Seven days from today, today first and marked, and the "Not yet planned" rail beside them.
@@ -113,6 +124,7 @@ test("seven day columns, each with its capacity bar and readout; the header sums
 
 test("← and → move the selected task a day; both days' readouts follow, and ⌘Z puts it back", async ({ page }) => {
   await openApp(page, "/upcoming");
+  await openFolds(page);
   const [from, to] = [isoPlus(me.today, 2), isoPlus(me.today, 3)];
   const row = (iso: string) => column(page, iso).getByRole("listitem").filter({ hasText: keyed });
   await expect(row(from)).toBeVisible();
@@ -126,6 +138,7 @@ test("← and → move the selected task a day; both days' readouts follow, and 
   await expect(row(from)).toHaveAttribute("aria-current", "true");
 
   await page.keyboard.press("ArrowRight");
+  await openFolds(page);
   await expect(row(to)).toBeVisible();
   await expect(row(from)).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [keyed, to])).not.toBeNull();
@@ -140,6 +153,7 @@ test("← and → move the selected task a day; both days' readouts follow, and 
 
   // Each move is one undo: ⌘Z takes back the last (←), so the task is on the later day again.
   await page.keyboard.press("ControlOrMeta+z");
+  await openFolds(page);
   await expect(row(to)).toBeVisible();
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [keyed, to])).not.toBeNull();
   await expect.poll(() => readValue(page, to)).toBe(before.to - 60);
@@ -147,6 +161,7 @@ test("← and → move the selected task a day; both days' readouts follow, and 
 
 test("a task dragged to another day's column lands there; both days' readouts follow", async ({ page }) => {
   await openApp(page, "/upcoming");
+  await openFolds(page);
   const [from, to] = [isoPlus(me.today, 4), isoPlus(me.today, 5)];
   const row = (iso: string) => column(page, iso).getByRole("listitem").filter({ hasText: dragged });
   await expect(row(from)).toBeVisible();
@@ -155,6 +170,7 @@ test("a task dragged to another day's column lands there; both days' readouts fo
 
   // Onto the day's heading: the day itself takes the drop, not a row in it.
   await row(from).dragTo(column(page, to).locator("header"));
+  await openFolds(page);
   await expect(row(to)).toBeVisible();
   await expect(row(from)).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [dragged, to])).not.toBeNull();
@@ -164,6 +180,7 @@ test("a task dragged to another day's column lands there; both days' readouts fo
 
 test("a later day's row action brings the task into the week; the day it lands on counts it", async ({ page }) => {
   await openApp(page, "/upcoming");
+  await openFolds(page);
   const [from, to] = [isoPlus(me.today, 9), isoPlus(me.today, 1)];
   // Past the seven columns the agenda goes on by day, each heading with its compact readout out to day 14.
   const laterDay = page.locator(`[data-day="${from}"]`);
@@ -175,6 +192,7 @@ test("a later day's row action brings the task into the week; the day it lands o
 
   await row.hover();
   await row.getByRole("button", { name: "Tomorrow", exact: true }).click();
+  await openFolds(page);
   await expect(column(page, to).getByRole("listitem").filter({ hasText: later })).toBeVisible();
   await expect(laterDay.getByRole("listitem").filter({ hasText: later })).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [later, to])).not.toBeNull();
@@ -183,6 +201,7 @@ test("a later day's row action brings the task into the week; the day it lands o
 
 test("a deadline lists the task in its day's Due group; a task due on its own day is listed once", async ({ page }) => {
   await openApp(page, "/upcoming");
+  await openFolds(page);
   const day = column(page, isoPlus(me.today, 3));
   const dueList = day.locator("p", { hasText: /^Due$/ }).locator("xpath=following-sibling::ul[1]");
   await expect(dueList.getByRole("listitem").filter({ hasText: due })).toBeVisible();
@@ -195,6 +214,7 @@ test("a deadline lists the task in its day's Due group; a task due on its own da
 
 test("[ and ] step the week, never before this one; T comes back", async ({ page }) => {
   await openApp(page, "/upcoming");
+  await openFolds(page);
   const first = page.locator("[data-week] > [data-column]").first();
   const total = page.locator("main p > span.num");
   await expect(first).toHaveAttribute("data-column", me.today);
