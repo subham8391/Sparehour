@@ -263,20 +263,23 @@ language sql stable security definer set search_path = public, private, pg_temp 
   from public.user_settings s where s.user_id = p_user
 $$;
 
--- Everything the sender needs for one person's day: settings, working hours, that day's events (with their
--- calendar's read flag), blocks and planned tasks, the done count, whether a calendar is connected and the badge.
-create or replace function private.push_day_context(p_user uuid, p_day date) returns jsonb
+-- Everything the sender needs for one person's day (today when no day is given): settings, working hours, that
+-- day's events (with their calendar's read flag), blocks and planned tasks, the done count, whether a calendar is
+-- connected and the badge.
+create or replace function private.push_day_context(p_user uuid, p_day date default null) returns jsonb
 language sql stable security definer set search_path = public, private, pg_temp as $$
   with s as (
-    select s.user_id, s.space_id, s.timezone, s.buffer_pct, s.default_estimate_min, s.day_rollover_hour,
-           timezone(s.timezone, p_day - 1 + time '00:00') as lo,
-           timezone(s.timezone, p_day + 2 + time '00:00') as hi,
-           timezone(s.timezone, p_day + make_interval(hours => s.day_rollover_hour)) as day_lo,
-           timezone(s.timezone, p_day + 1 + make_interval(hours => s.day_rollover_hour)) as day_hi
-      from public.user_settings s where s.user_id = p_user
+    select s.user_id, s.space_id, s.timezone, s.buffer_pct, s.default_estimate_min, s.day_rollover_hour, x.d,
+           timezone(s.timezone, x.d - 1 + time '00:00') as lo,
+           timezone(s.timezone, x.d + 2 + time '00:00') as hi,
+           timezone(s.timezone, x.d + make_interval(hours => s.day_rollover_hour)) as day_lo,
+           timezone(s.timezone, x.d + 1 + make_interval(hours => s.day_rollover_hour)) as day_hi
+      from public.user_settings s
+      cross join lateral (select coalesce(p_day, private.local_today(s.user_id)) as d) x
+     where s.user_id = p_user
   )
   select jsonb_build_object(
-    'day', to_char(p_day, 'YYYY-MM-DD'),
+    'day', to_char(s.d, 'YYYY-MM-DD'),
     'timezone', s.timezone,
     'buffer_pct', s.buffer_pct,
     'default_estimate_min', s.default_estimate_min,
@@ -290,7 +293,7 @@ language sql stable security definer set search_path = public, private, pg_temp 
                                 'event_type', e.event_type, 'is_ours', e.is_ours, 'calendar_read', c.read))
                           from public.calendar_events e join public.calendars c on c.id = e.calendar_id and c.deleted_at is null
                          where e.user_id = s.user_id and e.deleted_at is null
-                           and ((e.start_at < s.hi and e.end_at > s.lo) or (e.all_day and e.start_date <= p_day and coalesce(e.end_date, e.start_date + 1) > p_day))), '[]'::jsonb),
+                           and ((e.start_at < s.hi and e.end_at > s.lo) or (e.all_day and e.start_date <= s.d and coalesce(e.end_date, e.start_date + 1) > s.d))), '[]'::jsonb),
     'blocks', coalesce((select jsonb_agg(jsonb_build_object('id', b.id, 'task_id', b.task_id, 'start_at', b.start_at, 'end_at', b.end_at))
                           from public.time_blocks b
                           left join public.tasks t on t.id = b.task_id
@@ -298,7 +301,7 @@ language sql stable security definer set search_path = public, private, pg_temp 
                            and (b.task_id is null or (t.deleted_at is null and t.state in ('inbox', 'active')))), '[]'::jsonb),
     'tasks', coalesce((select jsonb_agg(jsonb_build_object('id', t.id, 'state', t.state, 'do_date', t.do_date, 'estimate_min', t.estimate_min, 'evening', t.evening, 'day_sort_key', t.day_sort_key))
                          from public.tasks t
-                        where t.space_id = s.space_id and t.deleted_at is null and t.state in ('inbox', 'active') and t.do_date = p_day), '[]'::jsonb),
+                        where t.space_id = s.space_id and t.deleted_at is null and t.state in ('inbox', 'active') and t.do_date = s.d), '[]'::jsonb),
     'done', (select count(*)::int from public.tasks t
               where t.space_id = s.space_id and t.deleted_at is null and t.state = 'done'
                 and t.completed_at >= s.day_lo and t.completed_at < s.day_hi)
@@ -307,7 +310,7 @@ language sql stable security definer set search_path = public, private, pg_temp 
 $$;
 
 -- Service-role wrappers for the Node sender.
-create or replace function public.push_day_context(p_user uuid, p_day date) returns jsonb
+create or replace function public.push_day_context(p_user uuid, p_day date default null) returns jsonb
 language sql security definer set search_path = public, private, pg_temp as $$
   select private.push_day_context(p_user, p_day)
 $$;

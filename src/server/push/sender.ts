@@ -3,6 +3,8 @@
 // and hand a notification back for a retry when no subscription took it
 // for a transient reason. The transport and the database are injected so
 // the loop is tested without either.
+import { personalise } from "./copy";
+import { dayFigures, type DayContext, type DayFigures } from "./day-figures";
 import { classifyStatus, pushOptions, serialisePayload, type NotificationKind, type PushOptions, type PushPayload } from "./delivery";
 
 export interface DueNotification {
@@ -28,6 +30,11 @@ export interface SenderDeps {
   push: (subscription: PushSubscriptionRow, body: string, options: PushOptions) => Promise<{ statusCode: number }>;
   record: (notificationId: string, subscriptionId: string, status: number | null, error: string | null) => Promise<void>;
   finish: (notificationId: string, outcome: "sent" | "retry" | "failed") => Promise<void>;
+  /**
+   * The person's day at send time (`public.push_day_context`), for the numbers in the words and the app badge.
+   * Optional: without it, or when it fails, the stored payload goes as it is.
+   */
+  dayContext?: (userId: string) => Promise<DayContext | null>;
 }
 
 export interface TickResult {
@@ -42,6 +49,20 @@ export interface TickResult {
 export async function sendDue(deps: SenderDeps, opts: { appUrl: string; limit?: number }): Promise<TickResult> {
   const due = await deps.claim(opts.limit ?? 100);
   const result: TickResult = { claimed: due.length, delivered: 0, retried: 0, failed: 0, unreachable: 0 };
+  // One read of a person's day per tick, however many of their notifications are due.
+  const days = new Map<string, Promise<DayFigures | null>>();
+  const figuresFor = (userId: string) => {
+    if (!deps.dayContext) return Promise.resolve(null);
+    let p = days.get(userId);
+    if (!p) {
+      p = deps
+        .dayContext(userId)
+        .then((ctx) => (ctx ? dayFigures(ctx) : null))
+        .catch(() => null); // the numbers are a courtesy: the reminder still goes without them
+      days.set(userId, p);
+    }
+    return p;
+  };
   for (const n of due) {
     const subs = await deps.subscriptionsFor(n.user_id);
     if (subs.length === 0) {
@@ -49,7 +70,7 @@ export async function sendDue(deps: SenderDeps, opts: { appUrl: string; limit?: 
       await deps.finish(n.id, "sent");
       continue;
     }
-    const body = serialisePayload(n.payload, opts.appUrl);
+    const body = serialisePayload(personalise(n.kind, n.payload, await figuresFor(n.user_id)), opts.appUrl);
     const options = pushOptions(n.kind, n.entity_id, n.fire_at);
     let delivered = 0;
     let retryable = 0;

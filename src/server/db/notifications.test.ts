@@ -400,6 +400,9 @@ describe.skipIf(admin === null)("the day at send time: badge and figures", () =>
       expect(j.blocks).toHaveLength(1);
       expect(j.events).toEqual([]);
       expect(j.work_hours).toHaveLength(5);
+      // Without a day it is the person's today.
+      const plain = await c.query<{ day: string }>("select private.push_day_context($1)->>'day' as day", [uid]);
+      expect(plain.rows[0].day).toBe(today);
 
       await c.query("savepoint ctx");
       await asUser(c, uid);
