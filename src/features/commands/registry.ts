@@ -31,8 +31,8 @@ export interface CommandContext {
   quickAdd: (prefill?: string) => void;
   /** Opens the task's detail; with a field, that field's picker opens with it, focused. */
   openTask: (id: string, field?: DetailField) => void;
-  /** One picker for several tasks (rows ticked): the choice is one write and one undo; the ticks clear after. */
-  editMany: (ids: readonly string[], field: DetailField) => void;
+  /** One picker for every ticked row: the choice is one write and one undo; the ticks clear after. */
+  editTicked: (field: DetailField) => void;
   moveSelection: (delta: 1 | -1) => void;
   openPalette: (query?: string) => void;
   openShortcuts: () => void;
@@ -118,7 +118,7 @@ const priority = (value: Priority) => onTargets((ctx, ids) => applyPatch(ctx, id
 const pickField = (field: DetailField) =>
   onTargets((ctx, ids) => {
     if (ids.length === 1) ctx.openTask(ids[0], field);
-    else ctx.editMany(ids, field);
+    else ctx.editTicked(field);
   });
 
 /**

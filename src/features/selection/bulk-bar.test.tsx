@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,7 @@ vi.mock("@/data/powersync", () => ({
 import { SelectionProvider, useListSelection, useSelection } from "@/features/selection/selection-provider";
 import { TaskDetailProvider } from "@/features/tasks/task-detail";
 import { UndoProvider } from "@/features/undo/undo-provider";
+import { requestBulkField } from "@/features/tasks/bulk-field-request";
 import { BulkBar } from "./bulk-bar";
 
 function Rows() {
@@ -47,6 +48,21 @@ function setup({ undo = false } = {}) {
   render(undo ? <UndoProvider>{tree}</UndoProvider> : tree);
   return userEvent.setup();
 }
+
+describe("<BulkBar> field pickers for the ticked rows", () => {
+  it("D, ⇧D, ⇧S or E with rows ticked opens one picker; its choice writes them all at once, then lets go", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: "tick t1" }));
+    await user.click(screen.getByRole("button", { name: "tick t3" }));
+    act(() => void requestBulkField("estimate"));
+    const sheet = await screen.findByRole("dialog", { name: "Set estimate for 2 tasks" });
+    await user.click(within(sheet).getByRole("button", { name: "30m" }));
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(String(execute.mock.calls[0][0])).toMatch(/^update tasks set estimate_min = \?.* where id in \(\?, \?\)$/);
+    expect(await screen.findByText("checked: none")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
 
 describe("<BulkBar>", () => {
   it("appears once rows are ticked, counts them, and a move writes them all at once then lets go", async () => {

@@ -6,6 +6,7 @@
 // way it is the raised panel (DESIGN_SYSTEM.md §4: surface-3, the ink shadow
 // in light, a hairline in dark). Every action is one write with one undo
 // entry, then the ticks clear. Escape clears them without a write.
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, localDate } from "@/core/time";
@@ -14,7 +15,8 @@ import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/q
 import { projectOptionLabel, withAreaNames } from "@/data/queries/project-label";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { useTaskDetail } from "@/features/tasks/task-detail";
+import { onBulkField } from "@/features/tasks/bulk-field-request";
+import { useTaskDetail, type DetailField } from "@/features/tasks/task-detail";
 import { useTagRepo } from "@/features/tasks/use-repos";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button, buttonClass } from "@/ui/button";
@@ -25,6 +27,9 @@ import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { RAISED } from "@/ui/sheet";
 import { useSelection } from "./selection-provider";
+
+// The picker D, ⇧D, ⇧S and E open for every ticked row (it shares the task detail's pickers): fetched when asked for.
+const BulkField = dynamic(() => import("@/features/tasks/bulk-field").then((m) => m.BulkField), { ssr: false });
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
 const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
@@ -58,18 +63,21 @@ export function BulkBar() {
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: users } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
   const [tag, setTag] = useState("");
+  // D, ⇧D, ⇧S or E with these rows ticked: one picker for all of them.
+  const [picking, setPicking] = useState<DetailField | null>(null);
+  useEffect(() => onBulkField(setPicking), []);
   const count = ids.length;
 
   // Escape lets go of the ticks, unless a panel or the task detail wants the key first.
   useEffect(() => {
     if (count === 0) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || detail.selectedId || isTypingTarget(e.target)) return;
+      if (e.key !== "Escape" || detail.selectedId || picking || isTypingTarget(e.target)) return;
       sel.clearChecks();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [count, detail.selectedId, sel]);
+  }, [count, detail.selectedId, picking, sel]);
 
   if (count === 0) return null;
   // Two projects of one name show their area beside it (PRODUCT_SPEC.md §5.4).
@@ -89,7 +97,8 @@ export function BulkBar() {
   };
 
   return (
-    // Neither band scrolls its actions: a scroll box would clip the menus that open upward from the bar.
+    <>
+      {/* Neither band scrolls its actions: a scroll box would clip the menus that open upward from the bar. */}
     <div
       role="toolbar"
       aria-label="Bulk edit"
@@ -184,5 +193,7 @@ export function BulkBar() {
         </Button>
       </div>
     </div>
+    {picking && <BulkField ids={ids} field={picking} onDone={done} onClose={() => setPicking(null)} />}
+    </>
   );
 }

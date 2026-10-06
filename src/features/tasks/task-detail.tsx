@@ -19,9 +19,6 @@ export function Opening() {
   return <div className="p-5 text-body text-ink-3">Opening…</div>;
 }
 
-// The one picker for several ticked rows at once (D, ⇧D, ⇧S, E with a bulk selection): fetched when first asked for.
-const BulkField = dynamic(() => import("./bulk-field").then((m) => m.BulkField), { ssr: false });
-
 /** A field row whose picker can be opened directly (SCREENS.md §24: D, ⇧D, ⇧S, E, R). */
 export type DetailField = "do" | "deadline" | "start" | "estimate" | "repeat";
 
@@ -37,18 +34,9 @@ interface TaskDetailApi {
   /** Opens the task, with that field's picker open and focused when one is named. */
   open: (id: string, field?: DetailField) => void;
   close: () => void;
-  /** One picker for several tasks: the choice is one write and one undo for all of them; `onDone` runs after it. */
-  editMany: (ids: readonly string[], field: DetailField, onDone?: () => void) => void;
-}
-
-interface BulkRequest {
-  ids: readonly string[];
-  field: DetailField;
-  onDone?: () => void;
 }
 
 const TaskDetailContext = createContext<TaskDetailApi | null>(null);
-const BulkContext = createContext<{ bulk: BulkRequest | null; end: () => void }>({ bulk: null, end: () => {} });
 
 export function useTaskDetail(): TaskDetailApi {
   const api = useContext(TaskDetailContext);
@@ -59,22 +47,14 @@ export function useTaskDetail(): TaskDetailApi {
 export function TaskDetailProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [field, setField] = useState<FieldRequest | null>(null);
-  const [bulk, setBulk] = useState<BulkRequest | null>(null);
   const open = useCallback((id: string, name?: DetailField) => {
     setSelectedId(id);
     setField((f) => (name ? { name, seq: (f?.seq ?? 0) + 1 } : null));
   }, []);
   const close = useCallback(() => setSelectedId(null), []);
-  const editMany = useCallback((ids: readonly string[], name: DetailField, onDone?: () => void) => setBulk({ ids, field: name, onDone }), []);
-  const end = useCallback(() => setBulk(null), []);
-  const api = useMemo(() => ({ selectedId, field, open, close, editMany }), [selectedId, field, open, close, editMany]);
-  const bulkApi = useMemo(() => ({ bulk, end }), [bulk, end]);
+  const api = useMemo(() => ({ selectedId, field, open, close }), [selectedId, field, open, close]);
   useEffect(() => preloadOnIdle(loadPanel), []);
-  return (
-    <TaskDetailContext.Provider value={api}>
-      <BulkContext.Provider value={bulkApi}>{children}</BulkContext.Provider>
-    </TaskDetailContext.Provider>
-  );
+  return <TaskDetailContext.Provider value={api}>{children}</TaskDetailContext.Provider>;
 }
 
 /**
@@ -86,7 +66,6 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
  */
 export function TaskDetailPane() {
   const { selectedId, field, close } = useTaskDetail();
-  const { bulk, end } = useContext(BulkContext);
   useEffect(() => {
     if (!selectedId) return;
     const onKey = (e: KeyboardEvent) => {
@@ -96,12 +75,8 @@ export function TaskDetailPane() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId, close]);
 
-  return (
-    <>
-      {selectedId && <DetailSurface id={selectedId} field={field} onClose={close} />}
-      {bulk && <BulkField key={`${bulk.field}:${bulk.ids.join(",")}`} ids={bulk.ids} field={bulk.field} onDone={bulk.onDone} onClose={end} />}
-    </>
-  );
+  if (!selectedId) return null;
+  return <DetailSurface id={selectedId} field={field} onClose={close} />;
 }
 
 const OVERLAY_QUERY = "(max-width: 47.9375rem)";

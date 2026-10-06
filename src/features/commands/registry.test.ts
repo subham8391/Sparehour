@@ -30,7 +30,7 @@ function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: 
     go: vi.fn(),
     quickAdd: vi.fn(),
     openTask: vi.fn(),
-    editMany: vi.fn(),
+    editTicked: vi.fn(),
     moveSelection: vi.fn(),
     openPalette: vi.fn(),
     openShortcuts: vi.fn(),
@@ -142,11 +142,11 @@ describe("command registry", () => {
   it("with several rows ticked, D, ⇧D, ⇧S and E open one picker for all of them; one ticked row opens in the detail", async () => {
     const ctx = ctxWith({ selectedTaskId: "t1", checkedTaskIds: ["t2", "t3"] });
     await byId("task.do").run(ctx);
-    expect(ctx.editMany).toHaveBeenLastCalledWith(["t2", "t3"], "do");
+    expect(ctx.editTicked).toHaveBeenLastCalledWith("do");
     await byId("task.deadline").run(ctx);
-    expect(ctx.editMany).toHaveBeenLastCalledWith(["t2", "t3"], "deadline");
+    expect(ctx.editTicked).toHaveBeenLastCalledWith("deadline");
     await byId("task.estimate").run(ctx);
-    expect(ctx.editMany).toHaveBeenLastCalledWith(["t2", "t3"], "estimate");
+    expect(ctx.editTicked).toHaveBeenLastCalledWith("estimate");
     expect(ctx.openTask).not.toHaveBeenCalled();
     // A rule is set one task at a time.
     await byId("task.repeat").run(ctx);
@@ -154,7 +154,7 @@ describe("command registry", () => {
     const one = ctxWith({ selectedTaskId: null, checkedTaskIds: ["t2"] });
     await byId("task.start").run(one);
     expect(one.openTask).toHaveBeenLastCalledWith("t2", "start");
-    expect(one.editMany).not.toHaveBeenCalled();
+    expect(one.editTicked).not.toHaveBeenCalled();
   });
 
   it("with rows ticked, the edits go to all of them in one bulk write; open keeps to the selection", async () => {
