@@ -308,8 +308,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   };
   // Pause repeats… from the footer's menu or the palette opens the Repeat field with its pause picker.
   const [pauseAsked, setPauseAsked] = useState(0);
-  const [pauseOpen, setPauseOpen] = useState(false);
   const pauseRequest = (p.fieldRequest?.name === "pause" ? p.fieldRequest.seq : 0) + pauseAsked;
+  const [pauseOpen, setPauseOpen] = useState(pauseRequest > 0);
   const [seenPauseRequest, setSeenPauseRequest] = useState(pauseRequest);
   if (pauseRequest !== seenPauseRequest) {
     setSeenPauseRequest(pauseRequest);
