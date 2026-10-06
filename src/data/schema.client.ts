@@ -65,6 +65,14 @@ export const user_settings = new Table({
   expired_seen_at: column.text,
   /** The newest auto-filed batch Someday has announced; only later ones show. */
   auto_filed_seen_at: column.text,
+  /** Settings › Planning: the miss policy a new one-off task starts with ('carry' | 'skip' | 'expire'). */
+  default_miss_policy: column.text,
+  /** Settings › Planning "Open to": 'today' | 'inbox' | 'upcoming'. */
+  default_view: column.text,
+  /** Minutes before a block's start its reminder fires: 0, 5, 10 or 15. */
+  block_start_lead_min: column.integer,
+  /** Settings › Notifications "Badge on the app icon". */
+  badge_enabled: column.integer,
   created_at: column.text,
   updated_at: column.text,
 });

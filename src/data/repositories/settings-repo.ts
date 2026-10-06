@@ -1,5 +1,9 @@
 // Settings writes: the one user_settings row and the work_hours rows.
+import type { MissPolicy } from "@/core/types";
 import type { LocalDatabase } from "../powersync";
+
+/** Where the app opens from `/` and the installed app's start URL (SCREENS.md §18 Planning "default view on open"). */
+export type OpenTo = "today" | "inbox" | "upcoming";
 
 export interface SettingsPatch {
   timezone?: string;
@@ -13,7 +17,7 @@ export interface SettingsPatch {
   carryReview?: boolean;
   eveningStartsAt?: string; // "18:00"
   theme?: "system" | "light" | "dark";
-  // notifications (SYSTEM_DESIGN.md §7.1); a null time turns that nudge off
+  // notifications (SYSTEM_DESIGN.md §7.1); a null nudge time means "derived from working hours"
   notifyBlockStart?: boolean;
   notifyDeadline?: boolean;
   notifyMorning?: boolean;
@@ -22,6 +26,13 @@ export interface SettingsPatch {
   shutdownNudgeTime?: string | null;
   quietHoursStart?: string | null;
   quietHoursEnd?: string | null;
+  /** Minutes before a block's start its reminder fires: 0, 5, 10 or 15. */
+  blockStartLeadMin?: number;
+  /** The app-icon badge (PRODUCT_SPEC.md §14 rule 6). */
+  badgeEnabled?: boolean;
+  // planning defaults (SCREENS.md §18 Planning)
+  defaultMissPolicy?: MissPolicy;
+  defaultView?: OpenTo;
 }
 
 const COLUMNS: Record<keyof SettingsPatch, string> = {
@@ -43,6 +54,10 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   shutdownNudgeTime: "shutdown_nudge_time",
   quietHoursStart: "quiet_hours_start",
   quietHoursEnd: "quiet_hours_end",
+  blockStartLeadMin: "block_start_lead_min",
+  badgeEnabled: "badge_enabled",
+  defaultMissPolicy: "default_miss_policy",
+  defaultView: "default_view",
 };
 
 export class SettingsRepo {
@@ -61,34 +76,49 @@ export class SettingsRepo {
   }
 }
 
+/** One stretch of a working day, "HH:MM" to "HH:MM". */
+export interface WorkSegment {
+  start: string;
+  end: string;
+}
+
 export class WorkHoursRepo {
   constructor(private readonly db: LocalDatabase) {}
 
-  /** One segment per weekday for now: replaces the day's hours, or creates them. */
-  async set(weekday: number, start: string, end: string, ctx: { spaceId: string; userId: string }): Promise<void> {
+  /**
+   * Makes a weekday's working hours exactly `segments` (PRODUCT_SPEC.md §9.5: several per day), in one transaction:
+   * the day's rows are reused in start order and updated where they differ, extra ones are removed by id, missing
+   * ones are inserted. An empty list is a day off. Undo is the same call with the day's previous segments.
+   */
+  async replaceDay(weekday: number, segments: readonly WorkSegment[], ctx: { spaceId: string; userId: string }): Promise<void> {
     const now = new Date().toISOString();
+    const wanted = [...segments].sort((a, b) => a.start.localeCompare(b.start));
     await this.db.writeTransaction(async (tx) => {
-      const existing = await tx.getOptional<{ id: string }>(`select id from work_hours where deleted_at is null and weekday = ? order by start_time limit 1`, [weekday]);
-      if (existing) {
-        await tx.execute(`update work_hours set start_time = ?, end_time = ?, updated_at = ? where id = ?`, [start, end, now, existing.id]);
-      } else {
-        await tx.execute(`insert into work_hours (id, space_id, user_id, weekday, start_time, end_time, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)`, [
-          crypto.randomUUID(),
-          ctx.spaceId,
-          ctx.userId,
-          weekday,
-          start,
-          end,
-          now,
-          now,
-        ]);
+      const existing = await tx.getAll<{ id: string; start_time: string | null; end_time: string | null }>(
+        `select id, start_time, end_time from work_hours where deleted_at is null and weekday = ? order by start_time, id`,
+        [weekday],
+      );
+      for (let i = 0; i < Math.max(existing.length, wanted.length); i++) {
+        const row = existing[i];
+        const seg = wanted[i];
+        if (row && seg) {
+          if ((row.start_time ?? "").slice(0, 5) !== seg.start || (row.end_time ?? "").slice(0, 5) !== seg.end)
+            await tx.execute(`update work_hours set start_time = ?, end_time = ?, updated_at = ? where id = ?`, [seg.start, seg.end, now, row.id]);
+        } else if (row) {
+          await tx.execute(`update work_hours set deleted_at = ?, updated_at = ? where id = ?`, [now, now, row.id]);
+        } else if (seg) {
+          await tx.execute(`insert into work_hours (id, space_id, user_id, weekday, start_time, end_time, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)`, [
+            crypto.randomUUID(),
+            ctx.spaceId,
+            ctx.userId,
+            weekday,
+            seg.start,
+            seg.end,
+            now,
+            now,
+          ]);
+        }
       }
     });
-  }
-
-  /** A non-working day. */
-  async clear(weekday: number): Promise<void> {
-    const now = new Date().toISOString();
-    await this.db.execute(`update work_hours set deleted_at = ?, updated_at = ? where deleted_at is null and weekday = ?`, [now, now, weekday]);
   }
 }

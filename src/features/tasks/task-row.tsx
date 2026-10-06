@@ -33,8 +33,10 @@ const COMPLETE_DELAY_MS = 400;
 /** The longest estimate taken without a question: 8 hours (PRODUCT_SPEC.md §5.2 "~ … Max 8h"). */
 export const LONG_ESTIMATE_MIN = 8 * 60;
 
+// The system's setting, or this device's Settings › Appearance › Reduce motion (stamped on <html> before paint).
 const prefersReducedMotion = () =>
-  typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  typeof window !== "undefined" &&
+  (document.documentElement.dataset.motion === "reduce" || (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
 
 /** The quiet run's pieces are joined by a middle dot; on the phone the run follows the chips, so it opens with one too. */
 const META_RUN =
