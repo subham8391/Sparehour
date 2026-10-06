@@ -269,16 +269,31 @@ describe("TaskRepo completing a repeating task (SYSTEM_DESIGN.md §5.2)", () => 
     const sqls = execute.mock.calls.map((c) => String(c[0]));
     expect(sqls[0]).toMatch(/^insert into task_completions/);
     expect(execute.mock.calls[0][1].slice(1, 4)).toEqual(["s1", "r1", "2026-09-14"]);
-    expect(sqls[1]).toBe("update tasks set do_date = ?, state = 'active', completed_at = null, updated_at = ? where id = ?");
-    expect(execute.mock.calls[1][1][0]).toBe("2026-09-21");
+    expect(sqls[1]).toBe("update tasks set do_date = ?, deadline = ?, state = 'active', completed_at = null, carry_count = 0, last_carried_at = null, updated_at = ? where id = ?");
+    expect(execute.mock.calls[1][1].slice(0, 2)).toEqual(["2026-09-21", null]);
     expect(sqls[2]).toMatch(/^update checklist_items set done = 0/);
     const entry = history.record.mock.calls[0][0];
     expect(entry).toMatchObject({ label: "Completed “Water the plants”", toast: true });
     await entry.undo();
     const after = execute.mock.calls.slice(3).map((c) => String(c[0]));
     expect(after[0]).toMatch(/^update task_completions set deleted_at = \?/);
-    expect(after[1]).toBe("update tasks set do_date = ?, state = ?, completed_at = ?, updated_at = ? where id = ?");
-    expect(execute.mock.calls[4][1].slice(0, 3)).toEqual(["2026-09-14", "active", null]);
+    expect(after[1]).toBe("update tasks set do_date = ?, deadline = ?, state = ?, completed_at = ?, carry_count = ?, last_carried_at = ?, updated_at = ? where id = ?");
+    expect(execute.mock.calls[4][1].slice(0, 4)).toEqual(["2026-09-14", null, "active", null]);
+  });
+
+  it("the next occurrence gets its own deadline at the old offset, starts uncarried, and undo puts both back", async () => {
+    // 'Submit timesheet every fri {fri}': due on the day it is done
+    const { repo, execute, history } = repoFor({ ...weekly, deadline: "2026-09-14", carry_count: 2, last_carried_at: "2026-09-14" });
+    await repo.complete("r1");
+    expect(execute.mock.calls[1][1].slice(0, 2)).toEqual(["2026-09-21", "2026-09-21"]);
+    await history.record.mock.calls[0][0].undo();
+    expect(execute.mock.calls[4][1].slice(0, 6)).toEqual(["2026-09-14", "2026-09-14", "active", null, 2, "2026-09-14"]);
+  });
+
+  it("a deadline two days after the do-date stays two days after it", async () => {
+    const { repo, execute } = repoFor({ ...weekly, deadline: "2026-09-16" });
+    await repo.complete("r1");
+    expect(execute.mock.calls[1][1].slice(0, 2)).toEqual(["2026-09-21", "2026-09-23"]);
   });
 
   it("when the series has ended, the row closes as done", async () => {
@@ -594,5 +609,31 @@ describe("TaskRepo: taking back what a paste created (PRODUCT_SPEC.md §5.1 rule
     s.outside.length = 0;
     await new TaskRepo(s.db).removeCreated([]);
     expect(s.outside).toEqual([]);
+  });
+});
+
+describe("TaskRepo: the default miss policy follows the repeat (A6, DECISIONS.md 2026-10-06)", () => {
+  function seeded() {
+    const s = localSqlite();
+    s.insert("tasks", { id: "one", space_id: "s1", title: "Water the plants", state: "active", miss_policy: "carry", recurrence_rule: null });
+    s.insert("tasks", { id: "rep", space_id: "s1", title: "Weekly review", state: "active", miss_policy: "skip", recurrence_rule: "FREQ=WEEKLY", recurrence_mode: "fixed", recurrence_series_id: "rep" });
+    const history = { record: vi.fn() };
+    return { s, history, repo: new TaskRepo(s.db, history), policy: (id: string) => s.row("tasks", id)?.miss_policy };
+  }
+
+  it("a first repeat turns carry into skip, and one undo turns both back", async () => {
+    const { repo, history, policy, s } = seeded();
+    // the detail panel adds the policy to the repeat's patch (features/tasks/repeat-policy)
+    await repo.update("one", { recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed", missPolicy: "skip" });
+    expect(policy("one")).toBe("skip");
+    await history.record.mock.calls[0][0].undo();
+    expect(policy("one")).toBe("carry");
+    expect(s.row("tasks", "one")?.recurrence_rule).toBeNull();
+  });
+
+  it("Stop repeating turns skip back into carry", async () => {
+    const { repo, policy } = seeded();
+    await repo.update("rep", { recurrenceRule: null, recurrenceMode: null, missPolicy: "carry" });
+    expect(policy("rep")).toBe("carry");
   });
 });

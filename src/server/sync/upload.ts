@@ -29,7 +29,8 @@ export type UploadBody = z.infer<typeof UploadBody>;
  * Rows a client may never delete list it explicitly.
  */
 export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
-  tasks: ["carry_count", "last_carried_at", "last_touched_at", "assignee_id", "created_at", "updated_at"],
+  tasks: ["carry_count", "last_carried_at", "last_touched_at", "assignee_id", "expired_at", "auto_filed_at", "created_at", "updated_at"],
+  task_completions: ["carry_count_before", "last_carried_before"],
   time_blocks: ["external_event_id", "external_etag", "push_state", "created_at", "updated_at"],
   calendars: ["sync_token", "last_synced_at", "calendar_account_id", "external_id", "access_role", "deleted_at", "created_at", "updated_at"],
   calendar_events: ["*"],
@@ -41,13 +42,23 @@ export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
   "*": ["created_at", "updated_at"],
 };
 
+/**
+ * Server-owned columns a person may clear but never set: a null passes, any other value is dropped.
+ * `tasks.auto_filed_at` is the rollover job's stamp; "Keep in Someday" in the Review walk clears it
+ * (tasks_guard, migration 20261006001100, enforces the same at the table).
+ */
+export const CLEARABLE_COLUMNS: Record<string, readonly string[]> = {
+  tasks: ["auto_filed_at"],
+};
+
 /** Returns the op with server-owned columns removed, or null when nothing is left to apply. */
 export function sanitize(op: WireOp): WireOp | null {
   if (op.op === "DELETE" || !op.data) return op;
   const owned = new Set([...(SERVER_OWNED_COLUMNS[op.table] ?? []), ...SERVER_OWNED_COLUMNS["*"]]);
   if (owned.has("*")) return null;
+  const clearable = new Set(CLEARABLE_COLUMNS[op.table] ?? []);
   const data: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(op.data)) if (!owned.has(k) && k !== "id") data[k] = v;
+  for (const [k, v] of Object.entries(op.data)) if ((!owned.has(k) || (v === null && clearable.has(k))) && k !== "id") data[k] = v;
   if (op.op === "PATCH" && Object.keys(data).length === 0) return null;
   return { ...op, data };
 }

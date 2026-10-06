@@ -29,6 +29,14 @@ describe("sanitize", () => {
     expect(sanitize(d)).toBe(d);
   });
 
+  it("the rollover's markers are the server's; the auto-file stamp may be cleared, never set", () => {
+    const at = "2026-10-06T04:00:00.000Z";
+    expect(sanitize(op({ data: { title: "t", expired_at: at, auto_filed_at: at } }))?.data).toEqual({ title: "t" });
+    expect(sanitize(op({ data: { expired_at: null } }))).toBeNull();
+    expect(sanitize(op({ data: { auto_filed_at: null } }))?.data).toEqual({ auto_filed_at: null });
+    expect(sanitize(op({ table: "task_completions", op: "PUT", data: { task_id: "t1", carry_count_before: 9, last_carried_before: "2026-10-01" } }))?.data).toEqual({ task_id: "t1" });
+  });
+
   it("strips id from data (it travels separately)", () => {
     expect(sanitize(op({ op: "PUT", data: { id: "other", title: "t" } }))?.data).toEqual({ title: "t" });
   });

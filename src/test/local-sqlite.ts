@@ -23,7 +23,7 @@ const BASE = "id text primary key, space_id text, created_at text, updated_at te
 const TABLES: Record<string, string> = {
   tasks: `project_id, heading_id, assignee_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date, evening, estimate_min, actual_min,
           carry_count, last_carried_at, last_touched_at, miss_policy, recurrence_rule, recurrence_mode, recurrence_series_id, recurrence_paused_until,
-          sort_key, day_sort_key, source, routine_run_id, routine_item_key, routine_item_id, routine_date, completed_at`,
+          sort_key, day_sort_key, source, routine_run_id, routine_item_key, routine_item_id, routine_date, completed_at, expired_at, auto_filed_at`,
   projects: "area_id, name, notes_md, state, do_date, deadline, completed_at, sort_key",
   headings: "project_id, title, sort_key",
   areas: "name, icon, color, sort_key",

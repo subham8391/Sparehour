@@ -19,6 +19,8 @@ export interface LogbookEntry {
   kind: LogbookKind;
   /** When it was finished or dropped, as the row's quiet time. */
   at: string;
+  /** Dropped by the rollover because its miss policy is "expire" (PRODUCT_SPEC.md §8.2 rule 5). */
+  expired?: boolean;
 }
 
 export interface LogbookDay {
@@ -43,15 +45,17 @@ export function logbookDays(input: {
   defaultEstimateMin: number;
 }): LogbookDay[] {
   const stamped: Stamped[] = [];
-  const add = (when: string | null | undefined, kind: LogbookKind, key: string, task: Task) => {
+  const add = (when: string | null | undefined, kind: LogbookKind, key: string, task: Task, expired = false) => {
     if (!when) return;
     const zoned = instant(normaliseTimestamp(when)).toZonedDateTimeISO(input.zone);
-    stamped.push({ ms: zoned.epochMilliseconds, day: zoned.toPlainDate(), entry: { key, task, kind, at: formatTime(zoned.toPlainTime()) } });
+    const entry: LogbookEntry = { key, task, kind, at: formatTime(zoned.toPlainTime()) };
+    if (expired) entry.expired = true;
+    stamped.push({ ms: zoned.epochMilliseconds, day: zoned.toPlainDate(), entry });
   };
   for (const r of input.done ?? []) add(r.completed_at, "done", r.id, toTask(r));
   for (const r of input.completions ?? []) add(r.occurrence_completed_at, "completion", r.completion_id, { ...toTask(r), id: r.id as TaskId, state: "done" });
   // A drop is written as a state change, so the row's last write is when it was dropped.
-  for (const r of input.dropped ?? []) add(r.updated_at ?? r.last_touched_at, "dropped", r.id, toTask(r));
+  for (const r of input.dropped ?? []) add(r.updated_at ?? r.last_touched_at, "dropped", r.id, toTask(r), Boolean(r.expired_at));
   stamped.sort((a, b) => b.ms - a.ms || (a.entry.key < b.entry.key ? -1 : a.entry.key > b.entry.key ? 1 : 0));
 
   const days: LogbookDay[] = [];

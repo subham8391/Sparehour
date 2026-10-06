@@ -3,12 +3,13 @@
 // is what makes per-column last-writer-wins work (§4.3).
 import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
-import { Temporal, localDate, todayFor, type LocalDate, type LocalTime } from "@/core/time";
+import { Temporal, todayFor, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import type { MissPolicy, Priority, RecurrenceException, RecurrenceMode } from "@/core/types";
+import type { MissPolicy, Priority, RecurrenceMode } from "@/core/types";
 import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
 import { reviveBlocks, type BlockRow } from "./block-repo";
+import type { RecurringRow } from "./recurring-completion";
 import { placeholders, quoted, restoreRow, type Tx, type UndoRecorder } from "./undo";
 
 export type { UndoRecorder } from "./undo";
@@ -284,58 +285,12 @@ export class TaskRepo {
   }
 
   /**
-   * SYSTEM_DESIGN.md §5.2 "Completion": a recurring task is one row that
-   * rolls forward. Completing it writes a completion for the scheduled
-   * occurrence and moves the row to the next one (or marks it done when the
-   * series ends); the checklist resets. Undo removes the completion and puts
-   * the row back as it was.
+   * SYSTEM_DESIGN.md §5.2 "Completion": the row rolls forward to its next occurrence (recurring-completion.ts).
+   * It and the recurrence engine (rrule) stay out of the app shell: they load the first time a repeat is completed.
    */
   private async completeRecurring(task: RecurringRow, before: RowSnapshot): Promise<void> {
-    // The recurrence engine (rrule) stays out of the app shell: it is loaded the first time a repeat is completed.
-    const { nextOccurrence } = await import("@/core/recurrence");
-    const today = await this.localToday();
-    const occurrence = task.do_date ? localDate(task.do_date) : today;
-    const rows = await this.db.getAll<{ occurrence_date: string; kind: string; moved_to: string | null }>(
-      `select occurrence_date, kind, moved_to from recurrence_exceptions where deleted_at is null and series_id = ?`,
-      [task.recurrence_series_id ?? task.id],
-    );
-    const exceptions: RecurrenceException[] = rows.map((e) =>
-      e.kind === "move" && e.moved_to ? { occurrenceDate: localDate(e.occurrence_date), kind: "move", movedTo: localDate(e.moved_to) } : { occurrenceDate: localDate(e.occurrence_date), kind: "skip" },
-    );
-    const next = nextOccurrence({
-      rule: task.recurrence_rule as string,
-      mode: task.recurrence_mode as RecurrenceMode,
-      doDate: occurrence,
-      completedOn: today,
-      pausedUntil: task.recurrence_paused_until ? localDate(task.recurrence_paused_until) : null,
-      exceptions,
-    });
-    const cols = ["do_date", "state", "completed_at"];
-    const now = new Date().toISOString();
-    const completionId = crypto.randomUUID();
-    await this.db.writeTransaction(async (tx) => {
-      await tx.execute(
-        `insert into task_completions (id, space_id, task_id, occurrence_date, completed_at, actual_min, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [completionId, task.space_id, task.id, occurrence.toString(), now, task.actual_min ?? null, now, now],
-      );
-      if (next) {
-        await tx.execute(`update tasks set do_date = ?, state = 'active', completed_at = null, updated_at = ? where id = ?`, [next.toString(), now, task.id]);
-        await tx.execute(`update checklist_items set done = 0, updated_at = ? where task_id = ? and done = 1 and deleted_at is null`, [now, task.id]);
-      } else {
-        await tx.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, task.id]);
-      }
-    });
-    if (!this.history) return;
-    this.history.record({
-      label: `Completed ${quoted(before.title)}`,
-      toast: true,
-      undo: () =>
-        this.db.writeTransaction(async (tx) => {
-          const at = new Date().toISOString();
-          await tx.execute(`update task_completions set deleted_at = ?, updated_at = ? where id = ?`, [at, at, completionId]);
-          await this.restore(tx, before, task.id, cols, at);
-        }),
-    });
+    const { completeRecurring } = await import("./recurring-completion");
+    await completeRecurring(this.db, this.history, task, before, await this.localToday());
   }
 
   async completeMany(ids: readonly string[]): Promise<void> {
@@ -475,36 +430,27 @@ export class TaskRepo {
     });
   }
 
-  async setState(id: string, state: TaskState): Promise<void> {
+  /** `note` names the change for a toast ("Brought back {title}"); without one, bringing a task back is a silent undo entry. */
+  async setState(id: string, state: TaskState, note?: string): Promise<void> {
     const cols = ["state", "do_date"];
     const before = await this.snapshot(id, cols);
     await this.db.execute(`update tasks set ${STATE_SETS} where id = ?`, [state, state, state, new Date().toISOString(), id]);
     // Parked, dropped or archived, the task has no day: the time it held goes back to the day.
     const released = state === "active" ? [] : await this.releaseBlocks([id], null);
-    this.remember(id, before, cols, STATE_LABELS[state], state !== "active", released);
+    this.remember(id, before, cols, note ?? STATE_LABELS[state], Boolean(note) || state !== "active", released);
   }
 
-  async setStateMany(ids: readonly string[], state: TaskState): Promise<void> {
+  async setStateMany(ids: readonly string[], state: TaskState, note?: string): Promise<void> {
     if (ids.length === 0) return;
     const cols = ["state", "do_date"];
     const before = await this.snapshotMany(ids, cols);
     await this.db.execute(`update tasks set ${STATE_SETS} where id in (${placeholders(ids)})`, [state, state, state, new Date().toISOString(), ...ids]);
     const released = state === "active" ? [] : await this.releaseBlocks(ids, null);
-    this.rememberMany(before, cols, STATE_LABELS[state], state !== "active", released);
+    this.rememberMany(before, cols, note ?? STATE_LABELS[state], Boolean(note) || state !== "active", released);
   }
 }
 
 type Snapshot = Record<string, string | number | null>;
-interface RecurringRow {
-  id: string;
-  space_id: string;
-  do_date: string | null;
-  recurrence_rule: string | null;
-  recurrence_mode: string | null;
-  recurrence_series_id: string | null;
-  recurrence_paused_until: string | null;
-  actual_min: number | null;
-}
 type RowSnapshot = Snapshot & { id: string };
 
 const text = (v: string | number | null | undefined): string | null => (v == null ? null : String(v));
@@ -516,6 +462,7 @@ function recurringOf(row: RowSnapshot): RecurringRow | null {
     id: row.id,
     space_id: String(row.space_id ?? ""),
     do_date: text(row.do_date),
+    deadline: text(row.deadline),
     recurrence_rule: String(row.recurrence_rule),
     recurrence_mode: String(row.recurrence_mode),
     recurrence_series_id: text(row.recurrence_series_id),

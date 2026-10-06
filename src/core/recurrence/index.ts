@@ -7,6 +7,8 @@ import { RRule } from "rrule";
 import { Temporal, compareDates, type LocalDate } from "../time";
 import type { RecurrenceException, RecurrenceMode } from "../types";
 
+export { deadlineForOccurrence } from "./deadline";
+
 const utcMidnight = (d: LocalDate): Date => new Date(Date.UTC(d.year, d.month - 1, d.day));
 const fromUtcMidnight = (d: Date): LocalDate =>
   Temporal.PlainDate.from({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() });

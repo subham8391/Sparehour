@@ -5,8 +5,8 @@ import type { LocalDate } from "@/core/time";
 /** Untriaged, newest first — the inbox is a queue. */
 export const INBOX_SQL = `select * from tasks where deleted_at is null and state = 'inbox' order by created_at desc, id`;
 
-/** Parked on purpose, most recently touched first. */
-export const SOMEDAY_SQL = `select * from tasks where deleted_at is null and state = 'someday' order by last_touched_at desc, id`;
+/** Someday (SCREENS.md §7): every parked task in its list order; the page groups them (auto-filed, by project, loose). */
+export const SOMEDAY_SQL = `select * from tasks where deleted_at is null and state = 'someday' order by sort_key, id`;
 
 /**
  * Open tasks planned inside a day range (the rolling week), as of its first day: a task whose start date
