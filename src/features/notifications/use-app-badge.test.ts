@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { badgeCount, titleWithCount, useAppBadge } from "./use-app-badge";
 
@@ -70,5 +70,25 @@ describe("the tab-title fallback (SYSTEM_DESIGN.md §7.3)", () => {
     badgeRow = { enabled: 0, shutdown_at: null };
     renderHook(() => useAppBadge(4));
     expect(document.title).toBe("Sparehour");
+  });
+
+  it("allowing reminders shows the count at once, without waiting for it to change", async () => {
+    let onChange: (() => void) | null = null;
+    vi.stubGlobal("Notification", { permission: "default" });
+    Object.defineProperty(navigator, "permissions", {
+      configurable: true,
+      value: { query: async () => ({ addEventListener: (_: string, fn: () => void) => (onChange = fn), removeEventListener() {} }) },
+    });
+    try {
+      const hook = renderHook(() => useAppBadge(3));
+      await act(async () => {});
+      expect(document.title).toBe("Sparehour");
+      vi.stubGlobal("Notification", { permission: "granted" });
+      act(() => onChange?.());
+      expect(document.title).toBe("(3) Sparehour");
+      hook.unmount();
+    } finally {
+      Reflect.deleteProperty(navigator, "permissions");
+    }
   });
 });

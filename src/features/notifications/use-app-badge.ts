@@ -6,7 +6,7 @@
 // number (`app_badge`, computed on the server at send time) so a closed app
 // stays right. Where the browser has no Badging API the count goes in the tab
 // title instead, "(3) Sparehour" (SYSTEM_DESIGN.md §7.3), on the same rules.
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 
@@ -47,6 +47,25 @@ export function useAppBadge(count: number): void {
   const row = data?.[0];
   const enabled = row?.enabled !== 0;
   const shutDown = Boolean(row?.shutdown_at);
+  // Allowing reminders (from Settings, the first-block ask or the browser's own controls) shows the badge at once.
+  const [permissionChanges, setPermissionChanges] = useState(0);
+  useEffect(() => {
+    let status: PermissionStatus | null = null;
+    let gone = false;
+    const bump = () => setPermissionChanges((n) => n + 1);
+    void navigator.permissions
+      ?.query({ name: "notifications" })
+      .then((s) => {
+        if (gone) return;
+        status = s;
+        s.addEventListener("change", bump);
+      })
+      .catch(() => {});
+    return () => {
+      gone = true;
+      status?.removeEventListener("change", bump);
+    };
+  }, []);
   useEffect(() => {
     if (typeof navigator === "undefined") return;
     const permission = typeof Notification === "undefined" ? "unsupported" : Notification.permission;
@@ -70,5 +89,5 @@ export function useAppBadge(count: number): void {
       watch?.disconnect();
       document.title = titleWithCount(document.title, 0);
     };
-  }, [count, enabled, shutDown]);
+  }, [count, enabled, shutDown, permissionChanges]);
 }
