@@ -28,6 +28,23 @@ export interface TodayMenuProps {
 
 const SUB = "text-body-sm text-ink-2";
 
+/**
+ * Paper is light: a dark theme is set aside for the print (browsers leave out backgrounds, and light ink on white
+ * paper would not read) and put back once the dialog closes. The print stylesheet in globals.css does the rest.
+ */
+export function printToday(): void {
+  const root = document.documentElement;
+  const before = root.dataset.theme;
+  const restore = () => {
+    window.removeEventListener("afterprint", restore);
+    if (before) root.dataset.theme = before;
+    else delete root.dataset.theme;
+  };
+  root.dataset.theme = "light";
+  window.addEventListener("afterprint", restore);
+  window.print();
+}
+
 export default function TodayMenu(p: TodayMenuProps) {
   const [sorting, setSorting] = useState(false);
   const current = TODAY_SORTS.find((s) => s.value === p.sort)?.label ?? "Manual";
@@ -84,7 +101,7 @@ export default function TodayMenu(p: TodayMenuProps) {
         Copy today as text
       </button>
       {/* The menu closes first, so the dialog prints the day rather than an open menu. */}
-      <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(() => setTimeout(() => window.print(), 50))}>
+      <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(() => setTimeout(printToday, 50))}>
         Print
       </button>
     </>

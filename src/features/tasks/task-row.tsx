@@ -340,7 +340,7 @@ export function TaskRow({
           {hasActions && (
             <div
               className={cx(
-                "hidden items-center justify-end gap-0.5 pr-2 sm:flex",
+                "hidden items-center justify-end gap-0.5 pr-2 sm:flex print:hidden!",
                 // Pinned to the right edge, out of the flow, on the row's own background (base tone under the wash), fading in on the left so it can sit over the chips.
                 "sm:absolute sm:inset-y-0 sm:right-0 sm:pl-6 sm:bg-(--row-bg) sm:shadow-[inset_0_0_0_100vmax_var(--row-wash)] sm:fade-start",
                 // Hidden at rest and no target then (axe reads pointer-events); revealed at 80 ms on hover, focus-within and the J/K highlight.
@@ -354,7 +354,7 @@ export function TaskRow({
             </div>
           )}
           {hasActions && (
-            <div className="relative z-1 -my-2 -ml-1 shrink-0 sm:hidden">
+            <div className="relative z-1 -my-2 -ml-1 shrink-0 sm:hidden print:hidden!">
               <MenuButton label="More actions">{(close) => <RowActionsLayoutProvider layout="menu" close={close}>{rowActions}</RowActionsLayoutProvider>}</MenuButton>
             </div>
           )}

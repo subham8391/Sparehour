@@ -38,7 +38,7 @@ export function ViewHeader({
     <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 sm:gap-x-4">
       {eyebrow ? <p className={cx(EYEBROW, "col-start-1 row-start-1 self-center sm:pb-2")}>{eyebrow}</p> : <span className="col-start-1 row-start-1" />}
       {/* Row 1 on a phone, the full height of the right column from `sm` up, where it settles on the baseline of the title. */}
-      <div className="col-start-2 row-start-1 -mr-2 flex min-h-11 flex-wrap items-center justify-end gap-1 sm:row-span-3 sm:mr-0 sm:min-h-0 sm:self-end sm:pb-1">
+      <div className="col-start-2 row-start-1 -mr-2 flex min-h-11 flex-wrap items-center justify-end gap-1 sm:row-span-3 sm:mr-0 sm:min-h-0 sm:self-end sm:pb-1 print:hidden">
         {actions}
         {compactActions}
         <button type="button" onClick={() => palette.open()} aria-label="Search and commands" className={cx(iconButtonClass({ size: "touch" }), "sm:hidden")}>

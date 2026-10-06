@@ -716,7 +716,7 @@ export default function TodayPage() {
           className={cx(
             // No outline-none: in Tailwind v4 it also cancels the focus-visible outline, and the ring vanished (the global ring draws it, inset).
             "w-full flex-col px-5 pb-6 focus-visible:-outline-offset-2 sm:px-6 md:px-10 md:pb-7",
-            "lg:ml-auto lg:h-full lg:w-86 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7 print:hidden",
+            "lg:ml-auto lg:h-full lg:w-86 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7 print:hidden!",
             showDay ? "flex" : "hidden",
             detail.selectedId ? "lg:hidden" : "lg:flex",
             // Room to scroll the whole day above the docked preview sheet.
