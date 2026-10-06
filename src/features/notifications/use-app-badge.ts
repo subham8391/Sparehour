@@ -4,7 +4,8 @@
 // notifications were allowed; off when Settings › Notifications says so; 0
 // from the evening shutdown until the day rolls over. Pushes carry the same
 // number (`app_badge`, computed on the server at send time) so a closed app
-// stays right.
+// stays right. Where the browser has no Badging API the count goes in the tab
+// title instead, "(3) Sparehour" (SYSTEM_DESIGN.md §7.3), on the same rules.
 import { useEffect } from "react";
 import { useQuery } from "@/data/powersync";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -31,6 +32,12 @@ export function badgeCount(s: BadgeState): number | null {
   return Math.max(0, s.count);
 }
 
+/** "(3) Sparehour": the title with the count in front, or without one at 0. */
+export function titleWithCount(title: string, n: number): string {
+  const base = title.replace(/^\(\d+\) /, "");
+  return n > 0 ? `(${n}) ${base}` : base;
+}
+
 type BadgeNavigator = Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
 
 export function useAppBadge(count: number): void {
@@ -41,11 +48,27 @@ export function useAppBadge(count: number): void {
   const enabled = row?.enabled !== 0;
   const shutDown = Boolean(row?.shutdown_at);
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("setAppBadge" in navigator)) return;
+    if (typeof navigator === "undefined") return;
     const permission = typeof Notification === "undefined" ? "unsupported" : Notification.permission;
     const n = badgeCount({ count, enabled, shutDown, permission });
-    if (n === null) return;
-    const nav = navigator as BadgeNavigator;
-    void (n > 0 ? nav.setAppBadge?.(n) : nav.clearAppBadge?.())?.catch(() => {});
+    if ("setAppBadge" in navigator) {
+      if (n === null) return;
+      const nav = navigator as BadgeNavigator;
+      void (n > 0 ? nav.setAppBadge?.(n) : nav.clearAppBadge?.())?.catch(() => {});
+      return;
+    }
+    // No icon badge here: the tab title carries it, kept on when the page swaps its <title> on navigation.
+    const shown = n ?? 0;
+    const apply = () => {
+      const want = titleWithCount(document.title, shown);
+      if (document.title !== want) document.title = want;
+    };
+    apply();
+    const watch = typeof MutationObserver === "undefined" ? null : new MutationObserver(apply);
+    watch?.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => {
+      watch?.disconnect();
+      document.title = titleWithCount(document.title, 0);
+    };
   }, [count, enabled, shutDown]);
 }
