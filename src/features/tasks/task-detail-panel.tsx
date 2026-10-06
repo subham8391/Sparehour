@@ -703,7 +703,7 @@ export function TypedDate({
       <input
         data-autofocus
         autoFocus={autoFocus}
-        aria-label={withTime ? "Type a day and time" : "Type a date"}
+        aria-label="In words"
         aria-describedby={hintId}
         placeholder={withTime ? "next tue · 21 oct · fri 3pm" : "next tue · 21 oct · in 3 days"}
         value={text}

@@ -25,7 +25,7 @@ describe("<BulkField> (D, ⇧D, ⇧S, E with rows ticked)", () => {
   it("one typed date sets the do-date of every ticked task in one write, then the ticks clear", async () => {
     const { user, onDone, onClose } = setup("do");
     expect(screen.getByRole("dialog", { name: "Pick a date for 3 tasks" })).toBeInTheDocument();
-    const typed = screen.getByRole("textbox", { name: "Type a day and time" });
+    const typed = screen.getByRole("textbox", { name: "In words" });
     expect(typed).toHaveFocus();
     await user.type(typed, "fri 3pm{Enter}");
     expect(onClose).toHaveBeenCalled();

@@ -313,7 +313,7 @@ describe("<TaskDetailPanel> field pickers asked for by key (SCREENS.md §24)", (
   it("opens the asked-for field's popover with focus on its typed field; Escape closes the popover and focus goes back to the row", async () => {
     const { user } = setup({ fieldRequest: { name: "do", seq: 1 } });
     const panel = screen.getByRole("dialog", { name: "Do" });
-    await waitFor(() => expect(within(panel).getByRole("textbox", { name: "Type a day and time" })).toHaveFocus());
+    await waitFor(() => expect(within(panel).getByRole("textbox", { name: "In words" })).toHaveFocus());
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Do" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Do/ })).toHaveFocus();
@@ -338,7 +338,7 @@ describe("<TaskDetailPanel> typed dates (SCREENS.md §10)", () => {
   it("Do takes a day and a time, previews what it reads, and Enter applies it", async () => {
     const { user, onPatch } = setup();
     await user.click(screen.getByRole("button", { name: /^Do/ }));
-    const typed = screen.getByRole("textbox", { name: "Type a day and time" });
+    const typed = screen.getByRole("textbox", { name: "In words" });
     await user.type(typed, "next tue");
     expect(screen.getByText("Tue 22 Sep")).toBeInTheDocument();
     await user.clear(typed);
@@ -351,7 +351,7 @@ describe("<TaskDetailPanel> typed dates (SCREENS.md §10)", () => {
   it("words that are not a date say so and change nothing", async () => {
     const { user, onPatch } = setup();
     await user.click(screen.getByRole("button", { name: /^Do/ }));
-    await user.type(screen.getByRole("textbox", { name: "Type a day and time" }), "soonish{Enter}");
+    await user.type(screen.getByRole("textbox", { name: "In words" }), "soonish{Enter}");
     expect(screen.getByText("Didn't catch that")).toBeInTheDocument();
     expect(onPatch).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Do" })).toBeInTheDocument();
@@ -362,12 +362,12 @@ describe("<TaskDetailPanel> typed dates (SCREENS.md §10)", () => {
     await user.click(screen.getByRole("button", { name: /^Deadline/ }));
     const panel = screen.getByRole("dialog", { name: "Deadline" });
     expect(within(panel).getAllByRole("button").map((b) => b.textContent)).toEqual(["Today", "Tomorrow", "This weekend", "Next week", "Clear"]); // on a Monday, "In a week" is next week
-    await user.type(within(panel).getByRole("textbox", { name: "Type a date" }), "21 oct");
+    await user.type(within(panel).getByRole("textbox", { name: "In words" }), "21 oct");
     expect(within(panel).getByText(/Wed 21 Oct/)).toBeInTheDocument();
     await user.keyboard("{Enter}");
     expect((onPatch.mock.lastCall?.[0] as { deadline: LocalDate }).deadline.toString()).toBe("2026-10-21");
     await user.click(screen.getByRole("button", { name: /^Starts/ }));
-    await user.type(screen.getByRole("textbox", { name: "Type a date" }), "in 3 days{Enter}");
+    await user.type(screen.getByRole("textbox", { name: "In words" }), "in 3 days{Enter}");
     expect((onPatch.mock.lastCall?.[0] as { startDate: LocalDate }).startDate.toString()).toBe("2026-09-17");
     await user.click(screen.getByRole("button", { name: /^Starts/ }));
     await user.click(screen.getByRole("button", { name: "This weekend" }));
