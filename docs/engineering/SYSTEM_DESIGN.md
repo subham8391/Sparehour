@@ -1632,12 +1632,14 @@ parse(input, ctx) -> ParseResult
   5. title := collapseWhitespace(input minus all spans, unmasking protected text)
   6. if title is empty: return { ok: false, reason: 'empty_title', spans }
   7. if do_time present and do_time >= ctx.eveningStartsAt: evening := true
-  8. if deadline < do_date: swap-and-warn                    # user almost certainly meant
+  8. if deadline < do_date: keep both, warn                  # PRODUCT_SPEC §5.4 "Both saved" (ruling 2026-10-06)
   9. if start_date > do_date: do_date := start_date
  10. return { ok: true, draft, spans, unresolved: { projectName?, tagNames[] } }
 ```
 
 Steps 8 and 9 are the only places the parser is opinionated. Both produce a visible chip so the user can undo the correction. Project and tag *resolution* (name → id, create-if-missing) happens in the repository, not here — the parser stays pure.
+
+**As built (2026-10-06).** Before step 7 a date is filled in where none was typed: a repeat starts at its first occurrence, a bare time is today or, once that time has passed in the account zone, tomorrow (A10), and `evening` / `this evening` alone mean today (DECISIONS.md "M1 gap rulings"). Step 8 no longer swaps: both dates are saved as typed and the strip says "Due before you plan to do it" (the detail panel says it too, with "Do it by then"); only a deadline before a repeat's first occurrence still moves onto it. `parse(input, ctx, { literal })` takes ranges to read as plain title words — the tokens the person un-parsed in quick-add (Backspace right after a token, or a fact chip's remove control); the sheet carries them through edits (`carryRanges`), and deleting into one lets those words parse again. Tags dedupe case-insensitively. The same reading backs the detail's typed dates (`core/quickadd/read-date.ts`: "next tue", "21 oct", "fri 3pm").
 
 #### Test corpus (extract)
 
@@ -1655,7 +1657,7 @@ The full corpus lives in `src/core/quickadd/__fixtures__/corpus.jsonl` — ~220 
 | `Standup every weekday 9:15` | Standup | 2026-09-11 | 09:15 | — | 0 | — | `FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR`, fixed |
 | `Water plants every! 3 days` | Water plants | 2026-09-11 | — | — | 0 | — | `FREQ=DAILY;INTERVAL=3`, after_completion |
 | `Book flights after mon` | Book flights | — | — | — | 0 | — | start_date 2026-09-14, hidden until then |
-| `Read chapter evening` | Read chapter | — | — | — | 0 | — | evening = true |
+| `Read chapter evening` | Read chapter | 2026-09-11 | — | — | 0 | — | evening = true (alone means this evening, ruling 2026-10-06) |
 | `Call mum tonight 8pm` | Call mum | 2026-09-11 | 20:00 | — | 0 | — | evening = true (time ≥ 18:00) |
 | `Fix the \#1 bug` | Fix the #1 bug | — | — | — | 0 | — | escape |
 | ``Fix `#1` bug`` | Fix `#1` bug | — | — | — | 0 | — | protected span |
