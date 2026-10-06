@@ -20,6 +20,7 @@ const load = {
   appearance: () => import("./sections/appearance-section").then((m) => m.AppearanceSection),
   data: () => import("./sections/data-section").then((m) => m.DataSection),
   app: () => import("./sections/app-section").then((m) => m.AppSection),
+  about: () => import("./sections/about-section").then((m) => m.AboutSection),
 } satisfies Record<SectionKey, () => Promise<ComponentType<SettingsFormProps>>>;
 
 export const SECTION_VIEWS: Record<SectionKey, ComponentType<SettingsFormProps>> = {
@@ -31,6 +32,7 @@ export const SECTION_VIEWS: Record<SectionKey, ComponentType<SettingsFormProps>>
   appearance: dynamic(() => import("./sections/appearance-section").then((m) => m.AppearanceSection), { ssr: false, loading: opening }),
   data: dynamic(() => import("./sections/data-section").then((m) => m.DataSection), { ssr: false, loading: opening }),
   app: dynamic(() => import("./sections/app-section").then((m) => m.AppSection), { ssr: false, loading: opening }),
+  about: dynamic(() => import("./sections/about-section").then((m) => m.AboutSection), { ssr: false, loading: opening }),
 };
 
 /** Every section's module, for the idle prefetch. */

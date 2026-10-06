@@ -42,6 +42,11 @@ export function useCommands(): CommandsApi {
   return api;
 }
 
+/** null outside the provider, so a component that only offers a command stays usable on its own (Settings › About). */
+export function useCommandsOptional(): CommandsApi | null {
+  return useContext(CommandsContext);
+}
+
 // The ? overlay loads on idle rather than with every page (the shells' 320 KB budget).
 const loadShortcuts = () => import("./shortcuts-dialog");
 const ShortcutsDialog = dynamic(() => loadShortcuts().then((m) => m.ShortcutsDialog), { ssr: false });
