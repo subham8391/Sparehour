@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { MissPolicy } from "@/core/types";
 import { useUndoSink } from "@/features/undo/undo-provider";
-import { useLocalDatabase, useQuery } from "@/data/powersync";
+import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
@@ -133,22 +133,11 @@ export default function SettingsPage() {
     undo?.record({ label: "Changed a setting", toast: false, undo: async () => applyMotion(previous) });
   };
 
-  /** Changes still waiting to upload. A connection that is up gets a few seconds to send them first. */
-  async function waitForUploads(): Promise<number> {
-    const until = Date.now() + 8000;
-    let { count } = await db.getUploadQueueStats();
-    while (count > 0 && navigator.onLine && Date.now() < until) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      ({ count } = await db.getUploadQueueStats());
-    }
-    return count;
-  }
-
   async function signOut(anyway = false) {
     setLeaving(true);
     // Clearing the device with changes still queued would lose them without a word: say so and let the person choose.
     if (!anyway) {
-      const waiting = await waitForUploads();
+      const waiting = await waitForUploads(db);
       if (waiting > 0) {
         setUnsynced(waiting);
         setLeaving(false);
@@ -229,6 +218,17 @@ export default function SettingsPage() {
       />
     </main>
   );
+}
+
+/** Changes still waiting to upload. A connection that is up gets a few seconds to send them first. */
+async function waitForUploads(db: LocalDatabase): Promise<number> {
+  const until = Date.now() + 8000;
+  let { count } = await db.getUploadQueueStats();
+  while (count > 0 && navigator.onLine && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    ({ count } = await db.getUploadQueueStats());
+  }
+  return count;
 }
 
 /** The form's shape of a patch: a cleared nudge time is "" there, null in the row. */
