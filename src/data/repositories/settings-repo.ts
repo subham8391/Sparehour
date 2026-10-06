@@ -1,5 +1,5 @@
 // Settings writes: the one user_settings row and the work_hours rows.
-import type { TodaySort } from "@/core/today/sort";
+import type { TodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import type { LocalDatabase } from "../powersync";
 

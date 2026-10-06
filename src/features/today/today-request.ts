@@ -2,7 +2,7 @@
 // completed; SCREENS.md §12 View): Today takes a request while it is
 // mounted; anywhere else the request waits until Today opens, as Plan my day's
 // does (features/planning/plan-request.ts).
-import type { TodaySort } from "@/core/today/sort";
+import type { TodaySort } from "@/core/today/sort-options";
 
 export type TodayRequest = { kind: "trim" } | { kind: "sort"; sort: TodaySort } | { kind: "completed" };
 type Handler = (request: TodayRequest) => void;

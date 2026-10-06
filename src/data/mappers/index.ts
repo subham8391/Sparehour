@@ -2,7 +2,7 @@
 // (LocalDate, LocalTime, boolean). Engines never see raw rows.
 import type { CapacityBlock, CapacityEvent, CapacityTask, WorkWindow } from "@/core/capacity";
 import { instant, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
-import { isTodaySort, type TodaySort } from "@/core/today/sort";
+import { isTodaySort, type TodaySort } from "@/core/today/sort-options";
 import type { ChecklistItem, Heading, MissPolicy, Priority, Project, ProjectId, ProjectState, RecurrenceMode, SpaceId, Task, TaskId, TaskState } from "@/core/types";
 import type { CalendarEventRow, HeadingRow, ProjectRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "../schema.client";
 

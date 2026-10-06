@@ -3,7 +3,7 @@
 // about a carried-over task, when an untouched one goes to Someday, the
 // morning review, what a new one-off task does when its day passes, and the
 // view the app opens to.
-import { TODAY_SORTS, isTodaySort } from "@/core/today/sort";
+import { TODAY_SORTS, isTodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo } from "@/data/repositories/settings-repo";
 import { cx } from "@/ui/cx";

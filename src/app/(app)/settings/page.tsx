@@ -4,7 +4,7 @@
 // 900 px, a list that pushes into each section below it. The page owns the
 // data, the writes and their undo; each section's controls are an island.
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { isTodaySort } from "@/core/today/sort";
+import { isTodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";

@@ -2,7 +2,7 @@
 // the palette can run, as data. Shortcuts are learned from the palette,
 // which shows them beside each command.
 import type { Instant, LocalDate } from "@/core/time";
-import { TODAY_SORTS } from "@/core/today/sort";
+import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";

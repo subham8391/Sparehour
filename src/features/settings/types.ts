@@ -2,7 +2,7 @@
 // device's panels, and the callbacks that write. Presentational sections:
 // values in, patches out; the page owns the data and the undo.
 import type { ExportFormat } from "@/core/export";
-import type { TodaySort } from "@/core/today/sort";
+import type { TodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo, SettingsPatch } from "@/data/repositories/settings-repo";
 import type { CalendarPanel } from "@/features/calendar/calendar-section";

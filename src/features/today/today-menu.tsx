@@ -3,7 +3,7 @@
 // today · Copy today as text · Print. Only the ⋯ trigger lives in the Today
 // shell; these contents are a lazy island, fetched once the browser is idle.
 import { useState } from "react";
-import { TODAY_SORTS, type TodaySort } from "@/core/today/sort";
+import { TODAY_SORTS, type TodaySort } from "@/core/today/sort-options";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM } from "@/ui/popover";

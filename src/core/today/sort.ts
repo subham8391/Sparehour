@@ -4,18 +4,9 @@
 // brings the hand order straight back. Pure.
 import { compareDates } from "../time";
 import type { Task } from "../types";
+import type { TodaySort } from "./sort-options";
 
-export type TodaySort = "manual" | "time" | "priority" | "deadline" | "estimate";
-
-export const TODAY_SORTS: readonly { value: TodaySort; label: string }[] = [
-  { value: "manual", label: "Manual" },
-  { value: "time", label: "Time" },
-  { value: "priority", label: "Priority" },
-  { value: "deadline", label: "Deadline" },
-  { value: "estimate", label: "Estimate" },
-];
-
-export const isTodaySort = (v: unknown): v is TodaySort => TODAY_SORTS.some((s) => s.value === v);
+export { TODAY_SORTS, isTodaySort, type TodaySort } from "./sort-options";
 
 /** Present before absent, so a sort by a field never buries the rows that have it under the ones that don't. */
 const present = <T>(x: T | null, y: T | null, cmp: (x: T, y: T) => number): number => (x !== null && y !== null ? cmp(x, y) : x !== null ? -1 : y !== null ? 1 : 0);
