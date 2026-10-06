@@ -284,62 +284,62 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
         const finished = doneGroups.get(keyOf(g)) ?? [];
         const body = (
           <>
-          <TaskList>
-            {g.tasks.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                today={today}
-                draggable
-                onDropTask={(src, edge) => dropInto(g)(src, t.id, edge)}
-                onOpen={() => detail.open(t.id)}
-                selected={sel.selectedId === t.id}
-                onSelect={() => sel.select(t.id)}
-                onDone={() => void tasksRepo.complete(t.id)}
-                chips={<DayChipTag chip={dayChip(t, today)} count={false} />}
-                actions={
-                  <>
-                    <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(g, t.id, -1)} />
-                    <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(g, t.id, 1)} />
-                    {headings.length > 0 && (
-                      <MenuOnly>
-                        {g.heading && <RowAction label="Move out of the heading" text="No heading" onClick={() => moveToHeading(t.id, null)} />}
-                        {headings
-                          .filter((h) => h.id !== g.heading?.id)
-                          .map((h) => (
-                            <RowAction key={h.id} label={`Move to ${h.title}`} onClick={() => moveToHeading(t.id, h.id)} />
-                          ))}
-                      </MenuOnly>
-                    )}
-                  </>
-                }
-              />
-            ))}
-            <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
-          </TaskList>
-          {/* What this section finished in the last week, tucked under its own disclosure (SCREENS.md §9). */}
-          {finished.length > 0 && (
-            <>
-              <button
-                type="button"
-                onClick={() => setDoneShown((s) => toggleIn(s, keyOf(g)))}
-                aria-expanded={doneShown.has(keyOf(g))}
-                className={DISCLOSURE}
-              >
-                <Icon name={doneShown.has(keyOf(g)) ? "chevron-down" : "chevron-right"} size={14} className="shrink-0 text-ink-3" />
-                {doneShown.has(keyOf(g)) ? "Hide completed" : "Show completed"}
-                <span className="num"> · {finished.length}</span>
-                {g.heading && <span className="sr-only"> in {g.heading.title}</span>}
-              </button>
-              {doneShown.has(keyOf(g)) && (
-                <TaskList>
-                  {finished.map((t) => (
-                    <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} />
-                  ))}
-                </TaskList>
-              )}
-            </>
-          )}
+            <TaskList>
+              {g.tasks.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  today={today}
+                  draggable
+                  onDropTask={(src, edge) => dropInto(g)(src, t.id, edge)}
+                  onOpen={() => detail.open(t.id)}
+                  selected={sel.selectedId === t.id}
+                  onSelect={() => sel.select(t.id)}
+                  onDone={() => void tasksRepo.complete(t.id)}
+                  chips={<DayChipTag chip={dayChip(t, today)} count={false} />}
+                  actions={
+                    <>
+                      <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(g, t.id, -1)} />
+                      <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(g, t.id, 1)} />
+                      {headings.length > 0 && (
+                        <MenuOnly>
+                          {g.heading && <RowAction label="Move out of the heading" text="No heading" onClick={() => moveToHeading(t.id, null)} />}
+                          {headings
+                            .filter((h) => h.id !== g.heading?.id)
+                            .map((h) => (
+                              <RowAction key={h.id} label={`Move to ${h.title}`} onClick={() => moveToHeading(t.id, h.id)} />
+                            ))}
+                        </MenuOnly>
+                      )}
+                    </>
+                  }
+                />
+              ))}
+              <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
+            </TaskList>
+            {/* What this section finished in the last week, tucked under its own disclosure (SCREENS.md §9). */}
+            {finished.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setDoneShown((s) => toggleIn(s, keyOf(g)))}
+                  aria-expanded={doneShown.has(keyOf(g))}
+                  className={DISCLOSURE}
+                >
+                  <Icon name={doneShown.has(keyOf(g)) ? "chevron-down" : "chevron-right"} size={14} className="shrink-0 text-ink-3" />
+                  {doneShown.has(keyOf(g)) ? "Hide completed" : "Show completed"}
+                  <span className="num"> · {finished.length}</span>
+                  {g.heading && <span className="sr-only"> in {g.heading.title}</span>}
+                </button>
+                {doneShown.has(keyOf(g)) && (
+                  <TaskList>
+                    {finished.map((t) => (
+                      <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} />
+                    ))}
+                  </TaskList>
+                )}
+              </>
+            )}
           </>
         );
         if (!g.heading) {

@@ -101,36 +101,36 @@ export function NoteField({
 
   return (
     <>
-    <span id={hintId} className="sr-only">
-      Press Enter to edit
-    </span>
-    <div
-      ref={rendered}
-      role="group"
-      aria-label={label}
-      aria-describedby={hintId}
-      tabIndex={0}
-      onClick={(e) => {
-        // A selection being made (copying a line out of the note) is not a request to edit it.
-        if (window.getSelection?.()?.toString() && rendered.current?.contains(window.getSelection()?.anchorNode ?? null)) return;
-        if ((e.target as HTMLElement).closest("a")) return;
-        open();
-      }}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
-        e.preventDefault();
-        open();
-      }}
-      className={cx(
-        "min-h-11 cursor-text text-base leading-6 text-ink transition-colors dur-fast sm:text-body sm:leading-5",
-        // Where the editor will be: the field's box and padding, its border drawn only on hover and focus.
-        className ?? "rounded-lg border border-transparent px-3 py-2 hover:border-line focus-visible:border-line",
-      )}
-    >
-      <Suspense fallback={<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{value}</p>}>
-        <Markdown source={value ?? ""} />
-      </Suspense>
-    </div>
+      <span id={hintId} className="sr-only">
+        Press Enter to edit
+      </span>
+      <div
+        ref={rendered}
+        role="group"
+        aria-label={label}
+        aria-describedby={hintId}
+        tabIndex={0}
+        onClick={(e) => {
+          // A selection being made (copying a line out of the note) is not a request to edit it.
+          if (window.getSelection?.()?.toString() && rendered.current?.contains(window.getSelection()?.anchorNode ?? null)) return;
+          if ((e.target as HTMLElement).closest("a")) return;
+          open();
+        }}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+          e.preventDefault();
+          open();
+        }}
+        className={cx(
+          "min-h-11 cursor-text text-base leading-6 text-ink transition-colors dur-fast sm:text-body sm:leading-5",
+          // Where the editor will be: the field's box and padding, its border drawn only on hover and focus.
+          className ?? "rounded-lg border border-transparent px-3 py-2 hover:border-line focus-visible:border-line",
+        )}
+      >
+        <Suspense fallback={<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{value}</p>}>
+          <Markdown source={value ?? ""} />
+        </Suspense>
+      </div>
     </>
   );
 }
