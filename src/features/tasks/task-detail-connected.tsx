@@ -15,14 +15,14 @@ import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { Opening } from "./task-detail";
+import { Opening, type FieldRequest } from "./task-detail";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useChecklistRepo, useTagRepo } from "./use-repos";
 import { useTaskRepo } from "./use-task-repo";
 
 type ChecklistRow = Parameters<typeof toChecklistItem>[0];
 
-export function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
+export function TaskDetail({ id, field = null, onClose }: { id: string; field?: FieldRequest | null; onClose: () => void }) {
   const repo = useTaskRepo();
   const checklistRepo = useChecklistRepo();
   const tagRepo = useTagRepo();
@@ -82,6 +82,7 @@ export function TaskDetail({ id, onClose }: { id: string; onClose: () => void })
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
       onClose={onClose}
+      fieldRequest={field}
     />
   );
 }
