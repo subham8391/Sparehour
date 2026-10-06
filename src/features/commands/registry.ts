@@ -6,6 +6,7 @@ import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
 import { snoozePresets } from "@/features/tasks/snooze";
+import type { DetailField } from "@/features/tasks/task-detail";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
@@ -28,7 +29,10 @@ export interface CommandContext {
   tasks: TaskRepo;
   go: (href: string) => void;
   quickAdd: (prefill?: string) => void;
-  openTask: (id: string) => void;
+  /** Opens the task's detail; with a field, that field's picker opens with it, focused. */
+  openTask: (id: string, field?: DetailField) => void;
+  /** One picker for several tasks (rows ticked): the choice is one write and one undo; the ticks clear after. */
+  editMany: (ids: readonly string[], field: DetailField) => void;
   moveSelection: (delta: 1 | -1) => void;
   openPalette: (query?: string) => void;
   openShortcuts: () => void;
@@ -107,6 +111,17 @@ const selectNext = (ctx: CommandContext, delta: 1 | -1) => {
 const priority = (value: Priority) => onTargets((ctx, ids) => applyPatch(ctx, ids, { priority: value }));
 
 /**
+ * D, ⇧D, ⇧S, E (SCREENS.md §24): the field's picker. One task — the selection, or the one ticked row — opens in
+ * the detail with the picker open; several ticked rows get one picker that sets all of them (DECISIONS.md
+ * "Shortcuts with rows ticked").
+ */
+const pickField = (field: DetailField) =>
+  onTargets((ctx, ids) => {
+    if (ids.length === 1) ctx.openTask(ids[0], field);
+    else ctx.editMany(ids, field);
+  });
+
+/**
  * U (SCREENS.md §8, §24): un-complete. Only a done task is reopened — anything else the selection lands on is
  * left as it is, so the key is harmless outside the Logbook. Each reopen is its own undo entry.
  */
@@ -158,10 +173,23 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.priority3", title: "Priority 3", group: "Selected task", shortcut: "3", requiresSelection: true, run: priority(1) },
   { id: "task.priority0", title: "No priority", group: "Selected task", shortcut: "0", requiresSelection: true, run: priority(0) },
   { id: "task.block", title: "Block it", group: "Selected task", shortcut: "b", requiresSelection: true, keywords: "schedule time slot gap", run: onSelected((ctx, id) => ctx.blockTask(id)) },
-  { id: "task.do", title: "Set do-date", group: "Selected task", shortcut: "d", requiresSelection: true, keywords: "when day schedule", run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.deadline", title: "Set deadline", group: "Selected task", shortcut: "shift+d", requiresSelection: true, keywords: "due", run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.repeat", title: "Repeat", group: "Selected task", shortcut: "r", requiresSelection: true, keywords: "recurring every", run: onSelected((ctx, id) => ctx.openTask(id)) },
+  { id: "task.do", title: "Pick a date", group: "Selected task", shortcut: "d", requiresSelection: true, keywords: "do date when day schedule", run: pickField("do") },
+  { id: "task.deadline", title: "Set deadline", group: "Selected task", shortcut: "shift+d", requiresSelection: true, keywords: "due", run: pickField("deadline") },
+  { id: "task.start", title: "Set start date", group: "Selected task", shortcut: "shift+s", requiresSelection: true, keywords: "starts after hide until", run: pickField("start") },
+  { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: pickField("estimate") },
+  // A rule is set one task at a time: R opens the Repeat picker of the selected task (or of the one ticked row).
+  {
+    id: "task.repeat",
+    title: "Repeat",
+    group: "Selected task",
+    shortcut: "r",
+    requiresSelection: true,
+    keywords: "recurring every",
+    run: (ctx) => {
+      const id = ctx.selectedTaskId ?? (ctx.checkedTaskIds.length === 1 ? ctx.checkedTaskIds[0] : null);
+      if (id) ctx.openTask(id, "repeat");
+    },
+  },
   // Where days sit side by side (Upcoming's week); elsewhere the arrows do nothing.
   { id: "task.day-earlier", title: "A day earlier", group: "Selected task", shortcut: "arrowleft", requiresSelection: true, hidden: true, run: viewKey("earlier"), passes: unclaimed("earlier", true) },
   { id: "task.day-later", title: "A day later", group: "Selected task", shortcut: "arrowright", requiresSelection: true, hidden: true, run: viewKey("later"), passes: unclaimed("later", true) },

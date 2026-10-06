@@ -37,6 +37,7 @@ function List() {
       <p>selected: {selectedId ?? "none"}</p>
       <p>checked: {checkedIds.length ? checkedIds.join(",") : "none"}</p>
       <p>open: {detail.selectedId ?? "none"}</p>
+      <p>field: {detail.field?.name ?? "none"}</p>
       <label>
         Other field <input />
       </label>
@@ -136,6 +137,21 @@ describe("<KeyboardProvider>", () => {
     await user.keyboard(" ");
     expect(pressed).toHaveBeenCalledTimes(2);
     expect(screen.getByText("open: none")).toBeInTheDocument();
+  });
+
+  it("D, ⇧D, ⇧S, E and R open the selected task on that field's picker; ⇧S no longer types into quick-add", async () => {
+    const { user } = setup();
+    await user.keyboard("j{Shift>}s{/Shift}");
+    expect(screen.getByText("open: t1")).toBeInTheDocument();
+    expect(screen.getByText("field: start")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Task" })).not.toBeInTheDocument();
+    for (const [keys, field] of [["d", "do"], ["{Shift>}d{/Shift}", "deadline"], ["e", "estimate"], ["r", "repeat"]]) {
+      await user.keyboard(keys);
+      expect(screen.getByText(`field: ${field}`)).toBeInTheDocument();
+    }
+    // Enter opens the task with no picker.
+    await user.keyboard("{Enter}");
+    expect(screen.getByText("field: none")).toBeInTheDocument();
   });
 
   it("selected-task keys do nothing without a selection", async () => {

@@ -30,6 +30,7 @@ function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: 
     go: vi.fn(),
     quickAdd: vi.fn(),
     openTask: vi.fn(),
+    editMany: vi.fn(),
     moveSelection: vi.fn(),
     openPalette: vi.fn(),
     openShortcuts: vi.fn(),
@@ -119,7 +120,44 @@ describe("command registry", () => {
     expect(availability(byId("go.inbox"), ctx)).toEqual({ enabled: true });
   });
 
-  it("with rows ticked, the edits go to all of them in one bulk write; open and the pickers keep to the selection", async () => {
+  it("D, ⇧D, ⇧S, E and R open their field's picker (SCREENS.md §24), and the palette names them as §12 does", async () => {
+    const chord = (key: string, shift = false) => ({ key, shift, mod: false, alt: false });
+    const bindings = keyBindings();
+    expect(resolveKey(chord("d"), null, bindings).match?.id).toBe("task.do");
+    expect(resolveKey(chord("d", true), null, bindings).match?.id).toBe("task.deadline");
+    expect(resolveKey(chord("s", true), null, bindings).match?.id).toBe("task.start");
+    expect(resolveKey(chord("s"), null, bindings).match?.id).toBe("task.someday");
+    expect(resolveKey(chord("e"), null, bindings).match?.id).toBe("task.estimate");
+    expect(resolveKey(chord("r"), null, bindings).match?.id).toBe("task.repeat");
+    expect(["task.do", "task.deadline", "task.start", "task.estimate", "task.repeat"].map((id) => byId(id).title)).toEqual(["Pick a date", "Set deadline", "Set start date", "Set estimate", "Repeat"]);
+
+    const ctx = ctxWith();
+    for (const [id, field] of [["task.do", "do"], ["task.deadline", "deadline"], ["task.start", "start"], ["task.estimate", "estimate"], ["task.repeat", "repeat"]] as const) {
+      await byId(id).run(ctx);
+      expect(ctx.openTask).toHaveBeenLastCalledWith("t1", field);
+    }
+    expect(availability(byId("task.start"), ctxWith({ selectedTaskId: null }))).toEqual({ enabled: false, reason: "select a task first" });
+  });
+
+  it("with several rows ticked, D, ⇧D, ⇧S and E open one picker for all of them; one ticked row opens in the detail", async () => {
+    const ctx = ctxWith({ selectedTaskId: "t1", checkedTaskIds: ["t2", "t3"] });
+    await byId("task.do").run(ctx);
+    expect(ctx.editMany).toHaveBeenLastCalledWith(["t2", "t3"], "do");
+    await byId("task.deadline").run(ctx);
+    expect(ctx.editMany).toHaveBeenLastCalledWith(["t2", "t3"], "deadline");
+    await byId("task.estimate").run(ctx);
+    expect(ctx.editMany).toHaveBeenLastCalledWith(["t2", "t3"], "estimate");
+    expect(ctx.openTask).not.toHaveBeenCalled();
+    // A rule is set one task at a time.
+    await byId("task.repeat").run(ctx);
+    expect(ctx.openTask).toHaveBeenLastCalledWith("t1", "repeat");
+    const one = ctxWith({ selectedTaskId: null, checkedTaskIds: ["t2"] });
+    await byId("task.start").run(one);
+    expect(one.openTask).toHaveBeenLastCalledWith("t2", "start");
+    expect(one.editMany).not.toHaveBeenCalled();
+  });
+
+  it("with rows ticked, the edits go to all of them in one bulk write; open keeps to the selection", async () => {
     const ctx = ctxWith({ selectedTaskId: "t1", checkedTaskIds: ["t2", "t3"] });
     expect(availability(byId("task.today"), { selectedTaskId: null, checkedTaskIds: ["t2"] })).toEqual({ enabled: true });
     await byId("task.today").run(ctx);
