@@ -242,7 +242,8 @@ export function TaskRow({
       {task.deadline && <DeadlineChip deadline={task.deadline} today={day} size="auto" />}
       {task.carryCount > 1 && (
         // Neutral and factual, never red (SCREENS.md §2.3); the do-date is the day first missed, as the rollover never moves it.
-        <span className="text-ink-3" title={carriedLabel(task, day)} aria-label={carriedLabel(task, day)}>
+        // role="img": a name on a plain span is ignored by screen readers, which would read "×3" and nothing more.
+        <span role="img" className="text-ink-3" title={carriedLabel(task, day)} aria-label={carriedLabel(task, day)}>
           ×{task.carryCount}
         </span>
       )}
