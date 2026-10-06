@@ -9,6 +9,8 @@ import { instant, localDate, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { normaliseTimestamp } from "@/data/mappers";
 import type { TaskRow } from "@/data/schema.client";
+import { useLocalDatabase } from "@/data/powersync";
+import { SomedayRepo } from "@/data/repositories/someday-repo";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button, iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
@@ -30,6 +32,7 @@ export function SomedayReview({
   onClose: () => void;
 }) {
   const repo = useTaskRepo();
+  const db = useLocalDatabase();
   // The walk is over the batch as it was when it opened: each answer takes a task out of the live group.
   const [batch] = useState(() => [...tasks]);
   const [index, setIndex] = useState(0);
@@ -56,7 +59,7 @@ export function SomedayReview({
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="primary" onClick={answer(() => repo.keepInSomeday([task.id]))}>
+              <Button variant="primary" onClick={answer(() => new SomedayRepo(db).keep([task.id]))}>
                 Keep in Someday
               </Button>
               <Button onClick={answer(() => repo.reschedule(task.id, today))}>Today</Button>

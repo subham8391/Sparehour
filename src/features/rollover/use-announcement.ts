@@ -5,7 +5,7 @@
 // dismissal holds on every device; no push, no sidebar count.
 import { useCallback, useMemo } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { SettingsRepo } from "@/data/repositories/settings-repo";
+import { markAnnounced } from "@/data/repositories/someday-repo";
 import { unannounced } from "./unannounced";
 
 export type AnnouncementKind = "expired" | "autoFiled";
@@ -22,7 +22,7 @@ export function useAnnouncement(kind: AnnouncementKind, stamps: readonly (string
   const id = row?.id;
   const dismiss = useCallback(() => {
     if (!id || !newest) return;
-    void new SettingsRepo(db).markAnnounced(id, kind, newest);
+    void markAnnounced(db, id, kind, newest);
   }, [db, id, kind, newest]);
   // Until the settings row has synced there is nothing to compare with: say nothing rather than everything.
   return { count: row ? count : 0, dismiss };

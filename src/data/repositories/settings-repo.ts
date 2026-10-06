@@ -59,16 +59,6 @@ export class SettingsRepo {
     });
     await this.db.execute(`update user_settings set ${sets}, updated_at = ? where id = ?`, [...values, new Date().toISOString(), id]);
   }
-
-  /**
-   * Records the newest rollover batch a once-only line has told the person about: Today's expired digest
-   * (`expired`) or Someday's auto-filed line (`autoFiled`). Not a setting and not undoable; see
-   * features/rollover/use-announcement.
-   */
-  async markAnnounced(id: string, kind: "expired" | "autoFiled", newest: string): Promise<void> {
-    const column = kind === "expired" ? "expired_seen_at" : "auto_filed_seen_at";
-    await this.db.execute(`update user_settings set ${column} = ?, updated_at = ? where id = ?`, [newest, new Date().toISOString(), id]);
-  }
 }
 
 export class WorkHoursRepo {

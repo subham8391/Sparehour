@@ -3,7 +3,6 @@
 // is what makes per-column last-writer-wins work (§4.3).
 import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
-import { deadlineForOccurrence } from "@/core/recurrence/deadline";
 import { Temporal, localDate, todayFor, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { MissPolicy, Priority, RecurrenceException, RecurrenceMode } from "@/core/types";
@@ -295,7 +294,7 @@ export class TaskRepo {
    */
   private async completeRecurring(task: RecurringRow, before: RowSnapshot): Promise<void> {
     // The recurrence engine (rrule) stays out of the app shell: it is loaded the first time a repeat is completed.
-    const { nextOccurrence } = await import("@/core/recurrence");
+    const { nextOccurrence, deadlineForOccurrence } = await import("@/core/recurrence");
     const today = await this.localToday();
     const occurrence = task.do_date ? localDate(task.do_date) : today;
     const rows = await this.db.getAll<{ occurrence_date: string; kind: string; moved_to: string | null }>(
@@ -504,16 +503,6 @@ export class TaskRepo {
     const released = state === "active" ? [] : await this.releaseBlocks(ids, null);
     this.rememberMany(before, cols, note ?? STATE_LABELS[state], Boolean(note) || state !== "active", released);
   }
-
-  /**
-   * "Keep in Someday" in the auto-filed Review (SCREENS.md §7): the person has looked and the task stays
-   * parked, so the rollover's stamp is cleared and it joins its project's group. The stamp is server-owned
-   * and may only be cleared, so there is nothing an undo could put back; nothing else changes.
-   */
-  async keepInSomeday(ids: readonly string[]): Promise<void> {
-    if (ids.length === 0) return;
-    await this.db.execute(`update tasks set auto_filed_at = null, updated_at = ? where id in (${placeholders(ids)}) and state = 'someday'`, [new Date().toISOString(), ...ids]);
-  }
 }
 
 type Snapshot = Record<string, string | number | null>;
@@ -583,11 +572,8 @@ function buildSets(patch: TaskPatch): { sets: string[]; args: (string | number |
     // A6 (DECISIONS.md 2026-10-06): a first repeat turns the one-off default "carry" into "skip", and Stop
     // repeating turns "skip" back into "carry"; a policy the person chose otherwise is left as it is.
     if (!("missPolicy" in patch)) {
-      sets.push(
-        patch.recurrenceRule
-          ? `miss_policy = case when recurrence_rule is null and miss_policy = 'carry' then 'skip' else miss_policy end`
-          : `miss_policy = case when recurrence_rule is not null and miss_policy = 'skip' then 'carry' else miss_policy end`,
-      );
+      const [from, to] = patch.recurrenceRule ? ["carry", "skip"] : ["skip", "carry"];
+      sets.push(`miss_policy = case when recurrence_rule is ${patch.recurrenceRule ? "" : "not "}null and miss_policy = '${from}' then '${to}' else miss_policy end`);
     }
   } else if ("recurrenceMode" in patch) {
     set("recurrence_mode", patch.recurrenceMode ?? null);
