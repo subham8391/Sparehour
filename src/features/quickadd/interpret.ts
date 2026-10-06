@@ -212,16 +212,6 @@ export function bestProjectMatch(name: string | null, projects: readonly QuickAd
   return within.length === 1 ? within[0] : null;
 }
 
-/**
- * The line with every `#project` token escaped (`\#Q4`), so a re-parse keeps those words in the title. A name
- * that files nothing is never dropped (§5.3 rule 7: "a token that fails to parse is left in the title verbatim").
- */
-export function escapeProjectTokens(value: string, spans: readonly Span[]): string {
-  let out = value;
-  for (const s of [...spans].filter((s) => s.kind === "project").sort((a, b) => b.start - a.start)) out = `${out.slice(0, s.start)}\\${out.slice(s.start)}`;
-  return out;
-}
-
 /** The `#name` token for a project, quoted when the name needs it. */
 export function projectToken(name: string): string {
   return /^[\p{L}\p{N}_-]+$/u.test(name) && /\p{L}/u.test(name) ? `#${name}` : `#"${name}"`;
@@ -236,7 +226,7 @@ export interface Segment {
 export function segments(value: string, spans: readonly Span[]): Segment[] {
   const out: Segment[] = [];
   let at = 0;
-  for (const s of [...spans].filter((s) => s.kind !== "protected").sort((a, b) => a.start - b.start)) {
+  for (const s of [...spans].filter((s) => s.kind !== "protected" && s.kind !== "literal").sort((a, b) => a.start - b.start)) {
     if (s.start < at) continue; // overlapping spans never happen, but never paint twice
     if (s.start > at) out.push({ text: value.slice(at, s.start), kind: null });
     out.push({ text: value.slice(s.start, s.end), kind: s.kind });

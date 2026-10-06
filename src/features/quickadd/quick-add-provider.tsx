@@ -5,7 +5,6 @@
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { PROJECTS_SQL, type ProjectRow } from "@/data/queries/nav";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
@@ -16,11 +15,12 @@ import { Icon } from "@/ui/icons";
 import type { QuickAddSubmission } from "./quick-add";
 import { Kbd } from "@/ui/kbd";
 
-// The sheet carries the natural-language parser, so it stays out of the
-// shell's first download (SYSTEM_DESIGN.md §11.6): fetched in idle time
-// after the first paint, mounted on the first open.
-const loadQuickAdd = () => import("./quick-add");
-const QuickAdd = dynamic(() => loadQuickAdd().then((m) => m.QuickAdd), { ssr: false });
+// The sheet carries the natural-language parser and the project and tag lists
+// it suggests from, so it stays out of the shell's first download
+// (SYSTEM_DESIGN.md §11.6): fetched in idle time after the first paint,
+// mounted on the first open.
+const loadQuickAdd = () => import("./quick-add-connected");
+const QuickAdd = dynamic(() => loadQuickAdd().then((m) => m.QuickAddConnected), { ssr: false });
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
 
@@ -51,10 +51,8 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);
-  const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
   const { data: users } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
   const spaceId = users?.[0]?.personal_space_id ?? null;
-  const projects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project" })), [projectRows]);
 
   const db = useLocalDatabase();
   const tasks = useTaskRepo();
@@ -108,7 +106,6 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
           key={state.key}
           open={state.open}
           initial={state.initial}
-          projects={projects}
           ctx={{ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }}
           onClose={close}
           onSubmit={onSubmit}
