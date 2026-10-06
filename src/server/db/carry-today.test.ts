@@ -2,6 +2,9 @@
 // a conversion's retirement (archived in a one-task batch) resets the carry count on the server through the
 // upload path, and Today's Sort and Show completed are the person's settings with Manual and off by default.
 import { describe, expect, it } from "vitest";
+import { convertTaskToProject } from "@/data/repositories/convert";
+import { localSqlite } from "@/test/local-sqlite";
+import { sanitize, type WireOp } from "../sync/upload";
 import { asAdmin, asUser, inTx, newUser, spaceOf, tryConnect } from "./test-db";
 
 const admin = await tryConnect();
@@ -51,6 +54,46 @@ describe.skipIf(admin === null)("carry today contract", () => {
       // The undo puts it back; the count stays the server's (the M1 ruling: it is not restored).
       await c.query("update public.tasks set state = 'active', archive_batch_id = null, archived_from_state = null where id = $1", [id]);
       expect((await c.query("select state, archive_batch_id, carry_count from public.tasks where id = $1", [id])).rows[0]).toEqual({ state: "active", archive_batch_id: null, carry_count: 0 });
+    }));
+
+  it("a conversion made on the device uploads whole: the project, every step's task (open and done) and the retirement", () =>
+    inTx(admin, async (c) => {
+      const me = await newUser(c, "carry-today-f@contract.test");
+      const mine = await spaceOf(c, me);
+      const { rows } = await c.query<{ id: string }>(
+        "insert into public.tasks (space_id, title, sort_key, state, do_date, carry_count) values ($1, 'Plan offsite', 'a0', 'active', current_date - 1, 3) returning id",
+        [mine],
+      );
+      const id = rows[0].id;
+      // The same task on the device, converted there by the app's own code; then its writes go up as sync sends them.
+      const device = localSqlite();
+      device.insert("tasks", { id, space_id: mine, title: "Plan offsite", notes_md: "By the lake", state: "active", do_date: "2026-10-05", carry_count: 3, sort_key: "a0" });
+      device.insert("checklist_items", { id: crypto.randomUUID(), space_id: mine, task_id: id, title: "Pick a date", done: 1, sort_key: "a0" });
+      device.insert("checklist_items", { id: crypto.randomUUID(), space_id: mine, task_id: id, title: "Book venue", done: 0, sort_key: "a1" });
+      const out = await convertTaskToProject(device.db, undefined, id);
+      expect(out?.taskIds).toHaveLength(2);
+      const put = (table: string, rowId: string): WireOp => {
+        const row = device.row(table, rowId)!;
+        const data = Object.fromEntries(Object.entries(row).filter(([k, v]) => k !== "id" && v !== null));
+        return sanitize({ op: "PUT", table, id: rowId, client_id: `${table}-${rowId}`, data })!;
+      };
+      const retired = device.row("tasks", id)!;
+      const ops = [
+        put("projects", out!.projectId),
+        ...out!.taskIds.map((t) => put("tasks", t)),
+        sanitize({ op: "PATCH", table: "tasks", id, client_id: "retire", data: { state: retired.state, archive_batch_id: retired.archive_batch_id, archived_from_state: retired.archived_from_state } })!,
+      ];
+      await asUser(c, me);
+      const r = (await c.query<Applied>("select public.apply_mutations('dev-2', $1::jsonb) as r", [JSON.stringify(ops)])).rows[0].r;
+      expect(r.rejected).toEqual([]);
+      expect(r.applied).toHaveLength(ops.length);
+      await asAdmin(c);
+      const made = (await c.query("select title, state, project_id::text as project from public.tasks where project_id = $1 order by sort_key", [out!.projectId])).rows;
+      expect(made).toEqual([
+        { title: "Pick a date", state: "done", project: out!.projectId },
+        { title: "Book venue", state: "active", project: out!.projectId },
+      ]);
+      expect((await c.query("select state, carry_count from public.tasks where id = $1", [id])).rows[0]).toEqual({ state: "archived", carry_count: 0 });
     }));
 
   it("archived_from_state takes only an open or parked state", () =>

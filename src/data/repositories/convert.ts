@@ -20,6 +20,8 @@ import { placeholders, quoted, restoreRow, type RowSnapshot, type Tx, type UndoR
 /** The columns the retirement writes on the task, and the undo puts back. */
 const RETIRED = ["state", "archive_batch_id", "archived_from_state"] as const;
 const OPEN_STATES = new Set(["inbox", "active", "someday"]);
+/** The steps' tasks are made in the app, so their source is the app's own (the server checks it against a closed list). */
+export const CONVERTED_SOURCE = "quickadd";
 
 export interface Converted {
   projectId: string;
@@ -69,9 +71,11 @@ export async function convertTaskToProject(db: LocalDatabase, history: UndoRecor
       const id = crypto.randomUUID();
       key = keyBetween(key, null);
       const done = step.done === 1;
+      // `source` is the server's closed list (tasks_source_check): a task a person makes in the app is 'quickadd'.
+      // Any other word is refused at upload, and the steps would vanish at the next sync.
       await tx.execute(
         `insert into tasks (id, space_id, project_id, title, state, priority, evening, carry_count, last_touched_at, miss_policy, sort_key, source, completed_at, created_at, updated_at)
-         values (?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'convert', ?, ?, ?)`,
+         values (?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, '${CONVERTED_SOURCE}', ?, ?, ?)`,
         [id, spaceId, projectId, title, done ? "done" : "active", now, missPolicy, key, done ? now : null, now, now],
       );
       taskIds.push(id);
