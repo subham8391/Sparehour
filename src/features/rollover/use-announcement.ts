@@ -5,7 +5,7 @@
 // dismissal holds on every device; no push, no sidebar count.
 import { useCallback, useMemo } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { markAnnounced } from "@/data/repositories/someday-repo";
+import { markAnnounced } from "@/data/repositories/rollover-repo";
 import { unannounced } from "./unannounced";
 
 export type AnnouncementKind = "expired" | "autoFiled";

@@ -10,7 +10,7 @@ import { formatDay } from "@/core/time/format-day";
 import { normaliseTimestamp } from "@/data/mappers";
 import type { TaskRow } from "@/data/schema.client";
 import { useLocalDatabase } from "@/data/powersync";
-import { SomedayRepo } from "@/data/repositories/someday-repo";
+import { SomedayRepo } from "@/data/repositories/rollover-repo";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button, iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";

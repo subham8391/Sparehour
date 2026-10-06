@@ -1,5 +1,5 @@
-// Writes that only Someday's auto-filed group makes (SCREENS.md §7), kept
-// out of TaskRepo so the app shells do not carry them.
+// Writes that only follow the rollover job (Someday's auto-filed group, the once-only
+// announcements), kept out of TaskRepo and SettingsRepo so the app shells do not carry them.
 import type { LocalDatabase } from "../powersync";
 import { placeholders } from "./undo";
 
