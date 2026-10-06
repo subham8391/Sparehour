@@ -6,7 +6,7 @@
 // starting an edit. An empty note is simply the editor with its placeholder.
 // The renderer is a lazy chunk: it loads when a note with words is on screen,
 // and until then the words show as plain text.
-import { lazy, Suspense, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
 import { cx } from "./cx";
 import { Textarea } from "./field";
 
@@ -40,13 +40,20 @@ export function NoteField({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
   const rendered = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const backToNote = useRef(false);
   const hintId = useId();
   const hasWords = Boolean(value?.trim());
 
-  // Drawn again after an Escape: focus returns to the note, so the keyboard stays where it was.
   useEffect(() => {
-    if (editing || !backToNote.current) return;
+    if (editing) {
+      // Opened from the drawn note: the caret goes after the last word, where a note is added to.
+      const el = editorRef.current;
+      if (el && document.activeElement === el && el.selectionStart === 0 && el.selectionEnd === 0) el.setSelectionRange(el.value.length, el.value.length);
+      return;
+    }
+    // Drawn again after an Escape: focus returns to the note, so the keyboard stays where it was.
+    if (!backToNote.current) return;
     backToNote.current = false;
     rendered.current?.focus();
   }, [editing]);
@@ -69,32 +76,27 @@ export function NoteField({
   };
 
   if (editing || !hasWords) {
-    const text = editing ? draft : (value ?? "");
-    return (
-      <Textarea
-        aria-label={label}
-        value={text}
-        autoFocus={editing}
-        onFocus={(e) => {
-          if (!editing) {
-            setDraft(value ?? "");
-            setEditing(true);
-          }
-          // The caret goes after the last word, where a note is added to.
-          const end = e.currentTarget.value.length;
-          e.currentTarget.setSelectionRange(end, end);
-        }}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          if (!editing) setEditing(true);
-        }}
-        onBlur={(e) => save(e.target.value)}
-        onKeyDown={onEditorKey}
-        placeholder={placeholder}
-        rows={rows}
-        className={cx("resize-y [field-sizing:content]", editorClassName)}
-      />
-    );
+    const editor = {
+      "aria-label": label,
+      value: editing ? draft : (value ?? ""),
+      autoFocus: editing,
+      ref: editorRef,
+      onFocus: () => {
+        if (editing) return;
+        setDraft(value ?? "");
+        setEditing(true);
+      },
+      onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
+        setDraft(e.target.value);
+        if (!editing) setEditing(true);
+      },
+      onBlur: (e: FocusEvent<HTMLTextAreaElement>) => save(e.target.value),
+      onKeyDown: onEditorKey,
+      placeholder,
+      rows,
+    };
+    // A caller that draws the note inside its own card passes the editor's whole look; else it is the field primitive.
+    return editorClassName ? <textarea {...editor} className={editorClassName} /> : <Textarea {...editor} className="resize-y [field-sizing:content]" />;
   }
 
   return (
@@ -120,8 +122,9 @@ export function NoteField({
         open();
       }}
       className={cx(
-        "min-h-11 cursor-text rounded-lg border border-transparent px-3 py-2 text-base leading-6 text-ink transition-colors dur-fast hover:border-line focus-visible:border-line sm:text-body sm:leading-5",
-        className,
+        "min-h-11 cursor-text text-base leading-6 text-ink transition-colors dur-fast sm:text-body sm:leading-5",
+        // Where the editor will be: the field's box and padding, its border drawn only on hover and focus.
+        className ?? "rounded-lg border border-transparent px-3 py-2 hover:border-line focus-visible:border-line",
       )}
     >
       <Suspense fallback={<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{value}</p>}>

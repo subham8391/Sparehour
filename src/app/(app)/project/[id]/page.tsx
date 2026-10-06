@@ -3,15 +3,15 @@
 // project's own order with a day chip per row, an add row under every
 // section, completed tasks tucked away, Someday collapsed at the bottom.
 import Link from "next/link";
-import { use, useMemo, useState } from "react";
+import { use, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@/data/powersync";
 import type { TaskDraft } from "@/core/quickadd";
 import { formatMinutes, localDate } from "@/core/time";
-import type { Heading } from "@/core/types";
 import { toHeading, toProject, toTask } from "@/data/mappers";
 import { AREAS_SQL, type AreaRow } from "@/data/queries/nav";
-import { PROJECT_DONE_SQL, PROJECT_HEADINGS_SQL, PROJECT_SQL, PROJECT_TASKS_SQL, monthsBack } from "@/data/queries/views";
+import { PROJECT_DONE_SQL, PROJECT_HEADINGS_SQL, PROJECT_SQL, PROJECT_TASKS_SQL, doneByHeading, logbookStream } from "@/data/queries/views";
 import type { HeadingRow, ProjectRow, TaskRow as TaskRowType } from "@/data/schema.client";
+import { HeadingSection } from "@/features/projects/heading-section";
 import { groupByHeading, summarise, type HeadingGroup } from "@/features/projects/organise";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { useListSelection } from "@/features/selection/selection-provider";
@@ -33,11 +33,21 @@ import { DateField } from "@/ui/date-field";
 import { Icon } from "@/ui/icons";
 import { InlineTitle } from "@/ui/inline-title";
 import { EmptyCard, ListCard } from "@/ui/list-card";
+import { notePreview } from "@/ui/markdown-plain";
+import { NoteField } from "@/ui/note-field";
 import { FieldPopover, MENU_ITEM, MenuButton } from "@/ui/popover";
 import { relativeDay } from "@/ui/relative-day";
 import { EYEBROW } from "@/ui/section-label";
 
-const NOTHING_SQL = `select * from tasks where 0`;
+/** From 640 px the project's notes open when it has any; below, they start folded to their first line. */
+const WIDE_QUERY = "(min-width: 40rem)";
+const subscribeWide = (onChange: () => void) => {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const query = window.matchMedia(WIDE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+};
+const readWide = () => typeof window.matchMedia !== "function" || window.matchMedia(WIDE_QUERY).matches;
 /** The view's h1, editable in place: the same face, step and balance as every other screen title. */
 const TITLE = "font-display text-title font-book text-balance text-ink";
 /** A disclosure line under a list: 44 px on the phone, 36 above, pulled out to the column's edge like a section action. */
@@ -57,14 +67,17 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: headingRows } = useQuery<HeadingRow>(PROJECT_HEADINGS_SQL, [id]);
   const { data: taskRows, isLoading: loadingTasks } = useQuery<TaskRowType>(PROJECT_TASKS_SQL, [id]);
-  const [showDone, setShowDone] = useState(false);
+  /** Sections whose completed tasks are shown ("" is the tasks under no heading). */
+  const [doneShown, setDoneShown] = useState<ReadonlySet<string>>(new Set());
+  /** Headings folded away. */
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const [showSomeday, setShowSomeday] = useState(false);
   const [notesOpen, setNotesOpen] = useState<boolean | null>(null);
   const [newHeading, setNewHeading] = useState("");
-  const months = useMemo(() => monthsBack(today, 3), [today]);
-  const { data: doneRows } = useQuery<TaskRowType>(showDone ? PROJECT_DONE_SQL : NOTHING_SQL, showDone ? [id] : [], {
-    streams: showDone ? [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] : undefined,
-  });
+  const wide = useSyncExternalStore(subscribeWide, readWide, () => false);
+  // Each heading's "Show completed · N" counts what was finished in the last week, so the week is always on hand.
+  const weekAgo = useMemo(() => `${today.subtract({ days: 7 }).toString()}T00:00:00.000Z`, [today]);
+  const { data: doneRows } = useQuery<TaskRowType>(PROJECT_DONE_SQL, [id, weekAgo], { streams: [{ ...logbookStream(today), ttl: 60 * 60 }] });
 
   const project = projectRows?.[0] ? toProject(projectRows[0]) : null;
   const area = (areaRows ?? []).find((a) => a.id === project?.areaId) ?? null;
@@ -74,9 +87,22 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
   const someday = useMemo(() => tasks.filter((t) => t.state === "someday"), [tasks]);
   const done = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
   const groups = useMemo(() => groupByHeading(open, headings), [open, headings]);
+  const doneGroups = useMemo(() => doneByHeading(done, new Set(headings.map((h) => h.id))), [done, headings]);
   const summary = summarise(tasks, settings?.defaultEstimateMin ?? 30);
-  const notesShown = notesOpen ?? Boolean(project?.notes);
-  const sel = useListSelection([...groups.map((g) => g.tasks.map((t) => t.id)), done.map((t) => t.id), someday.map((t) => t.id)]);
+  // Below 640 px the notes start folded to their first line (SCREENS.md §9 "Responsive"); wider, open when there are any.
+  const notesShown = notesOpen ?? (Boolean(project?.notes) && wide);
+  const keyOf = (g: HeadingGroup) => g.heading?.id ?? "";
+  const isFolded = (g: HeadingGroup) => g.heading !== null && folded.has(g.heading.id);
+  const toggleIn = (set: ReadonlySet<string>, key: string) => {
+    const next = new Set(set);
+    if (!next.delete(key)) next.add(key);
+    return next;
+  };
+  // J/K and Select all walk the rows on screen: a folded heading's tasks and a closed completed list are skipped.
+  const sel = useListSelection([
+    ...groups.flatMap((g) => (isFolded(g) ? [] : [g.tasks.map((t) => t.id), doneShown.has(keyOf(g)) ? (doneGroups.get(keyOf(g)) ?? []).map((t) => t.id) : []])),
+    showSomeday ? someday.map((t) => t.id) : [],
+  ]);
 
   if (!isLoading && !project) {
     return (
@@ -125,6 +151,20 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
     const target = groups.find((x) => (x.heading?.id ?? null) === headingId);
     const last = target?.tasks[target.tasks.length - 1];
     void tasksRepo.setOrder(taskId, keyBetween(last?.sortKey ?? null, null), headingId);
+  };
+  // A heading moves with its tasks (they are filed under it): one key, by a drag or by Move up / Move down.
+  const keyedHeadings = headings.map((h) => ({ id: h.id, key: h.sortKey }));
+  const dropHeading = (sourceId: string, targetId: string, edge: Edge) => {
+    const plan = planDrop(keyedHeadings, sourceId, targetId, edge);
+    if (plan) void headingRepo.reorder(sourceId, plan.key);
+  };
+  const moveHeading = (headingId: string, dir: -1 | 1) => {
+    const i = headings.findIndex((h) => h.id === headingId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= headings.length) return;
+    const before = dir === -1 ? headings[j - 1] : headings[j];
+    const after = dir === -1 ? headings[j] : headings[j + 1];
+    void headingRepo.reorder(headingId, keyBetween(before?.sortKey ?? null, after?.sortKey ?? null));
   };
   const addHeading = () => {
     const title = newHeading.trim();
@@ -222,27 +262,28 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
         >
           <Icon name={notesShown ? "chevron-down" : "chevron-right"} size={14} className="shrink-0 text-ink-3" />
           <span className={cx(EYEBROW, "shrink-0")}>Notes</span>
-          {!notesShown && project.notes && <span className="min-w-0 truncate text-body-sm text-ink-2">{project.notes}</span>}
+          {!notesShown && project.notes && <span className="min-w-0 truncate text-body-sm text-ink-2">{notePreview(project.notes)}</span>}
         </button>
         {notesShown && (
-          <textarea
-            aria-label="Project notes"
-            defaultValue={project.notes ?? ""}
-            onBlur={(e) => {
-              if ((e.target.value.trim() || null) !== (project.notes ?? null)) void projectRepo.setNotes(project.id, e.target.value);
-            }}
+          // Markdown, drawn at rest and edited in place (SCREENS.md §9); the renderer is its own lazy chunk.
+          <NoteField
+            value={project.notes}
+            onSave={(next) => void projectRepo.setNotes(project.id, next)}
+            label="Project notes"
             placeholder="What this project is for, links, decisions."
             rows={3}
-            className="w-full resize-y rounded-b-xl border-t border-line bg-transparent px-4 py-3 text-base leading-5 text-ink placeholder:text-ink-4 focus-visible:-outline-offset-2 sm:text-body"
+            className="rounded-b-xl border-t border-line px-4 py-3 hover:bg-hover focus-visible:-outline-offset-2"
+            editorClassName="block w-full resize-y rounded-b-xl border-t border-line bg-transparent px-4 py-3 text-base leading-5 text-ink [field-sizing:content] placeholder:text-ink-4 focus-visible:-outline-offset-2 sm:text-body"
           />
         )}
       </ListCard>
 
       {tasks.length === 0 && <EmptyCard fact="Nothing in this project yet.">Add the first task below.</EmptyCard>}
 
-      {groups.map((g) => (
-        <section key={g.heading?.id ?? "loose"} className="flex flex-col gap-2">
-          {g.heading && <HeadingRow heading={g.heading} onRename={(t) => void headingRepo.rename(g.heading!.id, t)} onRemove={() => void headingRepo.remove(g.heading!.id)} />}
+      {groups.map((g, gi) => {
+        const finished = doneGroups.get(keyOf(g)) ?? [];
+        const body = (
+          <>
           <TaskList>
             {g.tasks.map((t) => (
               <TaskRow
@@ -276,8 +317,58 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
             ))}
             <InlineAdd ctx={parseCtx} onAdd={(d) => add(d, g.heading?.id ?? null)} placeholder={g.heading ? `Add to ${g.heading.title}` : "Add a task"} autoFocus={tasks.length === 0 && !g.heading} />
           </TaskList>
-        </section>
-      ))}
+          {/* What this section finished in the last week, tucked under its own disclosure (SCREENS.md §9). */}
+          {finished.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setDoneShown((s) => toggleIn(s, keyOf(g)))}
+                aria-expanded={doneShown.has(keyOf(g))}
+                className={DISCLOSURE}
+              >
+                <Icon name={doneShown.has(keyOf(g)) ? "chevron-down" : "chevron-right"} size={14} className="shrink-0 text-ink-3" />
+                {doneShown.has(keyOf(g)) ? "Hide completed" : "Show completed"}
+                <span className="num"> · {finished.length}</span>
+                {g.heading && <span className="sr-only"> in {g.heading.title}</span>}
+              </button>
+              {doneShown.has(keyOf(g)) && (
+                <TaskList>
+                  {finished.map((t) => (
+                    <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} />
+                  ))}
+                </TaskList>
+              )}
+            </>
+          )}
+          </>
+        );
+        if (!g.heading) {
+          return (
+            <section key="loose" className="flex flex-col gap-2">
+              {body}
+            </section>
+          );
+        }
+        const heading = g.heading;
+        // Headings are groups[1…]: the first and last of them can move only one way.
+        return (
+          <HeadingSection
+            key={heading.id}
+            heading={heading}
+            collapsed={isFolded(g)}
+            onToggle={() => setFolded((s) => toggleIn(s, heading.id))}
+            openCount={g.tasks.length}
+            first={gi === 1}
+            last={gi === groups.length - 1}
+            onMove={(dir) => moveHeading(heading.id, dir)}
+            onDropHeading={(source, edge) => dropHeading(source, heading.id, edge)}
+            onRename={(t) => void headingRepo.rename(heading.id, t)}
+            onRemove={() => void headingRepo.remove(heading.id)}
+          >
+            {body}
+          </HeadingSection>
+        );
+      })}
 
       {/* The next heading is typed on the line it will occupy, in the disclosure's shape below: pulled out to
           the column's edge, a 14 px glyph, then the words already in the eyebrow's face. */}
@@ -298,30 +389,6 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
           className={cx(EYEBROW, "h-11 min-w-0 flex-1 rounded-sm bg-transparent text-ink placeholder:text-body-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-2 focus-visible:-outline-offset-2 sm:h-9")}
         />
       </div>
-
-      <section className="flex flex-col gap-2">
-        <button type="button" onClick={() => setShowDone((s) => !s)} aria-expanded={showDone} className={DISCLOSURE}>
-          <Icon name={showDone ? "chevron-down" : "chevron-right"} size={14} className="shrink-0 text-ink-3" />
-          {showDone ? (
-            <>
-              Hide completed
-              {done.length > 0 && <span className="num"> · {done.length}</span>}
-            </>
-          ) : (
-            "Show completed"
-          )}
-        </button>
-        {showDone &&
-          (done.length === 0 ? (
-            <p className="px-4 text-body text-ink-3">Nothing completed in the last week.</p>
-          ) : (
-            <TaskList>
-              {done.map((t) => (
-                <TaskRow key={t.id} task={t} onOpen={() => detail.open(t.id)} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} />
-              ))}
-            </TaskList>
-          ))}
-      </section>
 
       {someday.length > 0 && (
         <section className="flex flex-col gap-2">
@@ -348,24 +415,5 @@ export default function ProjectPage({ params }: PageProps<"/project/[id]">) {
         </section>
       )}
     </main>
-  );
-}
-
-/** A heading inside the project: the eyebrow, a rule to the edge, and a delete target that is 44 px on the phone. */
-function HeadingRow({ heading, onRename, onRemove }: { heading: Heading; onRename: (title: string) => void; onRemove: () => void }) {
-  return (
-    <div className="flex items-center gap-3 px-0.5">
-      <InlineTitle as="h2" value={heading.title} label={`Heading ${heading.title}`} onSave={onRename} className={cx(EYEBROW, "min-w-0")} />
-      <span className="h-px flex-1 bg-line" aria-hidden="true" />
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Delete heading ${heading.title}`}
-        title="Delete heading (tasks move up)"
-        className="-my-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:-my-2 sm:size-9"
-      >
-        <Icon name="close" size={14} />
-      </button>
-    </div>
   );
 }

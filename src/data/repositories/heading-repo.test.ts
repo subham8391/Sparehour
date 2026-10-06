@@ -74,3 +74,19 @@ describe("HeadingRepo undo (FEATURES.md §8)", () => {
     expect(s.rows("select count(*) as n from tasks where heading_id is not null")).toEqual([{ n: 0 }]);
   });
 });
+
+describe("HeadingRepo order", () => {
+  it("a reorder writes the one key (its tasks follow by their heading), and ⌘Z puts it back", async () => {
+    const { s, repo, entry } = setup();
+    await repo.reorder("h1", "Zz");
+    expect(s.row("headings", "h1")?.sort_key).toBe("Zz");
+    expect(headingOf(s)).toEqual([
+      { id: "t1", heading_id: "h1" },
+      { id: "t2", heading_id: "h1" },
+      { id: "t3", heading_id: null },
+    ]);
+    expect(entry()).toMatchObject({ label: "Moved heading “Budget”", toast: false });
+    await entry().undo();
+    expect(s.row("headings", "h1")?.sort_key).toBe("a1");
+  });
+});

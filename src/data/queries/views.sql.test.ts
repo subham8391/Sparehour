@@ -9,11 +9,13 @@ import {
   DROPPED_SQL,
   PLANNED_AFTER_SQL,
   PLANNED_BETWEEN_SQL,
+  PROJECT_DONE_SQL,
   PROJECT_NAME_SQL,
   STARTING_LATER_SQL,
   TASK_STATE_SQL,
   UNPLANNED_SQL,
   dayRangeParams,
+  doneByHeading,
   logbookStream,
 } from "./views";
 import { DAY_LOAD_SQL, DUE_FROM_SQL } from "./week";
@@ -97,6 +99,27 @@ describe("the Logbook's dropped tasks", () => {
       { id: "d4", title: "Deleted", state: "dropped", updated_at: "2026-10-01T09:00:00Z", deleted_at: "2026-10-01T09:00:00Z" },
     ]);
     expect(titles(db.rows(DROPPED_SQL))).toEqual(["Dropped today", "Dropped Monday"]);
+  });
+});
+
+describe("a project's completed week", () => {
+  it("lists the tasks done since the bound, and groups them under the heading they were filed in", () => {
+    const db = withTasks([
+      { id: "d1", title: "Done Monday", state: "done", project_id: "p1", heading_id: "h1", completed_at: "2026-09-28T09:00:00.000Z" },
+      { id: "d2", title: "Done today", state: "done", project_id: "p1", heading_id: null, completed_at: "2026-10-01T09:00:00.000Z" },
+      { id: "d3", title: "Done last month", state: "done", project_id: "p1", heading_id: "h1", completed_at: "2026-09-20T09:00:00.000Z" },
+      { id: "d4", title: "Elsewhere", state: "done", project_id: "p2", completed_at: "2026-10-01T09:00:00.000Z" },
+      { id: "d5", title: "Gone heading", state: "done", project_id: "p1", heading_id: "hx", completed_at: "2026-09-30T09:00:00.000Z" },
+      { id: "o1", title: "Open", state: "active", project_id: "p1", heading_id: "h1" },
+    ]);
+    const rows = db.rows(PROJECT_DONE_SQL, ["p1", "2026-09-24T09:00:00.000Z"]);
+    expect(titles(rows)).toEqual(["Done today", "Gone heading", "Done Monday"]);
+    const grouped = doneByHeading(
+      rows.map((r) => ({ title: r.title, headingId: (r.heading_id as string | null) ?? null })),
+      new Set(["h1"]),
+    );
+    expect(grouped.get("h1")?.map((t) => t.title)).toEqual(["Done Monday"]);
+    expect(grouped.get("")?.map((t) => t.title)).toEqual(["Done today", "Gone heading"]);
   });
 });
 

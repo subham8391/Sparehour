@@ -142,12 +142,27 @@ export const TASK_SEARCH_SQL = `
   order by case when do_date is null then 1 else 0 end, do_date, sort_key, id
   limit 12`;
 
-/** Completed tasks in a project; only present locally while the logbook stream is subscribed. */
+/**
+ * A project's tasks completed since `?2` (an ISO instant, a week back), newest first: each heading's
+ * "Show completed · N" counts its own (SCREENS.md §9). Only present locally while the logbook stream is subscribed.
+ */
 export const PROJECT_DONE_SQL = `
   select * from tasks
-  where deleted_at is null and project_id = ? and state = 'done'
+  where deleted_at is null and project_id = ?1 and state = 'done' and completed_at >= ?2
   order by completed_at desc, id
   limit 200`;
+
+/** Done tasks grouped by the heading they were filed under; a heading that is gone counts with the loose ones (key ""). */
+export function doneByHeading<T extends { headingId: string | null }>(done: readonly T[], headingIds: ReadonlySet<string>): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const t of done) {
+    const key = t.headingId && headingIds.has(t.headingId) ? t.headingId : "";
+    const list = out.get(key);
+    if (list) list.push(t);
+    else out.set(key, [t]);
+  }
+  return out;
+}
 
 /** An area's active projects with what their open tasks add up to. `?` = default estimate, then the area id. */
 export const AREA_PROJECT_STATS_SQL = `
