@@ -37,7 +37,7 @@ import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Loading } from "../loading-view";
 
 // The once-only expired digest (PRODUCT_SPEC.md §8.2 rule 5): a lazy island, out of the first download.
-const ExpiredDigest = dynamic(() => import("@/features/today/expired-digest").then((m) => m.ExpiredDigest), { ssr: false });
+const ExpiredDigest = dynamic(() => import("@/features/today/expired-digest"), { ssr: false });
 const NOTHING_SQL = `select * from tasks where 0`;
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 

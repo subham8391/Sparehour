@@ -14,7 +14,7 @@ import { Icon } from "@/ui/icons";
 
 const EXPIRED_SQL = `select expired_at from tasks where deleted_at is null and state = 'dropped' and expired_at is not null`;
 
-export function ExpiredDigest() {
+export default function ExpiredDigest() {
   const { data } = useQuery<{ expired_at: string | null }>(EXPIRED_SQL);
   const stamps = useMemo(() => (data ?? []).map((r) => r.expired_at), [data]);
   const { count, dismiss } = useAnnouncement("expired", stamps);
