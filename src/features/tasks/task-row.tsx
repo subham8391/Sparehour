@@ -26,7 +26,8 @@ import { ListCard } from "@/ui/list-card";
 import { MenuButton } from "@/ui/popover";
 import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
-import { RowActionsLayoutProvider } from "./task-actions";
+import { RowAction, RowActionsLayoutProvider } from "./task-actions";
+import { formatDay } from "@/core/time/format-day";
 
 const LONG_PRESS_MS = 500;
 /** Check-off (DESIGN_SYSTEM.md §7): the ring fills at once; the row leaves 400 ms later. */
@@ -52,6 +53,7 @@ export function TaskRow({
   timeChip,
   draggable: canDrag = false,
   onDropTask,
+  onBreakDown,
 }: {
   task: Task;
   /** The user's today, for the deadline wording; the device's date when a view has none to give. */
@@ -75,6 +77,8 @@ export function TaskRow({
   draggable?: boolean;
   /** Another row dropped on this one, above or below it (drag-to-reorder). */
   onDropTask?: (sourceId: string, edge: Edge) => void;
+  /** Converts the task to a project: the long-estimate hint ("Long — break it down?") offers it. */
+  onBreakDown?: () => void;
 }) {
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -205,8 +209,20 @@ export function TaskRow({
   };
 
   const done = completing || task.state === "done";
+  const long = task.estimateMin != null && task.estimateMin > LONG_ESTIMATE_MIN;
+  // The long hint's question gets its answer beside it: "Break it down" joins the row's actions, in the zone that
+  // appears over the hint on a pointer device and in the row's menu on a phone (PRODUCT_SPEC.md §5.4).
+  const rowActions =
+    onBreakDown && long ? (
+      <>
+        {actions}
+        <RowAction label="Break it down" title="Convert it to a project" onClick={onBreakDown} />
+      </>
+    ) : (
+      actions
+    );
   const day = today ?? Temporal.Now.plainDateISO();
-  const hasActions = Boolean(actions);
+  const hasActions = Boolean(rowActions);
   const ring = (
     <span
       className={cx(
@@ -224,12 +240,17 @@ export function TaskRow({
       {chips}
       {timeChip ?? (task.doTime && <Chip tone="time" size="auto">{formatTime(task.doTime)}</Chip>)}
       {task.deadline && <DeadlineChip deadline={task.deadline} today={day} size="auto" />}
-      {task.carryCount > 1 && <span className="text-ink-3">×{task.carryCount}</span>}
+      {task.carryCount > 1 && (
+        // Neutral and factual, never red (SCREENS.md §2.3); the do-date is the day first missed, as the rollover never moves it.
+        <span className="text-ink-3" title={carriedLabel(task, day)} aria-label={carriedLabel(task, day)}>
+          ×{task.carryCount}
+        </span>
+      )}
       <Chip tone={task.estimateMin ? "neutral" : "guess"} size="auto">
         {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
       </Chip>
       {/* Over 8 hours is saved as asked and gently questioned (PRODUCT_SPEC.md §5.2, §5.4): quiet words, never a warning colour. */}
-      {task.estimateMin != null && task.estimateMin > LONG_ESTIMATE_MIN && <span className="text-ink-2">Long — break it down?</span>}
+      {long && <span className="text-ink-2">Long — break it down?</span>}
     </>
   );
 
@@ -329,12 +350,12 @@ export function TaskRow({
                 "touch:sm:static touch:sm:pl-0 touch:sm:shadow-none touch:sm:[mask-image:none] touch:pointer-events-auto touch:opacity-100",
               )}
             >
-              <RowActionsLayoutProvider layout="inline">{actions}</RowActionsLayoutProvider>
+              <RowActionsLayoutProvider layout="inline">{rowActions}</RowActionsLayoutProvider>
             </div>
           )}
           {hasActions && (
             <div className="relative z-1 -my-2 -ml-1 shrink-0 sm:hidden">
-              <MenuButton label="More actions">{(close) => <RowActionsLayoutProvider layout="menu" close={close}>{actions}</RowActionsLayoutProvider>}</MenuButton>
+              <MenuButton label="More actions">{(close) => <RowActionsLayoutProvider layout="menu" close={close}>{rowActions}</RowActionsLayoutProvider>}</MenuButton>
             </div>
           )}
         </div>
@@ -342,6 +363,12 @@ export function TaskRow({
       </div>
     </li>
   );
+}
+
+/** "Moved 3 times since Tue 9 Sep": the ×N chip's tooltip and name; the date only while the task is still behind. */
+export function carriedLabel(task: Pick<Task, "carryCount" | "doDate">, today: LocalDate): string {
+  const since = task.doDate && Temporal.PlainDate.compare(task.doDate, today) < 0 ? ` since ${formatDay(task.doDate)}` : "";
+  return `Moved ${task.carryCount} times${since}`;
 }
 
 export function TaskList({ children, className = "" }: { children: ReactNode; className?: string }) {
