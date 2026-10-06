@@ -485,6 +485,19 @@ describe("TaskRepo: no date and no project is the Inbox; any date or a project i
     expect(Object.fromEntries(Object.entries(ids).map(([k, id]) => [k, state(id)]))).toEqual({ project: "active", day: "active", deadline: "active", start: "active", nothing: "inbox" });
   });
 
+  it("a new one-off task takes Settings › Planning's default if missed; a repeating one still skips (A6)", async () => {
+    const s = localSqlite();
+    const repo = new TaskRepo(s.db);
+    const policy = (id: string) => s.row("tasks", id)?.miss_policy;
+    // Before the setting has synced there is no row: carry, as before.
+    expect(policy(await repo.create(draft({ doDate: localDate("2026-10-02") }), { spaceId: "s1" }))).toBe("carry");
+    s.insert("user_settings", { id: "us", user_id: "u1", space_id: "s1", default_miss_policy: "expire" });
+    expect(policy(await repo.create(draft({ doDate: localDate("2026-10-02") }), { spaceId: "s1" }))).toBe("expire");
+    expect(policy(await repo.create(draft({ doDate: localDate("2026-10-02"), recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed" }), { spaceId: "s1" }))).toBe("skip");
+    s.rows("update user_settings set default_miss_policy = 'skip'");
+    expect(policy(await repo.create(draft({}), { spaceId: "s1" }))).toBe("skip");
+  });
+
   function triage() {
     const s = localSqlite();
     s.insert("tasks", { id: "in", space_id: "s1", title: "Call Dana", state: "inbox" });

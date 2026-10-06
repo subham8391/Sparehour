@@ -57,7 +57,7 @@ const serwist = new Serwist({
 serwist.addEventListeners();
 
 interface PushBody {
-  notification?: { title?: string; body?: string; navigate?: string; silent?: boolean; lang?: string };
+  notification?: { title?: string; body?: string; navigate?: string; silent?: boolean; lang?: string; app_badge?: number };
   sh?: { kind?: string; task_id?: string | null; block_id?: string | null; actions?: string[] };
 }
 
@@ -72,17 +72,23 @@ self.addEventListener("push", (event) => {
   if (!n?.title) return;
   const sh = data?.sh;
   const actions = supportsActions(self.navigator.userAgent) ? (sh?.actions ?? []).filter(isPushAction).map((a) => ({ action: a, title: ACTION_LABELS[a] })) : [];
+  // The app-icon badge travels with every push (today's remaining count, 0 after shutdown), so a closed app stays right.
+  const badger = self.navigator as WorkerNavigator & { setAppBadge?: (count?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+  const badge = typeof n.app_badge === "number" ? (n.app_badge > 0 ? badger.setAppBadge?.(n.app_badge) : badger.clearAppBadge?.())?.catch(() => undefined) : undefined;
   event.waitUntil(
-    self.registration.showNotification(n.title, {
-      body: n.body ?? "",
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      lang: n.lang,
-      silent: n.silent ?? false,
-      tag: sh?.kind ? `${sh.kind}:${sh.block_id ?? sh.task_id ?? ""}` : undefined,
-      data: { navigate: n.navigate ?? "/today?src=push", sh },
-      ...(actions.length > 0 ? { actions } : {}),
-    }),
+    Promise.all([
+      badge,
+      self.registration.showNotification(n.title, {
+        body: n.body ?? "",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        lang: n.lang,
+        silent: n.silent ?? false,
+        tag: sh?.kind ? `${sh.kind}:${sh.block_id ?? sh.task_id ?? ""}` : undefined,
+        data: { navigate: n.navigate ?? "/today?src=push", sh },
+        ...(actions.length > 0 ? { actions } : {}),
+      }),
+    ]),
   );
 });
 

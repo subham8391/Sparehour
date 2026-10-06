@@ -49,6 +49,7 @@ import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { EmptyCard } from "@/ui/list-card";
 import { EYEBROW, SectionLabel } from "@/ui/section-label";
+import { scrollMotion } from "@/ui/reduced-motion";
 import { Segmented } from "@/ui/segmented";
 import { LOADING_LINE } from "../loading-view";
 
@@ -241,7 +242,7 @@ export default function UpcomingPage() {
   const railRef = useRef<HTMLElement>(null);
   const planYourWeek = () => {
     if (band === "wide" && railRef.current) {
-      railRef.current.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+      railRef.current.scrollIntoView?.({ block: "nearest", behavior: scrollMotion() });
       railRef.current.focus({ preventScroll: true });
     } else setSheetOpen(true);
   };

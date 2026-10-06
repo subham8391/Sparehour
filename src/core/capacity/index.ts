@@ -128,7 +128,7 @@ function coversDay(e: CapacityEvent, day: LocalDate): boolean {
 }
 
 /** The calendar-event classification table from §5.4. */
-function countsAsBusy(e: CapacityEvent): boolean {
+export function countsAsBusy(e: CapacityEvent): boolean {
   if (!e.calendarRead || e.isOurs || !e.busy) return false;
   if (e.status === "cancelled") return false;
   if (e.selfResponse === "declined") return false;

@@ -8,8 +8,9 @@ import { openApp } from "./helpers";
 const CAL_SQL = "select read from public.calendars c join public.users u on u.id = c.user_id where u.email = $1 and c.external_id = 'primary' and c.read = $2";
 
 test("the connected calendar is listed and 'counts as busy' writes through to Postgres", async ({ page }) => {
-  await openApp(page, "/settings");
-  await expect(page.getByText("dev@sparehour.local").first()).toBeVisible();
+  // Today's calendar problem line links here; the section opens on its own.
+  await openApp(page, "/settings#calendar");
+  await expect(page.getByRole("region", { name: "Calendar" }).getByText("dev@sparehour.local").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Sync now" })).toBeVisible();
   const busy = page.getByRole("switch", { name: "Counts as busy" }).first();
   const wasOn = (await busy.getAttribute("aria-checked")) === "true";

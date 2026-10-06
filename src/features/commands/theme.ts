@@ -10,12 +10,16 @@ export const THEME_KEY = "sparehour.theme";
 /** The two paper values (globals.css). The manifest and the theme-color metas read these, nothing else does. */
 export const PAPER = { light: "#f4f8f6", dark: "#0c110f" } as const;
 
+/** Reduce motion is a per-device choice like the theme (M1 gap rulings: System, the default, or Reduce). */
+export const MOTION_KEY = "sparehour.motion";
+
 /**
- * Inline in `<head>`, before any paint: stamps `data-theme` from the stored
- * choice, then points the theme-color metas at that paper once the head has
- * parsed (pages without the app shell never run `applyTheme`). Kept tiny.
+ * Inline in `<head>`, before any paint: stamps `data-motion="reduce"` when this
+ * device asked for less motion and `data-theme` from the stored choice, then
+ * points the theme-color metas at that paper once the head has parsed (pages
+ * without the app shell never run `applyTheme`). Kept tiny.
  */
-export const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")return;document.documentElement.dataset.theme=t;var c=t==="dark"?"${PAPER.dark}":"${PAPER.light}";document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.dataset.media=m.media;m.removeAttribute("media");m.content=c;});});}catch(e){}})();`;
+export const THEME_BOOTSTRAP = `(function(){try{var d=document.documentElement;if(localStorage.getItem("${MOTION_KEY}")==="reduce")d.dataset.motion="reduce";var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")return;d.dataset.theme=t;var c=t==="dark"?"${PAPER.dark}":"${PAPER.light}";document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.dataset.media=m.media;m.removeAttribute("media");m.content=c;});});}catch(e){}})();`;
 
 export function readTheme(): Theme {
   try {

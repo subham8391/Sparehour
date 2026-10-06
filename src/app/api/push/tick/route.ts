@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import webPush from "web-push";
 import { serviceRoleClient } from "@/server/auth/supabase";
 import { secretMatches } from "@/server/calendar/config";
+import type { DayContext } from "@/server/push/day-figures";
 import { sendDue, type DueNotification, type PushSubscriptionRow, type SenderDeps } from "@/server/push/sender";
 
 export const runtime = "nodejs";
@@ -38,6 +39,12 @@ export async function POST(req: NextRequest) {
     },
     finish: async (notificationId, outcome) => {
       await db.rpc("finish_notification", { p_id: notificationId, p_outcome: outcome });
+    },
+    // The day's numbers and the badge, read at send time rather than when the reminder was scheduled.
+    dayContext: async (userId) => {
+      const { data, error } = await db.rpc("push_day_context", { p_user: userId });
+      if (error) throw new Error(error.message);
+      return (data ?? null) as DayContext | null;
     },
   };
 

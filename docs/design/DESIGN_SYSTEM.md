@@ -181,7 +181,7 @@ Per-screen adaptation on the phone:
 | Sign-in and onboarding steps | One decision per screen; toggles and radios at 44 px; the primary button fixed at the bottom above the safe area. |
 | Task detail | Full-screen sheet with the fields in the same order as the desktop panel. |
 | Command palette | Opens as a sheet from the search icon; keyboard shortcuts are hidden on touch devices (no `kbd` hints). |
-| Settings | Grouped list; working hours as a per-day picker. |
+| Settings | Two-level: the section list with a one-line summary each, and a section pushing in with Back in the header (SCREENS.md §18; M1 gap rulings); working hours stay a per-day picker. Two columns from 900 px. |
 
 Touch rules: every target ≥ 44 × 44 px; every hover-only action has a tap or long-press equivalent; every drag has a tap path; horizontal scrolling only inside containers that show a scroll affordance (the day strip, the 3-day week); text never depends on hover to be readable. Safe areas: `env(safe-area-inset-*)` on the tab bar and sheets; 54 px reserved at the top for the system status bar, which is never drawn.
 

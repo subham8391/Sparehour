@@ -54,7 +54,8 @@ export class TaskRepo {
    * a day, last in that day's order; tags are matched by name or created.
    * One transaction, so the upload is atomic too. PRODUCT_SPEC.md §5.1 rule 5:
    * no date and no project → Inbox; any date (do date, deadline, start) or a
-   * project → active.
+   * project → active. A repeating task starts on skip (A6); a one-off one on
+   * Settings › Planning's "Default if missed", carry until it is set.
    */
   async create(draft: TaskDraft, ctx: NewTaskContext): Promise<string> {
     const id = crypto.randomUUID();
@@ -64,6 +65,8 @@ export class TaskRepo {
     const state = doDate || projectId || draft.deadline || draft.startDate ? "active" : "inbox";
 
     await this.db.writeTransaction(async (tx) => {
+      const defaults = draft.recurrenceRule ? null : await tx.getOptional<{ default_miss_policy: string | null }>(`select default_miss_policy from user_settings limit 1`);
+      const missPolicy: MissPolicy = draft.recurrenceRule ? "skip" : defaults?.default_miss_policy === "skip" || defaults?.default_miss_policy === "expire" ? defaults.default_miss_policy : "carry";
       const lastInList = await tx.getOptional<{ sort_key: string | null }>(
         `select sort_key from tasks where deleted_at is null and state in ('inbox', 'active', 'someday')
            and coalesce(project_id, '') = coalesce(?, '') order by sort_key desc limit 1`,
@@ -105,7 +108,7 @@ export class TaskRepo {
           draft.evening ? 1 : 0,
           draft.estimateMin,
           now,
-          draft.recurrenceRule ? "skip" : "carry",
+          missPolicy,
           draft.recurrenceRule,
           draft.recurrenceMode,
           draft.recurrenceRule ? id : null,

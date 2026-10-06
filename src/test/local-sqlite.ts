@@ -31,7 +31,8 @@ const TABLES: Record<string, string> = {
   task_tags: "task_id, tag_id",
   checklist_items: "task_id, title, done, sort_key",
   time_blocks: "user_id, task_id, title, start_at, end_at, locked, source, routine_run_id, routine_item_key, routine_date, calendar_id, external_event_id, external_etag, push_state",
-  user_settings: "user_id, timezone, day_rollover_hour",
+  user_settings: "user_id, timezone, day_rollover_hour, default_miss_policy",
+  work_hours: "user_id, weekday, start_time, end_time",
 };
 
 export function localSqlite() {

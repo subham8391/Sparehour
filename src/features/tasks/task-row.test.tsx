@@ -287,6 +287,24 @@ describe("<TaskRow> completion feedback (DESIGN_SYSTEM.md §7)", () => {
     expect(screen.getByRole("button", { name: "Complete Water the plants" }).closest("li")).not.toHaveAttribute("data-completing");
   });
 
+  it("with Reduce motion chosen on this device (Settings › Appearance) the write is immediate too", () => {
+    // The system asks for nothing; only the device choice is set.
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
+    document.documentElement.dataset.motion = "reduce";
+    try {
+      const onDone = vi.fn();
+      render(
+        <TaskList>
+          <TaskRow task={tasks[2]} onDone={onDone} />
+        </TaskList>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Complete Water the plants" }));
+      expect(onDone).toHaveBeenCalledTimes(1);
+    } finally {
+      delete document.documentElement.dataset.motion;
+    }
+  });
+
   it("a done task shows a filled ring, and stays plain when nothing can complete it", () => {
     render(
       <TaskList>
