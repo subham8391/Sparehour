@@ -7,7 +7,7 @@ import { capacityFor } from "@/core/capacity";
 import type { LocalDate } from "@/core/time";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, WORK_HOURS_SQL, dayWindowParams } from "@/data/queries/today";
-import { PLANNED_BETWEEN_SQL, dayRangeParams } from "@/data/queries/views";
+import { PLANNED_BETWEEN_SQL, dayRangeParams } from "@/data/queries/shell";
 import type { CalendarEventRow, TaskRow as TaskRowType, TimeBlockRow, WorkHoursRow } from "@/data/schema.client";
 
 const NOTHING_SQL = `select * from tasks where 0`;

@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { cx } from "@/ui/cx";
-import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet";
+import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet-parts";
 
 // The panel brings the recurrence engine with it, and its wiring the queries
 // and repositories only an open task needs, so both stay out of the shell's

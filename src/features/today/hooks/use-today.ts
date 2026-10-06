@@ -9,7 +9,7 @@ import { Temporal, instant, localDate, todayFor, type Instant, type LocalDate } 
 import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
-import { monthsBack } from "@/data/queries/views";
+import { monthsBack } from "@/data/queries/shell";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { useCarryAsks } from "@/features/rollover/use-carry-asks";
