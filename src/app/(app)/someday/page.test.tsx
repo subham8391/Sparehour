@@ -13,7 +13,7 @@ const tasks = [
   { id: "t-filed", title: "Learn the cello", state: "someday", project_id: "p1", auto_filed_at: FILED, sort_key: "a0", priority: 0, last_touched_at: "2026-09-01 10:00:00+00" },
   { id: "t-filed2", title: "Repaint the fence", state: "someday", project_id: null, auto_filed_at: FILED, sort_key: "a1", priority: 0, last_touched_at: "2026-09-01 10:00:00+00" },
   { id: "t-launch", title: "Write the launch post", state: "someday", project_id: "p1", auto_filed_at: null, sort_key: "a2", priority: 0 },
-  { id: "t-loose", title: "Visit Lisbon", state: "someday", project_id: null, auto_filed_at: null, sort_key: "a3", priority: 0 },
+  { id: "t-loose", title: "Visit Lisbon", state: "someday", project_id: null, auto_filed_at: null, sort_key: "a3", priority: 0, estimate_min: 600 },
 ];
 const seen: { at: string | null } = { at: null };
 
@@ -29,6 +29,8 @@ vi.mock("@/data/powersync", () => ({
   useLocalDatabase: () => ({ execute, getAll, getOptional, writeTransaction }),
   useSyncStatus: () => ({ connected: true, hasSynced: true, dataFlowStatus: { uploading: false, downloading: false }, anyError: undefined }),
 }));
+
+vi.mock("next/navigation", async (actual) => ({ ...(await actual<typeof import("next/navigation")>()), useRouter: () => ({ push: vi.fn(), back: vi.fn() }) }));
 
 import { PaletteProvider } from "@/features/commands/palette-provider";
 import { SelectionProvider } from "@/features/selection/selection-provider";
@@ -101,6 +103,15 @@ describe("Someday (SCREENS.md §7)", () => {
     const call = execute.mock.calls.find((c) => String(c[0]).startsWith("update tasks set state = ?"));
     expect(call?.[1]?.[0]).toBe("active");
     expect(call?.[1]?.at(-1)).toBe("t-loose");
+  });
+
+  it("a long task's hint is answered: Break it down converts it (PRODUCT_SPEC.md §5.4)", async () => {
+    const user = setup();
+    const row = within(section("Not in a project")).getAllByRole("listitem")[0];
+    expect(row).toHaveTextContent("Long — break it down?");
+    getOptional.mockClear();
+    await user.click(within(row).getAllByRole("button", { name: "Break it down" })[0]);
+    await vi.waitFor(() => expect(getOptional).toHaveBeenCalledWith(expect.stringContaining("select * from tasks where id = ?"), ["t-loose"]));
   });
 
   it("Pick a date opens a sheet with the date picker", async () => {
