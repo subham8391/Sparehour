@@ -515,7 +515,7 @@ export function QuickAdd({
           {interpretation && interpretation.facts.length > 0 ? (
             interpretation.facts.map((f, i) => {
               const from = factSpans(f, spans).filter((s) => UNPARSEABLE.has(s.kind) || s.kind === "notes");
-              return <FactChip key={i} fact={f} first={i === 0} onRemove={from.length > 0 ? () => unparse(from) : undefined} />;
+              return <FactChip key={i} fact={f} first={i === 0} onRemove={from.length > 0 ? () => (unparse(from), inputRef.current?.focus()) : undefined} />;
             })
           ) : needsName ? (
             <span className="text-ink-2">Give it a name</span>
