@@ -231,7 +231,7 @@ function ChecklistRow({
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      commit();
+      // The step saves as it loses focus: to the new step opened under it, or simply on blur.
       if (onEnter && title.trim()) onEnter();
       else e.currentTarget.blur();
     } else if (e.key === "Tab") {
