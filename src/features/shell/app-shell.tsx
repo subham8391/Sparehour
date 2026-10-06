@@ -5,8 +5,9 @@
 // band, all present in the DOM and switched with CSS so there is no flash
 // while the viewport is measured. Quick-add, selection, the keyboard layer
 // and the command palette are mounted once here.
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
@@ -15,17 +16,29 @@ import { useAppBadge } from "@/features/notifications/use-app-badge";
 import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { CarryReviewHost } from "@/features/rituals/carry-review-host";
-import { BulkBar } from "@/features/selection/bulk-bar";
-import { SelectionProvider } from "@/features/selection/selection-provider";
+import { SelectionProvider, useSelection } from "@/features/selection/selection-provider";
 import { TaskDetailPane, TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { UndoProvider } from "@/features/undo/undo-provider";
 import { cx } from "@/ui/cx";
 import { FabRoomContext } from "./fab-visibility";
 import { showsQuickAdd, showsTabBar } from "./nav";
+import { preloadOnIdle } from "./preload-on-idle";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
 import { useNavData } from "./use-nav-data";
 import { useSyncChip } from "./use-sync-chip";
+
+// The bulk bar only shows while rows are ticked, so it is an island (the shells' 320 KB budget): fetched once the
+// browser is idle and kept mounted from then on, or mounted at the first tick if that comes sooner.
+const loadBulkBar = () => import("@/features/selection/bulk-bar");
+const BulkBar = dynamic(() => loadBulkBar().then((m) => m.BulkBar), { ssr: false });
+
+function BulkBarIsland() {
+  const { checkedIds } = useSelection();
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => preloadOnIdle(() => loadBulkBar().then(() => setLoaded(true))), []);
+  return loaded || checkedIds.length > 0 ? <BulkBar /> : null;
+}
 
 function Keyboard({ children }: { children: ReactNode }) {
   const palette = usePalette();
@@ -98,7 +111,7 @@ function Frame({ children }: { children: ReactNode }) {
           <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
         </div>
         {adds && <QuickAddBar />}
-        <BulkBar />
+        <BulkBarIsland />
       </div>
       <TaskDetailPane />
       {tabs && <TabBar pathname={pathname} counts={counts} sync={sync} className="sm:hidden" />}
