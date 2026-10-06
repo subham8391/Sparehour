@@ -10,9 +10,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { readTypedDate, type TypedDate as TypedDateValue } from "@/core/quickadd/read-date";
 import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
-import { compareDates, formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
+import { compareDates, formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import type { ChecklistItem, MissPolicy, Priority, TagRef, Task } from "@/core/types";
+import type { ChecklistItem, MissPolicy, Priority, RecurrenceException, RecurrenceMode, TagRef, Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
@@ -31,6 +31,7 @@ import { projectOptionLabel } from "@/data/queries/project-label";
 import { dayLabel } from "@/features/quickadd/interpret";
 import { Checklist } from "./checklist";
 import { repeatPolicy } from "./repeat-policy";
+import { PausePicker, pausedUntil, RepeatLine, SeriesPrompt } from "./series-controls";
 import { BLOCK_GLYPH } from "./task-actions";
 import type { DetailField, FieldRequest } from "./task-detail";
 import { snoozePresets, type SnoozePreset } from "./snooze";
@@ -69,6 +70,23 @@ export interface TaskDetailPanelProps {
   onTagRemove?: (tagId: string) => void;
   /** A field whose picker opens at once, focused (D, ⇧D, ⇧S, E, R and their palette commands). */
   fieldRequest?: FieldRequest | null;
+  // ---- a repeating task's series (SCREENS.md §10 "Recurring"; SYSTEM_DESIGN.md §5.2 "Series edits")
+  /** The series' one-off changes (moves and skips), for the header's "next" and the moved-day question. */
+  exceptions?: readonly RecurrenceException[];
+  /** A new do-date for a repeating task, once the person has said which: this occurrence only, or the rule. */
+  onSeriesDay?: (choice: "once" | "rule", change: SeriesDayChange) => void;
+  /** A new rule typed in for a task that already repeats: it starts again from today. */
+  onChangeRule?: (rule: string, mode: RecurrenceMode) => void;
+  onSkipOccurrence?: () => void;
+  onPause?: (until: LocalDate) => void;
+  onResume?: () => void;
+}
+
+/** The new day of an occurrence as the Do field picked it, with the time and evening flag that came with it. */
+export interface SeriesDayChange {
+  doDate: LocalDate;
+  doTime?: LocalTime | null;
+  evening?: boolean;
 }
 
 const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
@@ -111,7 +129,24 @@ const Clear = ({ children, onClick }: { children: ReactNode; onClick: () => void
  * it again, with focus inside: on its typed field from `sm` up, on the sheet
  * itself on a phone so the keyboard does not cover the choices.
  */
-function FieldRow({ label, value, request = 0, children }: { label: string; value: ReactNode; request?: number; children: (close: () => void) => ReactNode }) {
+function FieldRow({
+  label,
+  value,
+  request = 0,
+  onClosed,
+  children,
+}: {
+  label: string;
+  value: ReactNode;
+  request?: number;
+  /** After the panel has closed, by a choice, Escape or a click outside (the Do field forgets an unanswered question). */
+  onClosed?: () => void;
+  children: (close: () => void) => ReactNode;
+}) {
+  const closedRef = useRef(onClosed);
+  useEffect(() => {
+    closedRef.current = onClosed;
+  });
   const [open, setOpen] = useState(request > 0);
   const [seenRequest, setSeenRequest] = useState(request);
   const [focusIn, setFocusIn] = useState(request > 0);
@@ -153,6 +188,7 @@ function FieldRow({ label, value, request = 0, children }: { label: string; valu
     if (wasOpen.current) {
       wasOpen.current = false;
       buttonRef.current?.focus();
+      closedRef.current?.();
     }
   }, [open]);
 
@@ -243,10 +279,44 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const applyRepeat = (spec: string) => {
     const parsed = specToRule(spec.trim().replace(/^every\s+/i, ""));
     if (!parsed) return false;
-    onPatch({ recurrenceRule: parsed.rule, recurrenceMode: task.recurrenceMode ?? "fixed", ...repeatPolicy(task, parsed.rule) });
+    // A task that already repeats changes its rule: the series starts again from today (SYSTEM_DESIGN.md §5.2).
+    if (task.recurrenceRule && p.onChangeRule) {
+      if (parsed.rule !== task.recurrenceRule) p.onChangeRule(parsed.rule, task.recurrenceMode ?? "fixed");
+    } else onPatch({ recurrenceRule: parsed.rule, recurrenceMode: task.recurrenceMode ?? "fixed", ...repeatPolicy(task, parsed.rule) });
     setRepeatSpec("");
     return true;
   };
+
+  // A new do-date on a repeating task asks first: just this once, or change the rule (SCREENS.md §10). The time
+  // alone, the evening flag alone and clearing the day are not asked (DECISIONS.md "Time-only change on a repeat").
+  const [pendingDo, setPendingDo] = useState<{ change: SeriesDayChange; focus: boolean } | null>(null);
+  const asksSeries = Boolean(task.recurrenceRule && task.doDate && p.onSeriesDay && !done);
+  const pickDo = (patch: TaskPatch, close: (() => void) | null) => {
+    if (asksSeries && patch.doDate && task.doDate && !patch.doDate.equals(task.doDate)) {
+      setPendingDo({ change: { doDate: patch.doDate, doTime: patch.doTime, evening: patch.evening }, focus: close !== null });
+      return;
+    }
+    setPendingDo(null);
+    onPatch(patch);
+    close?.();
+  };
+  const answerDo = (choice: "once" | "rule", close: () => void) => {
+    if (!pendingDo) return;
+    p.onSeriesDay?.(choice, pendingDo.change);
+    setPendingDo(null);
+    close();
+  };
+  // Pause repeats… from the footer's menu or the palette opens the Repeat field with its pause picker.
+  const [pauseAsked, setPauseAsked] = useState(0);
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const pauseRequest = (p.fieldRequest?.name === "pause" ? p.fieldRequest.seq : 0) + pauseAsked;
+  const [seenPauseRequest, setSeenPauseRequest] = useState(pauseRequest);
+  if (pauseRequest !== seenPauseRequest) {
+    setSeenPauseRequest(pauseRequest);
+    if (pauseRequest > 0) setPauseOpen(true);
+  }
+  const paused = pausedUntil(task, today);
+  const repeating = Boolean(task.recurrenceRule) && !done;
 
   const doValue = task.doDate ? (
     <>
@@ -277,6 +347,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
     </>
   );
   const hasQuiet = (task.state !== "someday" && !done) || task.state !== "dropped";
+  const seriesActions = repeating && Boolean(p.onSkipOccurrence || p.onPause || p.onResume);
 
   return (
     // flex-1, not h-full: on the phone the sheet's grabber sits above, and a full height pushed the footer off the screen.
@@ -305,6 +376,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             className={cx("block w-full resize-none overflow-hidden font-display text-pane font-book text-ink [field-sizing:content] [text-wrap:balance]", BARE, done && "text-ink-3 line-through")}
           />
           {(p.areaName || p.projectName) && <p className="mt-1 text-body-sm text-ink-2">{[p.areaName, p.projectName].filter(Boolean).join(" › ")}</p>}
+          {repeating && <RepeatLine task={task} today={today} exceptions={p.exceptions} onResume={p.onResume} />}
         </div>
         <Button variant="icon" onClick={p.onClose} aria-label="Close" className="-mr-2">
           <Icon name="close" size={18} />
@@ -314,24 +386,30 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-5">
         {/* Field rows run edge to edge under hairlines, the way the direction draws them; each opens its own raised popover. */}
         <div className="-mx-4 mt-1 divide-y divide-line border-y border-line sm:-mx-5">
-          <FieldRow label="Do" value={doValue} request={asked("do")}>
+          <FieldRow label="Do" value={doValue} request={asked("do")} onClosed={() => setPendingDo(null)}>
             {(close) => (
               <>
-                <TypedDate now={p.now} zone={p.zone} today={today} withTime onApply={(d) => (onPatch({ doDate: d.date, doTime: d.time, evening: d.evening }), close())} />
+                <TypedDate now={p.now} zone={p.zone} today={today} withTime onApply={(d) => pickDo({ doDate: d.date, doTime: d.time, evening: d.evening }, close)} />
                 <div className="flex flex-wrap gap-1.5">
-                  <button type="button" className={PICK} onClick={() => (onPatch({ doDate: today, doTime: null, evening: false }), close())}>
+                  <button type="button" className={PICK} onClick={() => pickDo({ doDate: today, doTime: null, evening: false }, close)}>
                     Today
                   </button>
                   {/* "This evening" is the first of these, so the panel never repeats it as a checkbox below. */}
                   {presets.map((s) => (
-                    <button key={s.id} type="button" className={PICK} onClick={() => (onPatch(s.patch), close())}>
+                    <button key={s.id} type="button" className={PICK} onClick={() => pickDo(s.patch, close)}>
                       {s.label}
                     </button>
                   ))}
                 </div>
                 <label className={PANEL_FIELD}>
                   <span className="w-12">Day</span>
-                  <DateField aria-label="Day" className="flex-1" today={today} value={task.doDate?.toString() ?? ""} onChange={(e) => onPatch({ doDate: e.target.value ? localDate(e.target.value) : null })} />
+                  <DateField
+                    aria-label="Day"
+                    className="flex-1"
+                    today={today}
+                    value={(pendingDo?.change.doDate ?? task.doDate)?.toString() ?? ""}
+                    onChange={(e) => pickDo({ doDate: e.target.value ? localDate(e.target.value) : null }, null)}
+                  />
                 </label>
                 <label className={PANEL_FIELD}>
                   <span className="w-12">Time</span>
@@ -342,7 +420,18 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                     onChange={(e) => onPatch({ doTime: e.target.value ? localTime(e.target.value) : null, ...(e.target.value && !task.doDate ? { doDate: today } : {}) })}
                   />
                 </label>
-                {task.doDate && <Clear onClick={() => (onPatch({ doDate: null, doTime: null, evening: false }), close())}>No day</Clear>}
+                {task.doDate && <Clear onClick={() => pickDo({ doDate: null, doTime: null, evening: false }, close)}>No day</Clear>}
+                {pendingDo && (
+                  <SeriesPrompt
+                    task={task}
+                    day={pendingDo.change.doDate}
+                    today={today}
+                    exceptions={p.exceptions}
+                    autoFocus={pendingDo.focus}
+                    onOnce={() => answerDo("once", close)}
+                    onRule={() => answerDo("rule", close)}
+                  />
+                )}
               </>
             )}
           </FieldRow>
@@ -356,7 +445,12 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             <p className="flex min-h-11 flex-wrap items-center gap-x-1.5 px-4 py-1.5 text-body-sm text-ink-2 sm:px-5">
               <Icon name="alert" size={14} className="shrink-0" />
               <span className="mr-auto">Due before you plan to do it</span>
-              <Button variant="link" className="text-ink-2" onClick={() => onPatch({ doDate: task.deadline })}>
+              <Button
+                variant="link"
+                className="text-ink-2"
+                // On a repeat the deadline is this occurrence's, so doing it by then moves this occurrence only.
+                onClick={() => (asksSeries && task.deadline ? p.onSeriesDay?.("once", { doDate: task.deadline }) : onPatch({ doDate: task.deadline }))}
+              >
                 Do it by then
               </Button>
             </p>
@@ -414,11 +508,16 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             </FieldRow>
           )}
 
-          <FieldRow label="Repeat" value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>} request={asked("repeat")}>
+          <FieldRow
+            label="Repeat"
+            value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>}
+            request={asked("repeat") + pauseRequest}
+            onClosed={() => setPauseOpen(false)}
+          >
             {(close) => (
               <>
                 <input
-                  data-autofocus
+                  data-autofocus={pauseOpen ? undefined : true}
                   aria-label="Repeat"
                   placeholder="every weekday · every 2 weeks on wed · every month"
                   value={repeatSpec}
@@ -440,6 +539,31 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                     </label>
                     <Clear onClick={() => (onPatch({ recurrenceRule: null, recurrenceMode: null, ...repeatPolicy(task, null) }), close())}>Never</Clear>
                   </>
+                )}
+                {seriesActions && (
+                  // This occurrence and the pause: kept apart from If missed → Skip, which is a policy, not an action.
+                  <div className="flex flex-col gap-1 border-t border-line pt-2">
+                    {p.onSkipOccurrence && !paused && <Clear onClick={() => (p.onSkipOccurrence?.(), close())}>Skip this occurrence</Clear>}
+                    {paused ? (
+                      <p className="flex min-h-11 flex-wrap items-center gap-x-2 text-body-sm text-ink-2 sm:min-h-9">
+                        Paused until {formatDay(paused, { today })}
+                        {p.onResume && <Clear onClick={() => (p.onResume?.(), close())}>Resume</Clear>}
+                      </p>
+                    ) : (
+                      p.onPause &&
+                      (pauseOpen ? (
+                        <PausePicker
+                          today={today}
+                          onPause={(until) => {
+                            p.onPause?.(until);
+                            close();
+                          }}
+                        />
+                      ) : (
+                        <Clear onClick={() => setPauseOpen(true)}>Pause repeats until…</Clear>
+                      ))
+                    )}
+                  </div>
                 )}
               </>
             )}
@@ -490,18 +614,34 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
         <span className="flex-1 max-sm:hidden" />
         {quietActions}
-        {hasQuiet && (
-          <div className="sm:hidden">
+        {(hasQuiet || seriesActions) && (
+          // On a phone every quiet action is here; from `sm` Someday and Drop are buttons, and the menu stays for a repeat's own actions.
+          <div className={cx(!seriesActions && "sm:hidden")}>
             <MenuButton label="More actions" direction="up">
               {(close) => (
                 <>
+                  {seriesActions && p.onSkipOccurrence && !paused && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onSkipOccurrence?.())}>
+                      Skip this occurrence
+                    </button>
+                  )}
+                  {seriesActions && paused && p.onResume && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onResume?.())}>
+                      Resume repeats
+                    </button>
+                  )}
+                  {seriesActions && !paused && p.onPause && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), setPauseAsked((n) => n + 1))}>
+                      Pause repeats until…
+                    </button>
+                  )}
                   {task.state !== "someday" && !done && (
-                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onSomeday())}>
+                    <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onSomeday())}>
                       Someday
                     </button>
                   )}
                   {task.state !== "dropped" && (
-                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onDrop())}>
+                    <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onDrop())}>
                       Drop
                     </button>
                   )}

@@ -20,7 +20,8 @@ export function Opening() {
 }
 
 /** A field row whose picker can be opened directly (SCREENS.md §24: D, ⇧D, ⇧S, E, R). */
-export type DetailField = "do" | "deadline" | "start" | "estimate" | "repeat";
+/** `pause` opens Repeat with its pause picker (Pause repeats until… in the palette). */
+export type DetailField = "do" | "deadline" | "start" | "estimate" | "repeat" | "pause";
 
 /** Which field's picker to open; `seq` grows with each ask, so asking again opens it again. */
 export interface FieldRequest {
