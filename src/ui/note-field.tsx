@@ -39,11 +39,33 @@ export function NoteField({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
+  // What was just saved, shown until the store hands the note back: the write is local but not instant, and
+  // without it a first note would blank for a moment (the old value is still empty) and lose the focus Escape keeps.
+  const [saved, setSaved] = useState<{ text: string | null } | null>(null);
+  const [seenValue, setSeenValue] = useState(value);
+  if (seenValue !== value) {
+    setSeenValue(value);
+    setSaved(null);
+  }
+  const shown = saved ? saved.text : value;
   const rendered = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const backToNote = useRef(false);
   const hintId = useId();
-  const hasWords = Boolean(value?.trim());
+  const hasWords = Boolean(shown?.trim());
+  // An edit still open when the field goes away (the panel closed, the route changed) is saved, not dropped:
+  // a removed textarea gets no blur.
+  const live = useRef({ editing, draft, shown, onSave });
+  useEffect(() => {
+    live.current = { editing, draft, shown, onSave };
+  });
+  useEffect(
+    () => () => {
+      const l = live.current;
+      if (l.editing && !same(l.draft, l.shown)) l.onSave(l.draft.trim() || null);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (editing) {
@@ -59,11 +81,15 @@ export function NoteField({
   }, [editing]);
 
   const open = () => {
-    setDraft(value ?? "");
+    setDraft(shown ?? "");
     setEditing(true);
   };
   const save = (text: string) => {
-    if (!same(text, value)) onSave(text.trim() || null);
+    live.current.editing = false;
+    if (!same(text, shown)) {
+      onSave(text.trim() || null);
+      setSaved({ text: text.trim() || null });
+    }
     setEditing(false);
   };
   const onEditorKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -78,12 +104,12 @@ export function NoteField({
   if (editing || !hasWords) {
     const editor = {
       "aria-label": label,
-      value: editing ? draft : (value ?? ""),
+      value: editing ? draft : (shown ?? ""),
       autoFocus: editing,
       ref: editorRef,
       onFocus: () => {
         if (editing) return;
-        setDraft(value ?? "");
+        setDraft(shown ?? "");
         setEditing(true);
       },
       onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -127,8 +153,8 @@ export function NoteField({
           className ?? "rounded-lg border border-transparent px-3 py-2 hover:border-line focus-visible:border-line",
         )}
       >
-        <Suspense fallback={<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{value}</p>}>
-          <Markdown source={value ?? ""} />
+        <Suspense fallback={<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{shown}</p>}>
+          <Markdown source={shown ?? ""} />
         </Suspense>
       </div>
     </>

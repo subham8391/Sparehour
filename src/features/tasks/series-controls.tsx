@@ -4,7 +4,7 @@
 // Monday · next Mon 16", or "Paused until Mon 12 Oct" with Resume), the
 // question a new do-date asks (Just this once · Change the rule), and the
 // pause picker. Part of the detail's lazy island, with the recurrence engine.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { currentOccurrence, followingOccurrence, rebaseRule } from "@/core/recurrence/series";
 import { ruleWords } from "@/core/recurrence/words";
 import { compareDates, localDate, type LocalDate } from "@/core/time";
@@ -89,8 +89,13 @@ export function SeriesPrompt({
 }) {
   const rule = task.recurrenceRule ?? "";
   const rebased = rule ? ruleWords(rebaseRule(rule, currentOccurrence(task.doDate, today, exceptions), day), task.recurrenceMode ?? "fixed") : "";
+  // It opens at the foot of the Do sheet: on a short phone that is below the fold, so it brings itself into view.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, []);
   return (
-    <div role="group" aria-label="This occurrence or the rule" className="flex flex-col gap-2 border-t border-line pt-3">
+    <div ref={ref} role="group" aria-label="This occurrence or the rule" className="flex flex-col gap-2 border-t border-line pt-3">
       <p className="text-body text-ink">
         Move to {formatDay(day, { today })}: just this once, or change the rule?
       </p>

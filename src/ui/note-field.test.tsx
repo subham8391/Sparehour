@@ -94,4 +94,31 @@ describe("NoteField", () => {
     await user.click(screen.getByRole("button", { name: "elsewhere" }));
     expect(onSave).toHaveBeenCalledWith(null);
   });
+
+  it("shows what was saved until the store hands it back, and Escape on a first note keeps the focus on it", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    // A store that has not caught up yet: the value stays what it was.
+    const { rerender } = render(<NoteField value={null} label="Notes" placeholder="Anything worth remembering." onSave={onSave} />);
+    await user.click(screen.getByRole("textbox", { name: "Notes" }));
+    await user.keyboard("First **note**{Escape}");
+    expect(onSave).toHaveBeenCalledWith("First **note**");
+    expect(await screen.findByText("note", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Notes" })).toHaveFocus();
+    // The store catches up, then an undo puts the empty note back: the field follows it.
+    rerender(<NoteField value="First **note**" label="Notes" placeholder="Anything worth remembering." onSave={onSave} />);
+    rerender(<NoteField value={null} label="Notes" placeholder="Anything worth remembering." onSave={onSave} />);
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("");
+  });
+
+  it("an edit still open when the field goes away is saved", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    const { unmount } = render(<NoteField value="Old" label="Notes" placeholder="Anything worth remembering." onSave={onSave} />);
+    await user.click(await screen.findByText("Old"));
+    await user.keyboard(" and new");
+    unmount();
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith("Old and new");
+  });
 });

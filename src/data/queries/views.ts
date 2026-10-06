@@ -124,7 +124,7 @@ export const DONE_BETWEEN_SQL = `
 /** A series' one-off changes still in force (just this once, skips), for the task detail's repeat line and questions. */
 export const SERIES_EXCEPTIONS_SQL = `select occurrence_date, kind, moved_to from recurrence_exceptions where deleted_at is null and series_id = ? order by occurrence_date`;
 
-export const CHECKLIST_SQL =`select id, task_id, title, done, sort_key from checklist_items where deleted_at is null and task_id = ? order by sort_key, id`;
+export const CHECKLIST_SQL = `select id, task_id, title, done, sort_key from checklist_items where deleted_at is null and task_id = ? order by sort_key, id`;
 
 /** The tags on one task, by name. */
 export const TASK_TAGS_SQL = `

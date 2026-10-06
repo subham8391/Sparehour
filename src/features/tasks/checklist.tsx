@@ -7,7 +7,7 @@
 // nesting is impossible by design (Escape leaves the step for its menu).
 // Part of the task detail's lazy island.
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { keyBetween } from "@/core/ordering";
 import type { ChecklistItem } from "@/core/types";
 import { Checkbox } from "@/ui/checkbox";
@@ -44,6 +44,9 @@ export function Checklist({ items, onAdd, onToggle, onRename, onRemove, onReorde
   const [draft, setDraft] = useState("");
   // The step being typed under another one: the key it will take, and what is typed so far.
   const [below, setBelow] = useState<{ afterKey: string | null; beforeKey: string | null; text: string } | null>(null);
+  // Escape drops the new step without saving it: its blur, which follows as focus goes back, must not add it.
+  const dropping = useRef(false);
+  const hintId = useId();
   const done = items.filter((i) => i.done).length;
   const add = () => {
     const title = draft.trim();
@@ -62,6 +65,11 @@ export function Checklist({ items, onAdd, onToggle, onRename, onRemove, onReorde
     setBelow({ afterKey: items[i].sortKey ?? null, beforeKey: items[i + 1]?.sortKey ?? null, text: "" });
   };
   const commitBelow = (andNext: boolean) => {
+    if (dropping.current) {
+      dropping.current = false;
+      setBelow(null);
+      return;
+    }
     if (!below) return;
     const title = below.text.trim();
     if (!title) {
@@ -103,7 +111,11 @@ export function Checklist({ items, onAdd, onToggle, onRename, onRemove, onReorde
           } else if (e.key === "Escape") {
             e.preventDefault();
             e.stopPropagation();
-            setBelow(null);
+            // Back to the step just above, so the keyboard is not dropped on the page.
+            const step = e.currentTarget.closest("li")?.previousElementSibling?.querySelector<HTMLInputElement>("input[data-step]");
+            dropping.current = Boolean(step);
+            if (step) step.focus();
+            else setBelow(null);
           }
         }}
         onBlur={() => commitBelow(false)}
@@ -114,12 +126,17 @@ export function Checklist({ items, onAdd, onToggle, onRename, onRemove, onReorde
   return (
     <section className="mt-5 flex flex-col gap-1">
       <SectionLabel detail={items.length > 0 ? `${done} / ${items.length}` : undefined}>Checklist</SectionLabel>
+      {/* Tab stays in a step (one level, nothing to indent), so the way out is said: Escape goes to the step's menu. */}
+      <span id={hintId} className="sr-only">
+        Enter adds a step below. Escape leaves the step.
+      </span>
       <ul>
         {belowIndex === -1 && belowRow}
         {items.map((item, i) => (
           <Fragment key={item.id}>
             <ChecklistRow
               item={item}
+              hintId={hintId}
               first={i === 0}
               last={i === items.length - 1}
               onToggle={onToggle}
@@ -158,6 +175,7 @@ export function Checklist({ items, onAdd, onToggle, onRename, onRemove, onReorde
 
 function ChecklistRow({
   item,
+  hintId,
   first,
   last,
   onToggle,
@@ -168,6 +186,7 @@ function ChecklistRow({
   onDropStep,
 }: {
   item: ChecklistItem;
+  hintId: string;
   first: boolean;
   last: boolean;
   onToggle?: (id: string, done: boolean) => void;
@@ -186,6 +205,14 @@ function ChecklistRow({
   const rowRef = useRef<HTMLLIElement>(null);
   const gripRef = useRef<HTMLSpanElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Alt+↑/↓ keeps the caret in the step: the list moves the row's node, and a moved node loses focus.
+  const refocus = useRef(false);
+  useLayoutEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    if (document.activeElement !== inputRef.current) inputRef.current?.focus();
+  }, [item.sortKey]);
   const [dragging, setDragging] = useState(false);
   const [edge, setEdge] = useState<Edge | null>(null);
   const dropRef = useRef(onDropStep);
@@ -245,7 +272,12 @@ function ChecklistRow({
       menuRef.current?.querySelector("button")?.focus();
     } else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && onMove) {
       e.preventDefault();
-      onMove(e.key === "ArrowUp" ? -1 : 1);
+      const dir = e.key === "ArrowUp" ? -1 : 1;
+      // Only a step that can move waits for its new key; one at an end stays where it is.
+      if (dir === -1 ? !first : !last) {
+        refocus.current = true;
+        onMove(dir);
+      }
     } else if (e.key === "Backspace" && title === "") {
       e.preventDefault();
       onRemove?.(item.id);
@@ -266,11 +298,14 @@ function ChecklistRow({
       )}
       <Checkbox className="-ml-3" checked={item.done} onChange={(e) => onToggle?.(item.id, e.target.checked)} aria-label={`Done: ${item.title}`} />
       <input
+        ref={inputRef}
+        data-step={item.id}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={commit}
         onKeyDown={onKey}
         aria-label={`Step: ${item.title}`}
+        aria-describedby={hintId}
         className={cx(BARE, "h-11 flex-1 text-base transition-colors dur-fast sm:text-body", item.done ? "text-ink-3 line-through decoration-ink-3" : "text-ink")}
       />
       <div ref={menuRef} className="-mr-2">

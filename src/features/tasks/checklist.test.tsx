@@ -92,4 +92,34 @@ describe("<Checklist> order", () => {
     await user.keyboard("{Escape}");
     expect(screen.getByRole("button", { name: "Step actions: Draft" })).toHaveFocus();
   });
+
+  it("Escape on a new step drops it and gives the keyboard back to the step it was opened from", async () => {
+    const { user, onAdd } = setup();
+    await user.click(screen.getByRole("textbox", { name: "Step: Outline" }));
+    await user.keyboard("{Enter}");
+    await user.keyboard("half typed{Escape}");
+    expect(screen.queryByRole("textbox", { name: "New step" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Step: Outline" })).toHaveFocus();
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("a step moved by Alt+↓ keeps the keyboard once its new place arrives; the way out of a step is said", async () => {
+    const onReorder = vi.fn<(id: string, key: string) => void>();
+    const user = userEvent.setup();
+    const props = { onReorder, onAdd: vi.fn(), onRename: vi.fn(), onToggle: vi.fn(), onRemove: vi.fn() };
+    const { rerender } = render(<Checklist items={items} {...props} />);
+    const outline = screen.getByRole("textbox", { name: "Step: Outline" });
+    expect(outline).toHaveAccessibleDescription("Enter adds a step below. Escape leaves the step.");
+    await user.click(outline);
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    const key = onReorder.mock.calls[0][1];
+    // The store hands the new order back; the list moves the row, and with it the focus would go.
+    outline.blur();
+    rerender(<Checklist items={[items[1], { ...items[0], sortKey: key }, items[2]]} {...props} />);
+    expect(screen.getByRole("textbox", { name: "Step: Outline" })).toHaveFocus();
+    // At the end of the list there is nowhere to go: nothing is written and nothing waits.
+    await user.click(screen.getByRole("textbox", { name: "Step: Send" }));
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    expect(onReorder).toHaveBeenCalledTimes(1);
+  });
 });
