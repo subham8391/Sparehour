@@ -2,6 +2,7 @@
 // a search is shareable; the SQL is built from them here. Pure.
 import { compareDates, type LocalDate } from "@/core/time";
 import type { Task, TaskState } from "@/core/types";
+import { notePlain } from "@/ui/markdown-plain";
 
 export interface SearchFilters {
   project?: string;
@@ -141,7 +142,8 @@ export function snippet(text: string | null | undefined, query: string, radius =
 
 /** Where the query was found on a task, for the context line under the title. */
 export function contextFor(task: Pick<Task, "title" | "notes">, checklistHits: readonly string[], query: string): { where: "notes" | "step"; snippet: Snippet } | null {
-  const inNotes = snippet(task.notes, query);
+  // Notes are Markdown: the snippet quotes their words, unless the query was for the marks themselves.
+  const inNotes = snippet(notePlain(task.notes), query) ?? snippet(task.notes, query);
   if (inNotes) return { where: "notes", snippet: inNotes };
   for (const step of checklistHits) {
     const s = snippet(step, query);

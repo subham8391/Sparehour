@@ -62,6 +62,11 @@ describe("snippet and context", () => {
   it("prefers the notes over a checklist step, and says which it was", () => {
     expect(contextFor({ title: "Draft", notes: "Send the proposal by Friday" }, ["proposal outline"], "proposal")).toEqual({ where: "notes", snippet: { before: "Send the ", match: "proposal", after: " by Friday" } });
     expect(contextFor({ title: "Draft", notes: null }, ["write the proposal outline"], "proposal")).toEqual({ where: "step", snippet: { before: "write the ", match: "proposal", after: " outline" } });
+    // A note's Markdown is not quoted: its words are.
+    expect(contextFor({ title: "Draft", notes: "## Next\n- [ ] send the **proposal** to [Dana](https://x.y)" }, [], "proposal")).toEqual({
+      where: "notes",
+      snippet: { before: "Next send the ", match: "proposal", after: " to Dana" },
+    });
     expect(contextFor({ title: "Draft the proposal", notes: null }, [], "proposal")).toBeNull();
   });
 });

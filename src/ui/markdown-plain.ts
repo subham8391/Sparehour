@@ -12,19 +12,34 @@ export function stripInline(line: string): string {
     .replace(/\\([\\`*_{}[\]()#+\-.!~>|])/g, "$1");
 }
 
+/** One line of a note without its Markdown: block marks (heading, quote, list, box) and inline marks. */
+function plainLine(raw: string): string {
+  if (/^\s*(```|~~~)/.test(raw) || /^\s*([-*_])(\s*\1){2,}\s*$/.test(raw)) return "";
+  return stripInline(
+    raw
+      .replace(/^\s{0,3}#{1,6}\s+/, "")
+      .replace(/^\s*(>\s?)+/, "")
+      .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+/, "")
+      .replace(/^\[[ xX]\]\s+/, ""),
+  ).trim();
+}
+
 /** The first line of a note that has words in it, without its Markdown; "" for an empty note. */
 export function notePreview(markdown: string | null | undefined): string {
   if (!markdown) return "";
   for (const raw of markdown.split(/\r\n?|\n/)) {
-    if (/^\s*(```|~~~)/.test(raw) || /^\s*([-*_])(\s*\1){2,}\s*$/.test(raw)) continue;
-    const line = stripInline(
-      raw
-        .replace(/^\s{0,3}#{1,6}\s+/, "")
-        .replace(/^\s*(>\s?)+/, "")
-        .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+/, "")
-        .replace(/^\[[ xX]\]\s+/, ""),
-    ).trim();
+    const line = plainLine(raw);
     if (line) return line;
   }
   return "";
+}
+
+/** The whole note as plain words, a line per line: what a search snippet quotes. */
+export function notePlain(markdown: string | null | undefined): string {
+  if (!markdown) return "";
+  return markdown
+    .split(/\r\n?|\n/)
+    .map(plainLine)
+    .filter(Boolean)
+    .join("\n");
 }
