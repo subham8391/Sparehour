@@ -159,8 +159,6 @@ export default function TodayPage() {
   const [carriedOpenOn, setCarriedOpenOn] = useState<string | null>(null);
   const todayIsoNow = model.today.toString();
   const carriedFolded = model.carried.length > CARRIED_FOLD_AT && carriedOpenOn !== todayIsoNow && !readCarriedOpen(todayIsoNow);
-  // An ask is recorded once it is on screen: a folded pile shows none.
-  useRecordAsks(model.freshAsks, model.markAsked, model.ready && !carriedFolded);
   const openCarried = () => {
     const day = model.today.toString();
     setCarriedOpenOn(day);
@@ -351,6 +349,9 @@ export default function TodayPage() {
   const showDay = hasDay && view === "day";
   // The phone's Day view is a timeline, not a task list: its free gaps are what a tap schedules into, so the FAB steps aside.
   useHideQuickAddFab(showDay);
+  // An ask is recorded once it is on screen: a folded pile shows none, and neither does Plan my day's preview, which
+  // takes the lists' place.
+  useRecordAsks(model.freshAsks, model.markAsked, model.ready && !carriedFolded && !(planning.mode && !closedAt));
 
   if (!model.ready) return <Loading />;
   const finish = model.capacity?.projectedFinish ?? null;

@@ -19,6 +19,7 @@ import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { RowAction } from "@/features/tasks/task-actions";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { useConvertToProject } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button, iconButtonClass } from "@/ui/button";
 import { Icon } from "@/ui/icons";
@@ -35,6 +36,8 @@ const tasksWord = (n: number) => (n === 1 ? "1 task" : `${n} tasks`);
 export default function SomedayPage() {
   const repo = useTaskRepo();
   const detail = useTaskDetail();
+  // "Long — break it down?" answers itself: the row offers Convert to project (PRODUCT_SPEC.md §5.4, §6).
+  const breakDown = useConvertToProject(repo, detail.close);
   const now = useNow();
   const { today, settings, zone } = useLocalDay(now);
   const { data, isLoading } = useQuery<TaskRowType>(SOMEDAY_SQL);
@@ -65,6 +68,7 @@ export default function SomedayPage() {
         selected={sel.selectedId === t.id}
         onSelect={() => sel.select(t.id)}
         onDone={() => void repo.complete(t.id)}
+        onBreakDown={() => void breakDown(t.id)}
         meta={!inProject && t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>}
         actions={
           <>
