@@ -67,6 +67,8 @@ interface DragOver {
   /** ISO day, or null over "Not yet planned". */
   day: string | null;
   evening: boolean | null;
+  /** The row under it, when it hovers over one: the task takes that row's part of the day. */
+  row: string | null;
 }
 
 export default function UpcomingPage() {
@@ -113,10 +115,11 @@ export default function UpcomingPage() {
         canMonitor: ({ source }) => source.data.type === "task",
         onDragStart: () => setDragging(true),
         onDropTargetChange: ({ source, location }) => {
-          const zone = (location.current.dropTargets[0]?.element as HTMLElement | undefined)?.closest<HTMLElement>("[data-day], [data-rail]");
+          const target = location.current.dropTargets[0]?.element as HTMLElement | undefined;
+          const zone = target?.closest<HTMLElement>("[data-day], [data-rail]");
           if (!zone) return setOver(null);
           const day = zone.dataset.day ?? null;
-          setOver({ id: String(source.data.id), day, evening: zone.dataset.evening !== undefined ? true : null });
+          setOver({ id: String(source.data.id), day, evening: zone.dataset.evening !== undefined ? true : null, row: target?.dataset.id ?? null });
         },
         onDrop: () => {
           setDragging(false);
@@ -130,8 +133,10 @@ export default function UpcomingPage() {
   const preview = useMemo((): CapacityTask | null => {
     const t = over ? findTask(over.id) : null;
     if (!over || !t) return null;
-    if ((t.doDate?.toString() ?? null) === over.day && (over.evening ?? t.evening) === t.evening) return null;
-    return { id: t.id, state: t.state, doDate: over.day ? localDate(over.day) : null, estimateMin: t.estimateMin, evening: over.evening ?? t.evening, daySortKey: t.daySortKey };
+    // Dropped on a row it joins that row's list (dropOnRow); dropped on the day it keeps its own part of it (dropOnDay).
+    const evening = over.evening ?? (over.row ? findTask(over.row)?.evening : undefined) ?? t.evening;
+    if ((t.doDate?.toString() ?? null) === over.day && evening === t.evening) return null;
+    return { id: t.id, state: t.state, doDate: over.day ? localDate(over.day) : null, estimateMin: t.estimateMin, evening, daySortKey: t.daySortKey };
   }, [over, findTask]);
 
   // ---- capacity: the week's days from today on, and every day out to day 14 for the agenda's readouts
@@ -326,8 +331,9 @@ export default function UpcomingPage() {
           <p className="pl-11 text-body text-ink-3">Free.</p>
         ) : (
           <TaskList>
-            {daytime.map((t) => fullRow(t, { section: daytime, day: d.day }))}
-            {evening.map((t) => fullRow(t, { section: evening, day: d.day }))}
+            {/* A day already gone takes no drop, on its rows either. */}
+            {daytime.map((t) => fullRow(t, { section: d.past ? undefined : daytime, day: d.day }))}
+            {evening.map((t) => fullRow(t, { section: d.past ? undefined : evening, day: d.day }))}
           </TaskList>
         )}
         {dueGroup(d)}
@@ -435,7 +441,7 @@ export default function UpcomingPage() {
                   </div>
                 )
               }
-              renderRow={(t, d, section, evening) => compactRow(t, { section, day: d.day, evening })}
+              renderRow={(t, d, section, evening) => compactRow(t, { section: d.past ? undefined : section, day: d.day, evening })}
               renderDue={(t) => compactRow(t, { selectable: false })}
               renderStarting={(d) => startingGroup(d, true)}
               onDropDay={dropOnDay}
