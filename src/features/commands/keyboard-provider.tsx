@@ -156,11 +156,13 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       const r = resolveKey(chord, pendingRef.current, BINDINGS);
       pendingRef.current = r.pending;
       if (r.match) {
-        e.preventDefault();
-        run(r.match);
-        return;
-      }
-      if (r.consumed) {
+        // A key the view on screen does not take goes on as if unbound (an arrow scrolls, `[` types itself below).
+        if (!r.match.passes?.(contextRef.current())) {
+          e.preventDefault();
+          run(r.match);
+          return;
+        }
+      } else if (r.consumed) {
         e.preventDefault();
         return;
       }

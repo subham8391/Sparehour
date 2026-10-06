@@ -19,6 +19,11 @@ export function registerViewKeys(handlers: ViewKeyHandlers): () => void {
   };
 }
 
+/** Whether the view on screen gives `key` a meaning; a key no view takes is left as if it were unbound. */
+export function hasViewKey(key: ViewKey): boolean {
+  return Boolean(current?.[key]);
+}
+
 /** Runs the view's meaning for a key. True when a view took it. */
 export function runViewKey(key: ViewKey, selectedId: string | null): boolean {
   const handler = current?.[key];

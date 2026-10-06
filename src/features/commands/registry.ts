@@ -7,7 +7,7 @@ import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-re
 import type { PlanMode } from "@/features/planning/drawing";
 import { snoozePresets } from "@/features/tasks/snooze";
 import type { Binding } from "./keys";
-import { runViewKey, type ViewKey } from "./view-keys";
+import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
 export type CommandGroup = "Create" | "Go to" | "Selected task" | "List" | "View" | "App";
 export const GROUP_ORDER: readonly CommandGroup[] = ["Selected task", "Create", "Go to", "List", "View", "App"];
@@ -58,6 +58,8 @@ export interface Command {
   run: (ctx: CommandContext) => void | Promise<void>;
   /** What the key does when it needs a selection and there is none (`T` goes back to today's page of a dated view). */
   unselected?: (ctx: CommandContext) => void;
+  /** True when nothing on screen takes the key, so it goes on as if unbound: an arrow scrolls, `[` types into quick add. */
+  passes?: (ctx: CommandContext) => boolean;
 }
 
 /** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
@@ -94,6 +96,8 @@ const snooze = (presetId: "evening" | "tomorrow" | "in4h" | "weekend" | "nextwee
 
 /** A key the view on screen gives its meaning to (view-keys.ts), handed the selected task. */
 const viewKey = (key: ViewKey) => (ctx: CommandContext) => void runViewKey(key, ctx.selectedTaskId);
+/** A view key passes on where no view takes it, or (`needsTask`) while no task is selected. */
+const unclaimed = (key: ViewKey, needsTask = false) => (ctx: CommandContext) => !hasViewKey(key) || (needsTask && !ctx.selectedTaskId);
 
 /** J/K: the next row in the view's order, or inside its column where the view keeps them there (Upcoming's week). */
 const selectNext = (ctx: CommandContext, delta: 1 | -1) => {
@@ -159,8 +163,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.repeat", title: "Repeat", group: "Selected task", shortcut: "r", requiresSelection: true, keywords: "recurring every", run: onSelected((ctx, id) => ctx.openTask(id)) },
   // Where days sit side by side (Upcoming's week); elsewhere the arrows do nothing.
-  { id: "task.day-earlier", title: "A day earlier", group: "Selected task", shortcut: "arrowleft", requiresSelection: true, hidden: true, run: viewKey("earlier") },
-  { id: "task.day-later", title: "A day later", group: "Selected task", shortcut: "arrowright", requiresSelection: true, hidden: true, run: viewKey("later") },
+  { id: "task.day-earlier", title: "A day earlier", group: "Selected task", shortcut: "arrowleft", requiresSelection: true, hidden: true, run: viewKey("earlier"), passes: unclaimed("earlier", true) },
+  { id: "task.day-later", title: "A day later", group: "Selected task", shortcut: "arrowright", requiresSelection: true, hidden: true, run: viewKey("later"), passes: unclaimed("later", true) },
 
   // ---- create
   { id: "create.task", title: "Add task", group: "Create", shortcut: "q", keywords: "new quick add", run: (ctx) => ctx.quickAdd() },
@@ -202,8 +206,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "list.clear-checks", title: "Clear the selection", group: "List", keywords: "deselect none", run: (ctx) => ctx.clearChecks() },
 
   // ---- view
-  { id: "view.prev", title: "Previous week", group: "View", shortcut: "[", hidden: true, run: viewKey("prev") },
-  { id: "view.next", title: "Next week", group: "View", shortcut: "]", hidden: true, run: viewKey("next") },
+  { id: "view.prev", title: "Previous week", group: "View", shortcut: "[", hidden: true, run: viewKey("prev"), passes: unclaimed("prev") },
+  { id: "view.next", title: "Next week", group: "View", shortcut: "]", hidden: true, run: viewKey("next"), passes: unclaimed("next") },
   { id: "view.theme-light", title: "Light theme", group: "View", keywords: "appearance", run: (ctx) => ctx.setTheme("light") },
   { id: "view.theme-dark", title: "Dark theme", group: "View", keywords: "appearance", run: (ctx) => ctx.setTheme("dark") },
   { id: "view.theme-system", title: "Follow the system theme", group: "View", keywords: "appearance auto", run: (ctx) => ctx.setTheme("system") },
