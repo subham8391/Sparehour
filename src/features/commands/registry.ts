@@ -187,6 +187,11 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: pickField("estimate") },
   // A rule is set one task at a time: R opens the Repeat picker of the selected task, or of the one ticked row.
   { id: "task.repeat", title: "Repeat", group: "Selected task", shortcut: "r", requiresSelection: true, keywords: "recurring every", run: onOne((ctx, id) => ctx.openTask(id, "repeat")) },
+  // A repeat's series edits (SYSTEM_DESIGN.md §5.2), one task at a time; they do nothing to a task that does not repeat.
+  // The logic loads with the recurrence engine (TaskRepo.series()), never with the shell.
+  { id: "task.skip-occurrence", title: "Skip this occurrence", group: "Selected task", requiresSelection: true, keywords: "repeat recurring once next", run: onOne(async (ctx, id) => (await ctx.tasks.series()).skip(id)) },
+  { id: "task.pause-repeats", title: "Pause repeats until…", group: "Selected task", requiresSelection: true, keywords: "repeat recurring hold break", run: onOne((ctx, id) => ctx.openTask(id, "pause")) },
+  { id: "task.resume-repeats", title: "Resume repeats", group: "Selected task", requiresSelection: true, keywords: "repeat recurring pause unpause", run: onOne(async (ctx, id) => (await ctx.tasks.series()).resume(id)) },
   // Where days sit side by side (Upcoming's week); elsewhere the arrows do nothing.
   { id: "task.day-earlier", title: "A day earlier", group: "Selected task", shortcut: "arrowleft", requiresSelection: true, hidden: true, run: viewKey("earlier"), passes: unclaimed("earlier", true) },
   { id: "task.day-later", title: "A day later", group: "Selected task", shortcut: "arrowright", requiresSelection: true, hidden: true, run: viewKey("later"), passes: unclaimed("later", true) },
