@@ -10,16 +10,17 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { readTypedDate, type TypedDate as TypedDateValue } from "@/core/quickadd/read-date";
 import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
-import { compareDates, formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
+import { compareDates, formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import type { ChecklistItem, MissPolicy, Priority, TagRef, Task } from "@/core/types";
+import type { ChecklistItem, MissPolicy, Priority, RecurrenceException, RecurrenceMode, TagRef, Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
 import { Chip, chipButtonClass } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { DateField } from "@/ui/date-field";
-import { bareFieldClass, Textarea } from "@/ui/field";
+import { bareFieldClass } from "@/ui/field";
+import { NoteField } from "@/ui/note-field";
 import { Icon } from "@/ui/icons";
 import { FIELD_INPUT, MENU_ITEM, MenuButton, useDismiss } from "@/ui/popover";
 import { deadlineWording } from "@/ui/relative-day";
@@ -28,7 +29,9 @@ import { Grabber, RAISED, Scrim, SHEET_RISE } from "@/ui/sheet";
 import { TimeField } from "@/ui/time-field";
 import { projectOptionLabel } from "@/data/queries/project-label";
 import { dayLabel } from "@/features/quickadd/interpret";
+import { Checklist } from "./checklist";
 import { repeatPolicy } from "./repeat-policy";
+import { PausePicker, pausedUntil, RepeatLine, SeriesPrompt } from "./series-controls";
 import { BLOCK_GLYPH } from "./task-actions";
 import type { DetailField, FieldRequest } from "./task-detail";
 import { snoozePresets, type SnoozePreset } from "./snooze";
@@ -59,14 +62,33 @@ export interface TaskDetailPanelProps {
   /** Convert task → project (PRODUCT_SPEC.md §6): the footer's ⋯ and the checklist's ⋯ offer it. */
   onConvert?: () => void;
   onClose: () => void;
-  onChecklistAdd?: (title: string) => void;
+  /** A new step; with `sortKey`, at that place (Enter on a step adds the next one under it). */
+  onChecklistAdd?: (title: string, sortKey?: string) => void;
   onChecklistToggle?: (id: string, done: boolean) => void;
   onChecklistRename?: (id: string, title: string) => void;
   onChecklistRemove?: (id: string) => void;
+  onChecklistReorder?: (id: string, sortKey: string) => void;
   onTagAdd?: (name: string) => void;
   onTagRemove?: (tagId: string) => void;
   /** A field whose picker opens at once, focused (D, ⇧D, ⇧S, E, R and their palette commands). */
   fieldRequest?: FieldRequest | null;
+  // ---- a repeating task's series (SCREENS.md §10 "Recurring"; SYSTEM_DESIGN.md §5.2 "Series edits")
+  /** The series' one-off changes (moves and skips), for the header's "next" and the moved-day question. */
+  exceptions?: readonly RecurrenceException[];
+  /** A new do-date for a repeating task, once the person has said which: this occurrence only, or the rule. */
+  onSeriesDay?: (choice: "once" | "rule", change: SeriesDayChange) => void;
+  /** A new rule typed in for a task that already repeats: it starts again from today. */
+  onChangeRule?: (rule: string, mode: RecurrenceMode) => void;
+  onSkipOccurrence?: () => void;
+  onPause?: (until: LocalDate) => void;
+  onResume?: () => void;
+}
+
+/** The new day of an occurrence as the Do field picked it, with the time and evening flag that came with it. */
+export interface SeriesDayChange {
+  doDate: LocalDate;
+  doTime?: LocalTime | null;
+  evening?: boolean;
 }
 
 const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
@@ -109,7 +131,24 @@ const Clear = ({ children, onClick }: { children: ReactNode; onClick: () => void
  * it again, with focus inside: on its typed field from `sm` up, on the sheet
  * itself on a phone so the keyboard does not cover the choices.
  */
-function FieldRow({ label, value, request = 0, children }: { label: string; value: ReactNode; request?: number; children: (close: () => void) => ReactNode }) {
+function FieldRow({
+  label,
+  value,
+  request = 0,
+  onClosed,
+  children,
+}: {
+  label: string;
+  value: ReactNode;
+  request?: number;
+  /** After the panel has closed, by a choice, Escape or a click outside (the Do field forgets an unanswered question). */
+  onClosed?: () => void;
+  children: (close: () => void) => ReactNode;
+}) {
+  const closedRef = useRef(onClosed);
+  useEffect(() => {
+    closedRef.current = onClosed;
+  });
   const [open, setOpen] = useState(request > 0);
   const [seenRequest, setSeenRequest] = useState(request);
   const [focusIn, setFocusIn] = useState(request > 0);
@@ -151,6 +190,7 @@ function FieldRow({ label, value, request = 0, children }: { label: string; valu
     if (wasOpen.current) {
       wasOpen.current = false;
       buttonRef.current?.focus();
+      closedRef.current?.();
     }
   }, [open]);
 
@@ -199,14 +239,12 @@ function FieldRow({ label, value, request = 0, children }: { label: string; valu
 export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const { task, today, onPatch } = p;
   const [title, setTitle] = useState(task.title);
-  const [notes, setNotes] = useState(task.notes ?? "");
   const [repeatSpec, setRepeatSpec] = useState("");
   // A change that arrives from elsewhere (another device, the rollover job) replaces the draft.
-  const [seen, setSeen] = useState({ title: task.title, notes: task.notes ?? "" });
-  if (seen.title !== task.title || seen.notes !== (task.notes ?? "")) {
-    setSeen({ title: task.title, notes: task.notes ?? "" });
+  const [seenTitle, setSeenTitle] = useState(task.title);
+  if (seenTitle !== task.title) {
+    setSeenTitle(task.title);
     setTitle(task.title);
-    setNotes(task.notes ?? "");
   }
 
   const done = task.state === "done";
@@ -243,10 +281,44 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const applyRepeat = (spec: string) => {
     const parsed = specToRule(spec.trim().replace(/^every\s+/i, ""));
     if (!parsed) return false;
-    onPatch({ recurrenceRule: parsed.rule, recurrenceMode: task.recurrenceMode ?? "fixed", ...repeatPolicy(task, parsed.rule) });
+    // A task that already repeats changes its rule: the series starts again from today (SYSTEM_DESIGN.md §5.2).
+    if (task.recurrenceRule && p.onChangeRule) {
+      if (parsed.rule !== task.recurrenceRule) p.onChangeRule(parsed.rule, task.recurrenceMode ?? "fixed");
+    } else onPatch({ recurrenceRule: parsed.rule, recurrenceMode: task.recurrenceMode ?? "fixed", ...repeatPolicy(task, parsed.rule) });
     setRepeatSpec("");
     return true;
   };
+
+  // A new do-date on a repeating task asks first: just this once, or change the rule (SCREENS.md §10). The time
+  // alone, the evening flag alone and clearing the day are not asked (DECISIONS.md "Time-only change on a repeat").
+  const [pendingDo, setPendingDo] = useState<{ change: SeriesDayChange; focus: boolean } | null>(null);
+  const asksSeries = Boolean(task.recurrenceRule && task.doDate && p.onSeriesDay && !done);
+  const pickDo = (patch: TaskPatch, close: (() => void) | null) => {
+    if (asksSeries && patch.doDate && task.doDate && !patch.doDate.equals(task.doDate)) {
+      setPendingDo({ change: { doDate: patch.doDate, doTime: patch.doTime, evening: patch.evening }, focus: close !== null });
+      return;
+    }
+    setPendingDo(null);
+    onPatch(patch);
+    close?.();
+  };
+  const answerDo = (choice: "once" | "rule", close: () => void) => {
+    if (!pendingDo) return;
+    p.onSeriesDay?.(choice, pendingDo.change);
+    setPendingDo(null);
+    close();
+  };
+  // Pause repeats… from the footer's menu or the palette opens the Repeat field with its pause picker.
+  const [pauseAsked, setPauseAsked] = useState(0);
+  const pauseRequest = (p.fieldRequest?.name === "pause" ? p.fieldRequest.seq : 0) + pauseAsked;
+  const [pauseOpen, setPauseOpen] = useState(pauseRequest > 0);
+  const [seenPauseRequest, setSeenPauseRequest] = useState(pauseRequest);
+  if (pauseRequest !== seenPauseRequest) {
+    setSeenPauseRequest(pauseRequest);
+    if (pauseRequest > 0) setPauseOpen(true);
+  }
+  const paused = pausedUntil(task, today);
+  const repeating = Boolean(task.recurrenceRule) && !done;
 
   const doValue = task.doDate ? (
     <>
@@ -279,6 +351,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const hasQuiet = (task.state !== "someday" && !done) || task.state !== "dropped";
   // An open or parked task can become a project; a finished, dropped or archived one cannot.
   const onConvert = p.onConvert && !done && task.state !== "dropped" && task.state !== "archived" ? p.onConvert : undefined;
+  const seriesActions = repeating && Boolean(p.onSkipOccurrence || p.onPause || p.onResume);
 
   return (
     // flex-1, not h-full: on the phone the sheet's grabber sits above, and a full height pushed the footer off the screen.
@@ -307,6 +380,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             className={cx("block w-full resize-none overflow-hidden font-display text-pane font-book text-ink [field-sizing:content] [text-wrap:balance]", BARE, done && "text-ink-3 line-through")}
           />
           {(p.areaName || p.projectName) && <p className="mt-1 text-body-sm text-ink-2">{[p.areaName, p.projectName].filter(Boolean).join(" › ")}</p>}
+          {repeating && <RepeatLine task={task} today={today} exceptions={p.exceptions} onResume={p.onResume} />}
         </div>
         <Button variant="icon" onClick={p.onClose} aria-label="Close" className="-mr-2">
           <Icon name="close" size={18} />
@@ -316,24 +390,30 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-5">
         {/* Field rows run edge to edge under hairlines, the way the direction draws them; each opens its own raised popover. */}
         <div className="-mx-4 mt-1 divide-y divide-line border-y border-line sm:-mx-5">
-          <FieldRow label="Do" value={doValue} request={asked("do")}>
+          <FieldRow label="Do" value={doValue} request={asked("do")} onClosed={() => setPendingDo(null)}>
             {(close) => (
               <>
-                <TypedDate now={p.now} zone={p.zone} today={today} withTime onApply={(d) => (onPatch({ doDate: d.date, doTime: d.time, evening: d.evening }), close())} />
+                <TypedDate now={p.now} zone={p.zone} today={today} withTime onApply={(d) => pickDo({ doDate: d.date, doTime: d.time, evening: d.evening }, close)} />
                 <div className="flex flex-wrap gap-1.5">
-                  <button type="button" className={PICK} onClick={() => (onPatch({ doDate: today, doTime: null, evening: false }), close())}>
+                  <button type="button" className={PICK} onClick={() => pickDo({ doDate: today, doTime: null, evening: false }, close)}>
                     Today
                   </button>
                   {/* "This evening" is the first of these, so the panel never repeats it as a checkbox below. */}
                   {presets.map((s) => (
-                    <button key={s.id} type="button" className={PICK} onClick={() => (onPatch(s.patch), close())}>
+                    <button key={s.id} type="button" className={PICK} onClick={() => pickDo(s.patch, close)}>
                       {s.label}
                     </button>
                   ))}
                 </div>
                 <label className={PANEL_FIELD}>
                   <span className="w-12">Day</span>
-                  <DateField aria-label="Day" className="flex-1" today={today} value={task.doDate?.toString() ?? ""} onChange={(e) => onPatch({ doDate: e.target.value ? localDate(e.target.value) : null })} />
+                  <DateField
+                    aria-label="Day"
+                    className="flex-1"
+                    today={today}
+                    value={(pendingDo?.change.doDate ?? task.doDate)?.toString() ?? ""}
+                    onChange={(e) => pickDo({ doDate: e.target.value ? localDate(e.target.value) : null }, null)}
+                  />
                 </label>
                 <label className={PANEL_FIELD}>
                   <span className="w-12">Time</span>
@@ -344,7 +424,18 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                     onChange={(e) => onPatch({ doTime: e.target.value ? localTime(e.target.value) : null, ...(e.target.value && !task.doDate ? { doDate: today } : {}) })}
                   />
                 </label>
-                {task.doDate && <Clear onClick={() => (onPatch({ doDate: null, doTime: null, evening: false }), close())}>No day</Clear>}
+                {task.doDate && <Clear onClick={() => pickDo({ doDate: null, doTime: null, evening: false }, close)}>No day</Clear>}
+                {pendingDo && (
+                  <SeriesPrompt
+                    task={task}
+                    day={pendingDo.change.doDate}
+                    today={today}
+                    exceptions={p.exceptions}
+                    autoFocus={pendingDo.focus}
+                    onOnce={() => answerDo("once", close)}
+                    onRule={() => answerDo("rule", close)}
+                  />
+                )}
               </>
             )}
           </FieldRow>
@@ -358,7 +449,12 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             <p className="flex min-h-11 flex-wrap items-center gap-x-1.5 px-4 py-1.5 text-body-sm text-ink-2 sm:px-5">
               <Icon name="alert" size={14} className="shrink-0" />
               <span className="mr-auto">Due before you plan to do it</span>
-              <Button variant="link" className="text-ink-2" onClick={() => onPatch({ doDate: task.deadline })}>
+              <Button
+                variant="link"
+                className="text-ink-2"
+                // On a repeat the deadline is this occurrence's, so doing it by then moves this occurrence only.
+                onClick={() => (asksSeries && task.deadline ? p.onSeriesDay?.("once", { doDate: task.deadline }) : onPatch({ doDate: task.deadline }))}
+              >
                 Do it by then
               </Button>
             </p>
@@ -416,11 +512,16 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             </FieldRow>
           )}
 
-          <FieldRow label="Repeat" value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>} request={asked("repeat")}>
+          <FieldRow
+            label="Repeat"
+            value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>}
+            request={asked("repeat") + pauseRequest}
+            onClosed={() => setPauseOpen(false)}
+          >
             {(close) => (
               <>
                 <input
-                  data-autofocus
+                  data-autofocus={pauseOpen ? undefined : true}
                   aria-label="Repeat"
                   placeholder="every weekday · every 2 weeks on wed · every month"
                   value={repeatSpec}
@@ -443,6 +544,31 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                     <Clear onClick={() => (onPatch({ recurrenceRule: null, recurrenceMode: null, ...repeatPolicy(task, null) }), close())}>Never</Clear>
                   </>
                 )}
+                {seriesActions && (
+                  // This occurrence and the pause: kept apart from If missed → Skip, which is a policy, not an action.
+                  <div className="flex flex-col gap-1 border-t border-line pt-2">
+                    {p.onSkipOccurrence && !paused && <Clear onClick={() => (p.onSkipOccurrence?.(), close())}>Skip this occurrence</Clear>}
+                    {paused ? (
+                      <p className="flex min-h-11 flex-wrap items-center gap-x-2 text-body-sm text-ink-2 sm:min-h-9">
+                        Paused until {formatDay(paused, { today })}
+                        {p.onResume && <Clear onClick={() => (p.onResume?.(), close())}>Resume</Clear>}
+                      </p>
+                    ) : (
+                      p.onPause &&
+                      (pauseOpen ? (
+                        <PausePicker
+                          today={today}
+                          onPause={(until) => {
+                            p.onPause?.(until);
+                            close();
+                          }}
+                        />
+                      ) : (
+                        <Clear onClick={() => setPauseOpen(true)}>Pause repeats until…</Clear>
+                      ))
+                    )}
+                  </div>
+                )}
               </>
             )}
           </FieldRow>
@@ -461,23 +587,14 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           </FieldRow>
         </div>
 
-        <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} onConvert={onConvert} />
+        <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} onReorder={p.onChecklistReorder} onConvert={onConvert} />
 
         <Tags tags={p.tags ?? []} allTags={p.allTags ?? []} onAdd={p.onTagAdd} onRemove={p.onTagRemove} />
 
         <section className="mt-5 flex flex-col gap-2">
           <SectionLabel>Notes</SectionLabel>
-          <Textarea
-            aria-label="Notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={() => {
-              if ((notes.trim() || null) !== (task.notes?.trim() || null)) onPatch({ notes: notes.trim() || null });
-            }}
-            placeholder="Anything worth remembering."
-            rows={4}
-            className="resize-y"
-          />
+          {/* Markdown, drawn at rest and edited in place (SCREENS.md §10); the renderer is its own lazy chunk. */}
+          <NoteField value={task.notes} onSave={(next) => onPatch({ notes: next })} label="Notes" placeholder="Anything worth remembering." />
         </section>
 
         {(task.carryCount > 0 || task.lastCarriedAt) && (
@@ -501,12 +618,28 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
         <span className="flex-1 max-sm:hidden" />
         {quietActions}
-        {(hasQuiet || onConvert) && (
-          // Someday and Drop fold in here on a phone; Convert to project lives here on every band (SCREENS.md §10 footer ⋯).
-          <div className={onConvert ? undefined : "sm:hidden"}>
+        {(hasQuiet || onConvert || seriesActions) && (
+          // On a phone every quiet action is here; from `sm` Someday and Drop are buttons, and the menu stays for a
+          // repeat's own actions and Convert to project, which lives here on every band (SCREENS.md §10 footer ⋯).
+          <div className={cx(!seriesActions && !onConvert && "sm:hidden")}>
             <MenuButton label="More actions" direction="up">
               {(close) => (
                 <>
+                  {seriesActions && p.onSkipOccurrence && !paused && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onSkipOccurrence?.())}>
+                      Skip this occurrence
+                    </button>
+                  )}
+                  {seriesActions && paused && p.onResume && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onResume?.())}>
+                      Resume repeats
+                    </button>
+                  )}
+                  {seriesActions && !paused && p.onPause && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), setPauseAsked((n) => n + 1))}>
+                      Pause repeats until…
+                    </button>
+                  )}
                   {task.state !== "someday" && !done && (
                     <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onSomeday())}>
                       Someday
@@ -529,127 +662,6 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
       </div>
     </div>
-  );
-}
-
-function Checklist({
-  items,
-  onAdd,
-  onToggle,
-  onRename,
-  onRemove,
-  onConvert,
-}: {
-  items: readonly ChecklistItem[];
-  onAdd?: (title: string) => void;
-  onToggle?: (id: string, done: boolean) => void;
-  onRename?: (id: string, title: string) => void;
-  onRemove?: (id: string) => void;
-  /** The checklist's ⋯: its steps become the tasks of a new project. */
-  onConvert?: () => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const done = items.filter((i) => i.done).length;
-  const add = () => {
-    const title = draft.trim();
-    if (!title) return;
-    onAdd?.(title);
-    setDraft("");
-  };
-  return (
-    <section className="mt-5 flex flex-col gap-1">
-      <SectionLabel
-        detail={items.length > 0 ? `${done} / ${items.length}` : undefined}
-        action={
-          onConvert &&
-          items.length > 0 && (
-            <div className="-my-2">
-              <MenuButton label="Checklist options">
-                {(close) => (
-                  <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), onConvert())}>
-                    Convert to project
-                  </button>
-                )}
-              </MenuButton>
-            </div>
-          )
-        }
-      >
-        Checklist
-      </SectionLabel>
-      <ul>
-        {items.map((item) => (
-          <ChecklistRow key={item.id} item={item} onToggle={onToggle} onRename={onRename} onRemove={onRemove} />
-        ))}
-        <li className="flex min-h-11 items-center gap-1">
-          <span className="-ml-3 flex size-11 shrink-0 items-center justify-center text-ink-3 sm:size-9" aria-hidden="true">
-            <Icon name="plus" size={16} />
-          </span>
-          <input
-            aria-label="Add a step"
-            placeholder="Add a step"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            onBlur={add}
-            className={cx(BARE, "h-11 flex-1 text-body text-ink")}
-          />
-        </li>
-      </ul>
-    </section>
-  );
-}
-
-function ChecklistRow({
-  item,
-  onToggle,
-  onRename,
-  onRemove,
-}: {
-  item: ChecklistItem;
-  onToggle?: (id: string, done: boolean) => void;
-  onRename?: (id: string, title: string) => void;
-  onRemove?: (id: string) => void;
-}) {
-  const [title, setTitle] = useState(item.title);
-  const [seen, setSeen] = useState(item.title);
-  if (seen !== item.title) {
-    setSeen(item.title);
-    setTitle(item.title);
-  }
-  const commit = () => {
-    const next = title.trim();
-    if (!next) setTitle(item.title);
-    else if (next !== item.title) onRename?.(item.id, next);
-  };
-  return (
-    <li className="flex min-h-11 items-center gap-1">
-      <Checkbox className="-ml-3" checked={item.done} onChange={(e) => onToggle?.(item.id, e.target.checked)} aria-label={`Done: ${item.title}`} />
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            (e.target as HTMLInputElement).blur();
-          } else if (e.key === "Backspace" && title === "") {
-            e.preventDefault();
-            onRemove?.(item.id);
-          }
-        }}
-        aria-label={`Step: ${item.title}`}
-        className={cx(BARE, "h-11 flex-1 text-body transition-colors dur-fast", item.done ? "text-ink-3 line-through decoration-ink-3" : "text-ink")}
-      />
-      <Button variant="icon" onClick={() => onRemove?.(item.id)} aria-label={`Remove step: ${item.title}`} className="-mr-2 text-ink-3">
-        <Icon name="close" size={14} />
-      </Button>
-    </li>
   );
 }
 

@@ -278,7 +278,8 @@ describe("<TaskDetailPanel>", () => {
     await user.clear(step);
     await user.keyboard("{Backspace}");
     expect(onChecklistRemove).toHaveBeenCalledWith("c2");
-    await user.click(screen.getByRole("button", { name: "Remove step: Outline" }));
+    await user.click(screen.getByRole("button", { name: "Step actions: Outline" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove step" }));
     expect(onChecklistRemove).toHaveBeenCalledWith("c1");
   });
 

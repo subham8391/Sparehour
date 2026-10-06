@@ -28,6 +28,7 @@ import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
+import { useTaskRepo } from "./use-task-repo";
 
 const LONG_PRESS_MS = 500;
 /** Check-off (DESIGN_SYSTEM.md §7): the ring fills at once; the row leaves 400 ms later. */
@@ -356,7 +357,14 @@ export function TaskRow({
           )}
           {hasActions && (
             <div className="relative z-1 -my-2 -ml-1 shrink-0 sm:hidden print:hidden!">
-              <MenuButton label="More actions">{(close) => <RowActionsLayoutProvider layout="menu" close={close}>{rowActions}</RowActionsLayoutProvider>}</MenuButton>
+              <MenuButton label="More actions">
+                {(close) => (
+                  <RowActionsLayoutProvider layout="menu" close={close}>
+                    {rowActions}
+                    {task.recurrenceRule && (task.state === "active" || task.state === "inbox") && <SkipOccurrence id={task.id} />}
+                  </RowActionsLayoutProvider>
+                )}
+              </MenuButton>
             </div>
           )}
         </div>
@@ -370,6 +378,12 @@ export function TaskRow({
 export function carriedLabel(task: Pick<Task, "carryCount" | "doDate">, today: LocalDate): string {
   const since = task.doDate && Temporal.PlainDate.compare(task.doDate, today) < 0 ? ` since ${formatDay(task.doDate)}` : "";
   return `Moved ${task.carryCount} times${since}`;
+}
+
+/** A repeat's own entry in every list's row menu: on to the next occurrence, no completion (SYSTEM_DESIGN.md §5.2). */
+function SkipOccurrence({ id }: { id: string }) {
+  const repo = useTaskRepo();
+  return <RowAction label="Skip this occurrence" onClick={() => void repo.series().then((s) => s.skip(id))} />;
 }
 
 export function TaskList({ children, className = "" }: { children: ReactNode; className?: string }) {

@@ -2,6 +2,7 @@
 // TaskRepo the first time a repeat is completed, together with the recurrence
 // engine (rrule), so neither is in an app shell's first download.
 import { deadlineForOccurrence, nextOccurrence } from "@/core/recurrence";
+import { currentOccurrence } from "@/core/recurrence/series";
 import { localDate, type LocalDate } from "@/core/time";
 import type { RecurrenceException, RecurrenceMode } from "@/core/types";
 import type { LocalDatabase } from "../powersync";
@@ -34,14 +35,16 @@ export async function completeRecurring(
   before: Record<string, string | number | null> & { id: string },
   today: LocalDate,
 ): Promise<void> {
-  const occurrence = task.do_date ? localDate(task.do_date) : today;
   const rows = await db.getAll<{ occurrence_date: string; kind: string; moved_to: string | null }>(
     `select occurrence_date, kind, moved_to from recurrence_exceptions where deleted_at is null and series_id = ?`,
     [task.recurrence_series_id ?? task.id],
   );
-  const exceptions: RecurrenceException[] = rows.map((e) =>
+  const exceptions: RecurrenceException[] = (Array.isArray(rows) ? rows : []).map((e) =>
     e.kind === "move" && e.moved_to ? { occurrenceDate: localDate(e.occurrence_date), kind: "move", movedTo: localDate(e.moved_to) } : { occurrenceDate: localDate(e.occurrence_date), kind: "skip" },
   );
+  // A task moved "just this once" is still the occurrence it was scheduled as: the completion is recorded
+  // against that day and the series counts on from it, back on its rule (SYSTEM_DESIGN.md §5.2 "Series edits").
+  const occurrence = currentOccurrence(task.do_date ? localDate(task.do_date) : null, today, exceptions);
   const next = nextOccurrence({
     rule: task.recurrence_rule as string,
     mode: task.recurrence_mode as RecurrenceMode,

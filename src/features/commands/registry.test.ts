@@ -139,6 +139,21 @@ describe("command registry", () => {
     expect(availability(byId("task.start"), ctxWith({ selectedTaskId: null }))).toEqual({ enabled: false, reason: "select a task first" });
   });
 
+  it("a repeat's series edits: skip and resume go through the series repository, pause opens its picker", async () => {
+    const series = { skip: vi.fn(), resume: vi.fn() };
+    const ctx = ctxWith();
+    (ctx.tasks as unknown as { series: () => Promise<typeof series> }).series = vi.fn(async () => series);
+    expect(["task.skip-occurrence", "task.pause-repeats", "task.resume-repeats"].map((id) => byId(id).title)).toEqual(["Skip this occurrence", "Pause repeats until…", "Resume repeats"]);
+    await byId("task.skip-occurrence").run(ctx);
+    expect(series.skip).toHaveBeenCalledWith("t1");
+    await byId("task.resume-repeats").run(ctx);
+    expect(series.resume).toHaveBeenCalledWith("t1");
+    await byId("task.pause-repeats").run(ctx);
+    expect(ctx.openTask).toHaveBeenLastCalledWith("t1", "pause");
+    // Named apart from the If missed → Skip policy, and needing a task.
+    expect(availability(byId("task.skip-occurrence"), { selectedTaskId: null, checkedTaskIds: [] }).enabled).toBe(false);
+  });
+
   it("with several rows ticked, D, ⇧D, ⇧S and E open one picker for all of them; one ticked row opens in the detail", async () => {
     const ctx = ctxWith({ selectedTaskId: "t1", checkedTaskIds: ["t2", "t3"] });
     await byId("task.do").run(ctx);

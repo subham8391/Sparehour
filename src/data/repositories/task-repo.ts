@@ -198,27 +198,17 @@ export class TaskRepo {
    * pushed to the calendar. Started blocks stay (they happened); locked ones stay (locking means "keep this
    * here"). Returns what was released, so the undo can bring it back.
    */
-  private async releaseBlocks(ids: readonly string[], keepOn: LocalDate | null): Promise<BlockRow[]> {
-    if (ids.length === 0) return [];
-    const rows = await this.db.getAll<BlockRow>(`select * from time_blocks where task_id in (${placeholders(ids)}) and deleted_at is null and locked = 0`, [...ids]);
-    if (!Array.isArray(rows) || rows.length === 0) return [];
-    const now = Temporal.Now.instant();
-    const zone = keepOn ? ((await this.db.getOptional<{ timezone: string | null }>(`select timezone from user_settings limit 1`))?.timezone ?? "UTC") : "UTC";
-    const release = rows.filter((b) => {
-      if (typeof b.start_at !== "string") return false;
-      let start: Temporal.Instant;
-      try {
-        start = Temporal.Instant.from(normaliseTimestamp(b.start_at));
-      } catch {
-        return false;
-      }
-      if (Temporal.Instant.compare(start, now) <= 0) return false;
-      return !keepOn || !start.toZonedDateTimeISO(zone).toPlainDate().equals(keepOn);
-    });
-    if (release.length === 0) return [];
-    const at = new Date().toISOString();
-    await this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${placeholders(release.map((b) => b.id))})`, [at, at, ...release.map((b) => b.id)]);
-    return release;
+  private releaseBlocks(ids: readonly string[], keepOn: LocalDate | null): Promise<BlockRow[]> {
+    return releaseBlocks(this.db, ids, keepOn);
+  }
+
+  /**
+   * Series edits on a repeating task — just this once, change the rule, skip this occurrence, pause and resume
+   * (series-repo.ts). They load with the recurrence engine (rrule) the first time one is used, never in a shell.
+   */
+  async series(): Promise<import("./series-repo").SeriesRepo> {
+    const { SeriesRepo } = await import("./series-repo");
+    return new SeriesRepo(this.db, this.history);
   }
 
   private async snapshotMany(ids: readonly string[], columns: readonly string[]): Promise<RowSnapshot[]> {
@@ -399,9 +389,8 @@ export class TaskRepo {
   }
 
   /** The person's day now (their zone, their rollover hour). */
-  private async localToday(): Promise<LocalDate> {
-    const settings = await this.db.getOptional<{ timezone: string | null; day_rollover_hour: number | null }>(`select timezone, day_rollover_hour from user_settings limit 1`);
-    return todayFor({ timezone: settings?.timezone ?? "UTC", dayRolloverHour: settings?.day_rollover_hour ?? 4 }, Temporal.Now.instant());
+  private localToday(): Promise<LocalDate> {
+    return localToday(this.db);
   }
 
   /** A day as an undo toast names it: "today", "tomorrow", else "Tue 6 Oct". */
@@ -469,6 +458,39 @@ export class TaskRepo {
     const released = state === "active" ? [] : await this.releaseBlocks(ids, null);
     this.rememberMany(before, cols, note ?? STATE_LABELS[state], Boolean(note) || state !== "active", released);
   }
+}
+
+/** The person's day now, in their zone and by their rollover hour, as this device's settings row has them. */
+export async function localToday(db: LocalDatabase): Promise<LocalDate> {
+  const settings = await db.getOptional<{ timezone: string | null; day_rollover_hour: number | null }>(`select timezone, day_rollover_hour from user_settings limit 1`);
+  return todayFor({ timezone: settings?.timezone ?? "UTC", dayRolloverHour: settings?.day_rollover_hour ?? 4 }, Temporal.Now.instant());
+}
+
+/**
+ * A task that leaves a day lets go of the time it held there (TaskRepo.releaseBlocks above): its unlocked blocks
+ * that have not started and are not on `keepOn` are soft-deleted. Returns them, for the undo to bring back.
+ */
+export async function releaseBlocks(db: LocalDatabase, ids: readonly string[], keepOn: LocalDate | null): Promise<BlockRow[]> {
+  if (ids.length === 0) return [];
+  const rows = await db.getAll<BlockRow>(`select * from time_blocks where task_id in (${placeholders(ids)}) and deleted_at is null and locked = 0`, [...ids]);
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const now = Temporal.Now.instant();
+  const zone = keepOn ? ((await db.getOptional<{ timezone: string | null }>(`select timezone from user_settings limit 1`))?.timezone ?? "UTC") : "UTC";
+  const release = rows.filter((b) => {
+    if (typeof b.start_at !== "string") return false;
+    let start: Temporal.Instant;
+    try {
+      start = Temporal.Instant.from(normaliseTimestamp(b.start_at));
+    } catch {
+      return false;
+    }
+    if (Temporal.Instant.compare(start, now) <= 0) return false;
+    return !keepOn || !start.toZonedDateTimeISO(zone).toPlainDate().equals(keepOn);
+  });
+  if (release.length === 0) return [];
+  const at = new Date().toISOString();
+  await db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id in (${placeholders(release.map((b) => b.id))})`, [at, at, ...release.map((b) => b.id)]);
+  return release;
 }
 
 type Snapshot = Record<string, string | number | null>;

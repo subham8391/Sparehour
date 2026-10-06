@@ -121,6 +121,9 @@ export const DONE_BETWEEN_SQL = `
   where deleted_at is null and state = 'done' and completed_at >= ? and completed_at < ?
   order by completed_at desc, id`;
 
+/** A series' one-off changes still in force (just this once, skips), for the task detail's repeat line and questions. */
+export const SERIES_EXCEPTIONS_SQL = `select occurrence_date, kind, moved_to from recurrence_exceptions where deleted_at is null and series_id = ? order by occurrence_date`;
+
 export const CHECKLIST_SQL = `select id, task_id, title, done, sort_key from checklist_items where deleted_at is null and task_id = ? order by sort_key, id`;
 
 /** The tags on one task, by name. */
@@ -142,12 +145,27 @@ export const TASK_SEARCH_SQL = `
   order by case when do_date is null then 1 else 0 end, do_date, sort_key, id
   limit 12`;
 
-/** Completed tasks in a project; only present locally while the logbook stream is subscribed. */
+/**
+ * A project's tasks completed since `?2` (an ISO instant, a week back), newest first: each heading's
+ * "Show completed · N" counts its own (SCREENS.md §9). Only present locally while the logbook stream is subscribed.
+ */
 export const PROJECT_DONE_SQL = `
   select * from tasks
-  where deleted_at is null and project_id = ? and state = 'done'
+  where deleted_at is null and project_id = ?1 and state = 'done' and completed_at >= ?2
   order by completed_at desc, id
   limit 200`;
+
+/** Done tasks grouped by the heading they were filed under; a heading that is gone counts with the loose ones (key ""). */
+export function doneByHeading<T extends { headingId: string | null }>(done: readonly T[], headingIds: ReadonlySet<string>): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const t of done) {
+    const key = t.headingId && headingIds.has(t.headingId) ? t.headingId : "";
+    const list = out.get(key);
+    if (list) list.push(t);
+    else out.set(key, [t]);
+  }
+  return out;
+}
 
 /** An area's active projects with what their open tasks add up to. `?` = default estimate, then the area id. */
 export const AREA_PROJECT_STATS_SQL = `

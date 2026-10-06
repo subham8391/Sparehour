@@ -25,6 +25,8 @@ const TITLE: Record<DetailField, string> = {
   start: "Set start date",
   estimate: "Set estimate",
   repeat: "Repeat",
+  // One task at a time, from its detail; never a bulk edit.
+  pause: "Pause repeats",
 };
 
 /** True below `sm`: there the sheet itself takes focus, so the keyboard does not rise over the choices (as the detail's pickers do). */

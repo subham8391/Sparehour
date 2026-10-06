@@ -43,3 +43,21 @@ describe("ChecklistRepo undo", () => {
     expect(s.row("checklist_items", id)?.deleted_at).not.toBeNull();
   });
 });
+
+describe("ChecklistRepo order", () => {
+  it("a reorder writes one key, and ⌘Z puts it back", async () => {
+    const { s, repo, entry } = setup();
+    s.insert("checklist_items", { id: "c2", space_id: "s1", task_id: "t1", title: "Pack", done: 0, sort_key: "a1" });
+    await repo.reorder("c2", "Zz");
+    expect(s.row("checklist_items", "c2")?.sort_key).toBe("Zz");
+    expect(entry()).toMatchObject({ label: "Moved step “Pack”", toast: false });
+    await entry().undo();
+    expect(s.row("checklist_items", "c2")?.sort_key).toBe("a1");
+  });
+
+  it("a step added under another takes the key it is given", async () => {
+    const { s, repo } = setup();
+    const id = await repo.add("t1", "s1", "Under the first", "a0V");
+    expect(s.row("checklist_items", id)).toMatchObject({ title: "Under the first", sort_key: "a0V" });
+  });
+});

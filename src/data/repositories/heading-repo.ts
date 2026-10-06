@@ -45,6 +45,21 @@ export class HeadingRepo {
   }
 
   /**
+   * A new place among the project's headings (a drag, Move up / Move down). Its tasks follow it, since they are
+   * filed under it, so this is one key written; ⌘Z puts it back (a silent entry, like reordering a task).
+   */
+  async reorder(id: string, sortKey: string): Promise<void> {
+    const before = this.history ? ((await this.db.getOptional<RowSnapshot>(`select * from headings where id = ?`, [id])) ?? null) : null;
+    await this.db.execute(`update headings set sort_key = ?, updated_at = ? where id = ?`, [sortKey, new Date().toISOString(), id]);
+    if (!this.history || !before) return;
+    this.history.record({
+      label: `Moved heading ${quoted(before.title)}`,
+      toast: false,
+      undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "headings", before, ["sort_key"], new Date().toISOString())),
+    });
+  }
+
+  /**
    * Soft-deletes the heading and moves its tasks up, in one transaction, with an undo toast. The undo brings
    * the heading back — re-inserted from its snapshot if sync has already taken it off the device — and files
    * the same tasks under it again, unless one has since been given another heading or another project.
