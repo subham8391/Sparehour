@@ -341,6 +341,18 @@ describe("<QuickAdd>", () => {
       expect(stripOf(input)).toHaveTextContent("@calls");
     });
 
+    it("Tab on a new tag in the middle of the line finishes it and moves on", async () => {
+      const { user, input } = setup({ tags, initial: "Call @zz about it" });
+      await user.click(input);
+      input.setSelectionRange(8, 8);
+      await user.keyboard("z");
+      expect(input).toHaveValue("Call @zzz about it");
+      expect(screen.getByRole("group", { name: "Tags" })).toHaveTextContent("Create @zzz");
+      await user.keyboard("{Tab}");
+      expect(input).toHaveValue("Call @zzz about it");
+      expect(screen.queryByRole("group", { name: "Tags" })).not.toBeInTheDocument();
+    });
+
     it("an unknown tag offers Create first, the strip says it is new, and it is saved once", async () => {
       const { user, input, onSubmit } = setup({ tags });
       await user.type(input, "Buy stamps @Errand");

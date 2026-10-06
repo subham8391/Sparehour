@@ -314,12 +314,12 @@ export function QuickAdd({
     }
   };
 
-  /** Puts `token` in place of `span`, with a space after it when it ends the line, and the caret after that. */
+  /** Puts `token` in place of `span` with a space after it, and the caret after that space: the token is finished. */
   const replaceSpan = (span: Span, token: string) => {
     const rest = value.slice(span.end);
-    const glue = rest === "" ? " " : "";
+    const glue = rest.startsWith(" ") ? "" : " ";
     const next = `${value.slice(0, span.start)}${token}${glue}${rest}`;
-    const at = span.start + token.length + glue.length;
+    const at = span.start + token.length + 1;
     setValue(next);
     setCaret(at);
     const input = inputRef.current;
