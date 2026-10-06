@@ -27,7 +27,6 @@ import { Ribbon, heroState } from "@/features/today/ribbon";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
-import { Timeline } from "@/features/today/timeline";
 import { useHideQuickAddFab } from "@/features/shell/fab-visibility";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { ViewHeader } from "@/features/shell/view-header";
@@ -57,6 +56,10 @@ const loadTrimToday = () => import("@/features/today/trim-today");
 const TodayMenu = dynamic(loadTodayMenu, { ssr: false });
 const TrimToday = dynamic(loadTrimToday, { ssr: false });
 const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday()]);
+// "Your day" with its timeline (SCREENS.md §2.6): drawn as soon as the day is known, so it is fetched as the page
+// mounts, alongside the local database opening, rather than on idle.
+const loadDayPane = () => import("@/features/today/day-pane");
+const DayPane = dynamic(() => loadDayPane().then((m) => m.DayPane), { ssr: false });
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -121,6 +124,7 @@ export default function TodayPage() {
   const tomorrow: LocalDate = model.today.add({ days: 1 });
   const db = useLocalDatabase();
   useEffect(() => preloadOnIdle(preloadTodayIslands), []);
+  useEffect(() => void loadDayPane().catch(() => undefined), []);
   // Convert task → project ("Break it down", the row's menu): the project opens with the cursor in its add row.
   const breakDown = useConvertToProject(model.repo, detail.close);
 
@@ -729,61 +733,48 @@ export default function TodayPage() {
             planning.mode && "max-sm:pb-[min(62dvh,36rem)]",
           )}
         >
-          <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
-            <h2 className="font-display text-pane font-medium text-ink">Your day</h2>
-            <p className="mt-1 mb-4.5 text-body-sm text-ink-3 num">
-              {formatTime(timeFromMinutes(dayStart))} – {formatTime(timeFromMinutes(dayEnd))} · buffer {model.settings?.bufferPct}%
-            </p>
-            {placingTask && (
-              <div role="status" className="mb-3 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-ink px-3 py-1.5 text-body-sm text-ink-inverse sm:min-h-9">
-                <span className="min-w-0 truncate">Tap a time for “{placingTask.title}”</span>
-                <button type="button" onClick={() => setPlacingId(null)} className="flex h-11 shrink-0 items-center rounded-sm px-2 font-medium underline decoration-ink-inverse/50 hover:decoration-ink-inverse sm:h-7">
-                  Cancel
-                </button>
-              </div>
-            )}
-            <Timeline
+          <DayPane
+            start={dayStart}
+            end={dayEnd}
+            bufferPct={model.settings?.bufferPct}
+            placing={placingTask ? { title: placingTask.title, onCancel: () => setPlacingId(null) } : null}
+            hint={model.blocks.length === 0 && !placingTask && !planning.mode}
+            timeline={{
               // While previewing, the gaps are what the proposal leaves; the "done by" marker belongs to the day as it is, so it steps aside.
-              c={drawing ? { ...model.capacity, free: [...drawing.free], projectedFinish: null } : model.capacity}
-              now={now}
-              zone={zone}
-              blocks={drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks}
-              proposed={drawing?.ghosts}
-              meetings={model.meetings}
-              defaultEstimateMin={defaultEstimate}
-              selectedBlockId={selectedBlockId}
-              onSelectBlock={setSelectedBlockId}
-              onDropTask={(taskId, startMin) => {
+              c: drawing ? { ...model.capacity, free: [...drawing.free], projectedFinish: null } : model.capacity,
+              now,
+              zone,
+              blocks: drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks,
+              proposed: drawing?.ghosts,
+              meetings: model.meetings,
+              defaultEstimateMin: defaultEstimate,
+              selectedBlockId,
+              onSelectBlock: setSelectedBlockId,
+              onDropTask: (taskId, startMin) => {
                 const task = findTask(taskId);
                 if (task) void placeTask(task, startMin);
-              }}
-              onMoveBlock={(id, startMin) => {
+              },
+              onMoveBlock: (id, startMin) => {
                 const b = model.blocks.find((x) => x.id === id);
                 if (!b) return;
                 const at = placeAt(startMin, b.end - b.start);
                 void blocks.move(id, atMinute(at.start), atMinute(at.end));
-              }}
-              onResizeBlock={(id, endMin) => {
+              },
+              onResizeBlock: (id, endMin) => {
                 const b = model.blocks.find((x) => x.id === id);
                 if (b && endMin !== b.end) void blocks.move(id, atMinute(b.start), atMinute(endMin));
-              }}
-              onRemoveBlock={removeBlock}
-              onToggleLock={(id, locked) => void blocks.setLocked(id, locked)}
-              onOpenTask={(taskId) => detail.open(taskId)}
-              placing={placingTask ? { title: placingTask.title } : null}
-              onTapSlot={(min) => {
+              },
+              onRemoveBlock: removeBlock,
+              onToggleLock: (id, locked) => void blocks.setLocked(id, locked),
+              onOpenTask: (taskId) => detail.open(taskId),
+              placing: placingTask ? { title: placingTask.title } : null,
+              onTapSlot: (min) => {
                 if (!placingTask) return;
                 void placeTask(placingTask, min);
                 setPlacingId(null);
-              }}
-            />
-            {model.blocks.length === 0 && !placingTask && !planning.mode && (
-              <p className="mt-4 text-body-sm text-pretty text-ink-3">
-                <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B.</span>
-                <span className="sm:hidden">Tap “Block” on a task, then a time here.</span>
-              </p>
-            )}
-          </div>
+              },
+            }}
+          />
         </aside>
       )}
       {trimOpen && (
