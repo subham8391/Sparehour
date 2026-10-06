@@ -117,15 +117,33 @@ export function rollover(input: RolloverInput): RolloverResult {
   return { tasks, outcomes, stats };
 }
 
-/** Archives — never deletes — everything still carrying, as one undoable batch. */
-export function clearTheSlate(tasks: readonly Task[], today: LocalDate): { tasks: Task[]; archivedIds: string[] } {
+/**
+ * Clear the slate's two scopes (PRODUCT_SPEC.md §8.5 rule 2, ruled 2026-10-06): "Today only" is every open task
+ * dated today or earlier, Carried over included; "Today + backlog" adds the active tasks with no date at all and
+ * nothing ahead of them (no future start or deadline). The Inbox stays as it is, and so do repeating tasks (archiving
+ * one would stop its series) and routine runs (they are skipped, never carried).
+ */
+export type SlateScope = "today" | "backlog";
+
+export function inSlate(t: Task, today: LocalDate, scope: SlateScope): boolean {
+  if (t.state !== "active" || t.routineRunId !== null || t.recurrenceRule) return false;
+  if (t.doDate) return compareDates(t.doDate, today) <= 0;
+  if (scope !== "backlog") return false;
+  const ahead = (d: LocalDate | null) => d !== null && compareDates(d, today) > 0;
+  return !ahead(t.startDate) && !ahead(t.deadline);
+}
+
+/**
+ * Archives — never deletes — every task in the scope, as one batch with one undo. The do-date stays on each task
+ * (PRODUCT_SPEC.md §6 "keeps everything"), so a restore puts it back on its day, or in Carried over once that day
+ * has passed; the carry count starts again from zero.
+ */
+export function clearTheSlate(tasks: readonly Task[], today: LocalDate, scope: SlateScope = "today"): { tasks: Task[]; archivedIds: string[] } {
   const archivedIds: string[] = [];
   const out = tasks.map((t) => {
-    if (isOpen(t) && t.doDate && compareDates(t.doDate, today) < 0 && t.routineRunId === null) {
-      archivedIds.push(t.id);
-      return { ...t, state: "archived" as const, doDate: null, carryCount: 0 };
-    }
-    return t;
+    if (!inSlate(t, today, scope)) return t;
+    archivedIds.push(t.id);
+    return { ...t, state: "archived" as const, carryCount: 0 };
   });
   return { tasks: out, archivedIds };
 }

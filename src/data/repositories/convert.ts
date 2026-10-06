@@ -18,7 +18,7 @@ import { reviveBlocks, type BlockRow } from "./block-repo";
 import { placeholders, quoted, restoreRow, type RowSnapshot, type Tx, type UndoRecorder } from "./undo";
 
 /** The columns the retirement writes on the task, and the undo puts back. */
-const RETIRED = ["state", "archive_batch_id", "archived_from_state"] as const;
+const RETIRED = ["state", "archive_batch_id", "archived_from_state", "archived_at"] as const;
 const OPEN_STATES = new Set(["inbox", "active", "someday"]);
 /** The steps' tasks are made in the app, so their source is the app's own (the server checks it against a closed list). */
 export const CONVERTED_SOURCE = "quickadd";
@@ -89,8 +89,8 @@ export async function convertTaskToProject(
     }
 
     // Retire the task: archived in a batch of its own, everything else left on it.
-    await tx.execute(`update tasks set state = 'archived', archive_batch_id = ?, archived_from_state = ?, updated_at = ? where id = ?`, [crypto.randomUUID(), text(before.state), now, taskId]);
-    const released = await releaseFutureBlocks(tx, taskId, now);
+    await tx.execute(`update tasks set state = 'archived', archive_batch_id = ?, archived_from_state = ?, archived_at = ?, updated_at = ? where id = ?`, [crypto.randomUUID(), text(before.state), now, now, taskId]);
+    const released = await releaseFutureBlocks(tx, [taskId], now);
     return { before, projectId, taskIds, released };
   });
   if (!result) return null;
@@ -120,8 +120,9 @@ export async function convertTaskToProject(
  * A retired task lets go of the time it held, as Someday and Drop do (TaskRepo.releaseBlocks): its unlocked blocks
  * that have not started are soft-deleted, and returned so the undo can bring them back.
  */
-async function releaseFutureBlocks(tx: Pick<Tx, "execute" | "getAll">, taskId: string, at: string): Promise<BlockRow[]> {
-  const rows = await tx.getAll<BlockRow>(`select * from time_blocks where task_id = ? and deleted_at is null and locked = 0`, [taskId]);
+export async function releaseFutureBlocks(tx: Pick<Tx, "execute" | "getAll">, taskIds: readonly string[], at: string): Promise<BlockRow[]> {
+  if (taskIds.length === 0) return [];
+  const rows = await tx.getAll<BlockRow>(`select * from time_blocks where task_id in (${placeholders(taskIds)}) and deleted_at is null and locked = 0`, [...taskIds]);
   const now = Temporal.Now.instant();
   const release = (Array.isArray(rows) ? rows : []).filter((b) => {
     if (typeof b.start_at !== "string") return false;

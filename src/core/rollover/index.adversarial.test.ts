@@ -186,13 +186,13 @@ describe("clearTheSlate", () => {
   it("does nothing on an empty list and is idempotent", () => {
     expect(clearTheSlate([], TODAY)).toEqual({ tasks: [], archivedIds: [] });
     const once = clearTheSlate([t("a", { doDate: d("2026-09-10"), carryCount: 4 })], TODAY);
-    expect(once.tasks[0]).toMatchObject({ state: "archived", doDate: null, carryCount: 0 });
+    expect(once.tasks[0]).toMatchObject({ state: "archived", doDate: d("2026-09-10"), carryCount: 0 });
     expect(clearTheSlate(once.tasks, TODAY).archivedIds).toEqual([]);
   });
 
-  it("documents: it archives only do_date < today (PRODUCT_SPEC §8.5 says ≤ today for the 'Today only' scope)", () => {
+  it("Today only takes do_date ≤ today (PRODUCT_SPEC §8.5 rule 2), Carried over included", () => {
     const r = clearTheSlate([t("today", { doDate: TODAY }), t("yesterday", { doDate: d("2026-09-14") })], TODAY);
-    expect(r.archivedIds).toEqual(["yesterday"]);
+    expect(r.archivedIds).toEqual(["today", "yesterday"]);
   });
 
   it("leaves routine, someday, done and not-yet-started tasks alone", () => {
