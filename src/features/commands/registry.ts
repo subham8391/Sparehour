@@ -227,8 +227,9 @@ export const COMMANDS: readonly Command[] = [
   { id: "day.plan", title: "Start morning plan", group: "Go to", shortcut: "mod+shift+m", keywords: "plan the day ritual pick", run: (ctx) => ctx.go("/plan") },
   { id: "day.shutdown", title: "Start evening shutdown", group: "Go to", shortcut: "mod+shift+e", keywords: "close the day ritual", run: (ctx) => ctx.go("/shutdown") },
   { id: "day.plan-my-day", title: "Plan my day", group: "Go to", shortcut: "mod+shift+p", keywords: "schedule suggest timeline blocks", run: (ctx) => ctx.planDay("plan") },
-  // Trim today (PRODUCT_SPEC.md §9.4): Today opens its panel, at once or as soon as Today is open.
-  { id: "day.trim", title: "Trim today", group: "Go to", keywords: "over too much fits move tomorrow someday", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
+  // Trim today (PRODUCT_SPEC.md §9.4): Today opens its panel, at once or as soon as Today is open. The ellipsis says a
+  // panel opens (and keeps "today" finding Go to Today first).
+  { id: "day.trim", title: "Trim today…", group: "Go to", keywords: "over too much fits move tomorrow someday", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
   { id: "day.replan", title: "Re-plan the rest of today", group: "Go to", keywords: "plan my day schedule blocks afternoon", run: (ctx) => ctx.planDay("replan") },
 
   // ---- list plumbing

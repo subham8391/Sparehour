@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { MenuOnly, MoveActions, RowAction, RowActionsLayoutProvider } from "./task-actions";
+import { CarryAsk, MenuOnly, MoveActions, RowAction, RowActionsLayoutProvider } from "./task-actions";
 
 describe("<RowAction> in the phone's menu", () => {
   it("shows the whole word its name is, never an abbreviation of it (WCAG 2.5.3)", () => {
@@ -60,5 +60,25 @@ describe("<MenuOnly>", () => {
       </RowActionsLayoutProvider>,
     );
     expect(screen.queryByRole("button", { name: "Move to Budget" })).not.toBeInTheDocument();
+  });
+});
+
+describe("<CarryAsk> (SCREENS.md §2.3)", () => {
+  it("offers exactly Keep today · Someday · Break it down · Drop, in that order, each its own answer", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const h = { onKeep: vi.fn(), onSomeday: vi.fn(), onBreakDown: vi.fn(), onDrop: vi.fn() };
+    render(<CarryAsk count={3} {...h} />);
+    const group = screen.getByRole("group", { name: "Still want this?" });
+    expect(group).toHaveTextContent("Carried over 3 times — still want this?");
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Keep today", "Someday", "Break it down", "Drop"]);
+    for (const [name, fn] of [
+      ["Keep today", h.onKeep],
+      ["Someday", h.onSomeday],
+      ["Break it down", h.onBreakDown],
+      ["Drop", h.onDrop],
+    ] as const) {
+      await userEvent.click(screen.getByRole("button", { name }));
+      expect(fn).toHaveBeenCalledTimes(1);
+    }
   });
 });
