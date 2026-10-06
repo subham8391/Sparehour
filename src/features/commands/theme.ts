@@ -21,52 +21,6 @@ export const MOTION_KEY = "sparehour.motion";
  */
 export const THEME_BOOTSTRAP = `(function(){try{var d=document.documentElement;if(localStorage.getItem("${MOTION_KEY}")==="reduce")d.dataset.motion="reduce";var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")return;d.dataset.theme=t;var c=t==="dark"?"${PAPER.dark}":"${PAPER.light}";document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.dataset.media=m.media;m.removeAttribute("media");m.content=c;});});}catch(e){}})();`;
 
-export type MotionChoice = "system" | "reduce";
-const MOTION_EVENT = "sparehour:motion";
-
-/** This device's motion choice: what the bootstrap stamped from storage. */
-export function readMotion(): MotionChoice {
-  if (typeof document === "undefined") return "system";
-  return document.documentElement.dataset.motion === "reduce" ? "reduce" : "system";
-}
-
-/** Stamps the choice on `<html>` at once (globals.css and the motion variants read it) and keeps it for the next load. */
-export function applyMotion(choice: MotionChoice): void {
-  const root = document.documentElement;
-  if (choice === "reduce") root.dataset.motion = "reduce";
-  else delete root.dataset.motion;
-  try {
-    if (choice === "reduce") localStorage.setItem(MOTION_KEY, "reduce");
-    else localStorage.removeItem(MOTION_KEY);
-  } catch {
-    // storage can be unavailable (private mode); the attribute still applies for this load
-  }
-  window.dispatchEvent(new Event(MOTION_EVENT));
-}
-
-/** For `useSyncExternalStore`: a change made here or in another tab. */
-export function subscribeMotion(onChange: () => void): () => void {
-  const fromStorage = (e: StorageEvent) => {
-    if (e.key !== MOTION_KEY) return;
-    if (e.newValue === "reduce") document.documentElement.dataset.motion = "reduce";
-    else delete document.documentElement.dataset.motion;
-    onChange();
-  };
-  window.addEventListener(MOTION_EVENT, onChange);
-  window.addEventListener("storage", fromStorage);
-  return () => {
-    window.removeEventListener(MOTION_EVENT, onChange);
-    window.removeEventListener("storage", fromStorage);
-  };
-}
-
-/** Whether movement should be cut: this device chose Reduce, or the system asks for less. */
-export function prefersLessMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  if (document.documentElement.dataset.motion === "reduce") return true;
-  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 export function readTheme(): Theme {
   try {
     const v = localStorage.getItem(THEME_KEY);

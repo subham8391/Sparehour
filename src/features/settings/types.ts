@@ -5,9 +5,9 @@ import type { ExportFormat } from "@/core/export";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo, SettingsPatch } from "@/data/repositories/settings-repo";
 import type { CalendarPanel } from "@/features/calendar/calendar-section";
-import type { MotionChoice } from "@/features/commands/theme";
 import type { PermissionCopy } from "@/features/notifications/push";
 import type { InstallState, PersistenceState } from "@/features/pwa/install";
+import type { MotionChoice } from "./motion";
 import type { Segment } from "./settings-rules";
 
 export interface SettingsValues {

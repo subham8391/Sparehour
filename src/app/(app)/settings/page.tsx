@@ -10,12 +10,13 @@ import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
-import { applyMotion, applyTheme, readMotion, subscribeMotion, type MotionChoice } from "@/features/commands/theme";
+import { applyTheme } from "@/features/commands/theme";
 import { BUILD_ID } from "@/data/build-id";
 import { useCalendar } from "@/features/calendar/use-calendar";
 import { useExport } from "@/features/export/use-export";
 import { usePush } from "@/features/notifications/use-push";
 import { usePwa } from "@/features/pwa/pwa-provider";
+import { applyMotion, readMotion, subscribeMotion, type MotionChoice } from "@/features/settings/motion";
 import { SECTION_VIEWS, loadAllSections } from "@/features/settings/section-islands";
 import { SECTIONS, sectionSummary } from "@/features/settings/sections";
 import { SettingsLayout, useSettingsSection } from "@/features/settings/settings-layout";
