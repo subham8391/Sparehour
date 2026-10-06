@@ -56,6 +56,8 @@ export interface TaskDetailPanelProps {
   onDrop: () => void;
   /** Places the task on today's timeline; absent where no day is in view. */
   onBlock?: () => void;
+  /** Convert task → project (PRODUCT_SPEC.md §6): the footer's ⋯ and the checklist's ⋯ offer it. */
+  onConvert?: () => void;
   onClose: () => void;
   onChecklistAdd?: (title: string) => void;
   onChecklistToggle?: (id: string, done: boolean) => void;
@@ -275,6 +277,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
     </>
   );
   const hasQuiet = (task.state !== "someday" && !done) || task.state !== "dropped";
+  // An open or parked task can become a project; a finished, dropped or archived one cannot.
+  const onConvert = p.onConvert && !done && task.state !== "dropped" && task.state !== "archived" ? p.onConvert : undefined;
 
   return (
     // flex-1, not h-full: on the phone the sheet's grabber sits above, and a full height pushed the footer off the screen.
@@ -457,7 +461,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           </FieldRow>
         </div>
 
-        <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} />
+        <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} onConvert={onConvert} />
 
         <Tags tags={p.tags ?? []} allTags={p.allTags ?? []} onAdd={p.onTagAdd} onRemove={p.onTagRemove} />
 
@@ -497,19 +501,25 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
         <span className="flex-1 max-sm:hidden" />
         {quietActions}
-        {hasQuiet && (
-          <div className="sm:hidden">
+        {(hasQuiet || onConvert) && (
+          // Someday and Drop fold in here on a phone; Convert to project lives here on every band (SCREENS.md §10 footer ⋯).
+          <div className={onConvert ? undefined : "sm:hidden"}>
             <MenuButton label="More actions" direction="up">
               {(close) => (
                 <>
                   {task.state !== "someday" && !done && (
-                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onSomeday())}>
+                    <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onSomeday())}>
                       Someday
                     </button>
                   )}
                   {task.state !== "dropped" && (
-                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onDrop())}>
+                    <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onDrop())}>
                       Drop
+                    </button>
+                  )}
+                  {onConvert && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), onConvert())}>
+                      Convert to project
                     </button>
                   )}
                 </>
@@ -528,12 +538,15 @@ function Checklist({
   onToggle,
   onRename,
   onRemove,
+  onConvert,
 }: {
   items: readonly ChecklistItem[];
   onAdd?: (title: string) => void;
   onToggle?: (id: string, done: boolean) => void;
   onRename?: (id: string, title: string) => void;
   onRemove?: (id: string) => void;
+  /** The checklist's ⋯: its steps become the tasks of a new project. */
+  onConvert?: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const done = items.filter((i) => i.done).length;
@@ -545,7 +558,25 @@ function Checklist({
   };
   return (
     <section className="mt-5 flex flex-col gap-1">
-      <SectionLabel detail={items.length > 0 ? `${done} / ${items.length}` : undefined}>Checklist</SectionLabel>
+      <SectionLabel
+        detail={items.length > 0 ? `${done} / ${items.length}` : undefined}
+        action={
+          onConvert &&
+          items.length > 0 && (
+            <div className="-my-2">
+              <MenuButton label="Checklist options">
+                {(close) => (
+                  <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), onConvert())}>
+                    Convert to project
+                  </button>
+                )}
+              </MenuButton>
+            </div>
+          )
+        }
+      >
+        Checklist
+      </SectionLabel>
       <ul>
         {items.map((item) => (
           <ChecklistRow key={item.id} item={item} onToggle={onToggle} onRename={onRename} onRemove={onRemove} />
