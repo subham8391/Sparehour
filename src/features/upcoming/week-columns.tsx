@@ -16,6 +16,7 @@ import { DropZone } from "@/features/tasks/drop-zone";
 import { Button, iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
+import { scrollMotion } from "@/ui/reduced-motion";
 import { EYEBROW } from "@/ui/section-label";
 import type { AgendaDay } from "./later";
 import { DayBar, ReadoutText } from "./capacity-bar";
@@ -204,7 +205,7 @@ function NarrowScroller({ children }: { children: ReactNode }) {
     const el = ref.current;
     const first = el?.querySelector<HTMLElement>("[data-column]");
     if (!el || !first) return;
-    el.scrollBy({ left: delta * (first.offsetWidth + 6), behavior: "smooth" });
+    el.scrollBy({ left: delta * (first.offsetWidth + 6), behavior: scrollMotion() });
   };
   return (
     <div className="flex flex-col gap-1">
