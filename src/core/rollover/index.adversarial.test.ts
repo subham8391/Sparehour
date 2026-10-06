@@ -18,11 +18,26 @@ const t = (id: string, over: Partial<Task> = {}): Task => taskFixture(id, id, { 
 const run = (tasks: Task[], now: Instant = NOW, settings = SETTINGS) => rollover({ tasks, settings, now });
 
 describe("miss policies", () => {
-  it("PRODUCT_SPEC §8.2 rule 4 / SQL job step 3: a non-recurring task with miss_policy=skip is not carried and its carry_count does not move", () => {
-    const r = run([t("s", { doDate: d("2026-09-14"), missPolicy: "skip" })]);
-    expect(r.outcomes.get("s")).not.toBe("carried");
-    expect(r.tasks[0].carryCount).toBe(0);
-    expect(r.tasks[0].lastCarriedAt).toBeNull();
+  it("PRODUCT_SPEC §8.2 rule 4 / SQL job step 2b: a non-recurring task with miss_policy=skip loses its missed date and keeps its carry_count", () => {
+    const r = run([t("s", { doDate: d("2026-09-14"), missPolicy: "skip", carryCount: 2 })]);
+    expect(r.outcomes.get("s")).toBe("unscheduled");
+    expect(r.tasks[0]).toMatchObject({ state: "active", doDate: null, doTime: null, carryCount: 2, lastCarriedAt: null });
+  });
+
+  it("a skipped repeat takes its deadline along at the same offset; a carried one keeps it", () => {
+    const skip = t("s", { doDate: d("2026-09-11"), deadline: d("2026-09-13"), missPolicy: "skip", recurrenceRule: "FREQ=WEEKLY", recurrenceMode: "fixed" });
+    const carry = t("c", { doDate: d("2026-09-11"), deadline: d("2026-09-13"), missPolicy: "carry", recurrenceRule: "FREQ=WEEKLY", recurrenceMode: "fixed" });
+    const r = run([skip, carry]);
+    expect(r.tasks[0]).toMatchObject({ doDate: d("2026-09-18"), deadline: d("2026-09-20") });
+    expect(r.tasks[1]).toMatchObject({ doDate: d("2026-09-11"), deadline: d("2026-09-13"), carryCount: 1 });
+  });
+
+  it("a paused repeat is not rolled whatever its policy: it waits on the pause date, uncounted and not expired", () => {
+    const over = { doDate: d("2026-09-12"), recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed" as const, recurrencePausedUntil: d("2026-09-20") };
+    const r = run([t("c", { ...over, missPolicy: "carry" }), t("e", { ...over, missPolicy: "expire" }), t("s", { ...over, missPolicy: "skip" })]);
+    for (const x of r.tasks) expect(x).toMatchObject({ state: "active", doDate: d("2026-09-20"), carryCount: 0 });
+    // a pause that ended yesterday holds nothing back
+    expect(run([t("o", { ...over, recurrencePausedUntil: d("2026-09-14") })]).outcomes.get("o")).toBe("carried");
   });
 
   it("a skip-policy recurring task whose series has ended is dropped and reported as skipped", () => {
@@ -97,25 +112,37 @@ describe("carry counts", () => {
 describe("auto-Someday", () => {
   it("files at exactly N days idle, measured in rolled-over local days", () => {
     // touched 04:30 BST on 16 Aug = local day 16 Aug → 30 days before 15 Sept
-    expect(run([t("a", { doDate: d("2026-09-20"), lastTouchedAt: instant("2026-08-16T03:30:00Z") })]).outcomes.get("a")).toBe("someday");
+    expect(run([t("a", { lastTouchedAt: instant("2026-08-16T03:30:00Z") })]).outcomes.get("a")).toBe("someday");
     // touched 03:30 BST on 17 Aug = still local day 16 Aug (before 04:00) → 30 days
-    expect(run([t("b", { doDate: d("2026-09-20"), lastTouchedAt: instant("2026-08-17T02:30:00Z") })]).outcomes.get("b")).toBe("someday");
+    expect(run([t("b", { lastTouchedAt: instant("2026-08-17T02:30:00Z") })]).outcomes.get("b")).toBe("someday");
     // touched 04:30 BST on 17 Aug = local day 17 Aug → 29 days
-    expect(run([t("c", { doDate: d("2026-09-20"), lastTouchedAt: instant("2026-08-17T03:30:00Z") })]).outcomes.get("c")).toBe("untouched");
+    expect(run([t("c", { lastTouchedAt: instant("2026-08-17T03:30:00Z") })]).outcomes.get("c")).toBe("untouched");
   });
 
-  it("documents: an idle task planned for a future day loses its date, and an idle recurring task loses its date too (PRODUCT_SPEC §8.4 exemptions are open decision A8)", () => {
-    const future = t("f", { doDate: d("2026-12-01"), lastTouchedAt: NOW.subtract({ hours: 24 * 40 }) });
-    const recurring = t("r", { doDate: d("2026-09-16"), recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed", missPolicy: "skip", lastTouchedAt: NOW.subtract({ hours: 24 * 40 }) });
-    const withDeadline = t("d", { deadline: d("2026-12-01"), lastTouchedAt: NOW.subtract({ hours: 24 * 40 }) });
-    const r = run([future, recurring, withDeadline]);
-    expect(r.tasks.map((x) => [x.state, x.doDate])).toEqual([["someday", null], ["someday", null], ["someday", null]]);
-    expect(r.tasks[1].recurrenceRule).toBe("FREQ=DAILY");
+  it("spares the exempt (PRODUCT_SPEC §8.4 rule 3, A8 as ruled): a plan ahead, a repeat (paused or not), a deadline still to come, priority 1, a block in the next 7 days, and the Inbox", () => {
+    const idle = { lastTouchedAt: NOW.subtract({ hours: 24 * 40 }) };
+    const spared = [
+      t("ahead", { ...idle, doDate: d("2026-12-01") }),
+      t("today", { ...idle, doDate: TODAY }),
+      t("repeat", { ...idle, doDate: d("2026-09-16"), recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed", missPolicy: "skip" }),
+      t("paused", { ...idle, recurrenceRule: "FREQ=DAILY", recurrenceMode: "fixed", recurrencePausedUntil: d("2026-12-01") }),
+      t("due", { ...idle, deadline: d("2026-12-01") }),
+      t("dueToday", { ...idle, deadline: TODAY }),
+      t("top", { ...idle, priority: 3 }),
+      t("blocked", { ...idle }),
+      t("inbox", { ...idle, state: "inbox" }),
+    ];
+    const filed = [t("wasDue", { ...idle, deadline: d("2026-09-01") }), t("missed", { ...idle, doDate: d("2026-08-01") }), t("low", { ...idle, priority: 1 })];
+    const r = rollover({ tasks: [...spared, ...filed], settings: SETTINGS, now: NOW, blockedTaskIds: new Set(["blocked"]) });
+    for (const x of spared) expect(r.outcomes.get(x.id)).not.toBe("someday");
+    for (const x of filed) expect(r.outcomes.get(x.id)).toBe("someday");
+    expect(r.tasks.find((x) => x.id === "inbox")?.state).toBe("inbox");
   });
 
-  it("documents: autoSomedayDays = 0 files every open task on the first run, including today's", () => {
-    const r = run([t("a", { doDate: TODAY }), t("b", { state: "inbox" })], NOW, { ...SETTINGS, autoSomedayDays: 0 });
-    expect(r.stats.someday).toBe(2);
+  it("documents: autoSomedayDays = 0 files every active task with no plan ahead on the first run, but not today's or the Inbox's", () => {
+    const r = run([t("a", { doDate: TODAY }), t("b", { state: "inbox" }), t("c")], NOW, { ...SETTINGS, autoSomedayDays: 0 });
+    expect(r.stats.someday).toBe(1);
+    expect(r.outcomes.get("c")).toBe("someday");
   });
 
   it("a task touched in the future (clock skew) is not filed", () => {
@@ -125,7 +152,7 @@ describe("auto-Someday", () => {
   it("a carried task that is also idle ends up someday, counted once, with carry_count reset", () => {
     const r = run([t("a", { doDate: d("2026-09-01"), carryCount: 9, lastTouchedAt: NOW.subtract({ hours: 24 * 31 }) })]);
     expect(r.outcomes.get("a")).toBe("someday");
-    expect(r.stats).toEqual({ carried: 0, skipped: 0, expired: 0, someday: 1, routine_dropped: 0, untouched: 0 });
+    expect(r.stats).toEqual({ carried: 0, skipped: 0, unscheduled: 0, expired: 0, someday: 1, routine_dropped: 0, untouched: 0 });
     expect(r.tasks[0].carryCount).toBe(0);
     expect(r.tasks[0].lastCarriedAt?.toString()).toBe("2026-09-15"); // the carry stamp survives the filing
   });
@@ -232,7 +259,7 @@ describe("properties", () => {
           const after = r.tasks[i];
           const outcome = r.outcomes.get(before.id);
           expect(after.id).toBe(before.id);
-          expect(after.deadline).toEqual(before.deadline);
+          if (outcome !== "skipped") expect(after.deadline).toEqual(before.deadline);
           expect(after.title).toBe(before.title);
           switch (outcome) {
             case "untouched":
@@ -247,12 +274,17 @@ describe("properties", () => {
               if (after.state === "dropped") expect(after.doDate).toEqual(before.doDate);
               else expect(after.doDate!.toString() > TODAY.subtract({ days: 1 }).toString()).toBe(true);
               break;
+            case "unscheduled":
+              expect(before.recurrenceRule).toBeNull();
+              expect(after).toEqual({ ...before, doDate: null, doTime: null });
+              break;
             case "expired":
             case "routine_dropped":
               expect(after).toEqual({ ...before, state: "dropped" });
               break;
             case "someday":
-              expect(after).toMatchObject({ state: "someday", doDate: null, carryCount: 0 });
+              expect(before.state).toBe("active");
+              expect(after).toMatchObject({ state: "someday", doDate: null, doTime: null, carryCount: 0 });
               break;
             default:
               throw new Error(`unknown outcome ${outcome}`);

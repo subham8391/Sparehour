@@ -29,7 +29,8 @@ export type UploadBody = z.infer<typeof UploadBody>;
  * Rows a client may never delete list it explicitly.
  */
 export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
-  tasks: ["carry_count", "last_carried_at", "last_touched_at", "assignee_id", "created_at", "updated_at"],
+  tasks: ["carry_count", "last_carried_at", "last_touched_at", "assignee_id", "expired_at", "auto_filed_at", "created_at", "updated_at"],
+  task_completions: ["carry_count_before", "last_carried_before", "created_at", "updated_at"],
   time_blocks: ["external_event_id", "external_etag", "push_state", "created_at", "updated_at"],
   calendars: ["sync_token", "last_synced_at", "calendar_account_id", "external_id", "access_role", "deleted_at", "created_at", "updated_at"],
   calendar_events: ["*"],

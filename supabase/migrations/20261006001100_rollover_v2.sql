@@ -93,6 +93,9 @@ begin
   end if;
   if new.state <> 'dropped' then new.expired_at := null; end if;
   if new.state <> 'someday' then new.auto_filed_at := null; end if;
+  -- a time belongs to a day: a write that clears the do-date (Someday, Clear the slate) clears
+  -- the time with it, instead of failing tasks_do_time_requires_do_date
+  if new.do_date is null then new.do_time := null; end if;
   return new;
 end $$;
 

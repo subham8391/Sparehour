@@ -61,6 +61,10 @@ export const user_settings = new Table({
   evening_starts_at: column.text,
   ai_enabled: column.integer,
   carry_review: column.integer,
+  /** The newest expired task Today's digest has announced; only later ones show. */
+  expired_seen_at: column.text,
+  /** The newest auto-filed batch Someday has announced; only later ones show. */
+  auto_filed_seen_at: column.text,
   created_at: column.text,
   updated_at: column.text,
 });
@@ -122,6 +126,10 @@ export const tasks = new Table(
     routine_item_id: column.text,
     routine_date: column.text,
     completed_at: column.text,
+    /** Server-owned: when the rollover job dropped it under the expire policy (the Logbook's "Expired"). */
+    expired_at: column.text,
+    /** Server-owned: when the rollover job filed it to Someday untouched; cleared once a person touches it. */
+    auto_filed_at: column.text,
   },
   {
     indexes: {

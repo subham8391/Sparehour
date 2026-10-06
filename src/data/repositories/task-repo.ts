@@ -3,6 +3,7 @@
 // is what makes per-column last-writer-wins work (§4.3).
 import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
+import { deadlineForOccurrence } from "@/core/recurrence/deadline";
 import { Temporal, localDate, todayFor, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { MissPolicy, Priority, RecurrenceException, RecurrenceMode } from "@/core/types";
@@ -287,8 +288,10 @@ export class TaskRepo {
    * SYSTEM_DESIGN.md §5.2 "Completion": a recurring task is one row that
    * rolls forward. Completing it writes a completion for the scheduled
    * occurrence and moves the row to the next one (or marks it done when the
-   * series ends); the checklist resets. Undo removes the completion and puts
-   * the row back as it was.
+   * series ends); the checklist resets, the deadline moves with the
+   * occurrence and the carry count starts again at 0 (the server does the
+   * same when the completion lands). Undo removes the completion, which puts
+   * the server's count back, and restores the row as it was.
    */
   private async completeRecurring(task: RecurringRow, before: RowSnapshot): Promise<void> {
     // The recurrence engine (rrule) stays out of the app shell: it is loaded the first time a repeat is completed.
@@ -310,7 +313,10 @@ export class TaskRepo {
       pausedUntil: task.recurrence_paused_until ? localDate(task.recurrence_paused_until) : null,
       exceptions,
     });
-    const cols = ["do_date", "state", "completed_at"];
+    // The next occurrence gets its own deadline at the old offset (DECISIONS.md 2026-10-06), and starts clean:
+    // the server resets carry_count when the completion lands (it is server-owned), this is the same on the device.
+    const deadline = next ? deadlineForOccurrence(task.deadline ? localDate(task.deadline) : null, occurrence, next) : null;
+    const cols = ["do_date", "deadline", "state", "completed_at", "carry_count", "last_carried_at"];
     const now = new Date().toISOString();
     const completionId = crypto.randomUUID();
     await this.db.writeTransaction(async (tx) => {
@@ -319,7 +325,12 @@ export class TaskRepo {
         [completionId, task.space_id, task.id, occurrence.toString(), now, task.actual_min ?? null, now, now],
       );
       if (next) {
-        await tx.execute(`update tasks set do_date = ?, state = 'active', completed_at = null, updated_at = ? where id = ?`, [next.toString(), now, task.id]);
+        await tx.execute(`update tasks set do_date = ?, deadline = ?, state = 'active', completed_at = null, carry_count = 0, last_carried_at = null, updated_at = ? where id = ?`, [
+          next.toString(),
+          deadline?.toString() ?? null,
+          now,
+          task.id,
+        ]);
         await tx.execute(`update checklist_items set done = 0, updated_at = ? where task_id = ? and done = 1 and deleted_at is null`, [now, task.id]);
       } else {
         await tx.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, task.id]);
@@ -499,6 +510,7 @@ interface RecurringRow {
   id: string;
   space_id: string;
   do_date: string | null;
+  deadline: string | null;
   recurrence_rule: string | null;
   recurrence_mode: string | null;
   recurrence_series_id: string | null;
@@ -516,6 +528,7 @@ function recurringOf(row: RowSnapshot): RecurringRow | null {
     id: row.id,
     space_id: String(row.space_id ?? ""),
     do_date: text(row.do_date),
+    deadline: text(row.deadline),
     recurrence_rule: String(row.recurrence_rule),
     recurrence_mode: String(row.recurrence_mode),
     recurrence_series_id: text(row.recurrence_series_id),
@@ -556,6 +569,15 @@ function buildSets(patch: TaskPatch): { sets: string[]; args: (string | number |
     set("recurrence_rule", patch.recurrenceRule ?? null);
     set("recurrence_mode", patch.recurrenceRule ? (patch.recurrenceMode ?? "fixed") : null);
     sets.push(patch.recurrenceRule ? `recurrence_series_id = coalesce(recurrence_series_id, id)` : `recurrence_series_id = null`);
+    // A6 (DECISIONS.md 2026-10-06): a first repeat turns the one-off default "carry" into "skip", and Stop
+    // repeating turns "skip" back into "carry"; a policy the person chose otherwise is left as it is.
+    if (!("missPolicy" in patch)) {
+      sets.push(
+        patch.recurrenceRule
+          ? `miss_policy = case when recurrence_rule is null and miss_policy = 'carry' then 'skip' else miss_policy end`
+          : `miss_policy = case when recurrence_rule is not null and miss_policy = 'skip' then 'carry' else miss_policy end`,
+      );
+    }
   } else if ("recurrenceMode" in patch) {
     set("recurrence_mode", patch.recurrenceMode ?? null);
   }
@@ -581,7 +603,7 @@ const PATCH_COLUMNS: Record<keyof TaskPatch, readonly string[]> = {
   priority: ["priority"],
   missPolicy: ["miss_policy"],
   projectId: ["project_id"],
-  recurrenceRule: ["recurrence_rule", "recurrence_mode", "recurrence_series_id"],
+  recurrenceRule: ["recurrence_rule", "recurrence_mode", "recurrence_series_id", "miss_policy"],
   recurrenceMode: ["recurrence_mode"],
 };
 
