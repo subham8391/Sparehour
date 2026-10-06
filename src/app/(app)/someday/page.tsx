@@ -107,24 +107,27 @@ export default function SomedayPage() {
               <SectionLabel className="px-0.5" count={groups.autoFiled.length}>
                 Moved here automatically
               </SectionLabel>
+              {/* On a phone the sentence keeps its line and the two actions wrap below it together. */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
-                <p className="min-w-0 flex-1 text-body-sm text-ink-2">You hadn&rsquo;t touched these in {days} days.</p>
-                <Button variant="link" size="compact" onClick={review}>
-                  Review
-                </Button>
-                <Button
-                  variant="link"
-                  size="compact"
-                  onClick={() =>
-                    void repo.setStateMany(
-                      groups.autoFiled.map((t) => t.id),
-                      "active",
-                      "Brought back {title}",
-                    )
-                  }
-                >
-                  Bring them all back
-                </Button>
+                <p className="min-w-48 flex-1 text-body-sm text-ink-2">You hadn&rsquo;t touched these in {days} days.</p>
+                <div className="flex items-center gap-2">
+                  <Button variant="link" size="compact" onClick={review}>
+                    Review
+                  </Button>
+                  <Button
+                    variant="link"
+                    size="compact"
+                    onClick={() =>
+                      void repo.setStateMany(
+                        groups.autoFiled.map((t) => t.id),
+                        "active",
+                        "Brought back {title}",
+                      )
+                    }
+                  >
+                    Bring them all back
+                  </Button>
+                </div>
               </div>
               <TaskList>{groups.autoFiled.map((r) => row(r, false))}</TaskList>
             </section>
