@@ -20,7 +20,10 @@
 --   rule (paused or not), a time block in the next 7 days, priority 1 (stored as 3), and
 --   a do-date today or later. Each filed task is stamped with a server-owned
 --   `auto_filed_at` (one value per run, so a run is a batch); the stamp clears the
---   moment a person touches or moves the task, and a manual Someday never stamps.
+--   moment a person touches or moves the task, a person may clear it outright ("Keep in
+--   Someday") but never set it, and a manual Someday never stamps.
+-- * A write that clears the do-date clears the do-time with it (a timed task parked in
+--   Someday used to fail tasks_do_time_requires_do_date).
 -- * The job no longer counts as a person touching a task: its own moves leave
 --   `last_touched_at` alone, so a task the person ignores still ages out.
 -- * Two of the person's own columns on user_settings remember which expired batch and
@@ -33,7 +36,7 @@ alter table public.tasks
 comment on column public.tasks.expired_at is
   'Server-owned. When the rollover job dropped the task because its miss policy is expire. Null for a person''s own Drop; cleared when the task leaves dropped.';
 comment on column public.tasks.auto_filed_at is
-  'Server-owned. When the rollover job filed the untouched task to Someday (one value per run: a batch). Cleared when a person touches or moves the task.';
+  'Server-owned. When the rollover job filed the untouched task to Someday (one value per run: a batch). Cleared when a person touches or moves the task, or clears it (Keep in Someday); never set by a person.';
 
 alter table public.task_completions
   add column carry_count_before  integer,
