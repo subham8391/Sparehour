@@ -148,12 +148,12 @@ export function WorkDayRow({ name, segments, onChange }: { name: string; segment
               <span className="text-ink-3">–</span>
               <TimeField id={`${id}-end-${i}`} aria-label={i === 0 ? `${name} end` : `${name} end ${i + 1}`} value={seg.end} onChange={(e) => edit(i, { end: e.target.value })} />
               {draft.length > 1 ? (
-                <button type="button" aria-label={`Remove ${name} ${seg.start}–${seg.end}`} onClick={() => commit(draft.filter((_, j) => j !== i))} className={iconButtonClass({ size: "touch" })}>
+                <button type="button" aria-label={`Remove ${name} ${seg.start}–${seg.end}`} onClick={() => commit(draft.filter((_, j) => j !== i))} className={iconButtonClass()}>
                   <Icon name="close" size={16} />
                 </button>
               ) : (
                 // Keeps the fields in line with the rows that have a remove button.
-                <span aria-hidden="true" className="size-11 shrink-0 max-sm:hidden" />
+                <span aria-hidden="true" className="size-9 shrink-0 max-sm:hidden" />
               )}
             </span>
           ))}

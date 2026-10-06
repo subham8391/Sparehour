@@ -34,6 +34,18 @@ export function useSettingsSection(): SectionKey | null {
   return useSyncExternalStore(subscribe, readSection, () => null);
 }
 
+function subscribeWidth(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const query = window.matchMedia(TWO_COLUMNS);
+  query.addEventListener?.("change", onChange);
+  return () => query.removeEventListener?.("change", onChange);
+}
+
+/** Whether Settings is in two columns now, so the section shown beside the list can be marked as the current one. */
+function useTwoColumns(): boolean {
+  return useSyncExternalStore(subscribeWidth, twoColumns, () => false);
+}
+
 /**
  * Opens a section. On the phone it is a new history entry, so Back returns to the list; in two columns the list
  * stays on screen and the choice replaces the entry instead of piling up.
@@ -76,6 +88,9 @@ export function SettingsLayout({
   const listRef = useRef<HTMLUListElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const shown = active ?? items[0]?.key ?? "account";
+  // On the phone the list alone is on screen until a section is open, so nothing in it is current.
+  const wide = useTwoColumns();
+  const current = active ?? (wide ? shown : null);
   const previous = useRef<SectionKey | null>(active);
 
   // A section pushed in on the phone takes focus at its heading, from the top; Back puts focus on the row it came from.
@@ -134,7 +149,7 @@ export function SettingsLayout({
                 <a
                   href={`#${item.key}`}
                   data-section={item.key}
-                  aria-current={item.key === shown ? "page" : undefined}
+                  aria-current={item.key === current ? "page" : undefined}
                   onClick={(e) => onOpen(e, item.key)}
                   className="flex min-h-14 items-center gap-3 px-4 py-2 text-ink transition-colors dur-fast hover:bg-hover focus-visible:-outline-offset-2 active:bg-press max-md:first:rounded-t-xl max-md:last:rounded-b-xl md:min-h-9 md:rounded-lg md:px-3 md:py-1.5 md:aria-[current=page]:bg-surface md:aria-[current=page]:shadow-nav"
                 >
