@@ -10,16 +10,20 @@ import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, WORK_HOURS_SQL, da
 import { PLANNED_BETWEEN_SQL, dayRangeParams } from "@/data/queries/views";
 import type { CalendarEventRow, TaskRow as TaskRowType, TimeBlockRow, WorkHoursRow } from "@/data/schema.client";
 
-export function useTomorrowSpare(tomorrow: LocalDate, settings: Settings | null): { spareMin: number | null; planned: number } {
-  const { data: tomorrowRows } = useQuery<TaskRowType>(PLANNED_BETWEEN_SQL, dayRangeParams(tomorrow, 1));
-  const { data: workRows } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
+const NOTHING_SQL = `select * from tasks where 0`;
+
+/** `enabled` false reads nothing (Today asks only while the day is over, for the ribbon's suggested move). */
+export function useTomorrowSpare(tomorrow: LocalDate, settings: Settings | null, enabled = true): { spareMin: number | null; planned: number } {
+  const on = <A,>(sql: string, args: A[]): [string, A[]] => (enabled ? [sql, args] : [NOTHING_SQL, []]);
+  const { data: tomorrowRows } = useQuery<TaskRowType>(...on(PLANNED_BETWEEN_SQL, dayRangeParams(tomorrow, 1)));
+  const { data: workRows } = useQuery<WorkHoursRow>(...on(WORK_HOURS_SQL, []));
   const [from, to] = dayWindowParams(tomorrow);
-  const { data: eventRows } = useQuery<CalendarEventRow>(EVENTS_AROUND_SQL, [from, to]);
-  const { data: blockRows } = useQuery<TimeBlockRow>(BLOCKS_AROUND_SQL, [from, to]);
-  const { data: calendarRows } = useQuery<{ id: string; read: number | null }>(CALENDARS_SQL);
+  const { data: eventRows } = useQuery<CalendarEventRow>(...on(EVENTS_AROUND_SQL, [from, to]));
+  const { data: blockRows } = useQuery<TimeBlockRow>(...on(BLOCKS_AROUND_SQL, [from, to]));
+  const { data: calendarRows } = useQuery<{ id: string; read: number | null }>(...on(CALENDARS_SQL, []));
 
   const spareMin = useMemo(() => {
-    if (!settings) return null;
+    if (!settings || !enabled) return null;
     const readByCalendar = new Map((calendarRows ?? []).map((c) => [c.id, c.read !== 0]));
     const cap = capacityFor({
       day: tomorrow,
@@ -30,7 +34,7 @@ export function useTomorrowSpare(tomorrow: LocalDate, settings: Settings | null)
       tasks: (tomorrowRows ?? []).map(toCapacityTask),
     });
     return cap.state === "no_work_day" ? null : cap.spareMin;
-  }, [settings, tomorrow, workRows, eventRows, blockRows, tomorrowRows, calendarRows]);
+  }, [settings, enabled, tomorrow, workRows, eventRows, blockRows, tomorrowRows, calendarRows]);
 
   return { spareMin, planned: (tomorrowRows ?? []).length };
 }

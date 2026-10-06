@@ -31,6 +31,18 @@ export interface RibbonProps {
   connected?: boolean;
   /** How many things are on the day, for the non-working-day line (SCREENS.md §2.2). */
   plannedCount?: number;
+  /** Opens Trim today: the over sentence becomes its button, and a day well over offers it inline (PRODUCT_SPEC.md §9.4). */
+  onTrim?: () => void;
+  /** The one suggested move when over, a task's title: "— move Write report to tomorrow" (ruling R3, `easiestMove`). */
+  suggestion?: string | null;
+}
+
+/** Over by more than this, the ribbon offers Trim today inline (PRODUCT_SPEC.md §9.4 "Well over"). */
+export const WELL_OVER_MIN = 120;
+
+/** The over state's one sentence: the spill (or the overage) and, when there is one, the suggested move. */
+export function overSentence(h: Pick<HeroState, "min" | "spill">, suggestion?: string | null): string {
+  return `${h.spill ?? `${formatMinutes(h.min)} more than fits`}${suggestion ? ` — move ${suggestion} to tomorrow` : ""}`;
 }
 
 /** "3 hours 20 minutes", for the live region: a screen reader reads "3h 20m" letter by letter in places. */
@@ -189,7 +201,7 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   );
 }
 
-export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount }: RibbonProps) {
+export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion }: RibbonProps) {
   if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount)}</p>;
   const h = heroState(c);
 
@@ -224,10 +236,17 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
               <span className="font-semibold text-spare">{h.finish}</span>
             </>
           )}
-          {h.spill && (
+          {h.over && (h.spill || onTrim) && (
             <>
               <span className="text-ink-4"> · </span>
-              <span className="font-semibold text-over">{h.spill}</span>
+              {onTrim ? (
+                // Tapping the copy opens Trim today (PRODUCT_SPEC.md §9.4 "Over"): a question, never an alarm.
+                <button type="button" onClick={onTrim} className="font-semibold text-over underline decoration-over-line underline-offset-2 sm:whitespace-normal">
+                  {overSentence(h, suggestion)}
+                </button>
+              ) : (
+                <span className="font-semibold text-over">{h.spill}</span>
+              )}
             </>
           )}
         </p>
@@ -236,6 +255,14 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
       <RibbonTrack c={c} nowMin={nowMin} className={compact ? "mt-3" : "mt-3.5 sm:mt-5"} />
       {/* Blocks outside the working day are allowed and planned, but not capacity: one quiet line says so (PRODUCT_SPEC.md §10.2). */}
       {c.outsideHoursMin > 0 && <p className="mt-2 text-label text-ink-2 num sm:text-body-sm">{outsideHoursLine(c.outsideHoursMin)}</p>}
+      {onTrim && h.over && h.min > WELL_OVER_MIN && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-ink-2 num">
+          {formatMinutes(h.min)} more than fits — want help trimming?
+          <button type="button" onClick={onTrim} className="-my-1 flex h-11 items-center rounded-sm px-2 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:bg-hover max-sm:-ml-2 sm:h-8">
+            Trim today
+          </button>
+        </p>
+      )}
     </section>
   );
 }
