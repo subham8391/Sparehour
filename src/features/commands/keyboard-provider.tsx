@@ -134,8 +134,8 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
 
   const run = useCallback((command: Command) => {
     const ctx = contextRef.current();
-    if (!availability(command, ctx).enabled) return;
-    void command.run(ctx);
+    if (availability(command, ctx).enabled) void command.run(ctx);
+    else command.unselected?.(ctx);
   }, []);
 
   const pendingRef = useRef<SequenceState>(null);

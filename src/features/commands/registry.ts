@@ -7,6 +7,7 @@ import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-re
 import type { PlanMode } from "@/features/planning/drawing";
 import { snoozePresets } from "@/features/tasks/snooze";
 import type { Binding } from "./keys";
+import { runViewKey } from "./view-keys";
 
 export type CommandGroup = "Create" | "Go to" | "Selected task" | "List" | "View" | "App";
 export const GROUP_ORDER: readonly CommandGroup[] = ["Selected task", "Create", "Go to", "List", "View", "App"];
@@ -55,6 +56,8 @@ export interface Command {
   /** Hidden from the palette (pure keyboard plumbing such as J/K). */
   hidden?: boolean;
   run: (ctx: CommandContext) => void | Promise<void>;
+  /** What the key does when it needs a selection and there is none (`T` goes back to today's page of a dated view). */
+  unselected?: (ctx: CommandContext) => void;
 }
 
 /** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
@@ -89,6 +92,11 @@ const snooze = (presetId: "evening" | "tomorrow" | "in4h" | "weekend" | "nextwee
     if (preset) return applyPatch(ctx, ids, preset.patch, `Moved {title} to ${preset.label.toLowerCase()}`);
   });
 
+/** J/K: the next row in the view's order, or inside its column where the view keeps them there (Upcoming's week). */
+const selectNext = (ctx: CommandContext, delta: 1 | -1) => {
+  if (!runViewKey(delta === 1 ? "down" : "up", ctx.selectedTaskId)) ctx.moveSelection(delta);
+};
+
 const priority = (value: Priority) => onTargets((ctx, ids) => applyPatch(ctx, ids, { priority: value }));
 
 /**
@@ -122,7 +130,15 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.peek", title: "Peek", group: "Selected task", shortcut: "space", requiresSelection: true, hidden: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.complete", title: "Complete", group: "Selected task", shortcut: "mod+enter", requiresSelection: true, run: onTargets((ctx, ids) => (ids.length === 1 ? ctx.tasks.complete(ids[0]) : ctx.tasks.completeMany(ids))) },
   { id: "task.uncomplete", title: "Un-complete", group: "Selected task", shortcut: "u", requiresSelection: true, keywords: "reopen restore done logbook", run: uncomplete },
-  { id: "task.today", title: "Move to Today", group: "Selected task", shortcut: "t", requiresSelection: true, run: onTargets((ctx, ids) => applyPatch(ctx, ids, { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today")) },
+  {
+    id: "task.today",
+    title: "Move to Today",
+    group: "Selected task",
+    shortcut: "t",
+    requiresSelection: true,
+    run: onTargets((ctx, ids) => applyPatch(ctx, ids, { doDate: ctx.today, doTime: null, evening: false }, "Moved {title} to today")),
+    unselected: (ctx) => void runViewKey("home", ctx.selectedTaskId),
+  },
   { id: "task.tomorrow", title: "Tomorrow", group: "Selected task", shortcut: "shift+t", requiresSelection: true, run: snooze("tomorrow") },
   { id: "task.evening", title: "This evening", group: "Selected task", shortcut: "shift+e", requiresSelection: true, run: snooze("evening") },
   { id: "task.weekend", title: "This weekend", group: "Selected task", shortcut: "w", requiresSelection: true, run: snooze("weekend") },
@@ -139,6 +155,9 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.deadline", title: "Set deadline", group: "Selected task", shortcut: "shift+d", requiresSelection: true, keywords: "due", run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.repeat", title: "Repeat", group: "Selected task", shortcut: "r", requiresSelection: true, keywords: "recurring every", run: onSelected((ctx, id) => ctx.openTask(id)) },
+  // Where days sit side by side (Upcoming's week); elsewhere the arrows do nothing.
+  { id: "task.day-earlier", title: "A day earlier", group: "Selected task", shortcut: "arrowleft", requiresSelection: true, hidden: true, run: onSelected((_ctx, id) => void runViewKey("earlier", id)) },
+  { id: "task.day-later", title: "A day later", group: "Selected task", shortcut: "arrowright", requiresSelection: true, hidden: true, run: onSelected((_ctx, id) => void runViewKey("later", id)) },
 
   // ---- create
   { id: "create.task", title: "Add task", group: "Create", shortcut: "q", keywords: "new quick add", run: (ctx) => ctx.quickAdd() },
@@ -161,10 +180,10 @@ export const COMMANDS: readonly Command[] = [
   { id: "day.replan", title: "Re-plan the rest of today", group: "Go to", keywords: "plan my day schedule blocks afternoon", run: (ctx) => ctx.planDay("replan") },
 
   // ---- list plumbing
-  { id: "list.down", title: "Select next", group: "List", shortcut: "j", hidden: true, run: (ctx) => ctx.moveSelection(1) },
-  { id: "list.up", title: "Select previous", group: "List", shortcut: "k", hidden: true, run: (ctx) => ctx.moveSelection(-1) },
-  { id: "list.down-arrow", title: "Select next", group: "List", shortcut: "arrowdown", hidden: true, run: (ctx) => ctx.moveSelection(1) },
-  { id: "list.up-arrow", title: "Select previous", group: "List", shortcut: "arrowup", hidden: true, run: (ctx) => ctx.moveSelection(-1) },
+  { id: "list.down", title: "Select next", group: "List", shortcut: "j", hidden: true, run: (ctx) => selectNext(ctx, 1) },
+  { id: "list.up", title: "Select previous", group: "List", shortcut: "k", hidden: true, run: (ctx) => selectNext(ctx, -1) },
+  { id: "list.down-arrow", title: "Select next", group: "List", shortcut: "arrowdown", hidden: true, run: (ctx) => selectNext(ctx, 1) },
+  { id: "list.up-arrow", title: "Select previous", group: "List", shortcut: "arrowup", hidden: true, run: (ctx) => selectNext(ctx, -1) },
   {
     id: "list.check",
     title: "Tick the row for a bulk edit",
@@ -180,6 +199,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "list.clear-checks", title: "Clear the selection", group: "List", keywords: "deselect none", run: (ctx) => ctx.clearChecks() },
 
   // ---- view
+  { id: "view.prev", title: "Previous week", group: "View", shortcut: "[", hidden: true, run: () => void runViewKey("prev", null) },
+  { id: "view.next", title: "Next week", group: "View", shortcut: "]", hidden: true, run: () => void runViewKey("next", null) },
   { id: "view.theme-light", title: "Light theme", group: "View", keywords: "appearance", run: (ctx) => ctx.setTheme("light") },
   { id: "view.theme-dark", title: "Dark theme", group: "View", keywords: "appearance", run: (ctx) => ctx.setTheme("dark") },
   { id: "view.theme-system", title: "Follow the system theme", group: "View", keywords: "appearance auto", run: (ctx) => ctx.setTheme("system") },
