@@ -187,7 +187,15 @@ describe("<TaskDetailPanel>", () => {
     const { user, onPatch } = setup();
     await user.click(screen.getByRole("button", { name: /^Repeat/ }));
     await user.type(screen.getByRole("textbox", { name: "Repeat" }), "every weekday{Enter}");
-    expect(onPatch).toHaveBeenLastCalledWith({ recurrenceRule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", recurrenceMode: "fixed" });
+    // a first repeat on the one-off default turns carry into skip (A6)
+    expect(onPatch).toHaveBeenLastCalledWith({ recurrenceRule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", recurrenceMode: "fixed", missPolicy: "skip" });
+  });
+
+  it("Stop repeating on a repeat that skips turns it back into carry (A6)", async () => {
+    const { user, onPatch } = setup({ task: { ...task, recurrenceRule: "FREQ=WEEKLY;BYDAY=MO", recurrenceMode: "fixed", missPolicy: "skip" } });
+    await user.click(screen.getByRole("button", { name: /^Repeat/ }));
+    await user.click(screen.getByRole("button", { name: "Never" }));
+    expect(onPatch).toHaveBeenLastCalledWith({ recurrenceRule: null, recurrenceMode: null, missPolicy: "carry" });
   });
 
   it("shows the next occurrences of a repeating task and lets the mode change", async () => {
