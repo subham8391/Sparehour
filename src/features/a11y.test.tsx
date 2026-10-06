@@ -17,7 +17,7 @@ import { MorningPlanFlow } from "@/features/rituals/morning-plan-flow";
 import { ShutdownFlow } from "@/features/rituals/shutdown-flow";
 import { SearchView } from "@/features/search/search-view";
 import { SelectionProvider, useListSelection, useSelection } from "@/features/selection/selection-provider";
-import { SettingsForm } from "@/features/settings/settings-form";
+import { AllSections, SETTINGS_VALUES, WORK_WEEK } from "@/test/settings";
 import { Sidebar } from "@/features/shell/sidebar";
 import { syncChipModel } from "@/features/shell/sync-chip";
 import { TabBar } from "@/features/shell/tab-bar";
@@ -179,9 +179,10 @@ describe("axe: every M1 surface", () => {
 
   it("settings, with every panel", async () => {
     await check(
-      <SettingsForm
-        values={{ timezone: "Europe/London", weekStart: 0, dayRolloverHour: 4, bufferPct: 15, defaultEstimateMin: 30, carryAskAfter: 3, autoSomedayDays: 30, carryReview: true, eveningStartsAt: "18:00", theme: "system", notifyBlockStart: true, notifyDeadline: true, notifyMorning: true, notifyShutdown: false, morningNudgeTime: "08:30", shutdownNudgeTime: "", quietHoursStart: "21:30", quietHoursEnd: "07:30" }}
-        workHours={[{ start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "18:00" }, { start: "09:00", end: "17:00" }, null, null]}
+      <AllSections
+        values={{ ...SETTINGS_VALUES, morningNudgeTime: "08:30" }}
+        workHours={[...WORK_WEEK.slice(0, 4), [{ start: "09:00", end: "12:30" }, { start: "13:30", end: "17:00" }], [], []]}
+        motion={{ value: "system", onChange: noop }}
         detectedTimeZone="Asia/Kolkata"
         account={{ name: "Dev User", email: "dev@sparehour.local" }}
         app={{ install: { kind: "coach-ios", steps: ["Tap Share in Safari", "Choose “Add to Home Screen”"] }, persistence: "unprotected", version: "dev", onInstall: noop }}

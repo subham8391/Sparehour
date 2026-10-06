@@ -1,5 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { bufferPreview, longestDayMinutes, rolloverLabel, segmentError, segmentMinutes, timeZoneHint, timeZoneOptions } from "./settings-rules";
+import {
+  bufferPreview,
+  hoursSummary,
+  longestDayMinutes,
+  mergeSegments,
+  nextSegment,
+  rolloverLabel,
+  segmentError,
+  segmentMinutes,
+  segmentsError,
+  segmentsOverlap,
+  timeZoneHint,
+  timeZoneOptions,
+} from "./settings-rules";
 
 describe("work-hours segments", () => {
   it("measures a valid segment and rejects a backwards or malformed one", () => {
@@ -11,10 +24,56 @@ describe("work-hours segments", () => {
     expect(segmentError({ start: "09:00", end: "17:30" })).toBeNull();
   });
 
-  it("takes the longest day for the preview and assumes nine hours when there is none", () => {
-    expect(longestDayMinutes([{ start: "09:00", end: "18:00" }, null, { start: "10:00", end: "14:00" }])).toBe(540);
-    expect(longestDayMinutes([null, null])).toBe(540);
-    expect(longestDayMinutes([{ start: "08:00", end: "12:00" }])).toBe(240);
+  it("takes the longest day for the preview, its stretches summed, and assumes nine hours when there is none", () => {
+    expect(longestDayMinutes([[{ start: "09:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }]])).toBe(540);
+    expect(longestDayMinutes([[], []])).toBe(540);
+    expect(longestDayMinutes([[{ start: "08:00", end: "12:00" }]])).toBe(240);
+    expect(
+      longestDayMinutes([
+        [
+          { start: "09:00", end: "12:30" },
+          { start: "13:30", end: "18:00" },
+        ],
+      ]),
+    ).toBe(480);
+    // Overlaps count once.
+    expect(
+      longestDayMinutes([
+        [
+          { start: "09:00", end: "13:00" },
+          { start: "12:00", end: "14:00" },
+        ],
+      ]),
+    ).toBe(300);
+  });
+
+  it("checks every stretch, spots overlaps and joins them", () => {
+    expect(segmentsError([{ start: "09:00", end: "12:00" }, { start: "13:00", end: "12:30" }])).toBe("The day has to end after it starts.");
+    expect(segmentsError([{ start: "09:00", end: "12:00" }, { start: "13:00", end: "18:00" }])).toBeNull();
+    expect(segmentsOverlap([{ start: "13:00", end: "18:00" }, { start: "09:00", end: "13:00" }])).toBe(true);
+    expect(segmentsOverlap([{ start: "09:00", end: "12:00" }, { start: "13:00", end: "18:00" }])).toBe(false);
+    expect(mergeSegments([{ start: "13:00", end: "18:00" }, { start: "09:00", end: "13:30" }, { start: "19:00", end: "20:00" }])).toEqual([
+      { start: "09:00", end: "18:00" },
+      { start: "19:00", end: "20:00" },
+    ]);
+    expect(mergeSegments([{ start: "09:00", end: "18:00" }, { start: "10:00", end: "11:00" }])).toEqual([{ start: "09:00", end: "18:00" }]);
+  });
+
+  it("offers the next stretch an hour after the last, before the first when the evening is full, and at most three", () => {
+    expect(nextSegment([])).toEqual({ start: "09:00", end: "18:00" });
+    expect(nextSegment([{ start: "09:00", end: "12:30" }])).toEqual({ start: "13:30", end: "14:30" });
+    expect(nextSegment([{ start: "09:00", end: "22:30" }])).toEqual({ start: "07:00", end: "08:00" });
+    expect(nextSegment([{ start: "00:30", end: "23:00" }])).toBeNull();
+    expect(nextSegment([{ start: "07:00", end: "08:00" }, { start: "09:00", end: "12:00" }, { start: "13:00", end: "17:00" }])).toBeNull();
+  });
+
+  it("summarises the week in one line", () => {
+    const nine = [{ start: "09:00", end: "18:00" }];
+    expect(hoursSummary([nine, nine, nine, nine, nine, [], []])).toBe("Mon–Fri · 09:00–18:00");
+    expect(hoursSummary([nine, [], nine, [], nine, [], []])).toBe("Mon, Wed, Fri · 09:00–18:00");
+    expect(hoursSummary([nine, nine, [{ start: "09:00", end: "12:30" }, { start: "13:30", end: "18:00" }], [], [], [], []])).toBe("Mon–Wed · hours vary");
+    expect(hoursSummary([[{ start: "09:00", end: "12:30" }, { start: "13:30", end: "18:00" }], [], [], [], [], [], []])).toBe("Mon · 09:00–12:30, 13:30–18:00");
+    expect(hoursSummary([[], [], [], [], [], [], []])).toBe("No working days");
   });
 });
 

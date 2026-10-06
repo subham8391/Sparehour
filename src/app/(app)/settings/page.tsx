@@ -1,24 +1,35 @@
 "use client";
 // Settings (SCREENS.md §18): what the app knows about your day, editable in
-// place, and the way out.
-import { useEffect, useMemo, useState } from "react";
+// place, and the way out. A section list with the open section beside it from
+// 900 px, a list that pushes into each section below it. The page owns the
+// data, the writes and their undo; each section's controls are an island.
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import type { MissPolicy } from "@/core/types";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
-import { SettingsRepo, WorkHoursRepo, type SettingsPatch } from "@/data/repositories/settings-repo";
+import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
-import { applyTheme } from "@/features/commands/theme";
+import { applyMotion, applyTheme, readMotion, subscribeMotion, type MotionChoice } from "@/features/commands/theme";
 import { BUILD_ID } from "@/data/build-id";
 import { useCalendar } from "@/features/calendar/use-calendar";
 import { useExport } from "@/features/export/use-export";
 import { usePush } from "@/features/notifications/use-push";
 import { usePwa } from "@/features/pwa/pwa-provider";
-import { SettingsForm, type SettingsValues } from "@/features/settings/settings-form";
+import { SECTION_VIEWS, loadAllSections } from "@/features/settings/section-islands";
+import { SECTIONS, sectionSummary } from "@/features/settings/sections";
+import { SettingsLayout, useSettingsSection } from "@/features/settings/settings-layout";
 import type { Segment } from "@/features/settings/settings-rules";
+import type { SettingsFormProps, SettingsValues } from "@/features/settings/types";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { LOADING_LINE } from "../loading-view";
 
 const USER_SQL = `select id, email, display_name, personal_space_id from users limit 1`;
+
+const MISS_POLICIES: readonly MissPolicy[] = ["carry", "skip", "expire"];
+const OPEN_TO: readonly OpenTo[] = ["today", "inbox", "upcoming"];
+const LEADS = [0, 5, 10, 15];
 
 export default function SettingsPage() {
   const db = useLocalDatabase();
@@ -28,6 +39,8 @@ export default function SettingsPage() {
   const push = usePush();
   const exporter = useExport();
   const calendar = useCalendar();
+  const active = useSettingsSection();
+  const motion = useSyncExternalStore(subscribeMotion, readMotion, () => "system" as MotionChoice);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [unsynced, setUnsynced] = useState<number | null>(null);
@@ -36,6 +49,9 @@ export default function SettingsPage() {
   const { data: users } = useQuery<{ id: string; email: string | null; display_name: string | null; personal_space_id: string | null }>(USER_SQL);
   const s = settings?.[0];
   const user = users?.[0];
+
+  // Every section's controls are fetched once the browser is idle, so opening one never waits (§11.6).
+  useEffect(() => preloadOnIdle(loadAllSections), []);
 
   const base: SettingsValues | null = s
     ? {
@@ -57,6 +73,10 @@ export default function SettingsPage() {
         shutdownNudgeTime: (s.shutdown_nudge_time ?? "").slice(0, 5),
         quietHoursStart: (s.quiet_hours_start ?? "").slice(0, 5),
         quietHoursEnd: (s.quiet_hours_end ?? "").slice(0, 5),
+        blockStartLeadMin: LEADS.includes(s.block_start_lead_min ?? 0) ? (s.block_start_lead_min ?? 0) : 0,
+        badgeEnabled: (s.badge_enabled ?? 1) === 1,
+        defaultMissPolicy: MISS_POLICIES.includes(s.default_miss_policy as MissPolicy) ? (s.default_miss_policy as MissPolicy) : "carry",
+        defaultView: OPEN_TO.includes(s.default_view as OpenTo) ? (s.default_view as OpenTo) : "today",
       }
     : null;
   // Writes are local and land at once, but the query that redraws the controls can trail them by a second while an
@@ -68,11 +88,13 @@ export default function SettingsPage() {
   const values: SettingsValues | null = base ? { ...base, ...asValues(pending) } : null;
   const undo = useUndoSink();
 
+  // Each weekday's segments in start order (0 = Monday); an empty list is a day off.
   const workHours = useMemo(() => {
-    const byDay: (Segment | null)[] = [null, null, null, null, null, null, null];
+    const byDay: Segment[][] = [[], [], [], [], [], [], []];
     for (const h of hours ?? []) {
-      if (h.weekday != null && h.start_time && h.end_time) byDay[h.weekday] = { start: h.start_time.slice(0, 5), end: h.end_time.slice(0, 5) };
+      if (h.weekday != null && h.weekday >= 0 && h.weekday <= 6 && h.start_time && h.end_time) byDay[h.weekday].push({ start: h.start_time.slice(0, 5), end: h.end_time.slice(0, 5) });
     }
+    for (const day of byDay) day.sort((a, b) => a.start.localeCompare(b.start));
     return byDay;
   }, [hours]);
   const detected = useMemo(() => {
@@ -96,13 +118,19 @@ export default function SettingsPage() {
     void write(s.id, patch);
     undo?.record({ label: "Changed a setting", toast: false, undo: () => write(s.id, previous) });
   };
-  const onWorkHours = (weekday: number, segment: Segment | null) => {
+  // A day's segments are written together, so one ⌘Z puts the whole day back.
+  const onWorkHours = (weekday: number, segments: Segment[]) => {
     if (!user?.personal_space_id) return;
     const ctx = { spaceId: user.personal_space_id, userId: user.id };
-    const apply = (seg: Segment | null) => (seg ? hoursRepo.set(weekday, seg.start, seg.end, ctx) : hoursRepo.clear(weekday));
-    const previous = workHours[weekday];
-    void apply(segment);
-    undo?.record({ label: "Changed working hours", toast: false, undo: () => apply(previous) });
+    const previous = workHours[weekday] ?? [];
+    void hoursRepo.replaceDay(weekday, segments, ctx);
+    undo?.record({ label: "Changed working hours", toast: false, undo: () => hoursRepo.replaceDay(weekday, previous, ctx) });
+  };
+  // Reduce motion is this device's choice, like the theme; it answers ⌘Z too.
+  const onMotion = (next: MotionChoice) => {
+    const previous = readMotion();
+    applyMotion(next);
+    undo?.record({ label: "Changed a setting", toast: false, undo: async () => applyMotion(previous) });
   };
 
   /** Changes still waiting to upload. A connection that is up gets a few seconds to send them first. */
@@ -115,13 +143,6 @@ export default function SettingsPage() {
     }
     return count;
   }
-
-  // A link to a section (/settings#calendar from Today) lands on it once the form has rendered; it paints "Opening…" first.
-  const ready = values !== null;
-  useEffect(() => {
-    if (!ready || !window.location.hash) return;
-    document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: "start" });
-  }, [ready]);
 
   async function signOut(anyway = false) {
     setLeaving(true);
@@ -149,39 +170,63 @@ export default function SettingsPage() {
     window.location.replace("/login");
   }
 
+  if (!values) {
+    return (
+      <main className={VIEW_COLUMN}>
+        <ViewHeader eyebrow="Settings" title="Your day" subtitle="Every change saves as you make it." />
+        <p className={LOADING_LINE}>Opening…</p>
+      </main>
+    );
+  }
+
+  const props: SettingsFormProps = {
+    values,
+    workHours,
+    detectedTimeZone: detected,
+    account: { name: user?.display_name ?? null, email: user?.email ?? null },
+    app: { install: pwa.install, persistence: pwa.persistence, version: BUILD_ID, onInstall: () => void pwa.promptInstall() },
+    notifications: {
+      copy: push.copy,
+      subscribed: push.subscribed,
+      busy: push.busy,
+      error: push.error,
+      onEnable: () => void push.enable(),
+      onDisable: () => void push.disable(),
+      onTest: () => void push.sendTest().then((n) => setTestResult(n > 0 ? `Sent to ${n} ${n === 1 ? "device" : "devices"}.` : "Nothing was reached — is this device subscribed?")),
+      testResult,
+    },
+    calendar,
+    data: { onExport: (format) => void exporter.exportData(format), busy: exporter.busy, error: exporter.error, lastFile: exporter.lastFile },
+    motion: { value: motion, onChange: onMotion },
+    onChange,
+    onWorkHours,
+    onSignOut: () => void signOut(),
+    signingOut: leaving,
+    unsynced,
+    onSignOutAnyway: () => void signOut(true),
+    onStaySignedIn: () => setUnsynced(null),
+  };
+  const summary = {
+    values,
+    workHours,
+    email: user?.email ?? null,
+    calendars: calendar.configured === null && calendar.accounts.length === 0 ? null : { accounts: calendar.accounts.length, busy: calendar.calendars.filter((c) => c.read).length },
+    subscribed: push.permission === "unsupported" ? null : push.subscribed,
+    motion,
+    version: BUILD_ID,
+  };
+  const items = SECTIONS.map((sec) => ({ ...sec, summary: sectionSummary(sec.key, summary) }));
+
   return (
     <main className={VIEW_COLUMN}>
-      <ViewHeader eyebrow="Settings" title="Your day" subtitle="Every change saves as you make it." />
-      {values ? (
-        <SettingsForm
-          values={values}
-          workHours={workHours}
-          detectedTimeZone={detected}
-          account={{ name: user?.display_name ?? null, email: user?.email ?? null }}
-          app={{ install: pwa.install, persistence: pwa.persistence, version: BUILD_ID, onInstall: () => void pwa.promptInstall() }}
-          notifications={{
-            copy: push.copy,
-            subscribed: push.subscribed,
-            busy: push.busy,
-            error: push.error,
-            onEnable: () => void push.enable(),
-            onDisable: () => void push.disable(),
-            onTest: () => void push.sendTest().then((n) => setTestResult(n > 0 ? `Sent to ${n} ${n === 1 ? "device" : "devices"}.` : "Nothing was reached — is this device subscribed?")),
-            testResult,
-          }}
-          calendar={calendar}
-          data={{ onExport: (format) => void exporter.exportData(format), busy: exporter.busy, error: exporter.error, lastFile: exporter.lastFile }}
-          onChange={onChange}
-          onWorkHours={onWorkHours}
-          onSignOut={() => void signOut()}
-          signingOut={leaving}
-          unsynced={unsynced}
-          onSignOutAnyway={() => void signOut(true)}
-          onStaySignedIn={() => setUnsynced(null)}
-        />
-      ) : (
-        <p className={LOADING_LINE}>Opening…</p>
-      )}
+      <SettingsLayout
+        items={items}
+        active={active}
+        render={(key) => {
+          const View = SECTION_VIEWS[key];
+          return <View {...props} />;
+        }}
+      />
     </main>
   );
 }
