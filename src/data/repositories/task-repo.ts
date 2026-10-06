@@ -486,22 +486,33 @@ export class TaskRepo {
     });
   }
 
-  async setState(id: string, state: TaskState): Promise<void> {
+  /** `note` names the change for a toast ("Brought back {title}"); without one, bringing a task back is a silent undo entry. */
+  async setState(id: string, state: TaskState, note?: string): Promise<void> {
     const cols = ["state", "do_date"];
     const before = await this.snapshot(id, cols);
     await this.db.execute(`update tasks set ${STATE_SETS} where id = ?`, [state, state, state, new Date().toISOString(), id]);
     // Parked, dropped or archived, the task has no day: the time it held goes back to the day.
     const released = state === "active" ? [] : await this.releaseBlocks([id], null);
-    this.remember(id, before, cols, STATE_LABELS[state], state !== "active", released);
+    this.remember(id, before, cols, note ?? STATE_LABELS[state], Boolean(note) || state !== "active", released);
   }
 
-  async setStateMany(ids: readonly string[], state: TaskState): Promise<void> {
+  async setStateMany(ids: readonly string[], state: TaskState, note?: string): Promise<void> {
     if (ids.length === 0) return;
     const cols = ["state", "do_date"];
     const before = await this.snapshotMany(ids, cols);
     await this.db.execute(`update tasks set ${STATE_SETS} where id in (${placeholders(ids)})`, [state, state, state, new Date().toISOString(), ...ids]);
     const released = state === "active" ? [] : await this.releaseBlocks(ids, null);
-    this.rememberMany(before, cols, STATE_LABELS[state], state !== "active", released);
+    this.rememberMany(before, cols, note ?? STATE_LABELS[state], Boolean(note) || state !== "active", released);
+  }
+
+  /**
+   * "Keep in Someday" in the auto-filed Review (SCREENS.md §7): the person has looked and the task stays
+   * parked, so the rollover's stamp is cleared and it joins its project's group. The stamp is server-owned
+   * and may only be cleared, so there is nothing an undo could put back; nothing else changes.
+   */
+  async keepInSomeday(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db.execute(`update tasks set auto_filed_at = null, updated_at = ? where id in (${placeholders(ids)}) and state = 'someday'`, [new Date().toISOString(), ...ids]);
   }
 }
 

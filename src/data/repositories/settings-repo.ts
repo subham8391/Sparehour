@@ -22,6 +22,10 @@ export interface SettingsPatch {
   shutdownNudgeTime?: string | null;
   quietHoursStart?: string | null;
   quietHoursEnd?: string | null;
+  /** The newest expired task Today's digest has announced (an instant; see features/rollover/unannounced). */
+  expiredSeenAt?: string | null;
+  /** The newest auto-filed batch Someday has announced. */
+  autoFiledSeenAt?: string | null;
 }
 
 const COLUMNS: Record<keyof SettingsPatch, string> = {
@@ -43,6 +47,8 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   shutdownNudgeTime: "shutdown_nudge_time",
   quietHoursStart: "quiet_hours_start",
   quietHoursEnd: "quiet_hours_end",
+  expiredSeenAt: "expired_seen_at",
+  autoFiledSeenAt: "auto_filed_seen_at",
 };
 
 export class SettingsRepo {
