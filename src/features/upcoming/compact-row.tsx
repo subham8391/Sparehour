@@ -22,23 +22,27 @@ const LONG_PRESS_MS = 500;
 export function CompactRow({
   task,
   today,
-  selected,
+  selected = false,
   onSelect,
   onOpen,
   onDone,
   project,
   onDropTask,
+  draggable: canDrag = true,
 }: {
   task: Task;
   today: LocalDate;
-  selected: boolean;
-  onSelect: () => void;
+  /** The keyboard selection (J/K). A row listed twice — a Due row — is not selectable, so it has none. */
+  selected?: boolean;
+  onSelect?: () => void;
   onOpen: () => void;
   onDone?: () => void;
   /** The project's name, shown when the column has room for it. */
   project?: ReactNode;
   /** Another row dropped on this one's top or bottom half. */
   onDropTask?: (sourceId: string, edge: Edge) => void;
+  /** Can be dragged to another day (on by default). */
+  draggable?: boolean;
 }) {
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -57,7 +61,7 @@ export function CompactRow({
     const el = ref.current;
     if (!el) return;
     const edgeAt = (y: number) => edgeFor(y, el.getBoundingClientRect());
-    const offDrag = draggable({ element: el, getInitialData: () => data.current, onDragStart: () => setDragging(true), onDrop: () => setDragging(false) });
+    const offDrag = canDrag ? draggable({ element: el, getInitialData: () => data.current, onDragStart: () => setDragging(true), onDrop: () => setDragging(false) }) : () => {};
     const offDrop = dropTargetForElements({
       element: el,
       canDrop: ({ source }) => Boolean(drop.current) && source.data.type === "task" && source.data.id !== task.id,
@@ -72,10 +76,11 @@ export function CompactRow({
       offDrag();
       offDrop();
     };
-  }, [task.id]);
+  }, [task.id, canDrag]);
 
   // Multi-select as on every row (SCREENS.md §24): Shift-click a range, ⌘/Ctrl-click one, a long press on touch.
   const sel = useSelectionOptional();
+  const selectable = Boolean(onSelect);
   const ticked = sel?.checkedIds.includes(task.id) ?? false;
   const press = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
@@ -86,7 +91,7 @@ export function CompactRow({
   useEffect(() => cancelPress, []);
   const onPointerDown = (e: ReactPointerEvent) => {
     longPressed.current = false;
-    if (!sel || e.pointerType !== "touch") return;
+    if (!sel || !selectable || e.pointerType !== "touch") return;
     cancelPress();
     press.current = setTimeout(() => {
       press.current = null;
@@ -100,17 +105,18 @@ export function CompactRow({
     e.preventDefault();
     e.stopPropagation();
   };
-  const selecting = (e: ReactMouseEvent) => Boolean(sel) && (e.shiftKey || e.metaKey || e.ctrlKey);
+  const selecting = (e: ReactMouseEvent) => Boolean(sel) && selectable && (e.shiftKey || e.metaKey || e.ctrlKey);
   const onClick = (e: ReactMouseEvent) => {
-    if (sel && e.shiftKey) return sel.checkRange(task.id);
-    if (sel && (e.metaKey || e.ctrlKey)) return sel.toggleCheck(task.id);
-    onSelect();
+    if (sel && selectable && e.shiftKey) return sel.checkRange(task.id);
+    if (sel && selectable && (e.metaKey || e.ctrlKey)) return sel.toggleCheck(task.id);
+    onSelect?.();
   };
 
   const done = completing || task.state === "done";
   return (
     <li
       ref={ref}
+      data-id={task.id}
       aria-current={selected ? "true" : undefined}
       data-ticked={ticked || undefined}
       onClick={onClick}
@@ -129,7 +135,7 @@ export function CompactRow({
     >
       {edge && <span aria-hidden="true" data-testid="drop-edge" className={cx("pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-ink", edge === "top" ? "-top-[3px]" : "-bottom-[3px]")} />}
       <div className="flex min-w-0 items-start gap-1">
-        {onDone ? (
+        {onDone && (
           <button
             type="button"
             aria-label={`Complete ${task.title}`}
@@ -145,9 +151,10 @@ export function CompactRow({
               {done && <Icon name="check" size={11} strokeWidth={2.4} />}
             </span>
           </button>
-        ) : null}
+        )}
         <button
           type="button"
+          data-title=""
           onClick={(e) => {
             if (!selecting(e)) onOpen();
           }}
