@@ -19,7 +19,8 @@ import { Checkbox } from "@/ui/checkbox";
 import { Chip, chipButtonClass } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { DateField } from "@/ui/date-field";
-import { bareFieldClass, Textarea } from "@/ui/field";
+import { bareFieldClass } from "@/ui/field";
+import { NoteField } from "@/ui/note-field";
 import { Icon } from "@/ui/icons";
 import { FIELD_INPUT, MENU_ITEM, MenuButton, useDismiss } from "@/ui/popover";
 import { deadlineWording } from "@/ui/relative-day";
@@ -197,14 +198,12 @@ function FieldRow({ label, value, request = 0, children }: { label: string; valu
 export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const { task, today, onPatch } = p;
   const [title, setTitle] = useState(task.title);
-  const [notes, setNotes] = useState(task.notes ?? "");
   const [repeatSpec, setRepeatSpec] = useState("");
   // A change that arrives from elsewhere (another device, the rollover job) replaces the draft.
-  const [seen, setSeen] = useState({ title: task.title, notes: task.notes ?? "" });
-  if (seen.title !== task.title || seen.notes !== (task.notes ?? "")) {
-    setSeen({ title: task.title, notes: task.notes ?? "" });
+  const [seenTitle, setSeenTitle] = useState(task.title);
+  if (seenTitle !== task.title) {
+    setSeenTitle(task.title);
     setTitle(task.title);
-    setNotes(task.notes ?? "");
   }
 
   const done = task.state === "done";
@@ -463,17 +462,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
 
         <section className="mt-5 flex flex-col gap-2">
           <SectionLabel>Notes</SectionLabel>
-          <Textarea
-            aria-label="Notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={() => {
-              if ((notes.trim() || null) !== (task.notes?.trim() || null)) onPatch({ notes: notes.trim() || null });
-            }}
-            placeholder="Anything worth remembering."
-            rows={4}
-            className="resize-y"
-          />
+          {/* Markdown, drawn at rest and edited in place (SCREENS.md §10); the renderer is its own lazy chunk. */}
+          <NoteField value={task.notes} onSave={(next) => onPatch({ notes: next })} label="Notes" placeholder="Anything worth remembering." />
         </section>
 
         {(task.carryCount > 0 || task.lastCarriedAt) && (
