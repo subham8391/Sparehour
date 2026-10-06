@@ -45,27 +45,6 @@ export const STARTING_LATER_SQL = `
   order by start_date, do_date, sort_key, id`;
 
 /**
- * What each day of a range has planned, for its capacity: open tasks dated `?1`…`?2` that will be on their
- * day's list by then (started by their do-date), as Today counts its own day.
- */
-export const DAY_LOAD_SQL = `
-  select id, title, state, do_date, estimate_min, evening, day_sort_key from tasks
-  where deleted_at is null and state in ('inbox', 'active')
-    and do_date between ?1 and ?2
-    and (start_date is null or start_date <= do_date)`;
-
-/**
- * Upcoming's "Due" sub-groups (SCREENS.md §6): open tasks whose deadline falls on `?` or later and whose do-date
- * is another day, or none — a task due on the day it is planned for is already listed there.
- */
-export const DUE_FROM_SQL = `
-  select * from tasks
-  where deleted_at is null and state in ('inbox', 'active', 'someday')
-    and deadline >= ?
-    and (do_date is null or do_date <> deadline)
-  order by deadline, sort_key, id`;
-
-/**
  * Dropped tasks, most recently dropped first (PRODUCT_SPEC.md §7: they sit in the Logbook under "Dropped" and
  * stay recoverable). They are not done, so the working set already carries them; `updated_at` is when the drop
  * was written here, before the server's `last_touched_at` comes back.

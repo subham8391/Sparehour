@@ -183,8 +183,9 @@ describe("the medium and narrow bands", () => {
     view();
     const week = document.querySelector("[data-week]")!;
     expect(week.getAttribute("data-band")).toBe("narrow");
-    expect(week.className).toMatch(/snap-x/);
-    expect(week.className).toMatch(/auto-cols-\[calc\(\(100%-0\.75rem\)\/3\)\]/);
+    // All seven days are there, three to a screen (week.module.css .scroller), the rest a scroll away.
+    expect(week.querySelectorAll("[data-column]")).toHaveLength(7);
+    expect(screen.queryByRole("group", { name: "Not yet planned" })).toBeNull();
     expect(screen.getByRole("button", { name: "Later days" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Earlier days" })).toBeDisabled();
   });

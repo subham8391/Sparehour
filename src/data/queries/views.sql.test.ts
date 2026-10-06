@@ -6,9 +6,7 @@ import { localSqlite, type Row } from "@/test/local-sqlite";
 import { ALL_PROJECTS_SQL, FINISHED_PROJECTS_SQL, PROJECTS_SQL } from "./nav";
 import {
   AREA_FINISHED_PROJECTS_SQL,
-  DAY_LOAD_SQL,
   DROPPED_SQL,
-  DUE_FROM_SQL,
   PLANNED_AFTER_SQL,
   PLANNED_BETWEEN_SQL,
   PROJECT_NAME_SQL,
@@ -18,6 +16,7 @@ import {
   dayRangeParams,
   logbookStream,
 } from "./views";
+import { DAY_LOAD_SQL, DUE_FROM_SQL } from "./week";
 
 const TODAY = localDate("2026-10-01");
 

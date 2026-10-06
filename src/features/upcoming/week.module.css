@@ -1,0 +1,50 @@
+/* The week planner's own layout pieces. They live here, with the route, rather than as new utilities in the
+   app-wide stylesheet that every shell downloads before its first paint (SYSTEM_DESIGN.md §11.6). */
+
+/* The narrow band: three columns showing, the rest a scroll away, a day at a time. */
+.scroller {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 0.75rem) / 3);
+  gap: 0.375rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.5rem;
+}
+.snap {
+  scroll-snap-align: start;
+}
+
+/* A compact row's check: 28 px on a pointer, the full 44 px on touch without making the row taller. */
+.check {
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-block: -0.125rem;
+}
+.title {
+  padding-top: 0.125rem;
+}
+.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.meta {
+  padding-left: 1.75rem;
+}
+@media (hover: none) {
+  .check {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: -0.5rem 0 -0.5rem -0.375rem;
+  }
+  .title {
+    min-height: 2.5rem;
+  }
+  .meta {
+    padding-left: 0;
+  }
+}

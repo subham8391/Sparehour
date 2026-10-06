@@ -12,7 +12,8 @@ import { capacityFor, type Capacity, type CapacityBlock, type CapacityEvent, typ
 import type { Instant, LocalDate } from "@/core/time";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, WORK_HOURS_SQL, monthsAround } from "@/data/queries/today";
-import { DAY_LOAD_SQL, monthsBack } from "@/data/queries/views";
+import { monthsBack } from "@/data/queries/views";
+import { DAY_LOAD_SQL } from "@/data/queries/week";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, WorkHoursRow } from "@/data/schema.client";
 import { BLOCK_TASKS_SQL, capacityBlocks, type BlockTask } from "@/features/today/hooks/use-today";
 

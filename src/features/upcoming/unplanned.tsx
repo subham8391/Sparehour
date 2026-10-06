@@ -68,7 +68,7 @@ export function UnplannedSheet({ count, onClose, children }: { count: number; on
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-4">
-        {count === 0 ? <p className="px-2 pb-2 text-body text-ink-2">Every task has a day.</p> : <p className="px-2 pb-3 text-body-sm text-ink-2">Send a task to Today or Tomorrow, or open it to give it any day.</p>}
+        {count === 0 ? <p className="px-2 pb-2 text-body text-ink-2">Every task has a day.</p> : <p className="px-2 pb-2 text-body-sm text-ink-2">Send a task to Today or Tomorrow, or open it to give it any day.</p>}
         {children}
       </div>
     </Sheet>

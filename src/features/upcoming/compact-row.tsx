@@ -16,6 +16,7 @@ import { edgeFor, type Edge } from "@/features/tasks/reorder";
 import { Chip, DeadlineChip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
+import s from "./week.module.css";
 
 const LONG_PRESS_MS = 500;
 
@@ -127,13 +128,13 @@ export function CompactRow({
       onPointerCancel={cancelPress}
       onPointerLeave={cancelPress}
       className={cx(
-        "group relative flex flex-col gap-1 rounded-lg border border-line bg-surface px-1.5 py-1.5 transition-[background-color,opacity] dur-fast hover:bg-hover",
+        "group relative flex flex-col gap-1 rounded-lg border border-line bg-surface px-1.5 py-1.5 transition-colors dur-fast hover:bg-hover",
         selected && "shadow-[inset_2px_0_0_var(--ink)]",
         ticked && "bg-surface-2 hover:bg-surface-2",
         dragging && "opacity-40",
       )}
     >
-      {edge && <span aria-hidden="true" data-testid="drop-edge" className={cx("pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-ink", edge === "top" ? "-top-[3px]" : "-bottom-[3px]")} />}
+      {edge && <span aria-hidden="true" data-testid="drop-edge" className={cx("pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-ink", edge === "top" ? "-top-px" : "-bottom-px")} />}
       <div className="flex min-w-0 items-start gap-1">
         {onDone && (
           <button
@@ -145,7 +146,7 @@ export function CompactRow({
               setCompleting(true);
               onDone();
             }}
-            className="-my-0.5 flex size-7 shrink-0 items-center justify-center rounded-full hover:[&>span]:border-ink touch:-my-2 touch:-ml-1.5 touch:size-11"
+            className={cx("flex shrink-0 items-center justify-center rounded-full hover:[&>span]:border-ink", s.check)}
           >
             <span className={cx("flex size-4 items-center justify-center rounded-full border-[1.5px] transition-colors dur-fast", done ? "border-ink bg-ink text-ink-inverse" : "border-line-control")}>
               {done && <Icon name="check" size={11} strokeWidth={2.4} />}
@@ -158,13 +159,13 @@ export function CompactRow({
           onClick={(e) => {
             if (!selecting(e)) onOpen();
           }}
-          className="min-w-0 flex-1 rounded-sm pt-0.5 text-left text-body-sm leading-snug [overflow-wrap:anywhere] focus-visible:-outline-offset-2 touch:min-h-10"
+          className={cx("min-w-0 flex-1 rounded-sm text-left text-body-sm leading-snug [overflow-wrap:anywhere] focus-visible:-outline-offset-2", s.title)}
         >
-          <span className={cx("line-clamp-3", done ? "text-ink-3 line-through decoration-ink-3" : "text-ink")}>{task.title}</span>
+          <span className={cx(s.clamp, done ? "text-ink-3 line-through decoration-ink-3" : "text-ink")}>{task.title}</span>
         </button>
       </div>
       {/* What fits on one line and no more: the estimate first, then the deadline, then the project. */}
-      <div className="flex h-5 min-w-0 items-center gap-1 overflow-hidden pl-7 text-label text-ink-2 num touch:pl-0">
+      <div className={cx("flex h-5 min-w-0 items-center gap-1 overflow-hidden text-label text-ink-2 num", s.meta)}>
         <Chip size="sm" tone={task.estimateMin ? "neutral" : "guess"} icon={null}>
           {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
         </Chip>

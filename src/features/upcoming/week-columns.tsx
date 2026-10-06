@@ -20,6 +20,7 @@ import { EYEBROW } from "@/ui/section-label";
 import type { AgendaDay } from "./later";
 import { DayBar, ReadoutText } from "./capacity-bar";
 import { weekColumns, type DayReadout, type WeekBand, type WeekColumn } from "./week";
+import s from "./week.module.css";
 
 /** Rows a column shows before "…N more" (SCREENS.md §3 "Overflow"). */
 export const COLUMN_CAP = 6;
@@ -70,7 +71,7 @@ export function WeekColumns(p: WeekColumnsProps) {
       className={cx(
         "flex min-w-0 flex-col gap-4 rounded-xl border p-2",
         c.days.some((d) => d.isToday) ? "border-line bg-surface" : "border-transparent",
-        p.band === "narrow" && "snap-start",
+        p.band === "narrow" && s.snap,
       )}
     >
       {c.days.map((d) => (
@@ -107,7 +108,7 @@ function DayBlock({ d, p, open, onExpand }: { d: ColumnDay; p: WeekColumnsProps;
   const body = (
     <section className="flex flex-col gap-2" aria-label={d.past ? label : undefined}>
       <header className="flex flex-col gap-1.5 px-0.5">
-        <h2 className={cx("flex flex-wrap items-baseline gap-x-1.5", d.past && "opacity-70")}>
+        <h2 className="flex flex-wrap items-baseline gap-1.5">
           <span className={EYEBROW}>{weekdayName(d.day)}</span>
           <span className={cx("font-display text-pane font-book leading-none num", off || d.past ? "text-ink-2" : "text-ink")}>{d.day.day}</span>
           {d.isToday && <span className="text-label font-medium text-ink-2">today</span>}
@@ -141,7 +142,7 @@ function DayBlock({ d, p, open, onExpand }: { d: ColumnDay; p: WeekColumnsProps;
       )}
       {p.renderStarting(d)}
       {!d.past && (
-        <Button variant="quiet" size="compact" className="-ml-0.5 self-start px-1.5 text-ink-3" onClick={() => p.onAdd(d)} aria-label={`Add a task on ${label}`}>
+        <Button variant="quiet" size="compact" className="self-start px-1.5 text-ink-3" onClick={() => p.onAdd(d)} aria-label={`Add a task on ${label}`}>
           <Icon name="plus" size={14} />
           Add
         </Button>
@@ -206,20 +207,14 @@ function NarrowScroller({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="-mr-2 flex items-center justify-end gap-1">
-        <button type="button" aria-label="Earlier days" disabled={edges.start} onClick={() => step(-1)} className={cx(iconButtonClass(), "disabled:opacity-40")}>
+        <button type="button" aria-label="Earlier days" disabled={edges.start} onClick={() => step(-1)} className={iconButtonClass()}>
           <Icon name="arrow-left" size={16} />
         </button>
-        <button type="button" aria-label="Later days" disabled={edges.end} onClick={() => step(1)} className={cx(iconButtonClass(), "disabled:opacity-40")}>
+        <button type="button" aria-label="Later days" disabled={edges.end} onClick={() => step(1)} className={iconButtonClass()}>
           <Icon name="arrow-right" size={16} />
         </button>
       </div>
-      <div
-        ref={ref}
-        data-week=""
-        data-band="narrow"
-        onScroll={update}
-        className={cx("grid snap-x snap-mandatory auto-cols-[calc((100%-0.75rem)/3)] grid-flow-col gap-1.5 overflow-x-auto overscroll-x-contain pb-2", !edges.end && "fade-end")}
-      >
+      <div ref={ref} data-week="" data-band="narrow" onScroll={update} className={cx(s.scroller, !edges.end && "fade-end")}>
         {children}
       </div>
     </div>

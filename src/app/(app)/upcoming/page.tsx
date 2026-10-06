@@ -18,7 +18,8 @@ import { formatDay, weekdayName } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { useQuery } from "@/data/powersync";
 import { toTask } from "@/data/mappers";
-import { DUE_FROM_SQL, PLANNED_AFTER_SQL, PLANNED_BETWEEN_SQL, STARTING_LATER_SQL, UNPLANNED_SQL } from "@/data/queries/views";
+import { PLANNED_AFTER_SQL, PLANNED_BETWEEN_SQL, STARTING_LATER_SQL, UNPLANNED_SQL } from "@/data/queries/views";
+import { DUE_FROM_SQL, WEEK_START_SQL } from "@/data/queries/week";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
@@ -51,7 +52,6 @@ import { EYEBROW, SectionLabel } from "@/ui/section-label";
 import { Segmented } from "@/ui/segmented";
 import { LOADING_LINE } from "../loading-view";
 
-const WEEK_START_SQL = `select week_start from user_settings limit 1`;
 /** Capacity readouts reach this many days ahead (SCREENS.md §6). */
 const READOUT_DAYS = 14;
 
@@ -302,9 +302,9 @@ export default function UpcomingPage() {
   const capacityLine = (readout: DayReadout | null, d: AgendaDay) => {
     const c = capacity.byDay.get(d.day.toString());
     return readout && c ? (
-      <div className="flex flex-col gap-1.5 pl-0.5">
+      <div className="flex flex-col gap-1.5 px-0.5">
         <ReadoutText readout={readout} />
-        <DayBar c={c} readout={readout} className="max-w-60" />
+        <DayBar c={c} readout={readout} />
       </div>
     ) : null;
   };
@@ -351,7 +351,7 @@ export default function UpcomingPage() {
       title={delta === 1 ? "Next week (])" : "Previous week ([)"}
       disabled={delta === -1 && offset === 0}
       onClick={() => setOffset((o) => clampOffset(o + delta))}
-      className={cx(iconButtonClass(), "disabled:opacity-40")}
+      className={iconButtonClass()}
     >
       <Icon name={delta === 1 ? "arrow-right" : "arrow-left"} size={16} />
     </button>
