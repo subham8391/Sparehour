@@ -25,6 +25,7 @@ import { deadlineWording } from "@/ui/relative-day";
 import { SectionLabel } from "@/ui/section-label";
 import { Grabber, RAISED, Scrim, SHEET_RISE } from "@/ui/sheet";
 import { TimeField } from "@/ui/time-field";
+import { projectOptionLabel } from "@/data/queries/project-label";
 import { dayLabel } from "@/features/quickadd/interpret";
 import { repeatPolicy } from "./repeat-policy";
 import { BLOCK_GLYPH } from "./task-actions";
@@ -34,7 +35,8 @@ export interface TaskDetailPanelProps {
   task: Task;
   projectName: string | null;
   areaName: string | null;
-  projects: readonly { id: string; name: string }[];
+  /** `area` tells two projects of one name apart in the picker (PRODUCT_SPEC.md §5.4). */
+  projects: readonly { id: string; name: string; area?: string | null }[];
   /** The headings of the task's project, for the Heading field: the tap path for what a drag does in the project. */
   headings?: readonly { id: string; title: string }[];
   onHeading?: (headingId: string | null) => void;
@@ -349,7 +351,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                 </button>
                 {p.projects.map((pr) => (
                   <button key={pr.id} type="button" aria-pressed={task.projectId === pr.id} className={cx(MENU_ITEM, "aria-pressed:bg-surface-2")} onClick={() => (onPatch({ projectId: pr.id }), close())}>
-                    {pr.name}
+                    {projectOptionLabel(pr, p.projects)}
                   </button>
                 ))}
               </div>

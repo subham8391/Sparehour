@@ -10,7 +10,8 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, localDate } from "@/core/time";
 import type { Priority } from "@/core/types";
-import { PROJECTS_SQL, type ProjectRow } from "@/data/queries/nav";
+import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
+import { projectOptionLabel, withAreaNames } from "@/data/queries/project-label";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
@@ -54,6 +55,7 @@ export function BulkBar() {
   const { today } = useLocalDay(now);
   const detail = useTaskDetail();
   const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
+  const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: users } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
   const [tag, setTag] = useState("");
   const count = ids.length;
@@ -70,7 +72,8 @@ export function BulkBar() {
   }, [count, detail.selectedId, sel]);
 
   if (count === 0) return null;
-  const projects = (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project" }));
+  // Two projects of one name show their area beside it (PRODUCT_SPEC.md §5.4).
+  const projects = withAreaNames(projectRows ?? [], areaRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", area: p.area }));
   const spaceId = users?.[0]?.personal_space_id ?? null;
   const done = () => sel.clearChecks();
   const patch = (p: TaskPatch, note?: string) => void repo.updateMany(ids, p, note).then(done);
@@ -135,7 +138,7 @@ export function BulkBar() {
               </button>
               {projects.map((p) => (
                 <button key={p.id} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: p.id }, `Moved {title} to ${p.name}`))}>
-                  {p.name}
+                  {projectOptionLabel(p, projects)}
                 </button>
               ))}
             </>

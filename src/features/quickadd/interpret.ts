@@ -121,11 +121,7 @@ export function resolveProject(name: string | null, projects: readonly QuickAddP
   return named.length === 1 ? named[0] : null;
 }
 
-/** How a picker names a project: "Website · Work" when another project shares the name, else just the name. */
-export function projectOptionLabel(project: QuickAddProject, projects: readonly QuickAddProject[]): string {
-  const shared = projects.some((p) => p.id !== project.id && fold(p.name) === fold(project.name));
-  return shared && project.area ? `${project.name} · ${project.area}` : project.name;
-}
+export { projectOptionLabel } from "@/data/queries/project-label";
 
 /** The existing tag a typed name means (case-insensitive), so a typed tag is reused, never duplicated. */
 export function resolveTag(name: string, tags: readonly QuickAddTag[]): QuickAddTag | null {

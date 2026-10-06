@@ -6,6 +6,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
+import { withAreaNames } from "@/data/queries/project-label";
 import { TAGS_SQL } from "@/data/queries/views";
 import { QuickAdd, type QuickAddProps } from "./quick-add";
 
@@ -13,10 +14,7 @@ export function QuickAddConnected(props: Omit<QuickAddProps, "projects" | "tags"
   const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: tagRows } = useQuery<{ id: string; name: string | null }>(TAGS_SQL);
-  const projects = useMemo(() => {
-    const areas = new Map((areaRows ?? []).map((a) => [a.id, a.name ?? "Untitled area"]));
-    return (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", area: p.area_id ? (areas.get(p.area_id) ?? null) : null }));
-  }, [projectRows, areaRows]);
+  const projects = useMemo(() => withAreaNames(projectRows ?? [], areaRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", area: p.area })), [projectRows, areaRows]);
   const tags = useMemo(() => (tagRows ?? []).filter((t) => t.name).map((t) => ({ id: t.id, name: t.name as string })), [tagRows]);
   return <QuickAdd {...props} projects={projects} tags={tags} />;
 }
