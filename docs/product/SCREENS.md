@@ -322,6 +322,8 @@ One view (ruled 2026-09-13 — the Week planner and Upcoming are the same screen
 
 **Responsive.** Phone: a **7-day strip** across the top, one mini capacity bar per day (tap a day to jump to it), over the days **stacked vertically as one agenda**; "Not yet planned" is a tappable strip at the bottom that opens as a sheet, and each task in it gets a **day picker** instead of a drag target; moving any task is long-press → Move to… → day picker. Narrow: 3 day columns with a horizontal scroll (affordance shown) and the rail collapsed to a `Not yet planned · 5` button that opens a sheet. Medium: 5 columns, Sat–Sun folded into one. Wide: 7 columns plus the rail, as drawn.
 
+**As built (2026-10-06).** Columns from the narrow band up: three that scroll a day at a time (Earlier / Later days buttons and a fading edge), five weekdays with Saturday and the Sunday after it sharing a column in the medium band, all seven plus the rail in the wide one; the band steps down when the open detail pane leaves the planner less room than its band assumes. A column holds its weekday and date, the readout (today's is the hero's own figure, `heroState`), the 6 px bar, compact rows capped at six with `…N more`, the evening's rows under a thin divider (a drop there puts the task in the evening; a drop on the day keeps its evening flag), the day's Due group, Starting later and `+ Add` (quick add opened with the day's words). The header's week total adds the days with spare time; an over day adds nothing. `Next 7 days | Calendar week` (the person's week start) is remembered on the device; ‹ › and `[` / `]` step a week, never before this week, and "← this week" or `T` with nothing selected come back. `←` / `→` move the selected task a day (undo), `J` / `K` stay in its column and `Tab` crosses to the next column while a row is selected (at either end Tab carries on). While a row is dragged, the day it would leave and the day under it both show the result in their bars. Below the wide band the rail is the `Not yet planned · N` button; its sheet offers Today / Tomorrow / Someday per task, or opens the task to give it any day (the day picker comes with the phone strip). The phone keeps the stacked agenda, every day with its readout and bar and a run of free days folded into a grid of day cells, until that strip lands. In the calendar week a day already gone shows what is still dated there, with no bar, and takes no drop.
+
 ---
 
 ## 4. Calendar — day / week — M1
@@ -385,6 +387,7 @@ Not a separate view: this is what §3 shows once you scroll past day 7 — dated
 - Drag between days. `[`/`]` jump by week.
 - Milestone: M1.
 - **Responsive.** Phone: the agenda simply keeps scrolling under the 7-day strip; moves use the day picker. Narrow and up: continues below the columns.
+- **As built (2026-10-06).** A Due group lists the open tasks (Someday ones too) whose deadline falls on that day and whose do-date is another day or none; a Due row opens the task but is not a second selection of it. Day headers out to day 14 carry the compact readout.
 
 ---
 
@@ -948,7 +951,7 @@ The sync chip lives at the bottom of the sidebar and expands on click.
 | Today, nothing planned | `ONBOARDING.md` §4 — the planning prompt with 3 pull-in suggestions |
 | Today, all done | "That's everything you planned. **2h 10m** left." + `Pull something in` · `Shutdown ▸` |
 | Inbox | "Inbox zero. Nice." |
-| Upcoming | "Nothing scheduled beyond today." + `Plan your week` |
+| Upcoming | "Nothing scheduled beyond today." + `Plan your week`, which opens the Not yet planned rail (its sheet below the wide band); `Add a task` when nothing is unplanned. The card sits above the week, which stays a drop target |
 | Someday | "Nothing parked. That's fine too." |
 | Logbook | "Nothing completed yet." |
 | Project | "Nothing in this project yet." + `Add the first task` |

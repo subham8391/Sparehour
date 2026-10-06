@@ -120,6 +120,7 @@ function DayBlock({ d, p, open, onExpand }: { d: ColumnDay; p: WeekColumnsProps;
           </>
         )}
       </header>
+      {d.tasks.length === 0 && <p className="px-0.5 text-body-sm text-ink-3">Free.</p>}
       {shown.length > 0 && <ul className="flex flex-col gap-1.5">{shown.map((t) => p.renderRow(t, d, daytime, false))}</ul>}
       {hidden > 0 && (
         <Button variant="link" size="compact" className="self-start text-ink-2" onClick={onExpand} aria-label={`Show ${hidden} more on ${label}`}>
