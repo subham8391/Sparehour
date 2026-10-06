@@ -12,7 +12,7 @@ export type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0]
 export type RowSnapshot = Record<string, string | number | null> & { id: string };
 
 /** The synced tables a repository may put a row back into. A closed list: the name goes into SQL. */
-export type UndoTable = "tasks" | "projects" | "headings" | "areas" | "task_tags" | "checklist_items";
+export type UndoTable = "tasks" | "projects" | "headings" | "areas" | "task_tags" | "checklist_items" | "recurrence_exceptions";
 
 /** A name as the undo toast quotes it: “Draft the proposal”. */
 export const quoted = (name: string | number | null | undefined): string => `“${String(name ?? "")}”`;
