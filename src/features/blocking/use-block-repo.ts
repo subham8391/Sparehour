@@ -34,6 +34,8 @@ class PushingBlockRepo extends BlockRepo {
       },
     });
     schedulePush();
+    // Approving a plan makes blocks too: on a device not yet asked, that is the moment for the reminder ask as well.
+    if (ids.length > 0) noteBlockCreated();
     return ids;
   }
 }
