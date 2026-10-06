@@ -154,6 +154,9 @@ describe("command registry", () => {
     const one = ctxWith({ selectedTaskId: null, checkedTaskIds: ["t2"] });
     await byId("task.start").run(one);
     expect(one.openTask).toHaveBeenLastCalledWith("t2", "start");
+    // R, like the others, takes the one ticked row when nothing is selected.
+    await byId("task.repeat").run(one);
+    expect(one.openTask).toHaveBeenLastCalledWith("t2", "repeat");
     expect(one.editTicked).not.toHaveBeenCalled();
   });
 

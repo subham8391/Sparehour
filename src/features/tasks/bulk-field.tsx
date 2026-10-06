@@ -27,12 +27,16 @@ const TITLE: Record<DetailField, string> = {
   repeat: "Repeat",
 };
 
+/** True below `sm`: there the sheet itself takes focus, so the keyboard does not rise over the choices (as the detail's pickers do). */
+const phone = () => typeof window.matchMedia === "function" && window.matchMedia("(max-width: 39.9375rem)").matches;
+
 export function BulkField({ ids, field, onDone, onClose }: { ids: readonly string[]; field: DetailField; onDone?: () => void; onClose: () => void }) {
   const repo = useTaskRepo();
   const now = useNow();
   const { today, zone } = useLocalDay(now);
   const presets = snoozePresets(now, zone, today);
   const count = `${ids.length} ${ids.length === 1 ? "task" : "tasks"}`;
+  const typeFirst = !phone();
   const apply = (patch: TaskPatch, note: string) => {
     onClose();
     void repo.updateMany(ids, patch, note).then(() => onDone?.());
@@ -53,7 +57,7 @@ export function BulkField({ ids, field, onDone, onClose }: { ids: readonly strin
         </div>
         {field === "do" && (
           <>
-            <TypedDate now={now} zone={zone} today={today} withTime autoFocus onApply={(d) => apply({ doDate: d.date, doTime: d.time, evening: d.evening }, "Moved {title}")} />
+            <TypedDate now={now} zone={zone} today={today} withTime autoFocus={typeFirst} onApply={(d) => apply({ doDate: d.date, doTime: d.time, evening: d.evening }, "Moved {title}")} />
             <div className="flex flex-wrap gap-1.5">
               <button type="button" className={PICK} onClick={() => apply({ doDate: today, doTime: null, evening: false }, "Moved {title} to today")}>
                 Today
@@ -67,8 +71,8 @@ export function BulkField({ ids, field, onDone, onClose }: { ids: readonly strin
             <DateField aria-label="Day" className="w-full" today={today} value="" onChange={(e) => e.target.value && apply({ doDate: localDate(e.target.value), doTime: null, evening: false }, "Moved {title}")} />
           </>
         )}
-        {field === "deadline" && <DatePicker value={null} today={today} now={now} zone={zone} presets={presets} autoFocus onChange={(d) => onDate("deadline", d)} />}
-        {field === "start" && <DatePicker value={null} today={today} now={now} zone={zone} presets={presets} autoFocus onChange={(d) => onDate("startDate", d)} />}
+        {field === "deadline" && <DatePicker value={null} today={today} now={now} zone={zone} presets={presets} autoFocus={typeFirst} onChange={(d) => onDate("deadline", d)} />}
+        {field === "start" && <DatePicker value={null} today={today} now={now} zone={zone} presets={presets} autoFocus={typeFirst} onChange={(d) => onDate("startDate", d)} />}
         {field === "estimate" && <EstimatePicker value={null} onChange={(m) => apply({ estimateMin: m }, m == null ? "Cleared the estimate on {title}" : `Estimated {title} at ${formatMinutes(m)}`)} />}
       </div>
     </Sheet>

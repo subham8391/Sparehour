@@ -319,6 +319,38 @@ describe("<TaskDetailPanel> field pickers asked for by key (SCREENS.md §24)", (
     expect(screen.getByRole("button", { name: /^Do/ })).toHaveFocus();
   });
 
+  it("on a phone the asked-for popover is a sheet that takes focus itself, so the keyboard does not cover its choices", async () => {
+    const query = { matches: true, media: "", onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false };
+    Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: () => query });
+    try {
+      setup({ fieldRequest: { name: "do", seq: 1 } });
+      const sheet = screen.getByRole("dialog", { name: "Do" });
+      expect(sheet.className).toContain("max-sm:fixed");
+      await waitFor(() => expect(sheet).toHaveFocus());
+      expect(within(sheet).getByRole("textbox", { name: "In words" })).not.toHaveFocus();
+    } finally {
+      Reflect.deleteProperty(window, "matchMedia");
+    }
+  });
+
+  it("the first Escape stays with the popover; only the second reaches the pane's own Escape (which closes the panel)", async () => {
+    // TaskDetailPane closes the panel from a window keydown listener; this stands in for it.
+    const paneEscape = vi.fn();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && paneEscape();
+    window.addEventListener("keydown", onKey);
+    try {
+      const { user } = setup({ fieldRequest: { name: "deadline", seq: 1 } });
+      await waitFor(() => expect(within(screen.getByRole("dialog", { name: "Deadline" })).getByRole("textbox", { name: "In words" })).toHaveFocus());
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog", { name: "Deadline" })).not.toBeInTheDocument();
+      expect(paneEscape).not.toHaveBeenCalled();
+      await user.keyboard("{Escape}");
+      expect(paneEscape).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("keydown", onKey);
+    }
+  });
+
   it("each field has its own request, and a new one opens the popover again", async () => {
     const view = { task, projectName: "Acme", areaName: "Work", projects: [], now: instant("2026-09-14T08:03:00Z"), zone: "Europe/London", today, onPatch: vi.fn(), onComplete: vi.fn(), onReopen: vi.fn(), onSomeday: vi.fn(), onDrop: vi.fn(), onClose: vi.fn() };
     const { rerender } = render(<TaskDetailPanel {...view} fieldRequest={{ name: "estimate", seq: 1 }} />);

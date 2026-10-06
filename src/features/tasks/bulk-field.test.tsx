@@ -38,6 +38,18 @@ describe("<BulkField> (D, ⇧D, ⇧S, E with rows ticked)", () => {
     await waitFor(() => expect(onDone).toHaveBeenCalled());
   });
 
+  it("on a phone the sheet takes focus rather than the typed field, so the keyboard does not cover the choices", () => {
+    const query = { matches: true, media: "", onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false };
+    Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: () => query });
+    try {
+      setup("deadline");
+      expect(screen.getByRole("textbox", { name: "In words" })).not.toHaveFocus();
+      expect(screen.getByRole("dialog", { name: "Set deadline for 3 tasks" }).contains(document.activeElement)).toBe(true);
+    } finally {
+      Reflect.deleteProperty(window, "matchMedia");
+    }
+  });
+
   it("deadline and start take a date for all of them", async () => {
     const { user } = setup("deadline");
     await user.click(screen.getByRole("button", { name: "Next week" }));

@@ -406,7 +406,8 @@ export function QuickAdd({
       e.preventDefault();
       if (tagSuggestions.length > 0) pickTag(tagSuggestions[0]);
       else acceptNewTag();
-    } else if (e.key === "Tab" && !e.shiftKey && projectName && !exact) {
+    } else if (e.key === "Tab" && !e.shiftKey && projectName && !exact && !willCreate) {
+      // Once the name is taken (picked, or Create accepted) Tab moves on as usual, so the key never traps focus here.
       e.preventDefault();
       if (suggestions.length > 0) pickProject(suggestions[0]);
       else if (!collision) setCreateProject(true);
@@ -630,16 +631,17 @@ function FactChip({ fact, first, onRemove }: { fact: Fact; first: boolean; onRem
   return (
     <>
       {!first && <span className="sr-only"> · </span>}
-      <span className={cx(chipClass({ tone }), onRemove && "pr-0")}>
+      {/* Capped at the strip's width, so a long repeat plus its remove target never pushes a 360 px sheet sideways. */}
+      <span className={cx(chipClass({ tone }), "max-w-full", onRemove && "pr-0")}>
         {look.icon && <Icon name={look.icon} size={12} className="shrink-0" />}
-        {text}
+        <span className="min-w-0 truncate">{text}</span>
         {onRemove && (
           <button
             type="button"
             onClick={onRemove}
             aria-label={`Remove “${text}”`}
             title="Keep these words in the title"
-            className="-my-3 flex size-11 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5"
+            className="-my-3 flex size-11 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5"
           >
             <Icon name="close" size={10} strokeWidth={2} />
           </button>

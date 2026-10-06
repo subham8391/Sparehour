@@ -68,8 +68,11 @@ describe("<QuickAdd>", () => {
     // One chip per fact, in reading order, then where it lands; the live region reads them with the strip's separators.
     const strip = input.getAttribute("aria-describedby")!;
     expect(document.getElementById(strip)).toHaveTextContent("Tomorrow 15:00 · 45m · Acme · priority 1 → Upcoming");
-    expect(screen.getByText("Tomorrow 15:00").className).toContain("bg-surface-2");
-    expect(screen.getByText("Acme").className).toContain("bg-meet-soft");
+    // The chip is the label's box (the label truncates inside it rather than widen a 360 px sheet).
+    expect(screen.getByText("Tomorrow 15:00").parentElement?.className).toContain("bg-surface-2");
+    expect(screen.getByText("Acme").parentElement?.className).toContain("bg-meet-soft");
+    expect(screen.getByText("Acme").parentElement?.className).toContain("max-w-full");
+    expect(screen.getByText("Acme").className).toContain("truncate");
     expect(screen.getByText("Upcoming")).toBeInTheDocument();
     const painted = document.querySelectorAll("mark[data-kind]");
     expect([...painted].map((m) => m.getAttribute("data-kind"))).toEqual(["datetime", "datetime", "estimate", "project", "priority"]);
@@ -107,6 +110,10 @@ describe("<QuickAdd>", () => {
     await user.keyboard("{Tab}");
     expect(screen.getByRole("button", { name: /Will create “blog”/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/new project blog/)).toBeInTheDocument();
+    // Accepted, the name no longer holds Tab: the next one leaves the box (no keyboard trap).
+    await user.keyboard("{Tab}");
+    expect(input).not.toHaveFocus();
+    await user.click(input);
     await user.keyboard("{Enter}");
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: null, createProjectName: "blog" });

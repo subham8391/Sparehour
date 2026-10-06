@@ -73,6 +73,14 @@ const onSelected =
     if (ctx.selectedTaskId) return fn(ctx, ctx.selectedTaskId);
   };
 
+/** A command for one task: the keyboard selection, else the only ticked row. */
+const onOne =
+  (fn: (ctx: CommandContext, id: string) => void | Promise<void>) =>
+  (ctx: CommandContext): void | Promise<void> => {
+    const id = ctx.selectedTaskId ?? (ctx.checkedTaskIds.length === 1 ? ctx.checkedTaskIds[0] : null);
+    if (id) return fn(ctx, id);
+  };
+
 /** The tasks an edit applies to: every ticked row, or else the keyboard selection. */
 export function targets(ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds">): string[] {
   if (ctx.checkedTaskIds.length > 0) return [...ctx.checkedTaskIds];
@@ -177,8 +185,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "task.deadline", title: "Set deadline", group: "Selected task", shortcut: "shift+d", requiresSelection: true, keywords: "due", run: pickField("deadline") },
   { id: "task.start", title: "Set start date", group: "Selected task", shortcut: "shift+s", requiresSelection: true, keywords: "starts after hide until", run: pickField("start") },
   { id: "task.estimate", title: "Set estimate", group: "Selected task", shortcut: "e", requiresSelection: true, keywords: "time minutes", run: pickField("estimate") },
-  // A rule is set one task at a time: R opens the selected task's Repeat picker.
-  { id: "task.repeat", title: "Repeat", group: "Selected task", shortcut: "r", requiresSelection: true, keywords: "recurring every", run: onSelected((ctx, id) => ctx.openTask(id, "repeat")) },
+  // A rule is set one task at a time: R opens the Repeat picker of the selected task, or of the one ticked row.
+  { id: "task.repeat", title: "Repeat", group: "Selected task", shortcut: "r", requiresSelection: true, keywords: "recurring every", run: onOne((ctx, id) => ctx.openTask(id, "repeat")) },
   // Where days sit side by side (Upcoming's week); elsewhere the arrows do nothing.
   { id: "task.day-earlier", title: "A day earlier", group: "Selected task", shortcut: "arrowleft", requiresSelection: true, hidden: true, run: viewKey("earlier"), passes: unclaimed("earlier", true) },
   { id: "task.day-later", title: "A day later", group: "Selected task", shortcut: "arrowright", requiresSelection: true, hidden: true, run: viewKey("later"), passes: unclaimed("later", true) },

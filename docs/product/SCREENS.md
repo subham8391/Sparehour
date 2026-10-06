@@ -1109,7 +1109,7 @@ Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all s
 | `R` | Repeat |
 | `M` | Move (project / area picker) |
 
-As built (2026-10-06): `D`, `Shift+D`, `Shift+S`, `E` and `R` open the task's detail on that field's popover. With several rows ticked, `D`, `Shift+D`, `Shift+S` and `E` open one picker for all of them (one write, one undo; DECISIONS.md "Shortcuts with rows ticked"); `R` stays with the selected task.
+As built (2026-10-06): `D`, `Shift+D`, `Shift+S`, `E` and `R` open the task's detail on that field's popover. With several rows ticked, `D`, `Shift+D`, `Shift+S` and `E` open one picker for all of them (one write, one undo; DECISIONS.md "Shortcuts with rows ticked"); `R` stays with one task, the selected one or else the only ticked row.
 
 ### Scheduling and snooze
 
