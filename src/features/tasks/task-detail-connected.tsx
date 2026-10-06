@@ -16,6 +16,7 @@ import type { SeriesRepo } from "@/data/repositories/series-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
+import { preloadMarkdown } from "@/ui/note-field";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { Opening, type FieldRequest } from "./task-detail";
 import { TaskDetailPanel } from "./task-detail-panel";
@@ -52,6 +53,9 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
   const projects = useMemo(() => allProjects.filter((p) => p.open), [allProjects]);
   const project = allProjects.find((p) => p.id === task?.projectId) ?? null;
   const area = (areaRows ?? []).find((a) => a.id === project?.areaId) ?? null;
+
+  // The notes' Markdown renderer is its own small chunk: fetched as the detail opens, so a note is drawn, not flashed as raw text.
+  useEffect(() => void preloadMarkdown(), []);
 
   // The task left this device (completed elsewhere, dropped, synced away): close rather than show a blank.
   useEffect(() => {
