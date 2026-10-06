@@ -70,7 +70,8 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       zone={zone}
       today={today}
       onPatch={patch}
-      onChecklistAdd={(title) => void checklistRepo.add(task.id, task.spaceId, title)}
+      onChecklistAdd={(title, sortKey) => void checklistRepo.add(task.id, task.spaceId, title, sortKey)}
+      onChecklistReorder={(itemId, sortKey) => void checklistRepo.reorder(itemId, sortKey)}
       onChecklistToggle={(itemId, done) => void checklistRepo.setDone(itemId, done)}
       onChecklistRename={(itemId, title) => void checklistRepo.rename(itemId, title)}
       onChecklistRemove={(itemId) => void checklistRepo.remove(itemId)}

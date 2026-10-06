@@ -11,22 +11,21 @@ export class ChecklistRepo {
     private readonly history?: UndoRecorder,
   ) {}
 
-  /** Appends a step at the end of the task's checklist. */
-  async add(taskId: string, spaceId: string, title: string): Promise<string> {
+  /** Adds a step: at `sortKey` when given (Enter on a step puts the next one right under it), else at the end. */
+  async add(taskId: string, spaceId: string, title: string, sortKey?: string): Promise<string> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const clean = title.trim();
     await this.db.writeTransaction(async (tx) => {
-      const last = await tx.getOptional<{ sort_key: string | null }>(
-        `select sort_key from checklist_items where deleted_at is null and task_id = ? order by sort_key desc limit 1`,
-        [taskId],
-      );
+      const last = sortKey
+        ? null
+        : await tx.getOptional<{ sort_key: string | null }>(`select sort_key from checklist_items where deleted_at is null and task_id = ? order by sort_key desc limit 1`, [taskId]);
       await tx.execute(`insert into checklist_items (id, space_id, task_id, title, done, sort_key, created_at, updated_at) values (?, ?, ?, ?, 0, ?, ?, ?)`, [
         id,
         spaceId,
         taskId,
         clean,
-        keyBetween(last?.sort_key ?? null, null),
+        sortKey ?? keyBetween(last?.sort_key ?? null, null),
         now,
         now,
       ]);
@@ -52,6 +51,13 @@ export class ChecklistRepo {
     const before = await this.snapshot(id);
     await this.db.execute(`update checklist_items set title = ?, updated_at = ? where id = ?`, [title.trim(), new Date().toISOString(), id]);
     this.remember(before, ["title"], "Renamed step", false);
+  }
+
+  /** A new place in the list (a drag, Move up / Move down, Alt+↑/↓): one key written, a silent undo entry. */
+  async reorder(id: string, sortKey: string): Promise<void> {
+    const before = await this.snapshot(id);
+    await this.db.execute(`update checklist_items set sort_key = ?, updated_at = ? where id = ?`, [sortKey, new Date().toISOString(), id]);
+    this.remember(before, ["sort_key"], "Moved step", false);
   }
 
   /** Soft-deletes the step, with an undo toast that brings it back where it was. */

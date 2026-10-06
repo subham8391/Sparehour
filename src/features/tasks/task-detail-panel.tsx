@@ -29,6 +29,7 @@ import { Grabber, RAISED, Scrim, SHEET_RISE } from "@/ui/sheet";
 import { TimeField } from "@/ui/time-field";
 import { projectOptionLabel } from "@/data/queries/project-label";
 import { dayLabel } from "@/features/quickadd/interpret";
+import { Checklist } from "./checklist";
 import { repeatPolicy } from "./repeat-policy";
 import { BLOCK_GLYPH } from "./task-actions";
 import type { DetailField, FieldRequest } from "./task-detail";
@@ -58,10 +59,12 @@ export interface TaskDetailPanelProps {
   /** Places the task on today's timeline; absent where no day is in view. */
   onBlock?: () => void;
   onClose: () => void;
-  onChecklistAdd?: (title: string) => void;
+  /** A new step; with `sortKey`, at that place (Enter on a step adds the next one under it). */
+  onChecklistAdd?: (title: string, sortKey?: string) => void;
   onChecklistToggle?: (id: string, done: boolean) => void;
   onChecklistRename?: (id: string, title: string) => void;
   onChecklistRemove?: (id: string) => void;
+  onChecklistReorder?: (id: string, sortKey: string) => void;
   onTagAdd?: (name: string) => void;
   onTagRemove?: (tagId: string) => void;
   /** A field whose picker opens at once, focused (D, ⇧D, ⇧S, E, R and their palette commands). */
@@ -456,7 +459,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           </FieldRow>
         </div>
 
-        <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} />
+        <Checklist items={p.checklist ?? []} onAdd={p.onChecklistAdd} onToggle={p.onChecklistToggle} onRename={p.onChecklistRename} onRemove={p.onChecklistRemove} onReorder={p.onChecklistReorder} />
 
         <Tags tags={p.tags ?? []} allTags={p.allTags ?? []} onAdd={p.onTagAdd} onRemove={p.onTagRemove} />
 
@@ -509,106 +512,6 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
       </div>
     </div>
-  );
-}
-
-function Checklist({
-  items,
-  onAdd,
-  onToggle,
-  onRename,
-  onRemove,
-}: {
-  items: readonly ChecklistItem[];
-  onAdd?: (title: string) => void;
-  onToggle?: (id: string, done: boolean) => void;
-  onRename?: (id: string, title: string) => void;
-  onRemove?: (id: string) => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const done = items.filter((i) => i.done).length;
-  const add = () => {
-    const title = draft.trim();
-    if (!title) return;
-    onAdd?.(title);
-    setDraft("");
-  };
-  return (
-    <section className="mt-5 flex flex-col gap-1">
-      <SectionLabel detail={items.length > 0 ? `${done} / ${items.length}` : undefined}>Checklist</SectionLabel>
-      <ul>
-        {items.map((item) => (
-          <ChecklistRow key={item.id} item={item} onToggle={onToggle} onRename={onRename} onRemove={onRemove} />
-        ))}
-        <li className="flex min-h-11 items-center gap-1">
-          <span className="-ml-3 flex size-11 shrink-0 items-center justify-center text-ink-3 sm:size-9" aria-hidden="true">
-            <Icon name="plus" size={16} />
-          </span>
-          <input
-            aria-label="Add a step"
-            placeholder="Add a step"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            onBlur={add}
-            className={cx(BARE, "h-11 flex-1 text-body text-ink")}
-          />
-        </li>
-      </ul>
-    </section>
-  );
-}
-
-function ChecklistRow({
-  item,
-  onToggle,
-  onRename,
-  onRemove,
-}: {
-  item: ChecklistItem;
-  onToggle?: (id: string, done: boolean) => void;
-  onRename?: (id: string, title: string) => void;
-  onRemove?: (id: string) => void;
-}) {
-  const [title, setTitle] = useState(item.title);
-  const [seen, setSeen] = useState(item.title);
-  if (seen !== item.title) {
-    setSeen(item.title);
-    setTitle(item.title);
-  }
-  const commit = () => {
-    const next = title.trim();
-    if (!next) setTitle(item.title);
-    else if (next !== item.title) onRename?.(item.id, next);
-  };
-  return (
-    <li className="flex min-h-11 items-center gap-1">
-      <Checkbox className="-ml-3" checked={item.done} onChange={(e) => onToggle?.(item.id, e.target.checked)} aria-label={`Done: ${item.title}`} />
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            (e.target as HTMLInputElement).blur();
-          } else if (e.key === "Backspace" && title === "") {
-            e.preventDefault();
-            onRemove?.(item.id);
-          }
-        }}
-        aria-label={`Step: ${item.title}`}
-        className={cx(BARE, "h-11 flex-1 text-body transition-colors dur-fast", item.done ? "text-ink-3 line-through decoration-ink-3" : "text-ink")}
-      />
-      <Button variant="icon" onClick={() => onRemove?.(item.id)} aria-label={`Remove step: ${item.title}`} className="-mr-2 text-ink-3">
-        <Icon name="close" size={14} />
-      </Button>
-    </li>
   );
 }
 
