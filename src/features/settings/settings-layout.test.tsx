@@ -36,6 +36,8 @@ describe("Settings layout", () => {
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(SECTIONS.map((s) => `${s.title}${s.title} summary`));
     expect(screen.getByRole("heading", { level: 1, name: "Your day" })).toBeInTheDocument();
+    // Only the list is on screen: nothing in it is the current section.
+    expect(within(nav).getAllByRole("link").some((a) => a.hasAttribute("aria-current"))).toBe(false);
 
     await user.click(within(nav).getByRole("link", { name: /^Working hours/ }));
     expect(window.location.hash).toBe("#working-hours");
