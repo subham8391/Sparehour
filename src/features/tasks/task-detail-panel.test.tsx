@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate, localTime, type LocalDate, type LocalTime } from "@/core/time";
@@ -306,5 +306,100 @@ describe("<TaskDetailPanel>", () => {
     expect(screen.getByRole("button", { name: "Mark not done", pressed: true })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reopen" }));
     expect(onReopen).toHaveBeenCalled();
+  });
+});
+
+describe("<TaskDetailPanel> field pickers asked for by key (SCREENS.md §24)", () => {
+  it("opens the asked-for field's popover with focus on its typed field; Escape closes the popover and focus goes back to the row", async () => {
+    const { user } = setup({ fieldRequest: { name: "do", seq: 1 } });
+    const panel = screen.getByRole("dialog", { name: "Do" });
+    await waitFor(() => expect(within(panel).getByRole("textbox", { name: "Type a day and time" })).toHaveFocus());
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Do" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Do/ })).toHaveFocus();
+  });
+
+  it("each field has its own request, and a new one opens the popover again", async () => {
+    const view = { task, projectName: "Acme", areaName: "Work", projects: [], now: instant("2026-09-14T08:03:00Z"), zone: "Europe/London", today, onPatch: vi.fn(), onComplete: vi.fn(), onReopen: vi.fn(), onSomeday: vi.fn(), onDrop: vi.fn(), onClose: vi.fn() };
+    const { rerender } = render(<TaskDetailPanel {...view} fieldRequest={{ name: "estimate", seq: 1 }} />);
+    expect(screen.getByRole("dialog", { name: "Estimate" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("spinbutton", { name: "Minutes" })).toHaveFocus());
+    rerender(<TaskDetailPanel {...view} fieldRequest={{ name: "repeat", seq: 2 }} />);
+    expect(screen.getByRole("dialog", { name: "Repeat" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Repeat" })).toHaveFocus());
+    rerender(<TaskDetailPanel {...view} fieldRequest={{ name: "start", seq: 3 }} />);
+    expect(screen.getByRole("dialog", { name: "Starts" })).toBeInTheDocument();
+    rerender(<TaskDetailPanel {...view} fieldRequest={{ name: "deadline", seq: 4 }} />);
+    expect(screen.getByRole("dialog", { name: "Deadline" })).toBeInTheDocument();
+  });
+});
+
+describe("<TaskDetailPanel> typed dates (SCREENS.md §10)", () => {
+  it("Do takes a day and a time, previews what it reads, and Enter applies it", async () => {
+    const { user, onPatch } = setup();
+    await user.click(screen.getByRole("button", { name: /^Do/ }));
+    const typed = screen.getByRole("textbox", { name: "Type a day and time" });
+    await user.type(typed, "next tue");
+    expect(screen.getByText("Tue 22 Sep")).toBeInTheDocument();
+    await user.clear(typed);
+    await user.type(typed, "fri 3pm{Enter}");
+    const patch = onPatch.mock.lastCall?.[0] as { doDate: LocalDate; doTime: LocalTime; evening: boolean };
+    expect([patch.doDate.toString(), patch.doTime.toString({ smallestUnit: "minute" }), patch.evening]).toEqual(["2026-09-18", "15:00", false]);
+    expect(screen.queryByRole("dialog", { name: "Do" })).not.toBeInTheDocument();
+  });
+
+  it("words that are not a date say so and change nothing", async () => {
+    const { user, onPatch } = setup();
+    await user.click(screen.getByRole("button", { name: /^Do/ }));
+    await user.type(screen.getByRole("textbox", { name: "Type a day and time" }), "soonish{Enter}");
+    expect(screen.getByText("Didn't catch that")).toBeInTheDocument();
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Do" })).toBeInTheDocument();
+  });
+
+  it("Deadline and Starts take a typed date and offer the snooze days", async () => {
+    const { user, onPatch } = setup();
+    await user.click(screen.getByRole("button", { name: /^Deadline/ }));
+    const panel = screen.getByRole("dialog", { name: "Deadline" });
+    expect(within(panel).getAllByRole("button").map((b) => b.textContent)).toEqual(["Today", "Tomorrow", "This weekend", "Next week", "Clear"]); // on a Monday, "In a week" is next week
+    await user.type(within(panel).getByRole("textbox", { name: "Type a date" }), "21 oct");
+    expect(within(panel).getByText(/Wed 21 Oct/)).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect((onPatch.mock.lastCall?.[0] as { deadline: LocalDate }).deadline.toString()).toBe("2026-10-21");
+    await user.click(screen.getByRole("button", { name: /^Starts/ }));
+    await user.type(screen.getByRole("textbox", { name: "Type a date" }), "in 3 days{Enter}");
+    expect((onPatch.mock.lastCall?.[0] as { startDate: LocalDate }).startDate.toString()).toBe("2026-09-17");
+    await user.click(screen.getByRole("button", { name: /^Starts/ }));
+    await user.click(screen.getByRole("button", { name: "This weekend" }));
+    expect((onPatch.mock.lastCall?.[0] as { startDate: LocalDate }).startDate.toString()).toBe("2026-09-19");
+  });
+});
+
+describe("<TaskDetailPanel> due before the do-date (PRODUCT_SPEC.md §5.4)", () => {
+  it("says so by the dates and offers to do it by then; nothing when the dates agree", async () => {
+    const { user, onPatch } = setup({ task: { ...task, deadline: localDate("2026-09-11") } });
+    expect(screen.getByText("Due before you plan to do it")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Do it by then" }));
+    expect((onPatch.mock.lastCall?.[0] as { doDate: LocalDate }).doDate.toString()).toBe("2026-09-11");
+    cleanup();
+    setup();
+    expect(screen.queryByText("Due before you plan to do it")).not.toBeInTheDocument();
+  });
+});
+
+describe("<TaskDetailPanel> project picker", () => {
+  it("shows the area beside a name two projects share (PRODUCT_SPEC.md §5.4)", async () => {
+    const { user, onPatch } = setup({
+      projects: [
+        { id: "p1", name: "Acme", area: "Work" },
+        { id: "w1", name: "Website", area: "Work" },
+        { id: "w2", name: "Website", area: "Personal" },
+      ],
+    });
+    await user.click(screen.getByRole("button", { name: /^Project/ }));
+    const panel = screen.getByRole("dialog", { name: "Project" });
+    expect(within(panel).getAllByRole("button").map((b) => b.textContent)).toEqual(["No project", "Acme", "Website · Work", "Website · Personal"]);
+    await user.click(within(panel).getByRole("button", { name: "Website · Personal" }));
+    expect(onPatch).toHaveBeenLastCalledWith({ projectId: "w2" });
   });
 });
