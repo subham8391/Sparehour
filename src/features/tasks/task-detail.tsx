@@ -19,9 +19,20 @@ export function Opening() {
   return <div className="p-5 text-body text-ink-3">Opening…</div>;
 }
 
+/** A field row whose picker can be opened directly (SCREENS.md §24: D, ⇧D, ⇧S, E, R). */
+export type DetailField = "do" | "deadline" | "start" | "estimate" | "repeat";
+
+/** Which field's picker to open; `seq` grows with each ask, so asking again opens it again. */
+export interface FieldRequest {
+  name: DetailField;
+  seq: number;
+}
+
 interface TaskDetailApi {
   selectedId: string | null;
-  open: (id: string) => void;
+  field: FieldRequest | null;
+  /** Opens the task, with that field's picker open and focused when one is named. */
+  open: (id: string, field?: DetailField) => void;
   close: () => void;
 }
 
@@ -35,9 +46,13 @@ export function useTaskDetail(): TaskDetailApi {
 
 export function TaskDetailProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const open = useCallback((id: string) => setSelectedId(id), []);
+  const [field, setField] = useState<FieldRequest | null>(null);
+  const open = useCallback((id: string, name?: DetailField) => {
+    setSelectedId(id);
+    setField((f) => (name ? { name, seq: (f?.seq ?? 0) + 1 } : null));
+  }, []);
   const close = useCallback(() => setSelectedId(null), []);
-  const api = useMemo(() => ({ selectedId, open, close }), [selectedId, open, close]);
+  const api = useMemo(() => ({ selectedId, field, open, close }), [selectedId, field, open, close]);
   useEffect(() => preloadOnIdle(loadPanel), []);
   return <TaskDetailContext.Provider value={api}>{children}</TaskDetailContext.Provider>;
 }
@@ -50,7 +65,7 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
  * edge (DESIGN_SYSTEM.md §7 "Sheets"), or simply appear under reduced motion.
  */
 export function TaskDetailPane() {
-  const { selectedId, close } = useTaskDetail();
+  const { selectedId, field, close } = useTaskDetail();
   useEffect(() => {
     if (!selectedId) return;
     const onKey = (e: KeyboardEvent) => {
@@ -61,7 +76,7 @@ export function TaskDetailPane() {
   }, [selectedId, close]);
 
   if (!selectedId) return null;
-  return <DetailSurface id={selectedId} onClose={close} />;
+  return <DetailSurface id={selectedId} field={field} onClose={close} />;
 }
 
 const OVERLAY_QUERY = "(max-width: 47.9375rem)";
@@ -78,7 +93,7 @@ const readOverlay = () => typeof window.matchMedia === "function" && window.matc
  * is a modal dialog there: focus moves in, stays in, and goes back to the row on close (SCREENS.md §1 rules 5 and 6).
  * From `md` up it is a pane beside the list, and focus stays where the person is working.
  */
-function DetailSurface({ id, onClose }: { id: string; onClose: () => void }) {
+function DetailSurface({ id, field, onClose }: { id: string; field: FieldRequest | null; onClose: () => void }) {
   const overlay = useSyncExternalStore(subscribeOverlay, readOverlay, () => false);
   const surface = useDialogFocus<HTMLElement>(overlay);
   return (
@@ -99,7 +114,7 @@ function DetailSurface({ id, onClose }: { id: string; onClose: () => void }) {
         )}
       >
         <Grabber />
-        <TaskDetail key={id} id={id} onClose={onClose} />
+        <TaskDetail key={id} id={id} field={field} onClose={onClose} />
       </aside>
     </>
   );

@@ -7,9 +7,10 @@
 // notes under section labels, and a footer with Complete first; on a phone
 // the footer sits above the safe area and the quiet actions fold into a menu.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, useLayoutEffect } from "react";
+import { readTypedDate, type TypedDate as TypedDateValue } from "@/core/quickadd/read-date";
 import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
-import { formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
+import { compareDates, formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { ChecklistItem, MissPolicy, Priority, TagRef, Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
@@ -25,16 +26,19 @@ import { deadlineWording } from "@/ui/relative-day";
 import { SectionLabel } from "@/ui/section-label";
 import { Grabber, RAISED, Scrim, SHEET_RISE } from "@/ui/sheet";
 import { TimeField } from "@/ui/time-field";
+import { projectOptionLabel } from "@/data/queries/project-label";
 import { dayLabel } from "@/features/quickadd/interpret";
 import { repeatPolicy } from "./repeat-policy";
 import { BLOCK_GLYPH } from "./task-actions";
-import { snoozePresets } from "./snooze";
+import type { DetailField, FieldRequest } from "./task-detail";
+import { snoozePresets, type SnoozePreset } from "./snooze";
 
 export interface TaskDetailPanelProps {
   task: Task;
   projectName: string | null;
   areaName: string | null;
-  projects: readonly { id: string; name: string }[];
+  /** `area` tells two projects of one name apart in the picker (PRODUCT_SPEC.md §5.4). */
+  projects: readonly { id: string; name: string; area?: string | null }[];
   /** The headings of the task's project, for the Heading field: the tap path for what a drag does in the project. */
   headings?: readonly { id: string; title: string }[];
   onHeading?: (headingId: string | null) => void;
@@ -59,6 +63,8 @@ export interface TaskDetailPanelProps {
   onChecklistRemove?: (id: string) => void;
   onTagAdd?: (name: string) => void;
   onTagRemove?: (tagId: string) => void;
+  /** A field whose picker opens at once, focused (D, ⇧D, ⇧S, E, R and their palette commands). */
+  fieldRequest?: FieldRequest | null;
 }
 
 const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
@@ -96,15 +102,43 @@ const Clear = ({ children, onClick }: { children: ReactNode; onClick: () => void
  * A field row and the panel it opens. On a phone the panel is a bottom sheet,
  * so it never covers the rows it belongs to; from `sm` up it is the raised
  * popover anchored under its own row (DESIGN_SYSTEM.md §5 "Sheet"). A click
- * outside or Escape closes it, and focus goes back to the row.
+ * outside or Escape closes it, and focus goes back to the row. `request`
+ * opens it from outside (its key, its palette command); each new value opens
+ * it again, with focus inside: on its typed field from `sm` up, on the sheet
+ * itself on a phone so the keyboard does not cover the choices.
  */
-function FieldRow({ label, value, children }: { label: string; value: ReactNode; children: (close: () => void) => ReactNode }) {
-  const [open, setOpen] = useState(false);
+function FieldRow({ label, value, request = 0, children }: { label: string; value: ReactNode; request?: number; children: (close: () => void) => ReactNode }) {
+  const [open, setOpen] = useState(request > 0);
+  const [seenRequest, setSeenRequest] = useState(request);
+  const [focusIn, setFocusIn] = useState(request > 0);
+  if (request !== seenRequest) {
+    setSeenRequest(request);
+    if (request > 0) {
+      setOpen(true);
+      setFocusIn(true);
+    }
+  }
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
   const panelId = useId();
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    setFocusIn(false);
+  }, []);
   const rootRef = useDismiss(open, close);
+
+  // A frame later, so a closing palette handing focus back cannot take it from the panel.
+  useEffect(() => {
+    if (!open || !focusIn) return;
+    const frame = requestAnimationFrame(() => {
+      const el = panelRef.current;
+      if (!el) return;
+      const phone = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 39.9375rem)").matches;
+      (phone ? el : (el.querySelector<HTMLElement>("[data-autofocus]") ?? el.querySelector<HTMLElement>("input, button") ?? el)).focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, focusIn, seenRequest]);
 
   // Hand focus back to the row once the panel has closed.
   useEffect(() => {
@@ -123,7 +157,7 @@ function FieldRow({ label, value, children }: { label: string; value: ReactNode;
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? close() : setOpen(true))}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
@@ -138,13 +172,15 @@ function FieldRow({ label, value, children }: { label: string; value: ReactNode;
           {/* The sheet's scrim; from `sm` up the panel is a popover, where a click outside is enough. */}
           <Scrim onClose={close} className="fixed z-40 sm:hidden" />
           <div
+            ref={panelRef}
             id={panelId}
             role="dialog"
             aria-label={label}
+            tabIndex={-1}
             className={cx(
               RAISED,
               SHEET_RISE,
-              "z-40 flex flex-col gap-3",
+              "z-40 flex flex-col gap-3 outline-none",
               "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:max-h-[80dvh] max-sm:overflow-y-auto max-sm:rounded-t-sheet max-sm:px-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:shadow-sheet",
               "sm:absolute sm:top-full sm:right-2 sm:z-30 sm:mt-1 sm:w-[calc(100%-1rem)] sm:max-w-80 sm:rounded-xl sm:p-3",
             )}
@@ -220,6 +256,9 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
     <Muted>No day</Muted>
   );
   const deadlineValue = task.deadline ? <Chip tone={deadlineWording(task.deadline, today).near ? "near" : "deadline"}>{formatDay(task.deadline, { today })}</Chip> : <Muted>—</Muted>;
+  /** The open request for a field's picker, as the count its row watches. */
+  const asked = (name: DetailField) => (p.fieldRequest?.name === name ? p.fieldRequest.seq : 0);
+  const dueBeforeDo = !done && task.deadline != null && task.doDate != null && compareDates(task.deadline, task.doDate) < 0;
   const quietActions = (
     <>
       {task.state !== "someday" && !done && (
@@ -273,9 +312,10 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-5">
         {/* Field rows run edge to edge under hairlines, the way the direction draws them; each opens its own raised popover. */}
         <div className="-mx-4 mt-1 divide-y divide-line border-y border-line sm:-mx-5">
-          <FieldRow label="Do" value={doValue}>
+          <FieldRow label="Do" value={doValue} request={asked("do")}>
             {(close) => (
               <>
+                <TypedDate now={p.now} zone={p.zone} today={today} withTime onApply={(d) => (onPatch({ doDate: d.date, doTime: d.time, evening: d.evening }), close())} />
                 <div className="flex flex-wrap gap-1.5">
                   <button type="button" className={PICK} onClick={() => (onPatch({ doDate: today, doTime: null, evening: false }), close())}>
                     Today
@@ -305,28 +345,27 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             )}
           </FieldRow>
 
-          <FieldRow label="Deadline" value={deadlineValue}>
-            {(close) => <DatePicker value={task.deadline} today={today} onChange={(d) => (onPatch({ deadline: d }), close())} />}
+          <FieldRow label="Deadline" value={deadlineValue} request={asked("deadline")}>
+            {(close) => <DatePicker value={task.deadline} today={today} now={p.now} zone={p.zone} presets={presets} onChange={(d) => (onPatch({ deadline: d }), close())} />}
           </FieldRow>
 
-          <FieldRow label="Starts" value={task.startDate ? formatDay(task.startDate, { today }) : <Muted>—</Muted>}>
-            {(close) => <DatePicker value={task.startDate} today={today} onChange={(d) => (onPatch({ startDate: d }), close())} />}
+          {dueBeforeDo && (
+            // Both dates stay as set (PRODUCT_SPEC.md §5.4): a note in ink-2 with the alert glyph, never a correction.
+            <p className="flex min-h-11 flex-wrap items-center gap-x-1.5 px-4 py-1.5 text-body-sm text-ink-2 sm:px-5">
+              <Icon name="alert" size={14} className="shrink-0" />
+              <span className="mr-auto">Due before you plan to do it</span>
+              <Button variant="link" className="text-ink-2" onClick={() => onPatch({ doDate: task.deadline })}>
+                Do it by then
+              </Button>
+            </p>
+          )}
+
+          <FieldRow label="Starts" value={task.startDate ? formatDay(task.startDate, { today }) : <Muted>—</Muted>} request={asked("start")}>
+            {(close) => <DatePicker value={task.startDate} today={today} now={p.now} zone={p.zone} presets={presets} onChange={(d) => (onPatch({ startDate: d }), close())} />}
           </FieldRow>
 
-          <FieldRow label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <Chip tone="guess">30m?</Chip>}>
-            {(close) => (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  {ESTIMATES.map((m) => (
-                    <button key={m} type="button" className={PICK} aria-pressed={task.estimateMin === m} onClick={() => (onPatch({ estimateMin: m }), close())}>
-                      {formatMinutes(m)}
-                    </button>
-                  ))}
-                </div>
-                <MinutesInput onSubmit={(m) => (onPatch({ estimateMin: m }), close())} />
-                {task.estimateMin != null && <Clear onClick={() => (onPatch({ estimateMin: null }), close())}>No estimate</Clear>}
-              </>
-            )}
+          <FieldRow label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <Chip tone="guess">30m?</Chip>} request={asked("estimate")}>
+            {(close) => <EstimatePicker value={task.estimateMin} onChange={(m) => (onPatch({ estimateMin: m }), close())} />}
           </FieldRow>
 
           <FieldRow label="Priority" value={task.priority ? <Chip>{PRIORITIES.find((x) => x.value === task.priority)?.label}</Chip> : <Muted>None</Muted>}>
@@ -349,7 +388,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                 </button>
                 {p.projects.map((pr) => (
                   <button key={pr.id} type="button" aria-pressed={task.projectId === pr.id} className={cx(MENU_ITEM, "aria-pressed:bg-surface-2")} onClick={() => (onPatch({ projectId: pr.id }), close())}>
-                    {pr.name}
+                    {projectOptionLabel(pr, p.projects)}
                   </button>
                 ))}
               </div>
@@ -373,10 +412,11 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             </FieldRow>
           )}
 
-          <FieldRow label="Repeat" value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>}>
+          <FieldRow label="Repeat" value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>} request={asked("repeat")}>
             {(close) => (
               <>
                 <input
+                  data-autofocus
                   aria-label="Repeat"
                   placeholder="every weekday · every 2 weeks on wed · every month"
                   value={repeatSpec}
@@ -632,22 +672,122 @@ function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; all
   );
 }
 
-function DatePicker({ value, today, onChange }: { value: LocalDate | null; today: LocalDate; onChange: (d: LocalDate | null) => void }) {
+/**
+ * The typed date at the head of a date popover (SCREENS.md §10): "next tue", "21 oct", "in 3 days", and on the
+ * Do field a time too ("fri 3pm"). It is read the way quick-add reads it, the day it resolves to shows below as it
+ * is typed, Enter applies it, and words that are not a date change nothing.
+ */
+export function TypedDate({
+  now,
+  zone,
+  today,
+  withTime = false,
+  autoFocus = false,
+  onApply,
+}: {
+  now: Instant;
+  zone: string;
+  today: LocalDate;
+  withTime?: boolean;
+  /** Focus on mount: the bulk picker, which only a key or the palette opens. */
+  autoFocus?: boolean;
+  onApply: (d: TypedDateValue) => void;
+}) {
+  const [text, setText] = useState("");
+  const [missed, setMissed] = useState(false);
+  const hintId = useId();
+  const read = text.trim() ? readTypedDate(text, { now, zone }) : null;
+  const preview = read && `${dayLabel(read.date, today)}${withTime ? (read.time ? ` ${formatTime(read.time)}` : read.evening ? ", evening" : "") : ""}`;
+  return (
+    <div className="flex flex-col gap-1">
+      <input
+        data-autofocus
+        autoFocus={autoFocus}
+        aria-label="In words"
+        aria-describedby={hintId}
+        placeholder={withTime ? "next tue · 21 oct · fri 3pm" : "next tue · 21 oct · in 3 days"}
+        value={text}
+        autoComplete="off"
+        enterKeyHint="done"
+        onChange={(e) => {
+          setText(e.target.value);
+          setMissed(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          if (read) onApply(withTime ? read : { ...read, time: null, evening: false });
+          else if (text.trim()) setMissed(true);
+        }}
+        className={FIELD_INPUT}
+      />
+      <p id={hintId} aria-live="polite" className="flex min-h-5 items-center gap-1 text-body-sm text-ink-2 num">
+        {missed ? (
+          "Didn't catch that"
+        ) : preview ? (
+          <>
+            <Icon name="arrow-right" size={12} className="shrink-0 text-ink-3" />
+            {preview}
+          </>
+        ) : null}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The deadline and start-date picker: a typed date, the days the snooze presets land on (a date field has no
+ * time, so those that differ only by the hour fold into Today), the calendar, and Clear.
+ */
+export function DatePicker({
+  value,
+  today,
+  now,
+  zone,
+  presets,
+  autoFocus,
+  onChange,
+}: {
+  value: LocalDate | null;
+  today: LocalDate;
+  now: Instant;
+  zone: string;
+  presets: readonly SnoozePreset[];
+  autoFocus?: boolean;
+  onChange: (d: LocalDate | null) => void;
+}) {
+  const days = [{ label: "Today", date: today }];
+  for (const s of presets) if (!days.some((d) => d.date.equals(s.patch.doDate))) days.push({ label: s.label, date: s.patch.doDate });
+  if (!days.some((d) => d.date.equals(today.add({ days: 7 })))) days.push({ label: "In a week", date: today.add({ days: 7 }) });
   return (
     <>
+      <TypedDate now={now} zone={zone} today={today} autoFocus={autoFocus} onApply={(d) => onChange(d.date)} />
       <div className="flex flex-wrap gap-1.5">
-        <button type="button" className={PICK} onClick={() => onChange(today)}>
-          Today
-        </button>
-        <button type="button" className={PICK} onClick={() => onChange(today.add({ days: 1 }))}>
-          Tomorrow
-        </button>
-        <button type="button" className={PICK} onClick={() => onChange(today.add({ days: 7 }))}>
-          In a week
-        </button>
+        {days.map((d) => (
+          <button key={d.label} type="button" className={PICK} aria-pressed={value?.equals(d.date) ?? false} onClick={() => onChange(d.date)}>
+            {d.label}
+          </button>
+        ))}
       </div>
       <DateField aria-label="Date" className="w-full" today={today} value={value?.toString() ?? ""} onChange={(e) => onChange(e.target.value ? localDate(e.target.value) : null)} />
       {value && <Clear onClick={() => onChange(null)}>Clear</Clear>}
+    </>
+  );
+}
+
+/** The estimate picker: the preset chips, minutes typed in (focused when the picker is opened by `E`), and No estimate. */
+export function EstimatePicker({ value, onChange }: { value: number | null; onChange: (minutes: number | null) => void }) {
+  return (
+    <>
+      <div className="flex flex-wrap gap-1.5">
+        {ESTIMATES.map((m) => (
+          <button key={m} type="button" className={PICK} aria-pressed={value === m} onClick={() => onChange(m)}>
+            {formatMinutes(m)}
+          </button>
+        ))}
+      </div>
+      <MinutesInput onSubmit={onChange} />
+      {value != null && <Clear onClick={() => onChange(null)}>No estimate</Clear>}
     </>
   );
 }
@@ -664,6 +804,7 @@ function MinutesInput({ onSubmit }: { onSubmit: (minutes: number) => void }) {
         type="number"
         inputMode="numeric"
         min={1}
+        data-autofocus
         aria-label="Minutes"
         placeholder="minutes"
         value={v}

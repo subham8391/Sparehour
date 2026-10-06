@@ -68,8 +68,11 @@ describe("<QuickAdd>", () => {
     // One chip per fact, in reading order, then where it lands; the live region reads them with the strip's separators.
     const strip = input.getAttribute("aria-describedby")!;
     expect(document.getElementById(strip)).toHaveTextContent("Tomorrow 15:00 · 45m · Acme · priority 1 → Upcoming");
-    expect(screen.getByText("Tomorrow 15:00").className).toContain("bg-surface-2");
-    expect(screen.getByText("Acme").className).toContain("bg-meet-soft");
+    // The chip is the label's box (the label truncates inside it rather than widen a 360 px sheet).
+    expect(screen.getByText("Tomorrow 15:00").parentElement?.className).toContain("bg-surface-2");
+    expect(screen.getByText("Acme").parentElement?.className).toContain("bg-meet-soft");
+    expect(screen.getByText("Acme").parentElement?.className).toContain("max-w-full");
+    expect(screen.getByText("Acme").className).toContain("truncate");
     expect(screen.getByText("Upcoming")).toBeInTheDocument();
     const painted = document.querySelectorAll("mark[data-kind]");
     expect([...painted].map((m) => m.getAttribute("data-kind"))).toEqual(["datetime", "datetime", "estimate", "project", "priority"]);
@@ -107,6 +110,10 @@ describe("<QuickAdd>", () => {
     await user.keyboard("{Tab}");
     expect(screen.getByRole("button", { name: /Will create “blog”/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/new project blog/)).toBeInTheDocument();
+    // Accepted, the name no longer holds Tab: the next one leaves the box (no keyboard trap).
+    await user.keyboard("{Tab}");
+    expect(input).not.toHaveFocus();
+    await user.click(input);
     await user.keyboard("{Enter}");
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: null, createProjectName: "blog" });
@@ -280,6 +287,152 @@ describe("<QuickAdd>", () => {
     await user.click(back);
     expect(onDiscard).toHaveBeenCalledWith("Call the plumber", "Call the plumber");
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  describe("removing a chip (PRODUCT_SPEC.md §5.1 rule 3)", () => {
+    const stripOf = (input: HTMLElement) => document.getElementById(input.getAttribute("aria-describedby")!)!;
+
+    it("the first Backspace right after a token un-parses it, the next deletes as usual", async () => {
+      const { user, input, onSubmit } = setup();
+      await user.type(input, "Meeting about fri");
+      expect(stripOf(input)).toHaveTextContent("Fri 18 Sep");
+      await user.keyboard("{Backspace}");
+      expect(input).toHaveValue("Meeting about fri");
+      expect(stripOf(input)).not.toHaveTextContent("Fri 18 Sep");
+      expect(document.querySelectorAll("mark[data-kind]")).toHaveLength(0);
+      // Typing on keeps it as words.
+      await user.type(input, " notes");
+      expect(stripOf(input)).not.toHaveTextContent("Fri 18 Sep");
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0].draft).toMatchObject({ title: "Meeting about fri notes", doDate: null });
+
+      await user.type(input, "Plan ~45");
+      await user.keyboard("{Backspace}{Backspace}");
+      expect(input).toHaveValue("Plan ~4");
+      expect(stripOf(input)).toHaveTextContent("4m"); // the rest reads as a token again
+    });
+
+    it("each fact chip has a remove control that keeps the token's words in the title", async () => {
+      const { user, input, onSubmit } = setup();
+      await user.type(input, "Call Dana tmr 3pm ~30m @calls #acme !1 {{mon} every week");
+      for (const chip of ["Tomorrow 15:00", "30m", "new tag @calls", "Acme", "priority 1"]) {
+        await user.click(screen.getByRole("button", { name: `Remove “${chip}”` }));
+      }
+      await user.click(screen.getByRole("button", { name: /^Remove “Due/ }));
+      await user.click(screen.getByRole("button", { name: /^Remove “every week/ }));
+      expect(screen.queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      const s = onSubmit.mock.calls[0][0];
+      expect(s.draft.title).toBe("Call Dana tmr 3pm ~30m @calls #acme !1 {mon} every week");
+      expect(s.draft).toMatchObject({ doDate: null, doTime: null, estimateMin: null, priority: 0, deadline: null, recurrenceRule: null, tagNames: [] });
+      expect(s.projectId).toBeNull();
+    });
+  });
+
+  describe("@tags (SCREENS.md §11)", () => {
+    const tags = [
+      { id: "t1", name: "calls" },
+      { id: "t2", name: "deep" },
+    ];
+
+    it("lists matching tags while one is typed; Tab completes it", async () => {
+      const { user, input } = setup({ tags });
+      await user.type(input, "Ring the bank @ca");
+      const group = screen.getByRole("group", { name: "Tags" });
+      expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["@calls", "Create @ca"]);
+      await user.keyboard("{Tab}");
+      expect(input).toHaveValue("Ring the bank @calls ");
+      expect(screen.queryByRole("group", { name: "Tags" })).not.toBeInTheDocument();
+      expect(stripOf(input)).toHaveTextContent("@calls");
+    });
+
+    it("Tab on a new tag in the middle of the line finishes it and moves on", async () => {
+      const { user, input } = setup({ tags, initial: "Call @zz about it" });
+      await user.click(input);
+      (input as HTMLInputElement).setSelectionRange(8, 8);
+      await user.keyboard("z");
+      expect(input).toHaveValue("Call @zzz about it");
+      expect(screen.getByRole("group", { name: "Tags" })).toHaveTextContent("Create @zzz");
+      await user.keyboard("{Tab}");
+      expect(input).toHaveValue("Call @zzz about it");
+      expect(screen.queryByRole("group", { name: "Tags" })).not.toBeInTheDocument();
+    });
+
+    it("an unknown tag offers Create first, the strip says it is new, and it is saved once", async () => {
+      const { user, input, onSubmit } = setup({ tags });
+      await user.type(input, "Buy stamps @Errand");
+      const group = screen.getByRole("group", { name: "Tags" });
+      expect(within(group).getAllByRole("button")[0]).toHaveTextContent("Create @Errand");
+      expect(stripOf(input)).toHaveTextContent("new tag @Errand");
+      await user.type(input, " @errand @CALLS{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0].draft.tagNames).toEqual(["Errand", "CALLS"]);
+    });
+
+    function stripOf(input: HTMLElement) {
+      return document.getElementById(input.getAttribute("aria-describedby")!)!;
+    }
+  });
+
+  describe("two projects of one name (PRODUCT_SPEC.md §5.4)", () => {
+    const twins = [
+      { id: "w1", name: "Website", area: "Work" },
+      { id: "w2", name: "Website", area: "Personal" },
+    ];
+
+    it("files nowhere until one is picked, offers no Create, and keeps the pick", async () => {
+      const { user, input, onSubmit } = setup({ projects: twins });
+      await user.type(input, "Fix the footer #website");
+      const strip = document.getElementById(input.getAttribute("aria-describedby")!)!;
+      expect(strip).toHaveTextContent("Website? → Inbox");
+      const group = screen.getByRole("group", { name: "Projects" });
+      expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Website · Work", "Website · Personal"]);
+      await user.click(screen.getByRole("button", { name: "Website · Personal" }));
+      expect(input).toHaveValue("Fix the footer #Website");
+      expect(strip).toHaveTextContent("Website · Personal → Website · Personal");
+      await user.type(input, " tmr");
+      expect(strip).toHaveTextContent("Website · Personal");
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: "w2", createProjectName: null });
+    });
+
+    it("Enter without a pick files nothing and keeps the words", async () => {
+      const { user, input, onSubmit } = setup({ projects: twins });
+      await user.type(input, "Fix the footer #website{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: null, createProjectName: null });
+      expect(onSubmit.mock.calls[0][0].draft.title).toBe("Fix the footer #website");
+      expect(screen.getByRole("status")).toHaveTextContent("#website fits more than one project, so it stays in the title");
+    });
+  });
+
+  it("evening alone is this evening, from the suggestion chip too (PRODUCT_SPEC.md §5.2)", async () => {
+    const { user, input, onSubmit } = setup({ initial: "call mum" });
+    await user.click(screen.getByRole("button", { name: "evening" }));
+    expect(document.getElementById(input.getAttribute("aria-describedby")!)).toHaveTextContent("Today, evening → Today");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].draft).toMatchObject({ evening: true });
+    expect(onSubmit.mock.calls[0][0].draft.doDate?.toString()).toBe("2026-09-11");
+  });
+
+  it("a deadline before the do-date keeps both and says so (PRODUCT_SPEC.md §5.4)", async () => {
+    const { user, input, onSubmit } = setup();
+    await user.type(input, "Prep {{today} mon");
+    expect(screen.getByText(/Due before you plan to do it/)).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const d = onSubmit.mock.calls[0][0].draft;
+    expect([d.doDate?.toString(), d.deadline?.toString()]).toEqual(["2026-09-14", "2026-09-11"]);
+  });
+
+  it("a bare time that has passed means tomorrow, and the strip says so (A10)", async () => {
+    const { user, input } = setup();
+    await user.type(input, "Stretch 7am");
+    expect(document.getElementById(input.getAttribute("aria-describedby")!)).toHaveTextContent("Tomorrow 07:00 → Upcoming");
   });
 
   it("renders nothing when closed", () => {

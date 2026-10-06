@@ -9,19 +9,20 @@ import { useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
 import { toChecklistItem, toTask } from "@/data/mappers";
 import { ALL_PROJECTS_SQL, AREAS_SQL, isOpenProject, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
+import { withAreaNames } from "@/data/queries/project-label";
 import { CHECKLIST_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL, PROJECT_HEADINGS_SQL } from "@/data/queries/views";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { Opening } from "./task-detail";
+import { Opening, type FieldRequest } from "./task-detail";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useChecklistRepo, useTagRepo } from "./use-repos";
 import { useTaskRepo } from "./use-task-repo";
 
 type ChecklistRow = Parameters<typeof toChecklistItem>[0];
 
-export function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
+export function TaskDetail({ id, field = null, onClose }: { id: string; field?: FieldRequest | null; onClose: () => void }) {
   const repo = useTaskRepo();
   const checklistRepo = useChecklistRepo();
   const tagRepo = useTagRepo();
@@ -39,7 +40,10 @@ export function TaskDetail({ id, onClose }: { id: string; onClose: () => void })
   const checklist = useMemo(() => (checklistRows ?? []).map(toChecklistItem), [checklistRows]);
   const task = rows?.[0] ? toTask(rows[0]) : null;
   // The picker offers projects work can still go into; the label names the task's own project whatever its state.
-  const allProjects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", areaId: p.area_id, open: isOpenProject(p.state) })), [projectRows]);
+  const allProjects = useMemo(
+    () => withAreaNames(projectRows ?? [], areaRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", areaId: p.area_id, area: p.area, open: isOpenProject(p.state) })),
+    [projectRows, areaRows],
+  );
   const projects = useMemo(() => allProjects.filter((p) => p.open), [allProjects]);
   const project = allProjects.find((p) => p.id === task?.projectId) ?? null;
   const area = (areaRows ?? []).find((a) => a.id === project?.areaId) ?? null;
@@ -78,6 +82,7 @@ export function TaskDetail({ id, onClose }: { id: string; onClose: () => void })
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
       onClose={onClose}
+      fieldRequest={field}
     />
   );
 }

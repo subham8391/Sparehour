@@ -658,6 +658,8 @@ Opens in the context pane (desktop) or a sheet (mobile). `Space` peeks, `Enter` 
 
 **Responsive.** Phone: a **full-screen sheet** with the fields in the same order as the panel; field popovers become sheets; the footer (Complete · Block it · ⋯) is fixed at the bottom at 48 px. Narrow: a right-side sheet. Medium and wide: the context pane, as drawn.
 
+**As built (2026-10-06).** The Do, Deadline and Starts popovers open with a typed date ("next tue", "21 oct", "in 3 days"; Do also takes a time, "fri 3pm") read the way quick-add reads it: the day shows below as it is typed, Enter applies it, and words that are not a date say "Didn't catch that" and change nothing. Deadline and Starts offer Today and the days the snooze presets land on. A deadline before the do-date shows "Due before you plan to do it" under the Deadline row (ink-2, the alert glyph) with `Do it by then`, which moves the do-date to the deadline. `D`, `Shift+D`, `Shift+S`, `E` and `R` (and the palette's Pick a date · Set deadline · Set start date · Set estimate · Repeat) open the detail with that field's popover open and focused — on its typed field from `sm` up, on the sheet itself on a phone — and `Esc` closes the popover before the panel. The Project picker names the area beside a name two projects share ("Website · Work").
+
 ---
 
 ## 11. Quick-add — M1
@@ -680,6 +682,7 @@ Opens in the context pane (desktop) or a sheet (mobile). `Space` peeks, `Enter` 
 - Destination line when it isn't obvious: "→ Inbox" or "→ Today".
 - Milestone: M1. Voice capture: M2.
 - **Responsive.** Phone: the FAB opens a **bottom sheet docked above the keyboard** with live parsing and one row of 36 px token chips (date presets, estimate presets, `#`, `@`, `!`); ⏎ saves and keeps going. Wireframe in §22. Narrow and up: the overlay as drawn.
+- **As built (2026-10-06).** Tokens are painted in place in the line; the strip below draws the facts as chips, and each chip carries a remove control (a 44 px target on touch) that turns its tokens back into title words, as does the first `Backspace` right after a token (the next one deletes as usual; deleting into such words lets them parse again). An `@` being typed lists matching tags as chips, prefix first, then "Create @name" (first when nothing matches; `Tab` takes the first); a tag no one has yet reads "new tag @name" in the strip and is made on save, matched without regard to case. Two projects of one name are told apart by area ("Website · Work" / "Website · Personal"): the line files nowhere and offers no Create until one is picked, and the pick holds while the line is edited. `evening` alone means this evening ("Today, evening → Today"), and a bare time already past means tomorrow. A deadline before the do-date keeps both and the strip says "Due before you plan to do it."
 
 ---
 
@@ -1105,6 +1108,8 @@ Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all s
 | `1` `2` `3` · `0` | Priority · none |
 | `R` | Repeat |
 | `M` | Move (project / area picker) |
+
+As built (2026-10-06): `D`, `Shift+D`, `Shift+S`, `E` and `R` open the task's detail on that field's popover. With several rows ticked, `D`, `Shift+D`, `Shift+S` and `E` open one picker for all of them (one write, one undo; DECISIONS.md "Shortcuts with rows ticked"); `R` stays with one task, the selected one or else the only ticked row.
 
 ### Scheduling and snooze
 

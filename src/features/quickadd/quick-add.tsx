@@ -7,25 +7,32 @@
 // (DESIGN_SYSTEM.md §5 "Sheet"). Presentational and testable: data arrives as
 // props.
 import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { parse, type ParseContext, type ParseResult, type Span, type TaskDraft } from "@/core/quickadd";
+import { parse, type ParseContext, type ParseResult, type Range, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Button } from "@/ui/button";
-import { Chip, chipButtonClass, type ChipTone } from "@/ui/chip";
+import { chipButtonClass, chipClass, type ChipTone } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
 import { Sheet } from "@/ui/sheet";
 import {
   bestProjectMatch,
-  escapeProjectTokens,
+  carryRanges,
+  factSpans,
   interpret,
   projectMatches,
+  projectOptionLabel,
+  projectsNamed,
   projectToken,
-  resolveProject,
+  resolveTag,
   segments,
   splitPaste,
+  tagMatches,
+  tagToken,
+  tokenName,
   type Fact,
   type QuickAddProject,
+  type QuickAddTag,
 } from "./interpret";
 
 export interface QuickAddContext {
@@ -57,21 +64,45 @@ interface Filed {
   unfiled: { name: string; several: boolean } | null;
 }
 
+/** What a typed `#name` files into, worked out the same way for the strip and the save. */
+interface ProjectChoice {
+  /** The project the task is filed in: named exactly, picked from the suggestions, or the one a partial name fits. */
+  project: QuickAddProject | null;
+  /** A new project of this name is made on save. */
+  create: boolean;
+  /** Two or more projects carry exactly this name (in different areas): none is guessed and none is created (§5.4). */
+  collision: QuickAddProject[];
+}
+
 /**
- * Where a parsed line goes (PRODUCT_SPEC.md §5.2 "#name"): the project named exactly; else the one project a
- * partial name fits ("#Q4" → Q4 planning); else a new one when asked for. A name that is none of these files
- * nothing, and its words stay in the title rather than vanish (§5.3 rule 7).
+ * Where a parsed line goes (PRODUCT_SPEC.md §5.2 "#name"): the project picked from the suggestions while its name
+ * still reads the same; else the one project named exactly; else the one a partial name fits ("#Q4" → Q4
+ * planning); else a new one when asked for. A name two projects share files nowhere until one is picked.
  */
-function fileLine(text: string, parsed: Parsed, projects: readonly QuickAddProject[], ctx: ParseContext, createAsked: boolean): Filed {
+function chooseProject(draft: TaskDraft, projects: readonly QuickAddProject[], picked: QuickAddProject | null, createAsked: boolean): ProjectChoice {
+  const name = draft.projectName;
+  if (!name) return { project: null, create: false, collision: [] };
+  if (picked && projectsNamed(name, [picked]).length === 1) return { project: picked, create: false, collision: [] };
+  const named = projectsNamed(name, projects);
+  if (named.length === 1) return { project: named[0], create: false, collision: [] };
+  if (named.length > 1) return { project: null, create: false, collision: named };
+  const create = createAsked || draft.projectCreate;
+  return { project: create ? null : bestProjectMatch(name, projects), create, collision: [] };
+}
+
+/**
+ * A line made ready to save. A `#name` that files nothing keeps its words in the title rather than vanish (§5.3
+ * rule 7): the line is read again with that token as literal text.
+ */
+function fileLine(text: string, parsed: Parsed, projects: readonly QuickAddProject[], ctx: ParseContext, choice: ProjectChoice, literal: readonly Range[] = []): Filed {
   const { draft } = parsed;
   const name = draft.projectName;
-  const exact = resolveProject(name, projects);
-  const create = Boolean(name) && !exact && (createAsked || draft.projectCreate);
-  const project = exact ?? (name && !create ? bestProjectMatch(name, projects) : null);
+  const { project, create } = choice;
   if (name && !project && !create) {
-    const again = parse(escapeProjectTokens(text, parsed.spans), ctx);
+    const again = parse(text, ctx, { literal: [...literal, ...parsed.spans.filter((s) => s.kind === "project")] });
     const kept = again.ok ? again.draft : { ...draft, projectName: null, projectCreate: false };
-    return { submission: { draft: kept, projectId: null, createProjectName: null }, title: kept.title, project: null, unfiled: { name, several: projectMatches(name, projects).length > 1 } };
+    const several = choice.collision.length > 1 || projectMatches(name, projects).length > 1;
+    return { submission: { draft: kept, projectId: null, createProjectName: null }, title: kept.title, project: null, unfiled: { name, several } };
   }
   return {
     submission: { draft: { ...draft, projectCreate: create }, projectId: project?.id ?? null, createProjectName: create ? name : null },
@@ -96,6 +127,7 @@ const reason = (e: unknown) => (e instanceof Error && e.message ? e.message : "t
 // ember in the box). The chips below carry the meaning.
 const TOKEN_TONE: Record<Span["kind"], string> = {
   protected: "",
+  literal: "",
   datetime: "text-ink-2",
   project: "text-meet",
   tag: "text-ink-2",
@@ -160,10 +192,27 @@ function useNarrow(): boolean {
   return narrow;
 }
 
+/** The spans a Backspace right after them, or a chip's remove control, can turn back into words. */
+const UNPARSEABLE: ReadonlySet<Span["kind"]> = new Set(["datetime", "evening", "estimate", "priority", "project", "tag", "deadline", "start", "recurrence"]);
+
+export interface QuickAddProps {
+  open: boolean;
+  initial?: string;
+  projects: readonly QuickAddProject[];
+  /** Every tag in the space, for the `@` suggestions; a typed name none matches is created on save. */
+  tags?: readonly QuickAddTag[];
+  ctx: QuickAddContext;
+  onClose: () => void;
+  onSubmit: QuickAddSave;
+  onPasted?: (ids: readonly string[]) => (() => Promise<void>) | null | undefined;
+  onDiscard?: (text: string, title: string) => void;
+}
+
 export function QuickAdd({
   open,
   initial = "",
   projects,
+  tags = [],
   ctx,
   onClose,
   onSubmit,
@@ -173,6 +222,7 @@ export function QuickAdd({
   open: boolean;
   initial?: string;
   projects: readonly QuickAddProject[];
+  tags?: readonly QuickAddTag[];
   ctx: QuickAddContext;
   onClose: () => void;
   onSubmit: QuickAddSave;
@@ -181,14 +231,24 @@ export function QuickAdd({
   /** The sheet closed with words in the box: `text` as typed, `title` as the strip would save it (§5.1 rule 4). */
   onDiscard?: (text: string, title: string) => void;
 }) {
-  const [value, setValue] = useState(initial);
+  // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title
+  // text while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
+  const [line, setLine] = useState<{ text: string; literal: Range[] }>({ text: initial, literal: [] });
+  const value = line.text;
+  const setValue = (next: string) => setLine((l) => ({ text: next, literal: carryRanges(l.literal, l.text, next) }));
   // Keys typed while the sheet was still loading arrive as a longer `initial`; take them unless the box has moved on.
   const [seenInitial, setSeenInitial] = useState(initial);
   if (initial !== seenInitial) {
     setSeenInitial(initial);
-    if (initial.startsWith(value)) setValue(initial);
+    if (initial.startsWith(value)) setLine({ text: initial, literal: line.literal });
   }
   const [createProject, setCreateProject] = useState(false);
+  /** The project picked from the suggestions: two of one name read the same in the line, so the pick is kept here. */
+  const [picked, setPicked] = useState<QuickAddProject | null>(null);
+  /** Where the caret is, to tell which `@tag` is being typed. */
+  const [caret, setCaret] = useState<number | null>(null);
+  /** A run of Backspaces: only the first one next to a token un-parses it, the rest delete as usual. */
+  const backspacing = useRef(false);
   /** What the last save did; a paste's carries the way to take it back ("4 tasks added · Undo"). */
   const [notice, setNotice] = useState<{ text: string; undo?: () => void } | null>(null);
   /** Why the last save failed; the words stay in the box so nothing is lost. */
@@ -212,19 +272,29 @@ export function QuickAdd({
   }, [open]);
 
   const parseCtx = useMemo(() => ({ now: ctx.now, zone: ctx.zone, eveningStartsAt: ctx.eveningStartsAt }), [ctx.now, ctx.zone, ctx.eveningStartsAt]);
-  const result = useMemo(() => parse(value, parseCtx), [value, parseCtx]);
+  const result = useMemo(() => parse(value, parseCtx, { literal: line.literal }), [value, parseCtx, line.literal]);
   const draft = result.ok ? result.draft : null;
   const spans = result.ok ? result.spans : [];
   const warnings = result.ok ? result.warnings : [];
 
   const projectName = draft?.projectName ?? null;
-  const exact = resolveProject(projectName, projects);
-  const suggestions = projectName && !exact ? projectMatches(projectName, projects).slice(0, 3) : [];
-  const willCreate = Boolean(projectName) && !exact && (createProject || Boolean(draft?.projectCreate));
+  const choice: ProjectChoice = draft ? chooseProject(draft, projects, picked, createProject) : { project: null, create: false, collision: [] };
+  // Named exactly (or picked): nothing to suggest. Two of that name: those two, told apart by area, and no Create (§5.4).
+  const exact = choice.project && projectName && projectsNamed(projectName, [choice.project]).length === 1 ? choice.project : null;
+  const collision = choice.collision.length > 1;
+  const suggestions = projectName && !exact ? (collision ? choice.collision : projectMatches(projectName, projects).slice(0, 3)) : [];
+  const willCreate = choice.create;
   // A partial name that fits one project is filed there on save, so the strip says so now: it is the contract.
-  const match = exact ?? (projectName && !willCreate ? bestProjectMatch(projectName, projects) : null);
-  const projectLabel = match ? match.name : projectName ? (willCreate ? `new project ${projectName}` : `${projectName}?`) : null;
-  const interpretation = draft ? interpret(draft, ctx.today, projectLabel) : null;
+  const match = choice.project;
+  const projectLabel = match ? projectOptionLabel(match, projects) : projectName ? (willCreate ? `new project ${projectName}` : `${collision ? choice.collision[0].name : projectName}?`) : null;
+
+  // The `@tag` the caret is in: its matches as chips, and "Create @name" when no tag is called that (SCREENS.md §11).
+  const tagSpan = caret == null ? undefined : spans.find((s) => s.kind === "tag" && s.start < caret && caret <= s.end);
+  const tagName = tagSpan ? tokenName(tagSpan) : "";
+  const tagKnown = tagSpan ? resolveTag(tagName, tags) : null;
+  const tagSuggestions = tagSpan && !tagKnown ? tagMatches(tagName, tags).slice(0, 3) : [];
+  const newTags = draft ? draft.tagNames.filter((t) => !resolveTag(t, tags)) : [];
+  const interpretation = draft ? interpret(draft, ctx.today, projectLabel, newTags) : null;
   /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
   const needsName = !result.ok && value.trim() !== "";
 
@@ -244,12 +314,39 @@ export function QuickAdd({
     }
   };
 
+  /** Puts `token` in place of `span` with a space after it, and the caret after that space: the token is finished. */
+  const replaceSpan = (span: Span, token: string) => {
+    const rest = value.slice(span.end);
+    const glue = rest.startsWith(" ") ? "" : " ";
+    const next = `${value.slice(0, span.start)}${token}${glue}${rest}`;
+    const at = span.start + token.length + 1;
+    setValue(next);
+    setCaret(at);
+    const input = inputRef.current;
+    if (input) {
+      input.focus();
+      requestAnimationFrame(() => input.setSelectionRange(at, at));
+    }
+  };
+
   const pickProject = (p: QuickAddProject) => {
-    const span = spans.find((s) => s.kind === "project");
+    const span = spans.findLast((s) => s.kind === "project");
     if (!span) return;
     setValue(`${value.slice(0, span.start)}${projectToken(p.name)}${value.slice(span.end)}`);
+    setPicked(p);
     setCreateProject(false);
     inputRef.current?.focus();
+  };
+
+  const pickTag = (t: QuickAddTag) => tagSpan && replaceSpan(tagSpan, tagToken(t.name));
+  // A new tag needs nothing more than its name (it is made on save); accepting it just finishes the token.
+  const acceptNewTag = () => tagSpan && replaceSpan(tagSpan, tagSpan.text);
+
+  // Turns tokens back into the words they were typed as (PRODUCT_SPEC.md §5.1 rule 3): they stay in the title.
+  const unparse = (gone: readonly Span[]) => {
+    if (gone.length === 0) return;
+    setLine((l) => ({ text: l.text, literal: [...l.literal, ...gone.map((s) => ({ start: s.start, end: s.end }))] }));
+    if (gone.some((s) => s.kind === "project")) setPicked(null);
   };
 
   // No manual memo: the compiler handles it, and its view of the dependencies is the right one.
@@ -259,9 +356,11 @@ export function QuickAdd({
   const submit = (close: boolean) => {
     if (!result.ok || busy) return;
     const text = value;
-    const filed = fileLine(text, result, projects, parseCtx, createProject);
-    setValue("");
+    const literal = line.literal;
+    const filed = fileLine(text, result, projects, parseCtx, choice, literal);
+    setLine({ text: "", literal: [] });
     setCreateProject(false);
+    setPicked(null);
     setError(null);
     saves.current = saves.current
       .then(() => onSubmit(filed.submission))
@@ -274,7 +373,7 @@ export function QuickAdd({
           setNotice(null);
           setError(`Couldn't save “${filed.title}”: ${reason(e)}`);
           // The words come back unless something new has been typed since.
-          setValue((now) => (now.trim() === "" ? text : now));
+          setLine((now) => (now.text.trim() === "" ? { text, literal } : now));
         },
       );
   };
@@ -287,16 +386,31 @@ export function QuickAdd({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    const wasBackspacing = backspacing.current;
+    backspacing.current = e.key === "Backspace";
     if (e.key === "Enter") {
       e.preventDefault();
       void submit(e.metaKey || e.ctrlKey);
     } else if (e.key === "Escape") {
       e.preventDefault();
       dismiss();
-    } else if (e.key === "Tab" && projectName && !exact) {
+    } else if (e.key === "Backspace" && !wasBackspacing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      // Right after a token, the first Backspace turns it back into words; the next one deletes as usual (§5.1 rule 3).
+      const { selectionStart: at, selectionEnd } = e.currentTarget;
+      const token = at != null && at === selectionEnd ? spans.find((s) => s.end === at && UNPARSEABLE.has(s.kind)) : undefined;
+      if (token) {
+        e.preventDefault();
+        unparse([token]);
+      }
+    } else if (e.key === "Tab" && !e.shiftKey && tagSpan && !tagKnown) {
+      e.preventDefault();
+      if (tagSuggestions.length > 0) pickTag(tagSuggestions[0]);
+      else acceptNewTag();
+    } else if (e.key === "Tab" && !e.shiftKey && projectName && !exact && !willCreate) {
+      // Once the name is taken (picked, or Create accepted) Tab moves on as usual, so the key never traps focus here.
       e.preventDefault();
       if (suggestions.length > 0) pickProject(suggestions[0]);
-      else setCreateProject(true);
+      else if (!collision) setCreateProject(true);
     }
   };
 
@@ -314,20 +428,20 @@ export function QuickAdd({
     let unnamed = 0;
     try {
       await saves.current.catch(() => undefined);
-      for (const [i, line] of lines.entries()) {
-        const r = parse(line, parseCtx);
+      for (const [i, pasted] of lines.entries()) {
+        const r = parse(pasted, parseCtx);
         if (!r.ok) {
           unnamed += 1;
           continue;
         }
-        const filed = fileLine(line, r, projects, parseCtx, false);
+        const filed = fileLine(pasted, r, projects, parseCtx, chooseProject(r.draft, projects, null, false));
         try {
           const id = await onSubmit(filed.submission);
           if (typeof id === "string") ids.push(id);
           added += 1;
         } catch (err) {
           const left = lines.length - i - 1;
-          setValue((now) => (now.trim() === "" ? line : now));
+          setLine((now) => (now.text.trim() === "" ? { text: pasted, literal: [] } : now));
           setError(`Couldn't save “${filed.title}”: ${reason(err)}${left > 0 ? ` ${plural(left, "line after it was", "lines after it were")} not saved either.` : ""}`);
           break;
         }
@@ -378,7 +492,11 @@ export function QuickAdd({
           <input
             ref={inputRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setCaret(e.target.selectionStart);
+            }}
+            onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
             onKeyDown={onKeyDown}
             onPaste={(e) => void onPaste(e)}
             onScroll={syncScroll}
@@ -396,7 +514,10 @@ export function QuickAdd({
         {/* The parse restated as chips; the destination follows the arrow. A live region, so a screen reader hears the parse settle. */}
         <p id={stripId} aria-live="polite" className="flex min-h-[22px] flex-wrap items-center gap-1.5 text-body-sm text-ink-2">
           {interpretation && interpretation.facts.length > 0 ? (
-            interpretation.facts.map((f, i) => <FactChip key={i} fact={f} first={i === 0} />)
+            interpretation.facts.map((f, i) => {
+              const from = factSpans(f, spans).filter((s) => UNPARSEABLE.has(s.kind) || s.kind === "notes");
+              return <FactChip key={i} fact={f} first={i === 0} onRemove={from.length > 0 ? () => (unparse(from), inputRef.current?.focus()) : undefined} />;
+            })
           ) : needsName ? (
             <span className="text-ink-2">Give it a name</span>
           ) : (
@@ -418,19 +539,39 @@ export function QuickAdd({
           </p>
         )}
 
-        {projectName && !exact && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {suggestions.map((p) => (
-              <button key={p.id} type="button" onClick={() => pickProject(p)} className={SUGGEST}>
-                {p.name}
+        {tagSpan && !tagKnown ? (
+          // The tag being typed: its matches first, then (or alone, when none) "Create @name" (SCREENS.md §11).
+          <div role="group" aria-label="Tags" className="flex flex-wrap items-center gap-1.5">
+            {tagSuggestions.map((t) => (
+              <button key={t.id} type="button" onClick={() => pickTag(t)} className={SUGGEST}>
+                @{t.name}
               </button>
             ))}
-            <button type="button" onClick={() => setCreateProject(true)} aria-pressed={willCreate} className={SUGGEST}>
+            <button type="button" onClick={acceptNewTag} className={SUGGEST}>
               <Icon name="plus" size={12} strokeWidth={2} className="shrink-0" />
-              {willCreate ? "Will create" : "Create"} “{projectName}”
-              {suggestions.length === 0 && !willCreate && <Kbd className="ml-1">Tab</Kbd>}
+              Create @{tagName}
+              {tagSuggestions.length === 0 && <Kbd className="ml-1">Tab</Kbd>}
             </button>
           </div>
+        ) : (
+          projectName &&
+          !exact && (
+            // Two projects of one name are told apart by their area, and neither is created again (§5.4).
+            <div role="group" aria-label="Projects" className="flex flex-wrap items-center gap-1.5">
+              {suggestions.map((p) => (
+                <button key={p.id} type="button" onClick={() => pickProject(p)} className={SUGGEST}>
+                  {projectOptionLabel(p, projects)}
+                </button>
+              ))}
+              {!collision && (
+                <button type="button" onClick={() => setCreateProject(true)} aria-pressed={willCreate} className={SUGGEST}>
+                  <Icon name="plus" size={12} strokeWidth={2} className="shrink-0" />
+                  {willCreate ? "Will create" : "Create"} “{projectName}”
+                  {suggestions.length === 0 && !willCreate && <Kbd className="ml-1">Tab</Kbd>}
+                </button>
+              )}
+            </div>
+          )
         )}
 
         <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
@@ -477,23 +618,41 @@ export function QuickAdd({
   );
 }
 
-/** One parsed fact as a chip. Facts after the first carry a hidden separator so the live region reads as the strip did. */
-function FactChip({ fact, first }: { fact: Fact; first: boolean }) {
+/**
+ * One parsed fact as a chip, with a remove control that turns its tokens back into title words (PRODUCT_SPEC.md
+ * §5.1 rule 3): a 44 px target on touch that leaves the chip its own size. Facts after the first carry a hidden
+ * separator so the live region reads as the strip did.
+ */
+function FactChip({ fact, first, onRemove }: { fact: Fact; first: boolean; onRemove?: () => void }) {
   const look = FACT_CHIP[fact.kind];
   // A project that is only a guess stays neutral until it resolves or the person asks to create it.
   const tone = fact.kind === "project" && fact.tentative ? "neutral" : look.tone;
+  const text = fact.chip ?? fact.label;
   return (
     <>
       {!first && <span className="sr-only"> · </span>}
-      <Chip tone={tone} icon={look.icon}>
-        {fact.chip ?? fact.label}
-      </Chip>
+      {/* Capped at the strip's width, so a long repeat plus its remove target never pushes a 360 px sheet sideways. */}
+      <span className={cx(chipClass({ tone }), "max-w-full", onRemove && "pr-0")}>
+        {look.icon && <Icon name={look.icon} size={12} className="shrink-0" />}
+        <span className="min-w-0 truncate">{text}</span>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Remove “${text}”`}
+            title="Keep these words in the title"
+            className="-my-3 flex size-11 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5"
+          >
+            <Icon name="close" size={10} strokeWidth={2} />
+          </button>
+        )}
+      </span>
     </>
   );
 }
 
 const WARNING_TEXT: Record<string, string> = {
-  deadline_before_do_date_swapped: "The deadline was before the do-date, so they were swapped.",
+  deadline_before_do_date: "Due before you plan to do it.",
   deadline_moved_to_first_occurrence: "The deadline was before the first repeat, so it moved to that day.",
   do_date_moved_to_start_date: "“after” sets when it starts, so the day became the start date.",
 };

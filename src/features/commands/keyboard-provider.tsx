@@ -12,6 +12,7 @@ import { PROJECT_NAME_SQL, TASK_STATE_SQL } from "@/data/queries/views";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { requestBulkField } from "@/features/tasks/bulk-field-request";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
@@ -107,7 +108,8 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       tasks,
       go: (href) => router.push(href),
       quickAdd: (prefill) => quickAdd.open(prefill),
-      openTask: (id) => detail.open(id),
+      openTask: (id, field) => detail.open(id, field),
+      editTicked: (field) => void requestBulkField(field),
       moveSelection: (delta) => selection.moveSelection(delta),
       openPalette: (query) => onOpenPalette?.(query),
       openShortcuts: () => setShortcutsOpen(true),

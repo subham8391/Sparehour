@@ -1,7 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { emptyDraft, parse } from "@/core/quickadd";
 import { instant, localDate } from "@/core/time";
-import { bestProjectMatch, dayLabel, escapeProjectTokens, interpret, priorityLabel, projectMatches, projectToken, resolveProject, segments, splitPaste } from "./interpret";
+import {
+  bestProjectMatch,
+  carryRanges,
+  dayLabel,
+  factSpans,
+  interpret,
+  priorityLabel,
+  projectMatches,
+  projectOptionLabel,
+  projectsNamed,
+  projectToken,
+  resolveProject,
+  resolveTag,
+  segments,
+  splitPaste,
+  tagMatches,
+  tagToken,
+} from "./interpret";
 
 const today = localDate("2026-09-11"); // Friday, the corpus reference day
 const ctx = { now: instant("2026-09-11T08:00:00Z"), zone: "Europe/London" };
@@ -45,7 +62,9 @@ describe("interpret", () => {
     expect(interpret(draftOf("Pay invoice {mon} after today @admin // ref 42").draft, today).strip).toBe("due Mon 14 Sep · from Today · @admin · with a note");
     expect(interpret(draftOf("Standup every weekday 9:15").draft, today).strip).toBe("Today 09:15 · repeats every weekday");
     expect(interpret(draftOf("Water plants every! 3 days").draft, today).strip).toBe("Today · repeats every 3 days, after each completion");
-    expect(interpret(draftOf("Read chapter evening").draft, today).strip).toBe("This evening");
+    // `evening` alone is this evening: today's date with the flag (PRODUCT_SPEC.md §5.2), and it lands on Today.
+    expect(interpret(draftOf("call mum evening").draft, today).strip).toBe("Today, evening");
+    expect(interpret(draftOf("call mum evening").draft, today).destination).toBe("Today");
     expect(interpret(draftOf("Read chapter tmr evening").draft, today).strip).toBe("Tomorrow, evening");
   });
 
@@ -107,18 +126,18 @@ describe("project resolution", () => {
     expect(bestProjectMatch("Q4", [...more, { id: "p5", name: "Q4 planning" }])).toBeNull();
   });
 
-  it("escapes #project tokens so a re-parse keeps their words in the title", () => {
-    const value = "Email the accountant #Q4 tomorrow";
-    const { spans } = draftOf(value);
-    const escaped = escapeProjectTokens(value, spans);
-    expect(escaped).toBe("Email the accountant \\#Q4 tomorrow");
-    const again = draftOf(escaped).draft;
-    expect(again.title).toBe("Email the accountant #Q4");
-    expect(again.projectName).toBeNull();
-    expect(again.doDate?.toString()).toBe("2026-09-12");
-    // Every project token, not only the last: none of the words is dropped.
-    const two = "Ship #web #app";
-    expect(draftOf(escapeProjectTokens(two, draftOf(two).spans)).draft.title).toBe("Ship #web #app");
+  it("two projects of one name are a collision: neither resolves, both are named, and pickers show the area", () => {
+    const twins = [
+      { id: "w1", name: "Website", area: "Work" },
+      { id: "w2", name: "Website", area: "Personal" },
+      { id: "p1", name: "Acme", area: "Work" },
+    ];
+    expect(resolveProject("website", twins)).toBeNull();
+    expect(projectsNamed("WEBSITE", twins).map((p) => p.id)).toEqual(["w1", "w2"]);
+    expect(projectOptionLabel(twins[0], twins)).toBe("Website · Work");
+    expect(projectOptionLabel(twins[1], twins)).toBe("Website · Personal");
+    expect(projectOptionLabel(twins[2], twins)).toBe("Acme");
+    expect(resolveProject("acme", twins)?.id).toBe("p1");
   });
 
   it("writes a token that parses back to the same name", () => {
@@ -128,6 +147,56 @@ describe("project resolution", () => {
       const r = parse(`Do it ${projectToken(name)}`, ctx);
       expect(r.ok && r.draft.projectName).toBe(name);
     }
+  });
+});
+
+describe("tags", () => {
+  const tags = [
+    { id: "t1", name: "calls" },
+    { id: "t2", name: "Calendar" },
+    { id: "t3", name: "focus" },
+    { id: "t4", name: "local" },
+  ];
+
+  it("matches without regard to case, prefix first, and never offers the exact one", () => {
+    expect(resolveTag("CALLS", tags)?.id).toBe("t1");
+    expect(resolveTag("errand", tags)).toBeNull();
+    expect(tagMatches("ca", tags).map((t) => t.id)).toEqual(["t1", "t2", "t4"]);
+    expect(tagMatches("calls", tags)).toEqual([]);
+    expect(tagMatches("", tags)).toEqual([]);
+    expect(tagToken("calls")).toBe("@calls");
+    expect(tagToken("deep work")).toBe('@"deep work"');
+  });
+
+  it("gives each tag its own fact and marks the new ones", () => {
+    const i = interpret(draftOf("Prep @calls @errand").draft, today, null, ["errand"]);
+    expect(i.facts.filter((f) => f.kind === "tag").map((f) => [f.label, f.tag])).toEqual([
+      ["@calls", "calls"],
+      ["new tag @errand", "errand"],
+    ]);
+    expect(i.strip).toBe("@calls · new tag @errand");
+  });
+});
+
+describe("removing a chip", () => {
+  it("finds every part of the line a fact came from", () => {
+    const r = draftOf("Call tonight 8pm @calls @Deep ~30m");
+    const facts = interpret(r.draft, today).facts;
+    const of = (kind: string, tag?: string) => factSpans(facts.find((f) => f.kind === kind && (!tag || f.tag === tag))!, r.spans).map((s) => s.text);
+    expect(of("time")).toEqual(["tonight", "8pm"]);
+    expect(of("tag", "Deep")).toEqual(["@Deep"]);
+    expect(of("estimate")).toEqual(["~30m"]);
+  });
+
+  it("carries literal runs through edits: typing keeps them, deleting into them frees the words", () => {
+    const before = "Meeting about fri";
+    const fri = [{ start: 14, end: 17 }];
+    expect(carryRanges(fri, before, `${before} notes`)).toEqual(fri); // typing after the run
+    expect(carryRanges(fri, before, `New ${before}`)).toEqual([{ start: 18, end: 21 }]); // typing before it shifts it
+    expect(carryRanges(fri, before, "Meeting about frXi")).toEqual([{ start: 14, end: 18 }]); // typing inside grows it
+    expect(carryRanges(fri, before, "Meeting about fr")).toEqual([]); // a Backspace into it frees it
+    expect(carryRanges(fri, before, "Meeting fri")).toEqual([{ start: 8, end: 11 }]); // deleting before it shifts it
+    expect(carryRanges(fri, before, "")).toEqual([]);
   });
 });
 

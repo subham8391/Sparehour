@@ -32,6 +32,8 @@ export interface TaskDraft {
 
 export type SpanKind =
   | "protected"
+  /** Words the person un-parsed (a removed chip): kept in the title exactly as typed, never read as a token. */
+  | "literal"
   | "project"
   | "tag"
   | "estimate"
@@ -51,8 +53,20 @@ export interface Span {
   text: string;
 }
 
+/** A `[start, end)` run of the input, in UTF-16 code units. */
+export interface Range {
+  start: number;
+  end: number;
+}
+
+export interface ParseOptions {
+  /** Runs to read as plain title text whatever they look like: the tokens the person un-parsed (PRODUCT_SPEC.md §5.1 rule 3). */
+  literal?: readonly Range[];
+}
+
 export type ParseWarning =
-  | { code: "deadline_before_do_date_swapped" }
+  /** Both dates are kept as typed (PRODUCT_SPEC.md §5.4); the strip and the detail panel say so. */
+  | { code: "deadline_before_do_date" }
   | { code: "deadline_moved_to_first_occurrence" }
   | { code: "do_date_moved_to_start_date" };
 

@@ -4,7 +4,7 @@
 import { Temporal, compareDates, todayFor, type LocalDate, type LocalTime } from "../time";
 import { findAbsoluteDates, findDates, findTimes, weekdayOnOrAfter } from "./datetime";
 import { ruleMonthDay, ruleWeekdays, specToRule } from "./recurrence";
-import type { ParseContext, ParseResult, ParseWarning, Priority, Span, SpanKind, TaskDraft } from "./types";
+import type { ParseContext, ParseOptions, ParseResult, ParseWarning, Priority, Span, SpanKind, TaskDraft } from "./types";
 
 const DEFAULT_EVENING = Temporal.PlainTime.from({ hour: 18, minute: 0 });
 const SIGILS = "#@~!{";
@@ -133,19 +133,32 @@ function buildTitle(scan: Scan): string {
   let out = "";
   for (let i = 0; i < scan.input.length; i++) {
     const kind = scan.taken[i];
-    if (kind && kind !== "protected") {
+    if (kind && kind !== "protected" && kind !== "literal") {
       out += " ";
       continue;
     }
     if (quoteEdges.has(i)) continue;
     const ch = scan.input[i];
+    if (kind === "literal") {
+      out += ch; // exactly as typed
+      continue;
+    }
     if (ch === "\\" && i + 1 < scan.input.length && SIGILS.includes(scan.input[i + 1])) continue; // \# -> #
     out += ch;
   }
   return out.replace(/\s+/g, " ").trim();
 }
 
-export function parse(input: string, ctx: ParseContext): ParseResult {
+/** The runs the person un-parsed, taken first so nothing reads them as a token; a run out of bounds or overlapping another is ignored. */
+function takeLiterals(scan: Scan, options: ParseOptions | undefined): void {
+  for (const r of [...(options?.literal ?? [])].sort((a, b) => a.start - b.start)) {
+    const start = Math.max(0, r.start);
+    const end = Math.min(scan.input.length, r.end);
+    if (end > start && scan.free(start, end)) scan.take("literal", start, end);
+  }
+}
+
+export function parse(input: string, ctx: ParseContext, options?: ParseOptions): ParseResult {
   const today = todayFor({ timezone: ctx.zone, dayRolloverHour: 0 }, ctx.now);
   const offsetMinutes = Math.round(ctx.now.toZonedDateTimeISO(ctx.zone).offsetNanoseconds / 60_000_000_000);
   const eveningAt = ctx.eveningStartsAt ?? DEFAULT_EVENING;
@@ -163,6 +176,7 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
     const rest = input.slice(firstBreak + 1).trim();
     if (rest) notesParts.push(rest);
   }
+  takeLiterals(scan, options);
   protect(scan);
   const firstLine = firstBreak === -1 ? input : input.slice(0, firstBreak);
   const slashes = /\/\//g;
@@ -182,7 +196,8 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
   });
   scanRegex(scan, "tag", TAG_RE, (m) => {
     const name = (m[1] ?? m[2]).trim();
-    if (!draft.tagNames.includes(name)) draft.tagNames.push(name);
+    // Tags match without regard to case, as the repository's create-if-missing does: "@Calls @calls" is one tag.
+    if (!draft.tagNames.some((t) => t.toLocaleLowerCase() === name.toLocaleLowerCase())) draft.tagNames.push(name);
   });
   scanRegex(
     scan,
@@ -279,40 +294,41 @@ export function parse(input: string, ctx: ParseContext): ParseResult {
   const spans = [...scan.spans].sort((a, b) => a.start - b.start);
   if (!draft.title || !/[^\s\p{Cf}]/u.test(draft.title)) return { ok: false, reason: "empty_title", spans };
 
-  // A time without a date means today; a repeat without a date starts at its next occurrence.
-  if (draft.doTime && !draft.doDate) draft.doDate = today;
+  // The first day it can happen: today, or tomorrow when a time typed without a date has already passed
+  // (PRODUCT_SPEC.md §5.2, A10). A repeat without a date starts at its first occurrence from that day, a bare
+  // time lands on it, and `evening` alone means this evening (§5.2 "Alone → today", §8.6).
+  const nowTime = ctx.now.toZonedDateTimeISO(ctx.zone).toPlainTime().round({ smallestUnit: "minute", roundingMode: "floor" });
+  const from = !draft.doDate && draft.doTime && Temporal.PlainTime.compare(draft.doTime, nowTime) < 0 ? today.add({ days: 1 }) : today;
   let doDateFromRule = false;
   if (draft.recurrenceRule && !draft.doDate) {
     const weekdays = ruleWeekdays(draft.recurrenceRule);
     const monthDay = ruleMonthDay(draft.recurrenceRule);
     draft.doDate = weekdays?.length
-      ? weekdays.map((wd) => weekdayOnOrAfter(today, wd)).sort(compareDates)[0]
+      ? weekdays.map((wd) => weekdayOnOrAfter(from, wd)).sort(compareDates)[0]
       : monthDay
-        ? monthDayOnOrAfter(today, monthDay)
-        : today;
+        ? monthDayOnOrAfter(from, monthDay)
+        : from;
     doDateFromRule = true;
   }
+  if (draft.doTime && !draft.doDate) draft.doDate = from;
+  if (draft.evening && !draft.doDate) draft.doDate = today;
 
   // 7. Evening follows the clock.
   if (draft.doTime && Temporal.PlainTime.compare(draft.doTime, eveningAt) >= 0) draft.evening = true;
 
-  // 8. A deadline before the do-date is almost certainly the other way round —
-  //    unless the do-date is the rule's next occurrence, which must stay on the rule;
-  //    then the deadline moves onto that first occurrence, so it can never be missed before it starts.
-  if (draft.deadline && draft.doDate && compareDates(draft.deadline, draft.doDate) < 0) {
-    if (doDateFromRule) {
-      draft.deadline = draft.doDate;
-      warnings.push({ code: "deadline_moved_to_first_occurrence" });
-    } else {
-      [draft.deadline, draft.doDate] = [draft.doDate, draft.deadline];
-      warnings.push({ code: "deadline_before_do_date_swapped" });
-    }
+  // 8. A deadline before a repeat's first occurrence moves onto that occurrence: the do-date must stay on
+  //    the rule, and a series should never start overdue.
+  if (draft.deadline && draft.doDate && doDateFromRule && compareDates(draft.deadline, draft.doDate) < 0) {
+    draft.deadline = draft.doDate;
+    warnings.push({ code: "deadline_moved_to_first_occurrence" });
   }
   // 9. You can't do it before it starts.
   if (draft.startDate && draft.doDate && compareDates(draft.startDate, draft.doDate) > 0) {
     draft.doDate = draft.startDate;
     warnings.push({ code: "do_date_moved_to_start_date" });
   }
+  // 10. Any other deadline before the do-date is kept as typed, with a note (PRODUCT_SPEC.md §5.4 "Both saved").
+  if (draft.deadline && draft.doDate && compareDates(draft.deadline, draft.doDate) < 0) warnings.push({ code: "deadline_before_do_date" });
 
   return { ok: true, draft, spans, warnings };
 }

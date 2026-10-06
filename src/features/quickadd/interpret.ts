@@ -4,12 +4,19 @@
 // The recurrence helpers come straight from their module: the package index
 // would drag the parser (and chrono) into whatever imports this.
 import { ruleToSpec } from "@/core/quickadd/recurrence";
-import type { Span, TaskDraft } from "@/core/quickadd";
+import type { Range, Span, TaskDraft } from "@/core/quickadd";
 import { formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { deadlineWording } from "@/ui/relative-day";
 
 export interface QuickAddProject {
+  id: string;
+  name: string;
+  /** The project's area, which tells two projects of one name apart (PRODUCT_SPEC.md §5.4). */
+  area?: string | null;
+}
+
+export interface QuickAddTag {
   id: string;
   name: string;
 }
@@ -39,6 +46,8 @@ export interface Fact {
   chip?: string;
   /** A project that is named but neither resolved nor promised yet. */
   tentative?: boolean;
+  /** A tag fact's name, as typed (one fact per tag, so each can be removed on its own). */
+  tag?: string;
 }
 
 export interface Interpretation {
@@ -59,7 +68,11 @@ export interface Interpretation {
 /** How the sheet words a project it will create on save. */
 const NEW_PROJECT = "new project ";
 
-export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: string | null = draft.projectName): Interpretation {
+/**
+ * `newTags` are the typed tags no existing tag matches: saving creates them (create-if-missing), and the strip
+ * says so first, as it does for a new project.
+ */
+export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: string | null = draft.projectName, newTags: readonly string[] = []): Interpretation {
   const facts: Fact[] = [];
   if (draft.doDate) {
     const when = dayLabel(draft.doDate, today);
@@ -80,7 +93,8 @@ export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: stri
   const tentative = Boolean(projectLabel?.endsWith("?"));
   if (projectLabel) facts.push({ kind: "project", label: projectLabel, tentative });
   const filedIn = projectLabel && !tentative ? (projectLabel.startsWith(NEW_PROJECT) ? projectLabel.slice(NEW_PROJECT.length) : projectLabel) : null;
-  if (draft.tagNames.length) facts.push({ kind: "tag", label: draft.tagNames.map((t) => `@${t}`).join(" ") });
+  const fresh = new Set(newTags.map(fold));
+  for (const t of draft.tagNames) facts.push({ kind: "tag", label: fresh.has(fold(t)) ? `new tag @${t}` : `@${t}`, tag: t });
   const priority = priorityLabel(draft.priority);
   if (priority) facts.push({ kind: "priority", label: priority });
   if (draft.notes) facts.push({ kind: "note", label: "with a note" });
@@ -91,11 +105,84 @@ export function interpret(draft: TaskDraft, today: LocalDate, projectLabel: stri
 
 const fold = (s: string) => s.trim().toLocaleLowerCase();
 
-/** The project a typed name means, if exactly one is named that (case-insensitive). */
-export function resolveProject(name: string | null, projects: readonly QuickAddProject[]): QuickAddProject | null {
-  if (!name) return null;
+/** Every project named exactly this (case-insensitive): more than one when the name is used in two areas. */
+export function projectsNamed(name: string | null, projects: readonly QuickAddProject[]): QuickAddProject[] {
+  if (!name) return [];
   const key = fold(name);
-  return projects.find((p) => fold(p.name) === key) ?? null;
+  return projects.filter((p) => fold(p.name) === key);
+}
+
+/**
+ * The project a typed name means, if exactly one is named that (case-insensitive). Two of one name in different
+ * areas are a collision: nothing is filed by guess and nothing is created (PRODUCT_SPEC.md §5.4).
+ */
+export function resolveProject(name: string | null, projects: readonly QuickAddProject[]): QuickAddProject | null {
+  const named = projectsNamed(name, projects);
+  return named.length === 1 ? named[0] : null;
+}
+
+export { projectOptionLabel } from "@/data/queries/project-label";
+
+/** The existing tag a typed name means (case-insensitive), so a typed tag is reused, never duplicated. */
+export function resolveTag(name: string, tags: readonly QuickAddTag[]): QuickAddTag | null {
+  const key = fold(name);
+  return tags.find((t) => fold(t.name) === key) ?? null;
+}
+
+/** Tag suggestions while a name is being typed: prefix matches first, then anywhere; the exact one is already chosen. */
+export function tagMatches(name: string, tags: readonly QuickAddTag[]): QuickAddTag[] {
+  const key = fold(name);
+  if (!key) return [];
+  const others = tags.filter((t) => fold(t.name) !== key);
+  return [...others.filter((t) => fold(t.name).startsWith(key)), ...others.filter((t) => !fold(t.name).startsWith(key) && fold(t.name).includes(key))];
+}
+
+/** The `@name` token for a tag, quoted when the name needs it. */
+export function tagToken(name: string): string {
+  return /^[\p{L}\p{N}_-]+$/u.test(name) && /\p{L}/u.test(name) ? `@${name}` : `@"${name}"`;
+}
+
+/** The name a `#…` or `@…` span stands for: the sigil, a `+` and quotes taken off. */
+export function tokenName(span: Span): string {
+  return span.text.replace(/^[#@]\+?/, "").replace(/^"(.*)"$/, "$1").trim();
+}
+
+/** The parts of the line a fact came from: removing its chip un-parses all of them (PRODUCT_SPEC.md §5.1 rule 3). */
+export function factSpans(fact: Fact, spans: readonly Span[]): Span[] {
+  const kinds: Partial<Record<FactKind, Span["kind"][]>> = {
+    time: ["datetime", "evening"],
+    day: ["datetime", "evening"],
+    evening: ["datetime", "evening"],
+    estimate: ["estimate"],
+    deadline: ["deadline"],
+    start: ["start"],
+    repeat: ["recurrence"],
+    project: ["project"],
+    priority: ["priority"],
+    note: ["notes"],
+  };
+  if (fact.kind === "tag") return spans.filter((s) => s.kind === "tag" && fold(tokenName(s)) === fold(fact.tag ?? ""));
+  const of = kinds[fact.kind] ?? [];
+  return spans.filter((s) => of.includes(s.kind));
+}
+
+/**
+ * Carries the literal (un-parsed) runs of a line through an edit, so a removed chip stays removed while typing
+ * goes on: a run before the change stays, one after it shifts, and typing inside one grows it (typing right
+ * after one does not). Deleting any of a run's characters lets those words parse again, so a run of Backspaces
+ * after the first deletes as usual and a mistyped token can be fixed. The edit is found as the differing middle
+ * of the two strings.
+ */
+export function carryRanges(ranges: readonly Range[], before: string, after: string): Range[] {
+  if (ranges.length === 0 || before === after) return [...ranges];
+  let a = 0;
+  while (a < before.length && a < after.length && before[a] === after[a]) a++;
+  let tail = 0;
+  while (tail < before.length - a && tail < after.length - a && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail++;
+  const b = before.length - tail; // the old text [a, b) became after[a, after.length - tail)
+  const delta = after.length - before.length;
+  const shift = (p: number, isEnd: boolean) => (p < a || (p === a && isEnd) ? p : p + delta);
+  return ranges.filter((r) => b === a || r.end <= a || r.start >= b).map((r) => ({ start: shift(r.start, false), end: shift(r.end, true) }));
 }
 
 /** Suggestions while a name is still being typed: prefix matches first, then anywhere in the name. */
@@ -121,16 +208,6 @@ export function bestProjectMatch(name: string | null, projects: readonly QuickAd
   return within.length === 1 ? within[0] : null;
 }
 
-/**
- * The line with every `#project` token escaped (`\#Q4`), so a re-parse keeps those words in the title. A name
- * that files nothing is never dropped (§5.3 rule 7: "a token that fails to parse is left in the title verbatim").
- */
-export function escapeProjectTokens(value: string, spans: readonly Span[]): string {
-  let out = value;
-  for (const s of [...spans].filter((s) => s.kind === "project").sort((a, b) => b.start - a.start)) out = `${out.slice(0, s.start)}\\${out.slice(s.start)}`;
-  return out;
-}
-
 /** The `#name` token for a project, quoted when the name needs it. */
 export function projectToken(name: string): string {
   return /^[\p{L}\p{N}_-]+$/u.test(name) && /\p{L}/u.test(name) ? `#${name}` : `#"${name}"`;
@@ -145,7 +222,7 @@ export interface Segment {
 export function segments(value: string, spans: readonly Span[]): Segment[] {
   const out: Segment[] = [];
   let at = 0;
-  for (const s of [...spans].filter((s) => s.kind !== "protected").sort((a, b) => a.start - b.start)) {
+  for (const s of [...spans].filter((s) => s.kind !== "protected" && s.kind !== "literal").sort((a, b) => a.start - b.start)) {
     if (s.start < at) continue; // overlapping spans never happen, but never paint twice
     if (s.start > at) out.push({ text: value.slice(at, s.start), kind: null });
     out.push({ text: value.slice(s.start, s.end), kind: s.kind });

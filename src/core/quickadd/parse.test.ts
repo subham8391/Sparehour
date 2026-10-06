@@ -101,6 +101,72 @@ describe("spans", () => {
   });
 });
 
+describe("literal ranges (a removed chip, PRODUCT_SPEC §5.1 rule 3)", () => {
+  const lit = (input: string, word: string) => {
+    const start = input.indexOf(word);
+    return parse(input, ctx, { literal: [{ start, end: start + word.length }] });
+  };
+
+  it("keeps an un-parsed date in the title and drops the fact", () => {
+    const r = lit("Meeting about fri", "fri");
+    expect(r.ok && r.draft.title).toBe("Meeting about fri");
+    expect(r.ok && r.draft.doDate).toBeNull();
+    expect(r.spans.map((s) => [s.kind, s.text])).toEqual([["literal", "fri"]]);
+  });
+
+  it("works for every token kind, leaving the others parsed", () => {
+    const cases: [string, string, (d: TaskDraft) => unknown][] = [
+      ["Call 3pm ~45m", "3pm", (d) => d.doTime],
+      ["Read evening ~45m", "evening", (d) => d.evening || d.doDate],
+      ["Plan ~45m today", "~45m", (d) => d.estimateMin],
+      ["Plan !1 today", "!1", (d) => d.priority || null],
+      ["Plan #acme today", "#acme", (d) => d.projectName],
+      ["Plan @calls today", "@calls", (d) => d.tagNames.length || null],
+      ["Plan {fri} today", "{fri}", (d) => d.deadline],
+      ["Plan after mon today", "after mon", (d) => d.startDate],
+      ["Plan every mon today", "every mon", (d) => d.recurrenceRule],
+    ];
+    for (const [input, word, fact] of cases) {
+      const r = lit(input, word);
+      expect(r.ok, input).toBe(true);
+      if (!r.ok) continue;
+      expect(fact(r.draft), input).toBeFalsy();
+      expect(r.draft.title, input).toContain(word);
+    }
+  });
+
+  it("keeps the literal text exactly, and ignores ranges that are out of bounds or overlap", () => {
+    const r = parse("Fix \\#1 today", ctx, { literal: [{ start: 4, end: 7 }, { start: 5, end: 9 }, { start: 40, end: 50 }] });
+    expect(r.ok && r.draft.title).toBe("Fix \\#1");
+    expect(r.ok && r.draft.doDate?.toString()).toBe("2026-09-11");
+  });
+});
+
+describe("a bare time that has passed (A10)", () => {
+  const at = (iso: string): ParseContext => ({ now: instant(iso), zone: "Europe/London" });
+  it("is tomorrow; one still ahead, or the current minute, is today", () => {
+    const morning = at("2026-09-11T08:00:30Z"); // 09:00:30 BST
+    const date = (s: string, c: ParseContext) => {
+      const r = parse(s, c);
+      return r.ok ? r.draft.doDate?.toString() : null;
+    };
+    expect(date("Stretch 7am", morning)).toBe("2026-09-12");
+    expect(date("Stretch 9am", morning)).toBe("2026-09-11");
+    expect(date("Stretch 3pm", morning)).toBe("2026-09-11");
+    expect(date("Stretch 7am today", morning)).toBe("2026-09-11");
+    expect(date("Stretch 11pm", at("2026-09-11T22:30:00Z"))).toBe("2026-09-12"); // 23:30 BST
+  });
+});
+
+describe("deadline before the do-date (PRODUCT_SPEC §5.4)", () => {
+  it("keeps both as typed and warns, unless the do-date is a repeat's first occurrence", () => {
+    const r = parse("Prep {today} mon", ctx);
+    expect(r.ok && [r.draft.doDate?.toString(), r.draft.deadline?.toString(), r.warnings.map((w) => w.code)]).toEqual(["2026-09-14", "2026-09-11", ["deadline_before_do_date"]]);
+    const repeat = parse("Write {today} every 2 weeks on wed", ctx);
+    expect(repeat.ok && repeat.warnings.map((w) => w.code)).toEqual(["deadline_moved_to_first_occurrence"]);
+  });
+});
+
 describe("evening cut-off", () => {
   it("respects a custom evening start", () => {
     const r = parse("Call at 5pm", { ...ctx, eveningStartsAt: localTime("17:00") });
@@ -165,9 +231,10 @@ const arbDraft: fc.Arbitrary<TaskDraft> = fc
     tagNames: fc.uniqueArray(arbName, { maxLength: 3 }),
   })
   .map((r) => {
-    // Keep the draft inside what parse() would itself produce: a time or a repeat implies a date,
-    // a deadline is never before the do-date, a start is never after it, and 18:00+ is the evening.
-    const doDate: LocalDate | null = r.doTime || r.recurrenceRule ? (r.doDate ?? localDate("2026-09-11")) : r.doDate;
+    // Keep the draft inside what parse() would itself produce: a time, a repeat or the evening implies a date,
+    // a start is never after it, and 18:00+ is the evening. (A deadline before the do-date is kept as typed,
+    // with a warning, so the generator leaves it out: the round trip compares drafts, not warnings.)
+    const doDate: LocalDate | null = r.doTime || r.recurrenceRule || r.evening ? (r.doDate ?? localDate("2026-09-11")) : r.doDate;
     const doTime: LocalTime | null = r.doTime;
     const anchor = doDate ?? localDate("2026-09-11");
     return {

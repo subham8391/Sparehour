@@ -383,7 +383,8 @@ describe("times", () => {
   ])("%s → %s", (tok, expected) => {
     const d = draftOf(`Task ${tok}`);
     expect(hhmm(d)).toBe(expected);
-    expect(iso(d.doDate)).toBe("2026-09-11");
+    // Now is 09:00: a time already gone today means tomorrow (A10).
+    expect(iso(d.doDate)).toBe(expected < "09:00" ? "2026-09-12" : "2026-09-11");
   });
 
   it.each(["24:00", "13pm", "0am", "9:60", "25:00", "15h", "3 o'clock"])("%j is not a time", (tok) => {
@@ -407,8 +408,9 @@ describe("times", () => {
     expect(kinds(r)).toEqual(["datetime:3pm", "datetime:4pm"]);
   });
 
-  it("a time that has already passed today still means today (PRODUCT_SPEC leaves 'tomorrow' as an open assumption)", () => {
-    expect(iso(draftOf("Task 8am").doDate)).toBe("2026-09-11"); // now is 09:00
+  it("a time that has already passed today means tomorrow (PRODUCT_SPEC §5.2, A10); with a date it is kept", () => {
+    expect(iso(draftOf("Task 8am").doDate)).toBe("2026-09-12"); // now is 09:00
+    expect(iso(draftOf("Task today 8am").doDate)).toBe("2026-09-11");
   });
 
   it("evening follows the clock at exactly the cut-off, and `tonight` forces evening whatever the time", () => {
@@ -713,19 +715,19 @@ describe("properties", () => {
     );
   });
 
-  it("the draft is internally consistent: a time or a repeat implies a date, start ≤ do-date ≤ deadline, evening at 18:00+", () => {
+  it("the draft is internally consistent: a time, a repeat or the evening implies a date, start ≤ do-date, a deadline before it is flagged, evening at 18:00+", () => {
     fc.assert(
       fc.property(arbInput, (s) => {
         const r = parse(s, ctx);
         if (!r.ok) return;
         const d = r.draft;
-        if (d.doTime) expect(d.doDate).not.toBeNull();
+        if (d.doTime || d.evening) expect(d.doDate).not.toBeNull();
         if (d.recurrenceRule) {
           expect(d.doDate).not.toBeNull();
           expect(d.recurrenceMode).not.toBeNull();
         } else expect(d.recurrenceMode).toBeNull();
-        // step 9 (start after do-date) can undo step 8 (deadline before do-date): "tmr {fri} after 2026-10-01" ends with the deadline before the do-date again
-        if (d.doDate && d.deadline && !d.startDate) expect(d.deadline.toString() >= d.doDate.toString()).toBe(true);
+        // Both dates are kept as typed (PRODUCT_SPEC §5.4), and the strip is told.
+        if (d.doDate && d.deadline && d.deadline.toString() < d.doDate.toString()) expect(r.warnings.map((w) => w.code)).toContain("deadline_before_do_date");
         if (d.doDate && d.startDate) expect(d.startDate.toString() <= d.doDate.toString()).toBe(true);
         if (d.doTime && d.doTime.hour >= 18) expect(d.evening).toBe(true);
         expect(d.title).toBe(d.title.trim());
