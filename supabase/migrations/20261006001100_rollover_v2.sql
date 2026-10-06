@@ -84,7 +84,9 @@ begin
       new.assignee_id := old.assignee_id;
       new.created_at := old.created_at;
       new.expired_at := old.expired_at;
-      if (to_jsonb(new) - bookkeeping) is distinct from (to_jsonb(old) - bookkeeping) then
+      -- the stamp: a touch or a move clears it, and a person may clear it outright ("Keep in
+      -- Someday" in the Review walk), but never set or move it
+      if (to_jsonb(new) - bookkeeping) is distinct from (to_jsonb(old) - bookkeeping) or new.auto_filed_at is null then
         new.auto_filed_at := null;
       else
         new.auto_filed_at := old.auto_filed_at;

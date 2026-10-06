@@ -319,12 +319,29 @@ describe.skipIf(admin === null)("run_rollover", () => {
       await c.query("update public.tasks set state = 'someday', auto_filed_at = now() where id = $1", [manual]);
       await asAdmin(c);
       expect((await task(c, untouched)).auto_filed_at).toBe(stamp);
+      // "Keep in Someday": a person may clear the stamp outright, and the task stays parked
+      await asUser(c, uid);
+      await c.query("update public.tasks set auto_filed_at = null where id = $1", [untouched]);
+      await asAdmin(c);
+      expect(await task(c, untouched)).toMatchObject({ state: "someday", auto_filed_at: null });
       expect((await task(c, edited)).auto_filed_at).toBeNull();
       expect(await task(c, moved)).toMatchObject({ state: "active", auto_filed_at: null });
       expect(await task(c, manual)).toMatchObject({ state: "someday", auto_filed_at: null });
       // Bring them all back: the touch trigger refreshes last_touched_at, so the task starts aging again
       const touched = await c.query<{ fresh: boolean }>("select last_touched_at > now() - interval '1 minute' as fresh from public.tasks where id = $1", [moved]);
       expect(touched.rows[0].fresh).toBe(true);
+    }));
+
+  it("a write that clears the do-date clears the time with it (a timed task parked in Someday)", () =>
+    inTx(async (c) => {
+      const uid = await newUser(c, "roll-time@contract.test");
+      const sid = await spaceOf(c, uid);
+      const today = await todayFor(c, uid);
+      const id = await seed(c, sid, today, { title: "Call the bank", daysAgo: 0, doTime: "15:00" });
+      await asUser(c, uid);
+      await c.query("update public.tasks set state = 'someday', do_date = null where id = $1", [id]);
+      await asAdmin(c);
+      expect(await task(c, id)).toMatchObject({ state: "someday", do_date: null, do_time: null });
     }));
 
   it("completing a repeat starts the next occurrence clean, and undoing the completion puts the count back", () =>
