@@ -24,6 +24,7 @@ import { closedLine } from "@/features/rituals/shutdown";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon, heroState } from "@/features/today/ribbon";
+import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
 import { Timeline } from "@/features/today/timeline";
@@ -301,8 +302,9 @@ export default function TodayPage() {
   const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
   // Everything planned for today is done (SCREENS.md §2.7 "All done"): at least one thing finished and nothing left on
   // today or this evening. Nothing planned and nothing finished is still the empty day below.
-  const allDone = model.ready && !closedAt && model.todayTasks.length === 0 && model.eveningTasks.length === 0 && doneToday.length > 0;
-  const emptyDay = model.ready && !closedAt && !allDone && model.carried.length === 0 && model.todayTasks.length === 0;
+  const bodyState = dayState({ closed: Boolean(closedAt), carried: model.carried.length, today: model.todayTasks.length, evening: model.eveningTasks.length, done: doneToday.length });
+  const allDone = model.ready && bodyState === "all-done";
+  const emptyDay = model.ready && bodyState === "empty";
   const [pulling, setPulling] = useState(false);
   const wantsSuggestions = emptyDay || (allDone && pulling);
   const { data: openRows } = useQuery<TaskRowType>(wantsSuggestions ? OPEN_TASKS_SQL : NOTHING_SQL);
