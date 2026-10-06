@@ -1,4 +1,5 @@
 "use client";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@/data/powersync";
@@ -35,6 +36,8 @@ import { cx } from "@/ui/cx";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Loading } from "../loading-view";
 
+// The once-only expired digest (PRODUCT_SPEC.md §8.2 rule 5): a lazy island, out of the first download.
+const ExpiredDigest = dynamic(() => import("@/features/today/expired-digest").then((m) => m.ExpiredDigest), { ssr: false });
 const NOTHING_SQL = `select * from tasks where 0`;
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
@@ -310,6 +313,7 @@ export default function TodayPage() {
           }
         />
 
+        <ExpiredDigest />
         {closedAt ? (
           <div className="rounded-xl border border-line bg-surface px-5 py-5">
             <p className="font-display text-pane font-medium text-ink">That&rsquo;s the day.</p>

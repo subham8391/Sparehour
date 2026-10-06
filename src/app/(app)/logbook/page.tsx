@@ -5,7 +5,11 @@
 // done one and Restore brings a dropped one back, both undoable. Cold data:
 // the logbook stream delivers the finished months on open and keeps them
 // cached after the view closes; dropped tasks are in the working set already.
-import { useCallback, useMemo, useState } from "react";
+// A task the rollover dropped under the "expire" policy says "Expired", and
+// `?show=expired` (Review on Today's expired digest) lists only those.
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
@@ -25,6 +29,13 @@ import { EmptyCard } from "@/ui/list-card";
 import { SectionLabel } from "@/ui/section-label";
 import { logbookDays, type CompletionRow, type LogbookEntry } from "./logbook-days";
 
+/** Reads `?show=expired`: the view Review on Today's digest opens. */
+function ExpiredFromQuery({ onChange }: { onChange: (expiredOnly: boolean) => void }) {
+  const expiredOnly = useSearchParams().get("show") === "expired";
+  useEffect(() => onChange(expiredOnly), [expiredOnly, onChange]);
+  return null;
+}
+
 export default function LogbookPage() {
   const repo = useTaskRepo();
   const detail = useTaskDetail();
@@ -37,11 +48,13 @@ export default function LogbookPage() {
   const { data: completions } = useQuery<CompletionRow>(LOGBOOK_COMPLETIONS_SQL);
   const { data: dropped, isLoading: droppedLoading } = useQuery<TaskRowType>(DROPPED_SQL);
   const projectNames = useProjectNames();
+  const [expiredOnly, setExpiredOnly] = useState(false);
 
   const days = useMemo(
     () => logbookDays({ done: data, completions, dropped, zone, defaultEstimateMin: settings?.defaultEstimateMin ?? 30 }),
     [data, completions, dropped, zone, settings?.defaultEstimateMin],
   );
+  const expired = useMemo(() => days.flatMap((d) => d.dropped.filter((e) => e.expired)), [days]);
 
   // J/K walks the done rows and the dropped rows of the days whose group is open: a closed group's rows can't be seen.
   // A repeat's completion row is one occurrence, not a task to select or reopen; it opens its task.
@@ -56,11 +69,14 @@ export default function LogbookPage() {
     });
   }, []);
   const sel = useListSelection(
-    days.map((d) => [...d.done.filter((e) => e.kind === "done").map((e) => e.key), ...(openDropped.has(d.day.toString()) ? d.dropped.map((e) => e.key) : [])]),
+    expiredOnly
+      ? expired.map((e) => e.key)
+      : days.map((d) => [...d.done.filter((e) => e.kind === "done").map((e) => e.key), ...(openDropped.has(d.day.toString()) ? d.dropped.map((e) => e.key) : [])]),
   );
 
-  const meta = ({ task: t, at }: LogbookEntry) => (
+  const meta = ({ task: t, at, expired: wasExpired }: LogbookEntry) => (
     <>
+      {wasExpired && <span>Expired</span>}
       {t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>}
       <span className="num">{at}</span>
     </>
@@ -80,7 +96,7 @@ export default function LogbookPage() {
           e.kind === "done" ? (
             <RowAction label="Reopen" primary title="Reopen (U)" onClick={() => void repo.reopen(e.task.id)} />
           ) : e.kind === "dropped" ? (
-            <RowAction label="Restore" primary onClick={() => void repo.setState(e.task.id, "active")} />
+            <RowAction label="Restore" primary onClick={() => void repo.setState(e.task.id, "active", "Brought back {title}")} />
           ) : undefined
         }
       />
@@ -88,8 +104,35 @@ export default function LogbookPage() {
   };
 
   const empty = !isLoading && !droppedLoading && days.length === 0;
+  const query = (
+    <Suspense fallback={null}>
+      <ExpiredFromQuery onChange={setExpiredOnly} />
+    </Suspense>
+  );
+  if (expiredOnly) {
+    return (
+      <main className={VIEW_COLUMN}>
+        {query}
+        <ViewHeader eyebrow="Logbook" title="Expired" subtitle="Time-sensitive tasks the day moved past. Restore brings one back." />
+        {expired.length === 0 ? (
+          !droppedLoading && <EmptyCard fact="Nothing expired." />
+        ) : (
+          <section className="flex flex-col gap-2">
+            <SectionLabel className="px-0.5" count={expired.length}>
+              Dropped
+            </SectionLabel>
+            <TaskList>{expired.map(row)}</TaskList>
+          </section>
+        )}
+        <Link href="/logbook" className="flex min-h-11 items-center self-start text-body-sm text-ink-2 underline decoration-line-strong underline-offset-2 hover:text-ink sm:min-h-0">
+          The whole Logbook
+        </Link>
+      </main>
+    );
+  }
   return (
     <main className={VIEW_COLUMN}>
+      {query}
       <ViewHeader eyebrow="Logbook" title="Done" subtitle={days.length > 0 ? "Kept for a week" : undefined} />
       {empty ? (
         <div className="flex flex-col gap-3">
