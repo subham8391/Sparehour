@@ -2,7 +2,8 @@ import { unzipSync } from "fflate";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { localDate } from "@/core/time";
 import type { LocalDatabase } from "@/data/powersync";
-import { buildExport, fetchFinishedTasks, readSnapshot } from "./use-export";
+import { buildExport, readSnapshot } from "./build";
+import { fetchFinishedTasks } from "./use-export";
 
 describe("readSnapshot", () => {
   it("reads every exported table, leaving out soft-deleted rows where the table has them", async () => {

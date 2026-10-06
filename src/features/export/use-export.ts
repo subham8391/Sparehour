@@ -6,15 +6,17 @@
 // export first makes sure that stream has synced. Offline, it still saves
 // what the device has, says that finished tasks are missing, and the files
 // say so too.
-import { strToU8, zipSync } from "fflate";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { ExportFormat } from "@/core/export";
 import type { LocalDate } from "@/core/time";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import { logbookStream } from "@/data/queries/views";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { EXPORT_TABLES, csvExport, jsonExport, markdownFiles, type ExportFormat, type ExportOptions, type ExportSnapshot, type Row } from "@/core/export";
 
-const WITHOUT_DELETED_AT = new Set<string>(["user_settings"]);
+// The file builders and the zip library are an island (SYSTEM_DESIGN.md §11.6): fetched once Settings is idle,
+// so the first export never waits on the network and still works offline.
+const loadBuild = () => import("./build");
 
 /** How long the export waits for finished tasks with a connection, and without one (time for an earlier sync to be recognised). */
 export const FINISHED_TASKS_WAIT_MS = { online: 15_000, offline: 2_000 } as const;
@@ -28,11 +30,6 @@ export interface ExportApi {
   error: string | null;
   /** Last export, for the "Saved sparehour-export-….json" line. */
   lastFile: string | null;
-}
-
-export async function readSnapshot(getAll: <T>(sql: string, params?: unknown[]) => Promise<T[]>): Promise<ExportSnapshot> {
-  const entries = await Promise.all(EXPORT_TABLES.map(async (table) => [table, await getAll<Row>(`select * from ${table}${WITHOUT_DELETED_AT.has(table) ? "" : " where deleted_at is null"}`)] as const));
-  return Object.fromEntries(entries) as ExportSnapshot;
 }
 
 export interface FinishedTasks {
@@ -65,16 +62,6 @@ export async function fetchFinishedTasks(db: Pick<LocalDatabase, "syncStream">, 
   return { synced, release: () => subscription.unsubscribe() };
 }
 
-/** The bytes and name for a format, from a snapshot. */
-export function buildExport(format: ExportFormat, snapshot: ExportSnapshot, now: Date, opts: ExportOptions = {}): { name: string; blob: Blob } {
-  const stamp = now.toISOString().slice(0, 10);
-  if (format === "json") return { name: `sparehour-export-${stamp}.json`, blob: new Blob([jsonExport(snapshot, now.toISOString(), opts)], { type: "application/json" }) };
-  if (format === "csv") return { name: `sparehour-tasks-${stamp}.csv`, blob: new Blob([csvExport(snapshot)], { type: "text/csv" }) };
-  const files = markdownFiles(snapshot, stamp, opts);
-  const zip = zipSync(Object.fromEntries(files.map((f) => [f.path, strToU8(f.content)])), { level: 6 });
-  return { name: `sparehour-markdown-${stamp}.zip`, blob: new Blob([zip as BlobPart], { type: "application/zip" }) };
-}
-
 function saveBlob(name: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -94,6 +81,7 @@ export function useExport(): ExportApi {
   const [busy, setBusy] = useState<ExportFormat | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFile, setLastFile] = useState<string | null>(null);
+  useEffect(() => preloadOnIdle(loadBuild), []);
   const exportData = useCallback(
     async (format: ExportFormat) => {
       setBusy(format);
@@ -101,6 +89,7 @@ export function useExport(): ExportApi {
       let finished: FinishedTasks | null = null;
       try {
         finished = await fetchFinishedTasks(db, today, db.currentStatus?.connected ? FINISHED_TASKS_WAIT_MS.online : FINISHED_TASKS_WAIT_MS.offline);
+        const { buildExport, readSnapshot } = await loadBuild();
         const snapshot = await readSnapshot((sql, params) => db.getAll(sql, params));
         const { name, blob } = buildExport(format, snapshot, new Date(), { finishedTasks: finished.synced });
         saveBlob(name, blob);
