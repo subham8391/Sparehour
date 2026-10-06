@@ -55,7 +55,6 @@ describe("<TodayMenu>", () => {
     onSort: vi.fn(),
     showCompleted: false,
     onShowCompleted: vi.fn(),
-    carriedCount: 4,
     onClearSlate: vi.fn(),
     onTrim: vi.fn(),
     text: { day: DAY, carried: [], today: [taskFixture("a", "Call the bank")], evening: [], defaultEstimateMin: 30 },
@@ -65,7 +64,7 @@ describe("<TodayMenu>", () => {
 
   it("offers Sort, Show completed, Clear the slate, Trim today, Copy today as text and Print, in that order", () => {
     const { container } = render(<TodayMenu {...props()} />);
-    expect([...container.querySelectorAll("[role^=menuitem]")].map((b) => b.textContent)).toEqual(["SortManual", "Show completed", "Clear the slate4 carried", "Trim today", "Copy today as text", "Print"]);
+    expect([...container.querySelectorAll("[role^=menuitem]")].map((b) => b.textContent)).toEqual(["SortManual", "Show completed", "Clear the slate…", "Trim today", "Copy today as text", "Print"]);
   });
 
   it("Sort opens the five sorts; choosing one saves it and closes the menu", async () => {
@@ -84,9 +83,9 @@ describe("<TodayMenu>", () => {
     expect(p.close).toHaveBeenCalled();
   });
 
-  it("Show completed toggles; Clear the slate and Trim today hand over; nothing carried leaves Clear the slate inert", async () => {
+  it("Show completed toggles; Clear the slate and Trim today hand over", async () => {
     const p = props({ showCompleted: true });
-    const { unmount } = render(<TodayMenu {...p} />);
+    render(<TodayMenu {...p} />);
     expect(screen.getByRole("menuitemcheckbox", { name: "Show completed" })).toHaveAttribute("aria-checked", "true");
     await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show completed" }));
     expect(p.onShowCompleted).toHaveBeenCalledWith(false);
@@ -94,13 +93,6 @@ describe("<TodayMenu>", () => {
     expect(p.onClearSlate).toHaveBeenCalled();
     await userEvent.click(screen.getByRole("menuitem", { name: "Trim today" }));
     expect(p.onTrim).toHaveBeenCalled();
-    unmount();
-    const none = props({ carriedCount: 0 });
-    render(<TodayMenu {...none} />);
-    const clear = screen.getByRole("menuitem", { name: /Clear the slate/ });
-    expect(clear).toHaveAttribute("aria-disabled", "true");
-    await userEvent.click(clear);
-    expect(none.onClearSlate).not.toHaveBeenCalled();
   });
 
   it("Copy today as text puts the day on the clipboard and confirms", async () => {

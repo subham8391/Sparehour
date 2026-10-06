@@ -54,9 +54,12 @@ const BlockNudge = dynamic(() => import("@/features/notifications/block-nudge"),
 // Today's ⋯ contents and the Trim today panel (SCREENS.md §2.1, PRODUCT_SPEC.md §9.4): out of the shell, fetched on idle.
 const loadTodayMenu = () => import("@/features/today/today-menu");
 const loadTrimToday = () => import("@/features/today/trim-today");
+// Clear the slate's confirmation (PRODUCT_SPEC.md §8.5): its scopes, counts and the batch write, out of the shell.
+const loadClearSlate = () => import("@/features/archive/clear-slate-sheet");
 const TodayMenu = dynamic(loadTodayMenu, { ssr: false });
 const TrimToday = dynamic(loadTrimToday, { ssr: false });
-const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday()]);
+const ClearSlate = dynamic(loadClearSlate, { ssr: false });
+const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(), loadClearSlate()]);
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -138,6 +141,7 @@ export default function TodayPage() {
   const todayList = sortToday(model.todayTasks, sort, model.settings?.defaultEstimateMin ?? 30);
   const eveningList = sortToday(model.eveningTasks, sort, model.settings?.defaultEstimateMin ?? 30);
   const [trimOpen, setTrimOpen] = useState(false);
+  const [slateOpen, setSlateOpen] = useState(false);
   // A short confirmation the ⋯ menu leaves behind ("Copied today as text"); it reports, it has nothing to undo.
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -359,7 +363,7 @@ export default function TodayPage() {
   const shutdownTime = shutdownReady || (finish !== null && nowMinute >= finish.hour * 60 + finish.minute);
   const manual = sort === "manual";
   const carriedIds = model.carried.map((t) => t.id);
-  const clearSlate = () => void time("clear-the-slate", () => model.repo.archiveMany(carriedIds));
+  const clearSlate = () => setSlateOpen(true);
   // The row's menu on a phone: Convert to project (PRODUCT_SPEC.md §6), beside the moves it already has.
   const convertItem = (id: string) => (
     <MenuOnly>
@@ -438,7 +442,6 @@ export default function TodayPage() {
                   onSort={(v) => savePref({ todaySort: v })}
                   showCompleted={showCompleted}
                   onShowCompleted={(v) => savePref({ showCompleted: v })}
-                  carriedCount={model.carried.length}
                   onClearSlate={clearSlate}
                   onTrim={() => setTrimOpen(true)}
                   text={{ day: model.today, carried: model.carried, today: todayList, evening: eveningList, blockStart: (id) => model.blockByTask.get(id)?.start ?? null, defaultEstimateMin: defaultEstimate }}
@@ -522,7 +525,7 @@ export default function TodayPage() {
                   className="px-0.5"
                   count={model.carried.length}
                   action={
-                    <SectionAction onClick={clearSlate} title="Archive everything carried over — one undo brings it all back" className="print:hidden">
+                    <SectionAction onClick={clearSlate} title="Archive what is on the slate — nothing is deleted" className="print:hidden">
                       Clear the slate
                     </SectionAction>
                   }
@@ -797,6 +800,7 @@ export default function TodayPage() {
           onClose={() => setTrimOpen(false)}
         />
       )}
+      {slateOpen && <ClearSlate today={model.today.toString()} onClose={() => setSlateOpen(false)} />}
       {notice && <Toast>{notice}</Toast>}
     </main>
   );
