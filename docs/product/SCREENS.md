@@ -895,6 +895,8 @@ Two-column: a section list on the left, the section on the right. Every change s
 
 **Responsive.** Phone: reached from **Browse**; the section list is one screen and each section pushes in (two-level navigation, Back in the header); working hours become a per-day picker; every toggle and row ≥ 44 px. Narrow: the same two-level pattern. Medium and wide: two columns, as described.
 
+**As built (2026-10-06).** Sections: Account (time zone, sign out) · Working hours · Calendar · Notifications · Planning · Appearance · Data · App (install, storage, version; About joins later). The open section is the URL's hash (`/settings#calendar`, `#data`, `#working-hours`), so links land on it on every band; below 900 px the list shows one-line summaries ("Mon–Fri · 09:00–18:00 · buffer 15%") and a section is a history entry, so Back in the header and the browser's Back both return to the list; from 900 px the list sits on the left with the open section marked (↑ ↓ Home End move along it) and the first section shown when none is chosen. Each section is a lazy island fetched on idle. Working hours take up to three stretches a day ("Add hours", a remove per stretch); a day saves as a whole (`WorkHoursRepo.replaceDay`, one ⌘Z), and overlapping stretches are joined with a note when focus leaves the day. Planning adds **Default if missed** (Carry · Skip · Expire, for new one-off tasks; repeats skip) and **Open to** (Today · Inbox · Upcoming, honoured on `/` and the installed app's start URL). Notifications add **Remind me** (at the start, 5, 10 or 15 min before), the morning and shutdown nudges from working hours unless a time is chosen ("Choose a time" / "Use my working hours"), quiet hours that say they drop, and **Badge on the app icon**. Appearance adds **Motion**: System or Reduce, kept on the device and stamped before the first paint. Sort and show-completed defaults wait for Today's Sort.
+
 ---
 
 ## 19. Notifications UI — M1
@@ -923,6 +925,8 @@ Two-column: a section list on the left, the section on the right. Every change s
 | Never used | Modal dialogs for anything other than destructive confirmations. No interstitials, no upsell popovers |
 
 **Responsive.** Phone: toasts stack above the tab bar, safe-area aware, with the Undo target ≥ 44 px; banners sit under the header; push notifications on iOS arrive without action buttons (rules above). Same anatomy on every band.
+
+**As built (2026-10-06).** The numbers in the morning, day-of deadline and shutdown bodies are filled in at send time from the day's rows with the same capacity engine as Today ("fits today" is capacity: work − meetings − buffer); without a connected calendar the meetings clause is left out, and a figure that would be zero or negative is not said. The block body is "09:30–10:15 · 45m", with "· starts in 10m" only when Settings asks for a lead. Quiet hours (default 21:00–08:00) drop every kind. Every push carries `app_badge`; the badge is today's remaining count once permission is granted, 0 from the evening shutdown until the day rolls over, and off with Settings' switch. The permission prompt is an inline banner above the ribbon after the first block made on a device not yet asked — "Want a nudge when this starts?" · `Yes` · `Not now` — never on iOS Safari outside the Home Screen app; Not now is remembered on the device.
 
 ---
 
