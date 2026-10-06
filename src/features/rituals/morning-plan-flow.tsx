@@ -35,7 +35,10 @@ export interface MorningPlanFlowProps {
   fitsMin: number;
   tomorrowSpareMin: number | null;
   defaultEstimateMin: number;
-  carryAskAfter: number;
+  /** The carried tasks that show the three-carry ask now: Today's two a day (PRODUCT_SPEC.md §8.3.4). */
+  asks: ReadonlySet<string>;
+  /** "Break it down": converts the task into a project and opens it. */
+  onBreakDown?: (id: string) => void;
   today: LocalDate;
   now: Instant;
   zone: string;
@@ -101,11 +104,22 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
                 today={p.today}
                 onPick={p.onPick}
                 defaultEstimateMin={p.defaultEstimateMin}
-                actions={<MoveActions onToday={() => p.onCarry(t.id, "today")} onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />}
+                // The ask takes the place of the four moves, as on Today.
+                actions={
+                  !(p.asks.has(t.id) && !picked.has(t.id)) && (
+                    <MoveActions onToday={() => p.onCarry(t.id, "today")} onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />
+                  )
+                }
                 footer={
-                  t.carryCount >= p.carryAskAfter && !picked.has(t.id) ? (
+                  p.asks.has(t.id) && !picked.has(t.id) ? (
                     // The same panel and the same sentence as the Today list: one gentle ask in the product.
-                    <CarryAsk count={t.carryCount} onKeep={() => p.onCarry(t.id, "today")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />
+                    <CarryAsk
+                      count={t.carryCount}
+                      onKeep={() => p.onCarry(t.id, "today")}
+                      onSomeday={() => p.onCarry(t.id, "someday")}
+                      onBreakDown={p.onBreakDown && (() => p.onBreakDown?.(t.id))}
+                      onDrop={() => p.onCarry(t.id, "drop")}
+                    />
                   ) : null
                 }
               />

@@ -120,7 +120,8 @@ export interface TodayModel {
   calendarIssue: CalendarIssue | null;
 }
 
-export function useToday(now: Temporal.Instant): TodayModel {
+/** `recordAsks`: this screen shows the three-carry ask, so the asks it starts showing are recorded (Today, the morning plan). */
+export function useToday(now: Temporal.Instant, { recordAsks = false }: { recordAsks?: boolean } = {}): TodayModel {
   // The undoable repo: everything done on Today answers ⌘Z and shows its toast, like every other list (FEATURES.md §8).
   const repo = useTaskRepo();
 
@@ -151,7 +152,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
   const carriedTasks = useMemo(() => (hasSettings ? carriedOver(tasks, today) : []), [hasSettings, tasks, today]);
   // At most two asks a day, once per task per seven days, recorded as they are shown (PRODUCT_SPEC.md §8.3.4).
   const markAsked = useCallback((ids: readonly string[], at: string) => repo.markAsked(ids, at), [repo]);
-  const asks = useCarryAsks(carriedTasks, { carryAskAfter: settings?.carryAskAfter ?? null, today, zone: settings?.timezone ?? "UTC", now, markAsked });
+  const asks = useCarryAsks(carriedTasks, { carryAskAfter: settings?.carryAskAfter ?? null, today, zone: settings?.timezone ?? "UTC", now, markAsked: recordAsks ? markAsked : undefined });
 
   return useMemo(() => {
     const carried = carriedTasks.map((t) => ({ ...t, ask: asks.has(t.id) }));

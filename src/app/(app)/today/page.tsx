@@ -107,7 +107,7 @@ export default function TodayPage() {
     const id = setInterval(() => setNow(Temporal.Now.instant()), 60_000);
     return () => clearInterval(id);
   }, []);
-  const model = useToday(now);
+  const model = useToday(now, { recordAsks: true });
   const detail = useTaskDetail();
   const review = useCarryReview();
   const time = useInteractionTimer();
