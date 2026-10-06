@@ -102,6 +102,8 @@ export interface TodayModel {
   ready: boolean;
   today: LocalDate;
   settings: Settings | null;
+  /** The settings row, for Today's own preferences (⋯ Sort, Show completed). */
+  settingsId: string | null;
   capacity: Capacity | null;
   carried: (Task & { ask: boolean })[];
   todayTasks: Task[];
@@ -201,6 +203,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
       ready: !isLoading && settings !== null,
       today,
       settings,
+      settingsId: settingsRows?.[0]?.id ?? null,
       capacity,
       carried,
       todayTasks: onDay.filter((t) => !t.evening),
@@ -213,7 +216,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
       calendarConnected: (calendarRows ?? []).length > 0,
       calendarIssue: calendarIssueFrom(connectionRows ?? []),
     };
-  }, [tasks, carriedTasks, asks, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
+  }, [tasks, carriedTasks, asks, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
 }
 
 export interface CalendarIssue {
