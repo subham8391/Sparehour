@@ -22,7 +22,7 @@ function setup() {
     day_sort_key: "a0",
   });
   s.insert("checklist_items", { id: "c2", space_id: "s1", task_id: "t1", title: "Book venue", done: 0, sort_key: "a1" });
-  s.insert("checklist_items", { id: "c1", space_id: "s1", task_id: "t1", title: "Pick a date", done: 1, sort_key: "a0" });
+  s.insert("checklist_items", { id: "c1", space_id: "s1", task_id: "t1", title: "Pick a date", done: 1, sort_key: "a0", updated_at: "2026-09-20 10:00:00+00" });
   s.insert("checklist_items", { id: "c3", space_id: "s1", task_id: "t1", title: "Send invites", done: 0, sort_key: "a2" });
   const history = { record: vi.fn() };
   return { s, history, entry: () => history.record.mock.calls[0][0] };
@@ -41,7 +41,8 @@ describe("convertTaskToProject (PRODUCT_SPEC.md §6, the 2026-10-06 ruling)", ()
       ["Book venue", "active", null],
       ["Send invites", "active", null],
     ]);
-    expect(tasks[0].completed_at).not.toBeNull();
+    // A ticked step was finished when it was ticked (its last change), not at the conversion: it is not "done today".
+    expect(tasks[0].completed_at).toBe("2026-09-20T10:00:00Z");
     expect(out!.taskIds).toHaveLength(3);
     const task = s.row("tasks", "t1")!;
     // Retired: archived, in a batch, the state it left kept; its dates, estimate and priority stay on it.

@@ -62,9 +62,10 @@ export async function convertTaskToProject(
       [projectId, spaceId, areaId, String(before.title ?? "").trim() || "Untitled project", text(before.notes_md), text(before.deadline), keyBetween(lastProject?.sort_key ?? null, null), now, now],
     );
 
-    // Steps become tasks in their order: unticked ones open and undated, ticked ones already done.
-    const steps = await tx.getAll<{ title: string | null; done: number | null }>(
-      `select title, done from checklist_items where task_id = ? and deleted_at is null order by sort_key, id`,
+    // Steps become tasks in their order: unticked ones open and undated, ticked ones already done — finished when the
+    // step was last changed, not now, so an old tick does not land in today's Done list or the shutdown's count.
+    const steps = await tx.getAll<{ title: string | null; done: number | null; updated_at: string | null }>(
+      `select title, done, updated_at from checklist_items where task_id = ? and deleted_at is null order by sort_key, id`,
       [taskId],
     );
     const defaults = await tx.getOptional<{ default_miss_policy: string | null }>(`select default_miss_policy from user_settings limit 1`);
@@ -82,7 +83,7 @@ export async function convertTaskToProject(
       await tx.execute(
         `insert into tasks (id, space_id, project_id, title, state, priority, evening, carry_count, last_touched_at, miss_policy, sort_key, source, completed_at, created_at, updated_at)
          values (?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, '${CONVERTED_SOURCE}', ?, ?, ?)`,
-        [id, spaceId, projectId, title, done ? "done" : "active", now, missPolicy, key, done ? now : null, now, now],
+        [id, spaceId, projectId, title, done ? "done" : "active", now, missPolicy, key, done ? tickedAt(step.updated_at, now) : null, now, now],
       );
       taskIds.push(id);
     }
@@ -136,3 +137,14 @@ async function releaseFutureBlocks(tx: Pick<Tx, "execute" | "getAll">, taskId: s
 }
 
 const text = (v: string | number | null | undefined): string | null => (v == null ? null : String(v));
+
+/** When a ticked step was finished, as near as the row knows: its last change, else now. Never later than now. */
+function tickedAt(updatedAt: string | null, now: string): string {
+  if (!updatedAt) return now;
+  try {
+    const at = Temporal.Instant.from(normaliseTimestamp(updatedAt));
+    return Temporal.Instant.compare(at, Temporal.Instant.from(now)) < 0 ? at.toString() : now;
+  } catch {
+    return now;
+  }
+}
