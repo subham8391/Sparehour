@@ -53,6 +53,7 @@ export class ProjectOrderRepo {
     this.history.record({
       label: moved ? (to.areaId ? `Moved ${quoted(snap.name)} to ${areaName?.trim() || "another area"}` : `Moved ${quoted(snap.name)} out of its area`) : `Moved ${quoted(snap.name)}`,
       toast: moved,
+      rows: { projects: [id] },
       undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "projects", snap, columns, new Date().toISOString())),
     });
   }

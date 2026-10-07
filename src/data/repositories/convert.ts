@@ -100,6 +100,7 @@ export async function convertTaskToProject(
   history?.record({
     label: `Converted ${quoted(before.title)} to a project`,
     toast: true,
+    rows: { tasks: [taskId, ...taskIds], projects: [projectId], time_blocks: released.map((b) => b.id) },
     undo: async () => {
       await db.writeTransaction(async (tx) => {
         const at = new Date().toISOString();

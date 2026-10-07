@@ -48,6 +48,7 @@ export class TagRepo {
     this.history.record({
       label: `Tagged ${taskIds.length === 1 ? quoted(title) : `${taskIds.length} tasks`} @${clean}`,
       toast: opts.toast ?? true,
+      rows: { task_tags: made },
       undo: async () => {
         const at = new Date().toISOString();
         await this.db.execute(`update task_tags set deleted_at = ?, updated_at = ? where id in (${placeholders(made)})`, [at, at, ...made]);
@@ -65,6 +66,7 @@ export class TagRepo {
     this.history.record({
       label: tag?.name ? `Removed @${tag.name}` : "Removed a tag",
       toast: false,
+      rows: { task_tags: links.map((l) => l.id) },
       undo: () =>
         this.db.writeTransaction(async (tx) => {
           const at = new Date().toISOString();

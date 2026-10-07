@@ -16,7 +16,7 @@ import { ruleWords } from "@/core/recurrence/words";
 import type { LocalDatabase } from "../powersync";
 import { reviveBlocks } from "./block-repo";
 import { localToday, releaseBlocks } from "./task-repo";
-import { placeholders, quoted, restoreRow, type RowSnapshot, type Tx, type UndoRecorder } from "./undo";
+import { placeholders, quoted, restoreRow, type RowSnapshot, type Tx, type UndoRecorder, type UndoRows } from "./undo";
 
 /** The new day of an occurrence, as the Do field gives it: a date, and the time and evening flag that go with it. */
 export interface DoChange {
@@ -90,7 +90,7 @@ export class SeriesRepo {
     });
     const exBefore = before;
     const released = await releaseBlocks(this.db, [id], change.doDate);
-    this.record(`Moved ${quoted(s.row.title)} to ${dayWords(change.doDate, s.today)}, just this once`, async (tx, undoAt) => {
+    this.record(`Moved ${quoted(s.row.title)} to ${dayWords(change.doDate, s.today)}, just this once`, rowsOf(id, released, [exceptionId(s.series, s.occurrence.toString())]), async (tx, undoAt) => {
       await restoreRow(tx, "tasks", s.row, cols, undoAt);
       await restoreException(tx, exBefore, exceptionId(s.series, s.occurrence.toString()), undoAt);
       if (released.length > 0) await reviveBlocks(tx, released, undoAt);
@@ -137,7 +137,7 @@ export class SeriesRepo {
       if (change) await this.writeDay(tx, id, change, at);
     });
     const released = change ? await releaseBlocks(this.db, [id], change.doDate) : [];
-    this.record(`${quoted(s.row.title)} now repeats ${ruleWords(rule, mode)}${droppedWords(dropped.length)}`, async (tx, undoAt) => {
+    this.record(`${quoted(s.row.title)} now repeats ${ruleWords(rule, mode)}${droppedWords(dropped.length)}`, rowsOf(id, released, dropped.map((e) => e.id)), async (tx, undoAt) => {
       await restoreRow(tx, "tasks", s.row, cols, undoAt);
       for (const e of dropped) await restoreRow(tx, "recurrence_exceptions", e, ["deleted_at"], undoAt);
       if (released.length > 0) await reviveBlocks(tx, released, undoAt);
@@ -177,7 +177,7 @@ export class SeriesRepo {
     });
     const exBefore = before;
     const released = await releaseBlocks(this.db, [id], next);
-    this.record(`Skipped ${quoted(s.row.title)} this time · next ${dayWords(next, s.today)}`, async (tx, undoAt) => {
+    this.record(`Skipped ${quoted(s.row.title)} this time · next ${dayWords(next, s.today)}`, rowsOf(id, released, [exceptionId(s.series, s.occurrence.toString())]), async (tx, undoAt) => {
       await restoreRow(tx, "tasks", s.row, cols, undoAt);
       await restoreException(tx, exBefore, exceptionId(s.series, s.occurrence.toString()), undoAt);
       if (released.length > 0) await reviveBlocks(tx, released, undoAt);
@@ -202,7 +202,7 @@ export class SeriesRepo {
       id,
     ]);
     const released = await releaseBlocks(this.db, [id], back);
-    this.record(`Paused ${quoted(s.row.title)} until ${formatDay(until, { today: s.today })}`, async (tx, undoAt) => {
+    this.record(`Paused ${quoted(s.row.title)} until ${formatDay(until, { today: s.today })}`, rowsOf(id, released), async (tx, undoAt) => {
       await restoreRow(tx, "tasks", s.row, cols, undoAt);
       if (released.length > 0) await reviveBlocks(tx, released, undoAt);
     });
@@ -217,7 +217,7 @@ export class SeriesRepo {
     const cols = ["recurrence_paused_until", "do_date"];
     await this.db.execute(`update tasks set recurrence_paused_until = null, do_date = ?, updated_at = ? where id = ?`, [back.toString(), at, id]);
     const released = await releaseBlocks(this.db, [id], back);
-    this.record(`Resumed ${quoted(s.row.title)} · next ${dayWords(back, s.today)}`, async (tx, undoAt) => {
+    this.record(`Resumed ${quoted(s.row.title)} · next ${dayWords(back, s.today)}`, rowsOf(id, released), async (tx, undoAt) => {
       await restoreRow(tx, "tasks", s.row, cols, undoAt);
       if (released.length > 0) await reviveBlocks(tx, released, undoAt);
     });
@@ -239,9 +239,14 @@ export class SeriesRepo {
   }
 
   /** One undo entry with a toast; the undo runs in one transaction (sync must not take a row away mid-restore). */
-  private record(label: string, undo: (tx: Tx, at: string) => Promise<void>): void {
-    this.history?.record({ label, toast: true, undo: () => this.db.writeTransaction((tx) => undo(tx, new Date().toISOString())) });
+  private record(label: string, rows: UndoRows, undo: (tx: Tx, at: string) => Promise<void>): void {
+    this.history?.record({ label, toast: true, rows, undo: () => this.db.writeTransaction((tx) => undo(tx, new Date().toISOString())) });
   }
+}
+
+/** What a series edit changed: the task, the blocks it let go of and the exceptions it wrote or dropped. */
+function rowsOf(id: string, released: readonly { id: string }[], exceptions: readonly string[] = []): UndoRows {
+  return { tasks: [id], time_blocks: released.map((b) => b.id), recurrence_exceptions: exceptions };
 }
 
 /** "today", "tomorrow", else "Mon 12 Oct", as a toast names a day. */

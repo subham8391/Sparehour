@@ -36,6 +36,7 @@ export class AreaRepo {
     this.history.record({
       label: `Renamed ${quoted(before.name)}`,
       toast: false,
+      rows: { areas: [id] },
       undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "areas", before, ["name"], new Date().toISOString())),
     });
   }
@@ -63,6 +64,7 @@ export class AreaRepo {
     this.history.record({
       label: `Moved ${quoted(snap.name)}`,
       toast: false,
+      rows: { areas: [id] },
       undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "areas", snap, ["sort_key"], new Date().toISOString())),
     });
   }
@@ -97,6 +99,7 @@ export class AreaRepo {
     this.history.record({
       label: `Deleted area ${quoted(s.area.name)}`,
       toast: true,
+      rows: { areas: [id], projects: s.projects, tasks: s.tasks },
       undo: () =>
         this.db.writeTransaction(async (tx) => {
           const at = new Date().toISOString();

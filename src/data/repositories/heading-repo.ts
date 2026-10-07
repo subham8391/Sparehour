@@ -40,6 +40,7 @@ export class HeadingRepo {
     this.history.record({
       label: `Renamed heading ${quoted(before.title)}`,
       toast: false,
+      rows: { headings: [id] },
       undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "headings", before, ["title"], new Date().toISOString())),
     });
   }
@@ -55,6 +56,7 @@ export class HeadingRepo {
     this.history.record({
       label: `Moved heading ${quoted(before.title)}`,
       toast: false,
+      rows: { headings: [id] },
       undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "headings", before, ["sort_key"], new Date().toISOString())),
     });
   }
@@ -82,6 +84,7 @@ export class HeadingRepo {
     this.history.record({
       label: `Deleted heading ${quoted(heading.title)}`,
       toast: true,
+      rows: { headings: [id], tasks: taskIds },
       // One transaction: sync takes a deleted heading off the device a moment after it uploads, and that must
       // not land between restoreRow's presence check and its write.
       undo: () =>

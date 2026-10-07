@@ -6,7 +6,7 @@ import { currentOccurrence } from "@/core/recurrence/series";
 import { localDate, type LocalDate } from "@/core/time";
 import type { RecurrenceException, RecurrenceMode } from "@/core/types";
 import type { LocalDatabase } from "../powersync";
-import { quoted, restoreRow, type UndoRecorder } from "./undo";
+import { placeholders, quoted, restoreRow, type UndoRecorder } from "./undo";
 
 /** The recurrence fields of a row that repeats. */
 export interface RecurringRow {
@@ -26,7 +26,7 @@ export interface RecurringRow {
  * occurrence and moves the row to the next one (or marks it done when the series ends); the checklist
  * resets, the deadline moves with the occurrence at the same offset (DECISIONS.md 2026-10-06), and the carry
  * count starts again at 0 — the server does the same when the completion lands, since carry_count is
- * server-owned. Undo soft-deletes the completion, which puts the server's count back, and restores the row.
+ * server-owned. Undo soft-deletes the completion, which puts the server's count back, restores the row and ticks its steps again.
  */
 export async function completeRecurring(
   db: LocalDatabase,
@@ -57,6 +57,8 @@ export async function completeRecurring(
   const cols = ["do_date", "deadline", "state", "completed_at", "carry_count", "last_carried_at"];
   const now = new Date().toISOString();
   const completionId = crypto.randomUUID();
+  // The steps the reset unticks, so the undo can tick them again.
+  let ticked: string[] = [];
   await db.writeTransaction(async (tx) => {
     await tx.execute(
       `insert into task_completions (id, space_id, task_id, occurrence_date, completed_at, actual_min, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -69,6 +71,8 @@ export async function completeRecurring(
         now,
         task.id,
       ]);
+      const steps = await tx.getAll<{ id: string }>(`select id from checklist_items where task_id = ? and done = 1 and deleted_at is null`, [task.id]);
+      ticked = Array.isArray(steps) ? steps.map((r) => r.id) : [];
       await tx.execute(`update checklist_items set done = 0, updated_at = ? where task_id = ? and done = 1 and deleted_at is null`, [now, task.id]);
     } else {
       await tx.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, task.id]);
@@ -78,12 +82,14 @@ export async function completeRecurring(
   history.record({
     label: `Completed ${quoted(before.title)}`,
     toast: true,
+    rows: { tasks: [task.id], task_completions: [completionId], checklist_items: ticked },
     // One transaction: sync takes a done row off the device a moment after it uploads (see restoreRow).
     undo: () =>
       db.writeTransaction(async (tx) => {
         const at = new Date().toISOString();
         await tx.execute(`update task_completions set deleted_at = ?, updated_at = ? where id = ?`, [at, at, completionId]);
         await restoreRow(tx, "tasks", { ...before, id: task.id }, cols, at);
+        if (ticked.length > 0) await tx.execute(`update checklist_items set done = 1, updated_at = ? where id in (${placeholders(ticked)}) and done = 0`, [at, ...ticked]);
       }),
   });
 }

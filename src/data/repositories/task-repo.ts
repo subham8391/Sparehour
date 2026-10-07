@@ -188,6 +188,7 @@ export class TaskRepo {
       label: label.includes("{title}") ? label.replace("{title}", title) : `${label} ${title}`,
       toast,
       ...(announce ? { announce: announce.replace("{title}", title) } : {}),
+      rows: { tasks: [id], time_blocks: released.map((b) => b.id) },
       // One transaction: sync takes a done or deleted row off the device a moment after it uploads, and
       // that must not land between restore's presence check and its write (the write would hit nothing).
       undo: () =>
@@ -231,6 +232,7 @@ export class TaskRepo {
     this.history.record({
       label: label.includes("{title}") ? label.replace("{title}", what) : `${label} ${what}`,
       toast,
+      rows: { tasks: before.map((r) => r.id), time_blocks: released.map((b) => b.id) },
       undo: () =>
         this.db.writeTransaction(async (tx) => {
           const at = new Date().toISOString();

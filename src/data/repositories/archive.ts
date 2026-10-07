@@ -49,6 +49,7 @@ export async function clearTheSlate(db: LocalDatabase, history: UndoRecorder | u
   history?.record({
     label: slateClearedLabel(before.length),
     toast: true,
+    rows: { tasks: before.map((r) => r.id), time_blocks: released.map((b) => b.id) },
     undo: () =>
       db.writeTransaction(async (tx) => {
         const now = new Date().toISOString();
@@ -85,6 +86,7 @@ export async function restoreBatch(db: LocalDatabase, history: UndoRecorder | un
   history?.record({
     label: `Brought back ${tasksWord(rows.length)}`,
     toast: true,
+    rows: { tasks: rows.map((r) => r.id) },
     undo: () =>
       db.writeTransaction(async (tx) => {
         const now = new Date().toISOString();
