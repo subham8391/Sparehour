@@ -443,9 +443,9 @@ export default function UpcomingPage() {
             this week
           </Button>
         )}
-        {band !== "wide" && (
-          // On a phone the strip pinned above the tab bar takes its place.
-          <span className={cx("ml-auto", !columnsLayout && "max-sm:hidden")}>
+        {/* On a phone the strip pinned above the tab bar takes its place. */}
+        {columnsLayout && band !== "wide" && (
+          <span className="ml-auto">
             <UnplannedButton count={unplanned.length} onOpen={() => setSheetOpen(true)} />
           </span>
         )}
@@ -537,8 +537,8 @@ export default function UpcomingPage() {
                   </section>
                 ),
               )}
-              {/* "Not yet planned" is the strip pinned above the tab bar (SCREENS.md §3); a narrow window keeps its button. */}
-              {unplanned.length > 0 && <UnplannedStrip count={unplanned.length} onOpen={() => setSheetOpen(true)} className="sm:hidden" />}
+              {/* "Not yet planned" is the strip pinned above the tab bar (SCREENS.md §3). */}
+              {unplanned.length > 0 && <UnplannedStrip count={unplanned.length} onOpen={() => setSheetOpen(true)} />}
             </>
           )}
 

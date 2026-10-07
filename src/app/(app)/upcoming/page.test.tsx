@@ -20,7 +20,10 @@ const h = vi.hoisted(() => ({
   quickAdd: { open: (() => {}) as (prefill?: string) => void },
   detail: { open: (() => {}) as (id: string) => void },
 }));
-vi.mock("@/data/powersync", () => ({ useQuery: (sql: string, params?: unknown[]) => ({ data: h.answer(sql, params ?? []) }), useLocalDatabase: () => ({}) }));
+vi.mock("@/data/powersync", () => ({
+  useQuery: (sql: string, params?: unknown[]) => ({ data: h.answer(sql, params ?? []) }),
+  useLocalDatabase: () => ({ getOptional: async (sql: string, params: unknown[]) => h.answer(sql, params)[0] ?? null }),
+}));
 vi.mock("@/features/shell/use-local-day", () => ({
   useNow: () => instant("2026-10-06T08:00:00Z"),
   useLocalDay: () => ({
@@ -165,7 +168,7 @@ describe("the wide band", () => {
 });
 
 describe("the medium and narrow bands", () => {
-  it("medium: five weekdays and the weekend folded into one column; the rail is a button that opens a sheet", () => {
+  it("medium: five weekdays and the weekend folded into one column; the rail is a button that opens a sheet", async () => {
     band(1000, 684);
     view();
     const week = document.querySelector("[data-week]")!;
@@ -175,7 +178,7 @@ describe("the medium and narrow bands", () => {
     expect(within(columns[4] as HTMLElement).getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["Sat 10", "Sun 11"]);
     expect(screen.queryByRole("group", { name: "Not yet planned" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Not yet planned/ }));
-    expect(within(screen.getByRole("dialog", { name: "Not yet planned" })).getByText("Research libraries")).toBeInTheDocument();
+    expect(within(await screen.findByRole("dialog", { name: "Not yet planned" })).getByText("Research libraries")).toBeInTheDocument();
   });
 
   it("narrow: three columns in a row that scrolls a day at a time, with buttons to step it", () => {
@@ -209,6 +212,74 @@ describe("the phone", () => {
       expect(group.querySelector("[data-bar]")).not.toBeNull();
     }
     expect(within(day(/^Fri 9/)).getByText("Send the report")).toBeInTheDocument();
+  });
+
+  it("pins a 7-day strip over the agenda: each cell names its day and readout, today is marked, and every cell is a 44 px target", () => {
+    band(360, 320);
+    view();
+    const strip = screen.getByRole("group", { name: "Jump to a day" });
+    expect(strip.parentElement?.className).toContain("sticky top-0");
+    const cells = within(strip).getAllByRole("button");
+    expect(cells).toHaveLength(7);
+    expect(cells[0]).toHaveAccessibleName(/^Tue 6, today, \d+ hours?( \d+ minutes?)? (spare|over)$/);
+    expect(cells[0]).toHaveAttribute("aria-current", "date");
+    // Thu 8 has eight hours of work on a nine-hour day less its buffer: over, in words.
+    expect(cells[2]).toHaveAccessibleName(/^Thu 8, \d+ (hours?|minutes?).* over$/);
+    expect(cells[2].querySelector("[data-bar]")).not.toBeNull();
+    for (const cell of cells) expect(cell.className).toMatch(/min-h-14/);
+    expect(strip.className).toContain("grid-cols-7");
+  });
+
+  it("a tap on a day scrolls it into view, unfolding a folded free day, and focuses its header", () => {
+    band(360, 320);
+    const scrolled = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrolled });
+    try {
+      view();
+      // Sun 11 and Mon 12 are free: folded into one run, with no header of their own.
+      expect(document.getElementById("agenda-2026-10-11")).toBeNull();
+      fireEvent.click(within(screen.getByRole("group", { name: "Jump to a day" })).getByRole("button", { name: /^Sun 11/ }));
+      const header = document.getElementById("agenda-2026-10-11");
+      expect(header).not.toBeNull();
+      expect(header).toHaveFocus();
+      expect(header).toHaveTextContent(/Sun 11/);
+      expect(scrolled).toHaveBeenCalled();
+      // A busy day is already there.
+      fireEvent.click(within(screen.getByRole("group", { name: "Jump to a day" })).getByRole("button", { name: /^Thu 8/ }));
+      expect(document.getElementById("agenda-2026-10-08")).toHaveFocus();
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+  });
+
+  it("Not yet planned is a strip at the bottom that opens a sheet; a day under a task places it at the end of that day", async () => {
+    band(360, 320);
+    view();
+    // No list at the end of the agenda: the strip, pinned above the tab bar.
+    expect(screen.queryByRole("group", { name: "Not yet planned" })).toBeNull();
+    const strip = screen.getByRole("button", { name: "Not yet planned · 1" });
+    expect(strip.className).toContain("fixed");
+    expect(strip.className).toContain("safe-area-inset-bottom");
+    fireEvent.click(strip);
+    const sheet = await screen.findByRole("dialog", { name: "Not yet planned" });
+    const picker = within(sheet).getByRole("group", { name: "Move “Research libraries” to" });
+    const cells = within(picker).getAllByRole("button");
+    expect(cells.map((c) => c.getAttribute("aria-label")?.split(",")[0])).toEqual(["Tue 6", "Wed 7", "Thu 8", "Fri 9", "Sat 10", "Sun 11", "Mon 12"]);
+    expect(within(sheet).getByRole("button", { name: "Pick a date" })).toBeInTheDocument();
+    fireEvent.click(cells[2]);
+    // After Thu 8's last task (its day_sort_key is a4), in the daytime part of the day.
+    await vi.waitFor(() => expect(h.repo.placeInDay).toHaveBeenCalledWith("rail-1", localDate("2026-10-08"), expect.any(String), false));
+    expect(h.repo.placeInDay.mock.calls[0][2] > "a4").toBe(true);
+  });
+
+  it("the sheet's Pick a date takes any later day", async () => {
+    band(360, 320);
+    view();
+    fireEvent.click(screen.getByRole("button", { name: "Not yet planned · 1" }));
+    const sheet = await screen.findByRole("dialog", { name: "Not yet planned" });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Pick a date" }));
+    fireEvent.change(within(sheet).getByLabelText("Pick a date for Research libraries"), { target: { value: "2026-11-02" } });
+    await vi.waitFor(() => expect(h.repo.placeInDay).toHaveBeenCalledWith("rail-1", localDate("2026-11-02"), expect.any(String), false));
   });
 });
 
@@ -273,13 +344,13 @@ describe("keys", () => {
 });
 
 describe("the empty week", () => {
-  it("says nothing is scheduled beyond today, and Plan your week opens what is not yet planned", () => {
+  it("says nothing is scheduled beyond today, and Plan your week opens what is not yet planned", async () => {
     seed([TASKS[0], TASKS[TASKS.length - 1]]);
     band(1000, 684);
     view();
     expect(screen.getByText("Nothing scheduled beyond today.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Plan your week/ }));
-    expect(screen.getByRole("dialog", { name: "Not yet planned" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Not yet planned" })).toBeInTheDocument();
   });
 
   it("wide: Plan your week takes focus to the rail", () => {
