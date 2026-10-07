@@ -94,6 +94,22 @@ describe("<MorningPlanFlow>", () => {
     expect(onMoveToTomorrow).not.toHaveBeenCalled();
   });
 
+  it("step 2's note states what the evening tasks add up to after the working day, and only that", async () => {
+    const tea = task("e1", "Call Mum", { evening: true, estimateMin: 20 });
+    const read = task("e2", "Read a chapter", { evening: true, estimateMin: null });
+    const { user } = setup({ onToday: [due, tea, read], eveningStartMin: 18 * 60 });
+    await user.click(screen.getByRole("button", { name: "Step 2: Pick today’s tasks" }));
+    expect(screen.getByText("Evening tasks aren’t counted here — they get their own 50m after 18:00.")).toBeInTheDocument();
+    // The evening's 50 minutes stay out of the day's readout.
+    expect(screen.getByRole("status")).toHaveTextContent("1h 30m picked · 1 task");
+  });
+
+  it("with nothing for the evening the note keeps to the rule", async () => {
+    const { user } = setup({ eveningStartMin: 18 * 60 });
+    await user.click(screen.getByRole("button", { name: "Step 2: Pick today’s tasks" }));
+    expect(screen.getByText("Evening tasks aren’t counted here — they get their own time after work.")).toBeInTheDocument();
+  });
+
   it("Move to tomorrow hands the task over", async () => {
     const { user, onMoveToTomorrow } = setup({ onToday: [big, due, proj] });
     await user.click(screen.getByRole("button", { name: "Step 2: Pick today’s tasks" }));

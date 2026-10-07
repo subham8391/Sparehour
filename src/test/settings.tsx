@@ -37,6 +37,7 @@ export const SETTINGS_VALUES: SettingsValues = {
   autoSomedayDays: 30,
   carryReview: true,
   eveningStartsAt: "18:00",
+  eveningEndsAt: "22:00",
   theme: "system",
   notifyBlockStart: true,
   notifyDeadline: true,

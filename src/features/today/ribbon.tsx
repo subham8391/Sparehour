@@ -9,11 +9,19 @@
 // `RibbonTrack` is the drawing on its own: Today's hero and the morning plan's
 // both render it, so there is one ribbon in the product and the two cannot
 // drift apart. `heroState` is the matching rule for the words above it.
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import { cx } from "@/ui/cx";
+import type { RibbonOverlayProps } from "./ribbon-overlay";
+
+// The ribbon's hands — the breakdown, the segment names, a click on free time or a meeting (SCREENS.md §2.2) — are
+// not needed for the first paint: an island, fetched when the browser is idle (`preloadRibbonOverlay`).
+const loadRibbonOverlay = () => import("./ribbon-overlay");
+export const preloadRibbonOverlay = () => loadRibbonOverlay();
+const RibbonOverlay = dynamic(loadRibbonOverlay, { ssr: false });
 
 /** Hour labels this close to a cursor's time yield to it: 35 min is 49 px on a 760 px track, 32 px on a phone's. */
 const YIELD_MIN = 35;
@@ -35,6 +43,10 @@ export interface RibbonProps {
   onTrim?: () => void;
   /** The one suggested move when over, a task's title: "— move Write report to tomorrow" (ruling R3, `easiestMove`). */
   suggestion?: string | null;
+  /** Today's ribbon answers hover, taps and clicks (SCREENS.md §2.2); left out, the ribbon is only drawn. */
+  interactions?: Omit<RibbonOverlayProps, "c" | "connected">;
+  /** Something was finished today: a day with nothing left is all done (SCREENS.md §2.7), not "nothing planned yet". */
+  finished?: boolean;
 }
 
 /** Over by more than this, the ribbon offers Trim today inline (PRODUCT_SPEC.md §9.4 "Well over"). */
@@ -152,7 +164,7 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
 
   return (
     <div aria-hidden="true" className={cx("@container relative", className)}>
-      <div className="relative" style={tail ? { width: `calc(100% - ${tail})` } : undefined}>
+      <div data-ribbon-day className="relative" style={tail ? { width: `calc(100% - ${tail})` } : undefined}>
         <div className="relative h-4 rounded-xs ribbon-track sm:h-6">
           <div className="absolute inset-0 overflow-hidden rounded-xs">
             {c.busy.map((b, i) => (
@@ -201,9 +213,11 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   );
 }
 
-export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion }: RibbonProps) {
+export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion, interactions, finished = false }: RibbonProps) {
   if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount)}</p>;
   const h = heroState(c);
+  // Nothing planned yet (PRODUCT_SPEC.md §9.4 "Empty"): the line says so and invites the morning plan.
+  const empty = c.committedMin + c.unscheduledMin === 0 && !finished;
 
   return (
     <section aria-label="Spare time today" className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
@@ -218,7 +232,13 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
           <span className={cx("font-display-italic", compact ? "text-pane" : "text-em", h.over ? "text-over" : "text-spare")}>{h.over ? "over" : "spare"}</span>
         </p>
         <p className="min-w-0 text-label text-ink-2 num sm:ml-auto sm:text-right sm:text-body-sm sm:whitespace-nowrap">
-          <b className="font-medium text-ink">{formatMinutes(c.committedMin + c.unscheduledMin)}</b> planned
+          {empty ? (
+            "nothing planned yet"
+          ) : (
+            <>
+              <b className="font-medium text-ink">{formatMinutes(c.committedMin + c.unscheduledMin)}</b> planned
+            </>
+          )}
           <span className="text-ink-4"> · </span>
           {connected ? (
             <>
@@ -234,6 +254,14 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
             <>
               <span className="text-ink-4"> · </span>
               <span className="font-semibold text-spare">{h.finish}</span>
+            </>
+          )}
+          {empty && (
+            <>
+              <span className="text-ink-4"> · </span>
+              <Link href="/plan" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
+                Plan your day
+              </Link>
             </>
           )}
           {h.over && (h.spill || onTrim) && (
@@ -252,7 +280,11 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
         </p>
       </div>
 
-      <RibbonTrack c={c} nowMin={nowMin} className={compact ? "mt-3" : "mt-3.5 sm:mt-5"} />
+      {/* The drawing stays hidden from assistive tech; the island lays one real button over it, outside that. */}
+      <div className={cx("relative", compact ? "mt-3" : "mt-3.5 sm:mt-5")}>
+        <RibbonTrack c={c} nowMin={nowMin} />
+        {interactions && <RibbonOverlay c={c} connected={connected} {...interactions} />}
+      </div>
       {/* Blocks outside the working day are allowed and planned, but not capacity: one quiet line says so (PRODUCT_SPEC.md §10.2). */}
       {c.outsideHoursMin > 0 && <p className="mt-2 text-label text-ink-2 num sm:text-body-sm">{outsideHoursLine(c.outsideHoursMin)}</p>}
       {onTrim && h.over && h.min > WELL_OVER_MIN && (

@@ -60,6 +60,12 @@ describe("Settings sections", () => {
     expect(onChange).toHaveBeenLastCalledWith({ dayRolloverHour: 0 });
     fireEvent.change(screen.getByLabelText("Evening starts at"), { target: { value: "19:00" } });
     expect(onChange).toHaveBeenLastCalledWith({ eveningStartsAt: "19:00" });
+    // The evening cut-off (PRODUCT_SPEC.md §9.1), 22:00 unless changed, and what it bounds in plain words.
+    const cutOff = screen.getByLabelText("Evening ends at");
+    expect(cutOff).toHaveValue("22:00");
+    expect(cutOff).toHaveAccessibleDescription("This Evening’s time runs from the end of your working hours until then.");
+    fireEvent.change(cutOff, { target: { value: "23:00" } });
+    expect(onChange).toHaveBeenLastCalledWith({ eveningEndsAt: "23:00" });
     await user.click(screen.getByRole("radio", { name: "Dark" }));
     expect(onChange).toHaveBeenLastCalledWith({ theme: "dark" });
     await user.click(screen.getByText("Detected Asia/Kolkata — use it"));

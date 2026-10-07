@@ -7,6 +7,7 @@ import { Loading } from "../loading-view";
 import { useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { useSyncChip } from "@/features/shell/use-sync-chip";
+import { eveningStartMin } from "@/core/capacity/evening";
 import type { Task } from "@/core/types";
 import { toTask } from "@/data/mappers";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
@@ -78,6 +79,8 @@ export default function PlanPage() {
       onToday={onToday}
       fitsMin={fitsMin}
       tomorrowSpareMin={tomorrowSpareMin}
+      // Step 2's note names when the evening's own time starts: the end of the working day (PRODUCT_SPEC.md §9.1).
+      eveningStartMin={eveningStartMin(cap?.windows ?? [], settings.eveningStartsAt)}
       defaultEstimateMin={settings.defaultEstimateMin}
       asks={asks}
       onAsksShown={() => setAsksSeen(true)}

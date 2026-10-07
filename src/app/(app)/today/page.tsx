@@ -22,7 +22,9 @@ import { easiestMove, plannedLabel } from "@/features/rituals/easiest-move";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
-import { Ribbon, heroState } from "@/features/today/ribbon";
+import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon";
+import { useTaskDrag } from "@/features/today/task-drag";
+import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
@@ -41,6 +43,7 @@ import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
+import { scrollMotion } from "@/ui/reduced-motion";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
 import { Loading } from "../loading-view";
@@ -57,7 +60,7 @@ const loadClearSlate = () => import("@/features/archive/clear-slate-sheet");
 const TodayMenu = dynamic(loadTodayMenu, { ssr: false });
 const TrimToday = dynamic(loadTrimToday, { ssr: false });
 const ClearSlate = dynamic(loadClearSlate, { ssr: false });
-const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(), loadClearSlate()]);
+const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(), loadClearSlate(), preloadRibbonOverlay()]);
 // "Your day" with its timeline (SCREENS.md §2.6): drawn as soon as the day is known, so it is fetched as the page
 // mounts, alongside the local database opening, rather than on idle.
 const loadDayPane = () => import("@/features/today/day-pane");
@@ -70,6 +73,10 @@ const CarriedPile = dynamic(() => loadDayStates().then((m) => m.CarriedPile), { 
 const ClosedDay = dynamic(() => loadDayStates().then((m) => m.ClosedDay), { ssr: false });
 const AllDone = dynamic(() => loadDayStates().then((m) => m.AllDone), { ssr: false });
 const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: false });
+// This Evening with its budget line and phone disclosure, and the place to drop a dragged row on an empty section.
+const loadEveningSection = () => import("@/features/today/evening-section");
+const EveningSection = dynamic(() => loadEveningSection().then((m) => m.EveningSection), { ssr: false });
+const SectionDrop = dynamic(() => loadEveningSection().then((m) => m.SectionDrop), { ssr: false });
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -133,7 +140,7 @@ export default function TodayPage() {
   const tomorrow: LocalDate = model.today.add({ days: 1 });
   const db = useLocalDatabase();
   useEffect(() => preloadOnIdle(preloadTodayIslands), []);
-  useEffect(() => void Promise.all([loadDayPane(), loadDayStates()]).catch(() => undefined), []);
+  useEffect(() => void Promise.all([loadDayPane(), loadDayStates(), loadEveningSection()]).catch(() => undefined), []);
   // Convert task → project ("Break it down", the row's menu): the project opens with the cursor in its add row.
   const breakDown = useConvertToProject(model.repo, detail.close);
 
@@ -191,6 +198,19 @@ export default function TodayPage() {
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [view, setView] = useState<TodayView>("list");
+  // A meeting clicked on the ribbon (SCREENS.md §2.2): the Day view on a phone, the timeline scrolled to it, marked for a moment.
+  const [shownMeeting, setShownMeeting] = useState<number | null>(null);
+  useEffect(() => {
+    if (shownMeeting === null) return;
+    document.querySelector(`[data-meeting="${shownMeeting}"]`)?.scrollIntoView?.({ block: "center", behavior: scrollMotion() });
+    const t = setTimeout(() => setShownMeeting(null), 2400);
+    return () => clearTimeout(t);
+  }, [shownMeeting]);
+  const quickAdd = useQuickAdd();
+  // This Evening collapsed on a phone (SCREENS.md §2.8): its island says so, and J/K step over its rows.
+  const [eveningShut, setEveningShut] = useState(false);
+  // A row being dragged: an empty section shows where it can land (SCREENS.md §2.5).
+  const dragId = useTaskDrag();
   const windows = model.capacity?.windows ?? [];
   const dayStart = windows[0]?.start ?? 9 * 60;
   const dayEnd = windows[windows.length - 1]?.end ?? 17 * 60;
@@ -315,8 +335,8 @@ export default function TodayPage() {
   // logbook subscription is the one use-today already holds for block states, so this costs no extra sync.
   const { data: doneRows } = useQuery<TaskRowType>(DONE_BETWEEN_SQL, dayBounds, { streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] });
   const doneToday = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
-  // J/K walk the rows in the order they are drawn, Done last when it shows.
-  const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
+  // J/K walk the rows in the order they are drawn, Done last when it shows; a collapsed This Evening is stepped over.
+  const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningShut ? [] : eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
   // Everything planned for today is done (SCREENS.md §2.7 "All done"): at least one thing finished and nothing left on
   // today or this evening. Nothing planned and nothing finished is still the empty day below.
   const bodyState = dayState({ closed: Boolean(closedAt), carried: model.carried.length, today: model.todayTasks.length, evening: model.eveningTasks.length, done: doneToday.length });
@@ -355,6 +375,11 @@ export default function TodayPage() {
   };
   const dropInToday = dropInto(model.todayTasks, false);
   const dropInEvening = dropInto(model.eveningTasks, true);
+  // A row dropped on a section with no row to land beside (empty, or held still by a sort): it goes to the end.
+  const dropAtEnd = (list: Task[], evening: boolean) => (id: string) => {
+    if (!findTask(id)) return;
+    void time("reorder", () => model.repo.placeInDay(id, model.today, keyBetween(list[list.length - 1]?.daySortKey ?? null, null), evening));
+  };
 
   const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
   const showDay = hasDay && view === "day";
@@ -369,6 +394,7 @@ export default function TodayPage() {
   // The phone's ritual row turns to the shutdown once the plan is projected to be done, or the day is two hours from its end.
   const shutdownTime = shutdownReady || (finish !== null && nowMinute >= finish.hour * 60 + finish.minute);
   const manual = sort === "manual";
+  const canLand = (list: Task[]) => dragId !== null && !list.some((t) => t.id === dragId) && (list.length === 0 || !manual);
   const carriedIds = model.carried.map((t) => t.id);
   const clearSlate = () => setSlateOpen(true);
   // The row's menu on a phone: Convert to project (PRODUCT_SPEC.md §6), beside the moves it already has.
@@ -384,9 +410,32 @@ export default function TodayPage() {
     onOpen: (id: string) => detail.open(id),
     onToday: (id: string) => void time("reschedule", () => model.repo.reschedule(id, model.today)),
   };
-  const sectionMinutes = (list: Task[]) => formatMinutes(list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0));
+  const sectionTotal = (list: Task[]) => list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0);
+  const sectionMinutes = (list: Task[]) => formatMinutes(sectionTotal(list));
   // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
+  const eveningRows = (
+    <TaskList>
+      {eveningList.map((t) => (
+        <TaskRow
+          key={t.id}
+          task={t}
+          today={model.today}
+          draggable
+          onDropTask={manual ? (src, edge) => dropInEvening(src, t.id, edge) : undefined}
+          timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+          meta={meta(t)}
+          onOpen={() => detail.open(t.id)}
+          selected={sel.selectedId === t.id}
+          onSelect={() => sel.select(t.id)}
+          onDone={() => void time("complete", () => model.repo.complete(t.id))}
+          onBreakDown={() => void breakDown(t.id)}
+          actions={convertItem(t.id)}
+        />
+      ))}
+    </TaskList>
+  );
+  const eveningDrop = canLand(model.eveningTasks);
   const eveningAt = model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
   // Past the working day: the ritual row says so even when there is no projected finish left to name.
   const dayOver = hasDay && nowMinute >= dayEnd;
@@ -472,8 +521,22 @@ export default function TodayPage() {
                 nowMin={nowMinute}
                 connected={model.calendarConnected}
                 plannedCount={model.todayTasks.length + model.eveningTasks.length}
+                finished={doneToday.length > 0}
                 onTrim={() => setTrimOpen(true)}
                 suggestion={suggested?.task.title ?? null}
+                interactions={{
+                  bufferPct: model.settings?.bufferPct ?? 15,
+                  meetings: model.meetings,
+                  blocks: model.blocks,
+                  // Free time clicked: "Add something" for today (SCREENS.md §2.2).
+                  onAdd: () => quickAdd.open("today "),
+                  onMeeting: (m) => {
+                    setView("day");
+                    // From the wide band an open detail stands in the day pane's place.
+                    if (detail.selectedId) detail.close();
+                    setShownMeeting(m.start);
+                  },
+                }}
               />
             </>
           )
@@ -610,33 +673,21 @@ export default function TodayPage() {
               {allDone && <AllDone {...pullInProps} pulling={pulling} onPull={() => setPulling((v) => !v)} />}
               {emptyDay && <EmptyDay {...pullInProps} />}
             </TaskList>
+            {canLand(model.todayTasks) && <SectionDrop label="Drop here to do it today" onDrop={dropAtEnd(model.todayTasks, false)} />}
           </section>
 
-          {model.eveningTasks.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <SectionLabel className="px-0.5" count={model.eveningTasks.length} detail={sectionMinutes(model.eveningTasks)}>
-                This evening
-              </SectionLabel>
-              <TaskList>
-                {eveningList.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    today={model.today}
-                    draggable
-                    onDropTask={manual ? (src, edge) => dropInEvening(src, t.id, edge) : undefined}
-                    timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
-                    meta={meta(t)}
-                    onOpen={() => detail.open(t.id)}
-                    selected={sel.selectedId === t.id}
-                    onSelect={() => sel.select(t.id)}
-                    onDone={() => void time("complete", () => model.repo.complete(t.id))}
-                    onBreakDown={() => void breakDown(t.id)}
-                    actions={convertItem(t.id)}
-                  />
-                ))}
-              </TaskList>
-            </section>
+          {model.settings && (model.eveningTasks.length > 0 || eveningDrop) && (
+            // This Evening (SCREENS.md §2.5): its own readout and quieter overload line; collapsed on a phone (§2.8).
+            <EveningSection
+              count={model.eveningTasks.length}
+              plannedMin={sectionTotal(model.eveningTasks)}
+              windows={model.capacity?.windows ?? []}
+              eveningStartsAt={model.settings.eveningStartsAt}
+              eveningEndsAt={model.settings.eveningEndsAt}
+              rows={eveningRows}
+              onDrop={eveningDrop ? dropAtEnd(model.eveningTasks, true) : null}
+              onShutChange={setEveningShut}
+            />
           )}
 
           {showCompleted && doneToday.length > 0 && (
@@ -695,6 +746,7 @@ export default function TodayPage() {
               blocks: drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks,
               proposed: drawing?.ghosts,
               meetings: model.meetings,
+              shownMeeting,
               defaultEstimateMin: defaultEstimate,
               selectedBlockId,
               onSelectBlock: setSelectedBlockId,

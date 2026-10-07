@@ -59,6 +59,15 @@ describe("<Timeline>", () => {
     expect(screen.queryByText("10:00")).not.toBeInTheDocument();
   });
 
+  it("marks the meeting the ribbon asked to show, and only that one (SCREENS.md §2.2)", () => {
+    const { rerender } = render(<Timeline c={capacity} now={instant("2026-09-14T08:00:00Z")} zone="UTC" meetings={[{ start: 600, end: 660, title: "Lunch with Ana" }]} />);
+    const meeting = screen.getByText("Lunch with Ana").closest("[data-meeting]") as HTMLElement;
+    expect(meeting).toHaveAttribute("data-meeting", "600");
+    expect(meeting.className).not.toMatch(/outline-meet-fill/);
+    rerender(<Timeline c={capacity} now={instant("2026-09-14T08:00:00Z")} zone="UTC" meetings={[{ start: 600, end: 660, title: "Lunch with Ana" }]} shownMeeting={600} />);
+    expect(meeting.className).toMatch(/outline-meet-fill/);
+  });
+
   it("selecting a block shows Open · Lock · Remove, and the actions call back", async () => {
     const user = userEvent.setup();
     const onSelectBlock = vi.fn();

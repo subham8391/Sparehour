@@ -6,7 +6,7 @@ import type { PlanDrawing } from "@/features/planning/drawing";
 import type { TimelineBlock, TimelineMeeting } from "@/features/today/hooks/use-today";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import type { Capacity } from "@/core/capacity";
-import { formatMinutes, type Instant, type LocalDate } from "@/core/time";
+import { formatMinutes, formatTime, timeFromMinutes, type Instant, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
@@ -34,6 +34,8 @@ export interface MorningPlanFlowProps {
   onToday: readonly Task[];
   fitsMin: number;
   tomorrowSpareMin: number | null;
+  /** When This Evening's own time starts (the end of the working day), for step 2's note; null leaves the time unnamed. */
+  eveningStartMin?: number | null;
   defaultEstimateMin: number;
   /** The carried tasks that show the three-carry ask now: Today's two a day (PRODUCT_SPEC.md §8.3.4). */
   asks: ReadonlySet<string>;
@@ -63,6 +65,13 @@ export interface PlanMyDayStep {
 
 const TITLES: Record<PlanStep, string> = { frame: "Here’s your day", pick: "Pick today’s tasks", block: "Block time" };
 const LABELS = PLAN_STEPS.map((s) => TITLES[s]);
+
+/** Step 2's note (SCREENS.md §14): evening tasks stay out of the readout, and the note says what they add up to after work. */
+export function eveningNote(onToday: readonly Task[], defaultEstimateMin: number, startMin: number | null): string {
+  const planned = onToday.filter((t) => t.evening).reduce((sum, t) => sum + (t.estimateMin ?? defaultEstimateMin), 0);
+  if (planned === 0 || startMin === null) return "Evening tasks aren’t counted here — they get their own time after work.";
+  return `Evening tasks aren’t counted here — they get their own ${formatMinutes(planned)} after ${formatTime(timeFromMinutes(startMin))}.`;
+}
 
 export function MorningPlanFlow(p: MorningPlanFlowProps) {
   const [step, setStep] = useState<PlanStep>("frame");
@@ -170,7 +179,7 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
               </div>
             )}
           </div>
-          <p className="text-body-sm text-pretty text-ink-3">Evening tasks aren&rsquo;t counted here — they get their own time after work.</p>
+          <p className="text-body-sm text-pretty text-ink-3">{eveningNote(p.onToday, p.defaultEstimateMin, p.eveningStartMin ?? null)}</p>
         </>
       );
       break;

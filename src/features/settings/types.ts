@@ -22,6 +22,7 @@ export interface SettingsValues {
   /** The morning review of carried-over tasks on the first open of a new day. */
   carryReview: boolean;
   eveningStartsAt: string;
+  eveningEndsAt: string;
   theme: "system" | "light" | "dark";
   notifyBlockStart: boolean;
   notifyDeadline: boolean;
