@@ -3053,6 +3053,8 @@ sequenceDiagram
 
 Exception: if `/api/bootstrap` reports `min_client_version > BUILD_ID`, the update is **forced** — the app blocks with "Update required", flushes the upload queue first, then reloads. That is the mechanism that makes schema contraction (§4.7) safe.
 
+*As built (2026-10-07).* `next build` stamps `NEXT_PUBLIC_BUILD_ID` with the build's UTC minute (`2026.10.07.1530`, `next.config.ts`; a set value wins, `next dev` stays `dev`), so builds sort and Settings shows a real version. `GET /api/bootstrap` returns `{ min_client_version, server_time }`; the gate is `private.app_config`'s `min_client_version` row, read through `public.min_client_version()` (migration `20261007190000`), and an unreadable database reports none. `PwaProvider` asks at start and when the app comes back into view (at most twice an hour); `isUpdateRequired` compares the stamps part by part as numbers and never gates `dev` or an unset gate. Above it, the "Update required" island (`features/pwa/update-required.tsx`) blocks the app (everything behind it inert, shortcuts swallowed), waits up to 20 s while `getUploadQueueStats()` shows queued changes (going ahead offline or at the limit is safe: the queue is in SQLite and the new version sends it), then sends `SKIP_WAITING` to a waiting worker or reloads, documents being network-first. A reload that comes back below the same gate within two minutes does not loop: the screen asks to close and reopen Sparehour, with Reload. To force an update: `insert into private.app_config (key, value) values ('min_client_version', '<stamp>') on conflict (key) do update set value = excluded.value`. Flags are not in the payload yet.
+
 ### 10.3 Local storage engine
 
 | Choice | Value | Why |
@@ -3062,6 +3064,8 @@ Exception: if `/api/bootstrap` reports `min_client_version > BUILD_ID`, the upda
 | Multi-tab | `enableMultiTabs: true` (SDK default) | Shared worker where available; BroadcastChannel fallback on Safari/iOS/Android. We do not depend on its guarantees (§4.6). |
 | Encryption | `encryptionKey` — opt-in, off by default | T8. Off by default because a forgotten key means a full resync, and the threat is modest for most users. |
 | Private browsing | OPFS is unavailable in Safari/Firefox private tabs and has known issues in Safari incognito | Detect at boot and fall back to `InMemoryVFS` with a banner: "Private browsing — your data won't be saved on this device." |
+
+*As built (2026-10-07; DECISIONS.md "Private browsing": no in-memory fallback at M1).* `PowerSyncProvider` watches `waitForReady()` and `navigator.storage.getDirectory()`; when either fails (a Firefox private window refuses the origin private file system outright) the `(app)` layout shows the inline error state of SCREENS.md §21 — "Sparehour can't open its storage in this window.", that private windows often keep it shut, **Try again** (a reload) and **Copy details** (the error, version, browser and time; shown in place when the clipboard refuses) — a lazy island, never a blank screen or a "Restoring" that waits forever.
 
 Turbopack cannot yet do dynamic worker imports, so workers are copied at install time and referenced by path — this is the documented Next.js integration:
 
