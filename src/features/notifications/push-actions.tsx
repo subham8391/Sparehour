@@ -28,7 +28,7 @@ const TASK_HERE_SQL = `select id from tasks where id = ? and deleted_at is null`
 /** What the lookup needs of the local database. */
 interface TaskLookup {
   getOptional: (sql: string, params: string[]) => Promise<unknown>;
-  waitForFirstSync: (request: { priority: number }) => Promise<void>;
+  waitForFirstSync: (request: { priority: number; signal: AbortSignal }) => Promise<void>;
   currentStatus?: { hasSynced?: boolean };
 }
 
@@ -40,13 +40,16 @@ export async function taskOnDevice(db: TaskLookup, id: string, waitMs = FIRST_SY
   const here = async () => Boolean(await db.getOptional(TASK_HERE_SQL, [id]));
   if (await here()) return true;
   if (db.currentStatus?.hasSynced) return false;
+  // Priority 1 is the working set (supabase/powersync/streams.yaml); the wait is let go of either way.
+  const stop = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([db.waitForFirstSync({ priority: 1 }), new Promise((resolve) => (timer = setTimeout(resolve, waitMs)))]);
+    await Promise.race([db.waitForFirstSync({ priority: 1, signal: stop.signal }), new Promise((resolve) => (timer = setTimeout(resolve, waitMs)))]);
   } catch {
     // no sync to wait for: answer from what is here
   } finally {
     clearTimeout(timer);
+    stop.abort();
   }
   return here();
 }

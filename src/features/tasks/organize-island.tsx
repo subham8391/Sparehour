@@ -3,7 +3,7 @@
 // the selected task or every ticked row — one write and one undo for the lot, then the ticks clear — Duplicate for
 // a task (the copy opens) and a project (the copy opens), and the quiet notices ("Link copied", "That task isn't on
 // this device."). Fetched in idle time and kept mounted, so none of it rides in a shell's first download.
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
@@ -37,14 +37,13 @@ export function OrganizeIsland() {
   const detail = useTaskDetail();
   const selection = useSelection();
   const router = useRouter();
-  const pathname = usePathname();
   const [picking, setPicking] = useState<Picking | null>(null);
   const [notice, setNotice] = useState<{ text: string; seq: number } | null>(null);
 
   // The handler reads the latest render through a ref, so it is registered once and the waiting requests run once.
-  const latest = useRef({ repo, db, undo, detail, router, pathname });
+  const latest = useRef({ db, undo, detail, router });
   useEffect(() => {
-    latest.current = { repo, db, undo, detail, router, pathname };
+    latest.current = { db, undo, detail, router };
   });
   useEffect(
     () =>
