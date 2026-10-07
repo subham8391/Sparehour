@@ -440,7 +440,12 @@ function EstimateChip({ task, defaultEstimateMin, onEstimate, request }: { task:
       handle={menu}
       portal
       text={label}
-      className={cx(chipClass({ tone: task.estimateMin ? "neutral" : "guess", size: "auto" }), "relative z-1 cursor-pointer hover:border-line-strong max-sm:h-8")}
+      className={cx(
+        chipClass({ tone: task.estimateMin ? "neutral" : "guess", size: "auto" }),
+        "relative z-1 cursor-pointer hover:border-line-strong max-sm:h-8",
+        // 32 px drawn, 44 px to the finger on a phone (DESIGN_SYSTEM.md §4a).
+        "max-sm:before:absolute max-sm:before:inset-x-0 max-sm:before:-inset-y-1.5 max-sm:before:content-['']",
+      )}
     >
       {(close) =>
         ESTIMATES.map((m) => (
@@ -561,7 +566,7 @@ function BlockRow({ task, defaultEstimateMin, selected, onPlace }: { task: Task;
       aria-current={selected ? "true" : undefined}
       className={cx("flex min-h-14 cursor-grab items-center gap-2 border-t border-line pr-1.5 pl-4 first:border-t-0 hover:bg-hover sm:min-h-11", selected && "shadow-[inset_2px_0_0_var(--ink)]", dragging && "opacity-40")}
     >
-      <button type="button" onClick={onPlace} className="min-w-0 flex-1 truncate py-2 text-left text-body-lg text-ink sm:text-body">
+      <button type="button" onClick={onPlace} className="min-w-0 flex-1 self-stretch truncate py-2 text-left text-body-lg text-ink sm:text-body">
         {task.title}
       </button>
       <Chip tone={task.estimateMin ? "neutral" : "guess"} size="auto">

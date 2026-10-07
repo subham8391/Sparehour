@@ -248,10 +248,14 @@ export function Timeline(p: TimelineProps) {
   const sendTimes = (kind: Armed["kind"], from: number, to: number) => {
     if (!selected) return;
     setArmed(null);
+    const len = selected.end - selected.start;
+    const resize = kind === "move" && to - from !== len;
+    // What is read out is where it lands: a move or a copy keeps its length, snapped to five minutes.
+    const at = resize ? { start: from, end: Math.min(DAY_MIN, to) } : placeAt(from, len);
     if (kind === "copy") p.onDuplicateBlock?.(selected.id, from);
-    else if (to - from !== selected.end - selected.start) p.onResizeBlock?.(selected.id, from, Math.min(DAY_MIN, to));
+    else if (resize) p.onResizeBlock?.(selected.id, at.start, at.end);
     else p.onMoveBlock?.(selected.id, from);
-    say(`${kind === "copy" ? "Copied to" : "Moved to"} ${hhmm(from)}–${hhmm(Math.min(DAY_MIN, to))}`);
+    say(`${kind === "copy" ? "Copied to" : resize ? "Now" : "Moved to"} ${hhmm(at.start)}–${hhmm(at.end)}`);
   };
 
   // Opening on the working day, and keeping the now line (or else the minute at the top) in view when the zoom
@@ -301,9 +305,15 @@ export function Timeline(p: TimelineProps) {
     if (!selected) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // A timeline out of sight (the phone's list view, the wide pane while the detail is open) takes no keys:
+      // Backspace there would remove a block nobody can see.
+      const root = rootRef.current;
+      if (root && typeof root.checkVisibility === "function" && !root.checkVisibility()) return;
       const el = e.target as HTMLElement | null;
       if (el?.closest?.("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu']")) return;
       const q = propsRef.current;
+      // Enter on the selected block's own button opens it rather than selecting it again.
+      const onSelf = el?.closest?.("[data-block]")?.getAttribute("data-block") === selected.id;
       if (e.key === "Escape") {
         if (armed) setArmed(null);
         else q.onSelectBlock?.(null);
@@ -314,7 +324,7 @@ export function Timeline(p: TimelineProps) {
       } else if (e.key === "Backspace" || e.key === "Delete") {
         if (!q.onRemoveBlock) return;
         q.onRemoveBlock(selected.id);
-      } else if (e.key === "Enter" && !el?.closest?.("button, a")) {
+      } else if (e.key === "Enter" && (onSelf || !el?.closest?.("button, a"))) {
         if (selected.taskId && q.onOpenTask) q.onOpenTask(selected.taskId);
         else if (q.onRenameBlock) setRenaming(selected.id);
         else return;
@@ -359,6 +369,8 @@ export function Timeline(p: TimelineProps) {
   const waiting = Boolean(p.placing || armed);
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     lastPointer.current = e.pointerType;
+    // A drawing let go outside the timeline never got its click: it must not swallow this one.
+    suppressClick.current = false;
     const root = rootRef.current;
     if (!root || !p.onCreateBlock || waiting || e.button !== 0 || e.pointerType === "touch") return;
     if ((e.target as HTMLElement).closest("[data-block], [data-testid='block-toolbar'], button, input")) return;

@@ -190,7 +190,11 @@ export function BlockToolbar({ block, top, below, armed, note, actions }: { bloc
     const f = minutesOfField(from);
     const t = minutesOfField(to);
     if (f === null || !armed) return;
-    actions.onTimes?.(armed, f, armed === "move" && t !== null && t > f ? t : f + (block.end - block.start));
+    // A new end resizes, from whatever start is shown; a new start alone moves the block, keeping its length,
+    // earlier or later, overlapping where it was or not.
+    const endChanged = armed === "move" && to !== hhmm(block.end) && t !== null;
+    if (endChanged && t <= f) return;
+    actions.onTimes?.(armed, f, endChanged ? t : f + (block.end - block.start));
   };
   return (
     <div

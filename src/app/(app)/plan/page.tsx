@@ -75,7 +75,8 @@ export default function PlanPage() {
   const fitsMin = fitsToday(cap, model.blocks, pickedIds, nowMin);
   const user = users?.[0];
   // Step 3 blocks the picked tasks with Today's own placing (B, drags, taps, moves), registered for B while the plan is open.
-  const findTask = (id: string) => onToday.find((t) => t.id === id) ?? open.find((t) => t.id === id);
+  // Only what is picked for today: B on a row still waiting in step 2 does not block a task the day does not hold.
+  const findTask = (id: string) => onToday.find((t) => t.id === id);
   const placer = usePlacing({
     day: model.today,
     zone,

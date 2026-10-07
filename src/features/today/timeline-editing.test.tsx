@@ -156,6 +156,48 @@ describe("block editing (SCREENS.md §2.6, SYSTEM_DESIGN.md §11.5)", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it("a new start alone moves the block, earlier or a little later, never resizing it", async () => {
+    const user = userEvent.setup();
+    const h = handlers();
+    render(draw({ ...h, selectedBlockId: "b1" }));
+    // 09:45–10:30: an earlier start that still overlaps where it was.
+    await user.click(screen.getByRole("button", { name: /^Move Draft/ }));
+    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "09:30" } });
+    await user.click(screen.getByRole("button", { name: "Move" }));
+    expect(h.onMoveBlock).toHaveBeenLastCalledWith("b1", 570);
+    expect(screen.getByText("Moved to 09:30–10:15")).toBeInTheDocument();
+    // Ten minutes later, still before the old end.
+    await user.click(screen.getByRole("button", { name: /^Move Draft/ }));
+    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "09:55" } });
+    await user.click(screen.getByRole("button", { name: "Move" }));
+    expect(h.onMoveBlock).toHaveBeenLastCalledWith("b1", 595);
+    expect(h.onResizeBlock).not.toHaveBeenCalled();
+    // Both edges typed: the block takes them, and an end before the start sends nothing.
+    await user.click(screen.getByRole("button", { name: /^Move Draft/ }));
+    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "09:00" } });
+    fireEvent.change(screen.getByLabelText("End time"), { target: { value: "10:00" } });
+    await user.click(screen.getByRole("button", { name: "Move" }));
+    expect(h.onResizeBlock).toHaveBeenLastCalledWith("b1", 540, 600);
+    await user.click(screen.getByRole("button", { name: /^Move Draft/ }));
+    fireEvent.change(screen.getByLabelText("End time"), { target: { value: "09:00" } });
+    await user.click(screen.getByRole("button", { name: "Move" }));
+    expect(h.onResizeBlock).toHaveBeenCalledTimes(1);
+  });
+
+  it("Enter on the selected block's own button opens its task", async () => {
+    const user = userEvent.setup();
+    const h = handlers();
+    render(draw({ ...h, selectedBlockId: "b1" }));
+    screen.getByRole("button", { name: /Block: Draft the proposal/ }).focus();
+    await user.keyboard("{Enter}");
+    expect(h.onOpenTask).toHaveBeenCalledWith("t1");
+    // Enter on another block's button still selects that one.
+    screen.getByRole("button", { name: /Block: Deep work/ }).focus();
+    await user.keyboard("{Enter}");
+    expect(h.onSelectBlock).toHaveBeenLastCalledWith("b2");
+    expect(h.onOpenTask).toHaveBeenCalledTimes(1);
+  });
+
   it("a locked block refuses Move… with a quiet reason", async () => {
     const user = userEvent.setup();
     const h = handlers();
@@ -253,6 +295,23 @@ describe("blocks of your own (PRODUCT_SPEC.md §10.2)", () => {
     expect(h.onSelectBlock).not.toHaveBeenCalled();
     rerender(draw({ ...h, blocks: [...blocks, { id: "new", taskId: null, title: "Block", start: 720, end: 780, locked: false }] }));
     expect(screen.getByRole("textbox", { name: "Block name" })).toHaveValue("Block");
+  });
+
+  it("a drawing let go outside the timeline does not swallow the next click", async () => {
+    const h = handlers();
+    render(draw({ ...h, selectedBlockId: "b1" }));
+    const timeline = screen.getByTestId("timeline");
+    fireEvent.pointerDown(timeline, { clientY: 722 * PX_PER_MIN, button: 0, pointerType: "mouse" });
+    fireEvent.pointerMove(window, { clientY: 772 * PX_PER_MIN });
+    await act(async () => {
+      fireEvent.pointerUp(window, { clientY: 772 * PX_PER_MIN });
+    });
+    expect(h.onCreateBlock).toHaveBeenCalledTimes(1);
+    // No click reached the timeline; the next press and click on it lets go of the selection as usual.
+    fireEvent.pointerDown(timeline, { clientY: 700, button: 0, pointerType: "mouse" });
+    fireEvent.pointerUp(window, { clientY: 700 });
+    fireEvent.click(timeline, { clientY: 700 });
+    expect(h.onSelectBlock).toHaveBeenCalledWith(null);
   });
 
   it("on touch a tap on empty space offers New block here, half an hour", async () => {

@@ -272,6 +272,12 @@ export default function TodayPage() {
   const doneToday = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
   // J/K walk the rows in the order they are drawn, Done last when it shows; a collapsed This Evening is stepped over.
   const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningShut ? [] : eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
+  // A row chosen after a block takes the keys back: Enter, L and Backspace act on the row, not the block.
+  const [rowSeen, setRowSeen] = useState(sel.selectedId);
+  if (sel.selectedId !== rowSeen) {
+    setRowSeen(sel.selectedId);
+    if (sel.selectedId) setSelectedBlockId(null);
+  }
   // Everything planned for today is done (SCREENS.md §2.7 "All done"): at least one thing finished and nothing left on
   // today or this evening. Nothing planned and nothing finished is still the empty day below.
   const bodyState = dayState({ closed: Boolean(closedAt), carried: model.carried.length, today: model.todayTasks.length, evening: model.eveningTasks.length, done: doneToday.length });
