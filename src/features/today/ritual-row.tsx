@@ -50,12 +50,14 @@ export interface RitualRowProps {
   onView: (view: TodayView) => void;
 }
 
+/**
+ * The row itself: the ritual of the hour and the List | Day control. On the phone it sticks under the top edge with
+ * the ribbon card (Today's page), so its second line is RitualActions, a sibling that scrolls with the lists.
+ */
 export function RitualRow(p: RitualRowProps) {
   if (!p.hasDay && p.closed) return null;
-  const plan = !p.closed && p.hasDay ? p.plan : null;
-  const review = !p.closed ? p.onReview : null;
   return (
-    <div className="-my-3 flex flex-col lg:hidden">
+    <div className="-my-3 flex flex-col lg:hidden print:hidden">
       <div data-testid="ritual-line" className="flex flex-wrap items-center gap-x-2">
         {!p.closed &&
           (p.shutdownTime ? (
@@ -87,8 +89,18 @@ export function RitualRow(p: RitualRowProps) {
           />
         )}
       </div>
-      {(plan || review) && (
-        <div data-testid="ritual-actions" className="-ml-2 flex flex-wrap items-center gap-x-2 sm:hidden">
+    </div>
+  );
+}
+
+/** The phone's second line beneath the ritual row: Plan my day (or re-plan) and the carried-over review. */
+export function RitualActions(p: RitualRowProps) {
+  const plan = !p.closed && p.hasDay ? p.plan : null;
+  const review = !p.closed ? p.onReview : null;
+  return (
+    (plan || review) && (
+        // Flush under the ritual row: the page's 24 px gap less the row's own 12 px, as when the two were one block.
+        <div data-testid="ritual-actions" className="-mt-3 -mb-3 -ml-2 flex flex-wrap items-center gap-x-2 sm:hidden print:hidden">
           {plan && (
             <button type="button" aria-expanded={plan.open} onClick={plan.onOpen} className={buttonClass({ variant: "link" })}>
               {plan.label}
@@ -100,7 +112,6 @@ export function RitualRow(p: RitualRowProps) {
             </button>
           )}
         </div>
-      )}
-    </div>
+    )
   );
 }

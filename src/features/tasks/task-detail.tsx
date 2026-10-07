@@ -4,6 +4,8 @@
 // wired to the local database, is task-detail-connected.tsx.
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { PaneResizer } from "@/features/shell/pane-resizer";
+import { paneView } from "@/features/shell/panes";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { cx } from "@/ui/cx";
 import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet-parts";
@@ -35,6 +37,8 @@ interface TaskDetailApi {
   /** Opens the task, with that field's picker open and focused when one is named. */
   open: (id: string, field?: DetailField) => void;
   close: () => void;
+  /** Cmd+. (SCREENS.md §24): closes the open task, or opens the last one closed again, else `fallback` (the selected row). */
+  toggle: (fallback?: string | null) => void;
 }
 
 const TaskDetailContext = createContext<TaskDetailApi | null>(null);
@@ -53,7 +57,18 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
     setField((f) => (name ? { name, seq: (f?.seq ?? 0) + 1 } : null));
   }, []);
   const close = useCallback(() => setSelectedId(null), []);
-  const api = useMemo(() => ({ selectedId, field, open, close }), [selectedId, field, open, close]);
+  // The task last open, for Cmd+. to bring back.
+  const [last, setLast] = useState<string | null>(null);
+  if (selectedId && selectedId !== last) setLast(selectedId);
+  const toggle = useCallback(
+    (fallback?: string | null) => {
+      const id = last ?? fallback;
+      if (selectedId) close();
+      else if (id) open(id);
+    },
+    [selectedId, last, close, open],
+  );
+  const api = useMemo(() => ({ selectedId, field, open, close, toggle }), [selectedId, field, open, close, toggle]);
   useEffect(() => preloadOnIdle(loadPanel), []);
   return <TaskDetailContext.Provider value={api}>{children}</TaskDetailContext.Provider>;
 }
@@ -65,7 +80,7 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
  * the key first. The pane appears at once; the sheets slide in from their
  * edge (DESIGN_SYSTEM.md §7 "Sheets"), or simply appear under reduced motion.
  */
-export function TaskDetailPane() {
+export function TaskDetailPane({ pathname }: { pathname: string }) {
   const { selectedId, field, close } = useTaskDetail();
   useEffect(() => {
     if (!selectedId) return;
@@ -77,7 +92,7 @@ export function TaskDetailPane() {
   }, [selectedId, close]);
 
   if (!selectedId) return null;
-  return <DetailSurface id={selectedId} field={field} onClose={close} />;
+  return <DetailSurface id={selectedId} field={field} onClose={close} view={paneView(pathname)} />;
 }
 
 const OVERLAY_QUERY = "(max-width: 47.9375rem)";
@@ -94,12 +109,14 @@ const readOverlay = () => typeof window.matchMedia === "function" && window.matc
  * is a modal dialog there: focus moves in, stays in, and goes back to the row on close (SCREENS.md §1 rules 5 and 6).
  * From `md` up it is a pane beside the list, and focus stays where the person is working.
  */
-function DetailSurface({ id, field, onClose }: { id: string; field: FieldRequest | null; onClose: () => void }) {
+function DetailSurface({ id, field, onClose, view }: { id: string; field: FieldRequest | null; onClose: () => void; view: string }) {
   const overlay = useSyncExternalStore(subscribeOverlay, readOverlay, () => false);
   const surface = useDialogFocus<HTMLElement>(overlay);
   return (
     <>
       <Scrim onClose={onClose} className="fixed z-20 md:hidden" />
+      {/* From the medium band the pane's width is the view's own (--pane-w), set from its left edge. */}
+      <PaneResizer key={view} view={view} label="Resize the task pane" fallback={384} className="md:block" />
       <aside
         ref={surface}
         aria-label="Task"
@@ -111,7 +128,9 @@ function DetailSurface({ id, field, onClose }: { id: string; field: FieldRequest
           "fixed inset-0 z-30 flex flex-col bg-surface pt-[env(safe-area-inset-top)] outline-none",
           // The phone sheet rises from the bottom, the narrow band's from the right; the pane from `md` up just appears.
           "max-md:transition-[translate,opacity] max-md:dur-slow max-md:ease-drawer max-sm:starting:translate-y-full sm:max-md:starting:translate-x-full",
-          "sm:left-auto sm:w-[420px] sm:border-l sm:border-line sm:pt-0 sm:shadow-sheet md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-96 md:shrink-0 md:shadow-none",
+          // The narrow band's sheet clears a landscape phone's notch and rounded corner on the right (DESIGN_SYSTEM.md §4a).
+          "sm:left-auto sm:w-[calc(420px+env(safe-area-inset-right))] sm:border-l sm:border-line sm:pt-0 sm:pr-[env(safe-area-inset-right)] sm:shadow-sheet",
+          "md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-(--pane-w,24rem) md:shrink-0 md:pr-0 md:shadow-none",
         )}
       >
         <Grabber />

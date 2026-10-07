@@ -7,7 +7,7 @@
 // and the command palette are mounted once here.
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { readStorageFull, subscribeStorageFull } from "@/data/powersync";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
@@ -26,6 +26,7 @@ import { FabRoomContext } from "./fab-visibility";
 import { FirstRunGate } from "./first-run-gate";
 import { showsChrome, showsQuickAdd, showsTabBar } from "./nav";
 import { OpenTo } from "./open-to";
+import { paneView, paneWidth, setPaneWidth } from "./panes";
 import { useIdleMount } from "./preload-on-idle";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
@@ -110,10 +111,15 @@ function Frame({ children }: { children: ReactNode }) {
   useAppBadge(counts.today);
   const tabs = showsTabBar(pathname);
   const adds = showsQuickAdd(pathname);
+  // Each view keeps its own context pane width (SCREENS.md §1): --pane-w follows the view, or clears to the pane's default.
+  const view = paneView(pathname);
+  useEffect(() => setPaneWidth(view, paneWidth(view)), [view]);
   // The first run is the whole screen: no navigation to wander off into, nothing beside it.
   if (!showsChrome(pathname)) return <div className="flex min-h-dvh flex-col overflow-x-clip">{children}</div>;
   return (
-    <div className="flex min-h-dvh overflow-x-clip sm:h-dvh">
+    // A landscape phone's notch and rounded corners sit at the sides: the frame keeps the rail and the view clear of
+    // them (DESIGN_SYSTEM.md §4a "Safe areas"); in portrait the side insets are zero.
+    <div className="flex min-h-dvh overflow-x-clip pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] sm:h-dvh">
       <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
       <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
       <SidebarDragIsland areas={areas} />
@@ -141,7 +147,7 @@ function Frame({ children }: { children: ReactNode }) {
         {adds && <QuickAddBar />}
         <BulkBarIsland />
       </div>
-      <TaskDetailPane />
+      <TaskDetailPane pathname={pathname} />
       {tabs && <TabBar pathname={pathname} counts={counts} sync={sync} className="sm:hidden" />}
       {adds && <QuickAddFab hidden={detail.selectedId !== null || viewHidesFab} />}
     </div>

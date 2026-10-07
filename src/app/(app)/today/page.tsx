@@ -25,8 +25,10 @@ import { loadDragAdapter } from "@/features/tasks/drag-adapter";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
-import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
+import { RitualActions, RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
 import { useHideQuickAddFab } from "@/features/shell/fab-visibility";
+import { PaneResizer } from "@/features/shell/pane-resizer";
+import { atLeast } from "@/features/shell/panes";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { ViewHeader } from "@/features/shell/view-header";
 import { BLOCK_GLYPH, MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
@@ -106,6 +108,23 @@ function readCarriedOpen(day: string): boolean {
     return localStorage.getItem(CARRIED_OPEN_KEY) === day;
   } catch {
     return false;
+  }
+}
+/** The day pane put away on the wide band (Cmd+.), per device. */
+const PANE_KEY = "sparehour:today-pane-hidden";
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeFlag(key: string, on: boolean): void {
+  try {
+    if (on) localStorage.setItem(key, "1");
+    else localStorage.removeItem(key);
+  } catch {
+    // storage unavailable: the choice holds for this visit
   }
 }
 /** The eyebrow's second word: morning until noon, evening from the hour the person set (DESIGN_SYSTEM.md §5). */
@@ -227,11 +246,27 @@ export default function TodayPage() {
     [],
   );
 
-  // The palette's Trim today, Sort by…, Show completed and Jump to date (features/today/today-request.ts).
+  const [view, setView] = useState<TodayView>("list");
+  // Cmd+. and ⋯ Show timeline (SCREENS.md §1 "Context pane"): from the wide band the day pane beside the list can be
+  // put away, remembered on this device; below it Cmd+. switches List | Day (DECISIONS.md "Medium and narrow Today").
+  const [paneHidden, setPaneHidden] = useState(() => readFlag(PANE_KEY));
+  const showPane = (shown: boolean) => {
+    setPaneHidden(!shown);
+    writeFlag(PANE_KEY, !shown);
+  };
+
+  // The palette's Trim today, Sort by…, Show completed, Jump to date and Cmd+. (features/today/today-request.ts).
   const onRequest = useRef<(r: TodayRequest) => void>(() => undefined);
   useEffect(() => {
     onRequest.current = (r) => {
-      if (r.kind === "trim") {
+      if (r.kind === "pane") {
+        // The context pane holds the open task or the day; Cmd+. puts away whichever is there, and brings back the day.
+        if (!atLeast(1180)) setView((v) => (v === "day" ? "list" : "day"));
+        else {
+          if (detail.selectedId) detail.close();
+          showPane(!detail.selectedId && paneHidden);
+        }
+      } else if (r.kind === "trim") {
         // Trimming is today's: from another day it comes home first.
         goHome();
         setTrimOpen(true);
@@ -259,7 +294,6 @@ export default function TodayPage() {
   // ---- time blocks (SCREENS.md §2.6): placed, moved and copied through the shared placing hook.
   const blockNudge = useBlockNudgePending();
   const projectNames = useProjectNames();
-  const [view, setView] = useState<TodayView>("list");
   // A meeting clicked on the ribbon (SCREENS.md §2.2): the Day view on a phone, the timeline scrolled to it, marked for a moment.
   const [shownMeeting, setShownMeeting] = useState<number | null>(null);
   useEffect(() => {
@@ -481,6 +515,21 @@ export default function TodayPage() {
   const nextPlan = planMode(nowMinute, dayStart, model.blocks.some((b) => b.source === "plan"));
   const drawing = previewing ? planning.drawing : null;
   const replacedIds = new Set(drawing?.replacedIds ?? []);
+  // The wide band's day pane: away while a task is open in its place, or while put away with Cmd+.
+  const paneShown = !detail.selectedId && !paneHidden;
+  const ritual = {
+    // Another day offers no ritual, only the List | Day control.
+    closed: Boolean(closedAt) || !onToday,
+    hasDay,
+    shutdownTime,
+    finish,
+    dayOver,
+    plannedAt,
+    plan: { label: PLAN_LABEL[nextPlan], open: planning.mode !== null, onOpen: () => planning.open(nextPlan) },
+    onReview: review && review.carried > 0 ? review.open : null,
+    view,
+    onView: setView,
+  };
   // The header's day arrows: `[` and `]` on screen, 44 px on a phone (SCREENS.md §2.1).
   const stepButton = (delta: -1 | 1) => (
     <button type="button" ref={delta > 0 ? nextDayRef : undefined} aria-label={delta < 0 ? "Previous day" : "Next day"} title={delta < 0 ? "Previous day ([)" : "Next day (])"} onClick={() => stepBy(delta)} className={iconButtonClass()}>
@@ -548,6 +597,8 @@ export default function TodayPage() {
                     onSort={(v) => savePref({ todaySort: v })}
                     showCompleted={showCompleted}
                     onShowCompleted={(v) => savePref({ showCompleted: v })}
+                    // The day pane beside the list, a tap path for Cmd+. on the wide band (checked while it shows).
+                    timeline={hasDay && atLeast(1180) ? { shown: !paneHidden, onToggle: () => showPane(paneHidden) } : undefined}
                     onClearSlate={onToday ? clearSlate : undefined}
                     onTrim={onToday ? () => setTrimOpen(true) : undefined}
                     text={onToday ? { day, carried: model.carried, today: todayList, evening: eveningList, blockStart: (id) => model.blocksByTask.get(id)?.[0]?.start ?? null, defaultEstimateMin: defaultEstimate } : undefined}
@@ -573,54 +624,50 @@ export default function TodayPage() {
                   timeline takes no new block, with the way to fix it. */}
               {model.calendarConnected && <CalendarBanner onToday={onToday} />}
               {overMin > 0 && <OverMove tasks={model.todayTasks} overMin={overMin} tomorrow={tomorrow} settings={model.settings} onMove={setOverMove} />}
-              <Ribbon
-                c={model.capacity}
-                // No now cursor and no elapsed hatch on another day.
-                nowMin={onToday ? nowMinute : undefined}
-                otherDay={!onToday}
-                connected={model.calendarConnected}
-                plannedCount={model.todayTasks.length + model.eveningTasks.length}
-                finished={doneToday.length > 0}
-                // The window of events around the day shown, still on its way (4 s, then "calendar still loading").
-                calendarLoading={model.calendarLoading}
-                onTrim={onToday ? () => setTrimOpen(true) : undefined}
-                suggestion={overMin > 0 ? overMove : null}
-                interactions={{
-                  bufferPct: model.settings?.bufferPct ?? 15,
-                  meetings: model.meetings,
-                  blocks: model.blocks,
-                  // Free time clicked: "Add something" for the day shown (SCREENS.md §2.2).
-                  onAdd: () => quickAdd.open(dayWords(day, model.today)),
-                  addFor: onToday ? undefined : formatDay(day, { today: model.today }),
-                  onMeeting: (m) => {
-                    setView("day");
-                    // From the wide band an open detail stands in the day pane's place.
-                    if (detail.selectedId) detail.close();
-                    setShownMeeting(m.start);
-                  },
-                }}
-              />
             </>
           )
         )}
 
-        {/* The ritual row (DESIGN_SYSTEM.md §5): the ritual of the hour and the List | Day control on one line, Plan my day
-            and the review beneath on the phone; only the control from the narrow band up, until the wide band shows both panes. */}
-        <div className="contents print:hidden">
-        <RitualRow
-          // Another day offers no ritual, only the List | Day control.
-          closed={Boolean(closedAt) || !onToday}
-          hasDay={hasDay}
-          shutdownTime={shutdownTime}
-          finish={finish}
-          dayOver={dayOver}
-          plannedAt={plannedAt}
-          plan={{ label: PLAN_LABEL[nextPlan], open: planning.mode !== null, onOpen: () => planning.open(nextPlan) }}
-          onReview={review && review.carried > 0 ? review.open : null}
-          view={view}
-          onView={setView}
-        />
+        {/* On a phone the ribbon card and the ritual row (List | Day) stay under the top edge while the lists scroll
+            (SCREENS.md §2.8, §22); the plan preview's sheet needs that room, so it lets go while previewing. From the
+            narrow band up the wrapper is not a box at all. */}
+        <div className={cx("max-sm:empty:hidden sm:contents", previewing ? "contents" : "max-sm:sticky max-sm:top-0 max-sm:z-10 max-sm:-m-3 max-sm:-mx-5 max-sm:flex max-sm:flex-col max-sm:gap-6 max-sm:bg-paper max-sm:p-3 max-sm:px-5")}>
+          {!closedAt && !past && model.capacity && (
+            <Ribbon
+              c={model.capacity}
+              // No now cursor and no elapsed hatch on another day.
+              nowMin={onToday ? nowMinute : undefined}
+              otherDay={!onToday}
+              connected={model.calendarConnected}
+              plannedCount={model.todayTasks.length + model.eveningTasks.length}
+              finished={doneToday.length > 0}
+              // The window of events around the day shown, still on its way (4 s, then "calendar still loading").
+              calendarLoading={model.calendarLoading}
+              onTrim={onToday ? () => setTrimOpen(true) : undefined}
+              suggestion={overMin > 0 ? overMove : null}
+              interactions={{
+                bufferPct: model.settings?.bufferPct ?? 15,
+                meetings: model.meetings,
+                blocks: model.blocks,
+                // Free time clicked: "Add something" for the day shown (SCREENS.md §2.2).
+                onAdd: () => quickAdd.open(dayWords(day, model.today)),
+                addFor: onToday ? undefined : formatDay(day, { today: model.today }),
+                onMeeting: (m) => {
+                  setView("day");
+                  // From the wide band an open detail stands in the day pane's place, and a put-away pane comes back.
+                  if (detail.selectedId) detail.close();
+                  if (paneHidden) showPane(true);
+                  setShownMeeting(m.start);
+                },
+              }}
+            />
+          )}
+          {/* The ritual row (DESIGN_SYSTEM.md §5): the ritual of the hour and the List | Day control on one line, Plan my
+              day and the review on a line beneath on the phone; only the control from the narrow band up, until the wide
+              band shows both panes. */}
+          <RitualRow {...ritual} />
         </div>
+        <RitualActions {...ritual} />
 
         {previewing && planning.mode && (
           // Beside the timeline from the wide band, above it below that, and a sheet over the Day view on a phone.
@@ -786,8 +833,11 @@ export default function TodayPage() {
       </div>
 
       {model.capacity && hasDay && (
-        // "Your day": a card in the list's place below the wide band; from it, a surface pane under the daylight gradient
-        // that spans the region's height beside the list and scrolls on its own only when the day is taller than the screen.
+        <>
+        {/* From the wide band the pane's width is Today's own (--pane-w), set from its left edge. */}
+        <PaneResizer view="today" label="Resize the day pane" fallback={344} className={paneShown ? "lg:block" : ""} />
+        {/* "Your day": a card in the list's place below the wide band; from it, a surface pane under the daylight gradient
+            that spans the region's height beside the list and scrolls on its own only when the day is taller than the screen. */}
         <aside
           aria-label="Your day"
           // The pane scrolls on its own from the wide band, so a keyboard user can focus it to scroll a day with nothing to focus.
@@ -795,9 +845,9 @@ export default function TodayPage() {
           className={cx(
             // No outline-none: in Tailwind v4 it also cancels the focus-visible outline, and the ring vanished (the global ring draws it, inset).
             "w-full flex-col px-5 pb-6 focus-visible:-outline-offset-2 sm:px-6 md:px-10 md:pb-7",
-            "lg:ml-auto lg:h-full lg:w-86 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7 print:hidden!",
+            "lg:ml-auto lg:h-full lg:w-(--pane-w,21.5rem) lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-surface lg:bg-daylight lg:px-5 lg:py-7 print:hidden!",
             showDay ? "flex" : "hidden",
-            detail.selectedId ? "lg:hidden" : "lg:flex",
+            paneShown ? "lg:flex" : "lg:hidden",
             // Room to scroll the whole day above the docked preview sheet.
             previewing && "max-sm:pb-[min(62dvh,36rem)]",
           )}
@@ -839,6 +889,7 @@ export default function TodayPage() {
           />
           </PaneBoundary>
         </aside>
+        </>
       )}
       {trimOpen && onToday && (
         <TrimToday

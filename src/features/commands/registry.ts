@@ -100,6 +100,8 @@ const WORDS: Record<string, Words> = {
   "block.move": { title: "Move block to…", group: "Selected task", keywords: "block time slot timeline reschedule" },
   "block.duplicate": { title: "Duplicate block", group: "Selected task", keywords: "block copy again timeline" },
   "block.rename": { title: "Rename block", group: "Selected task", keywords: "block title name timeline" },
+  "view.toggle-sidebar": { title: "Toggle sidebar", group: "View", keywords: "collapse expand rail hide show navigation" },
+  "view.toggle-pane": { title: "Toggle timeline", group: "View", keywords: "context pane detail day list panel hide show" },
   "view.theme-light": { title: "Light theme", group: "View", keywords: "appearance" },
   "view.theme-dark": { title: "Dark theme", group: "View", keywords: "appearance" },
   "view.theme-system": { title: "Follow the system theme", group: "View", keywords: "appearance auto" },
