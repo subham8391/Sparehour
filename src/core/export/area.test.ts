@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { csvExport, type ExportSnapshot } from "./index";
+import { csvExport, markdownFiles, type ExportSnapshot } from "./index";
 
 const snapshot: ExportSnapshot = {
   areas: [{ id: "a1", name: "Home", sort_key: "a0" }],
@@ -25,5 +25,13 @@ describe("csvExport and tasks filed in an area", () => {
     const lines = csvExport(snapshot).split("\r\n");
     expect(lines[1]).toMatch(/^t1,Renew passport,active,Home,,/);
     expect(lines[2]).toMatch(/^t2,Order tiles,active,Home,Kitchen,/);
+  });
+});
+
+describe("markdownFiles and tasks filed in an area", () => {
+  it("a loose task names its area in the list file it lands in; a project task does not repeat its project's", () => {
+    const files = markdownFiles(snapshot, "2026-10-07T09:00:00Z");
+    expect(files.find((f) => f.path === "today-and-upcoming.md")?.content).toContain("- [ ] Renew passport · area Home");
+    expect(files.find((f) => f.path.startsWith("projects/"))?.content).toContain("- [ ] Order tiles\n");
   });
 });

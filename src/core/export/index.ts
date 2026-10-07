@@ -292,7 +292,10 @@ class Lookup {
   /** `- [ ] Title · do 2026-09-14 · due 2026-09-20 · 45m · @deep` with notes and steps indented under it. */
   taskBlock(t: Row): string {
     const done = t.state === "done";
+    // A loose task (filed in an area, with no project) lands in a list file with no area of its own, so it names it.
+    const area = t.project_id ? null : this.area(t.area_id);
     const chips = [
+      area ? `area ${area}` : null,
       t.do_date ? `do ${t.do_date}${t.do_time ? ` ${String(t.do_time).slice(0, 5)}` : ""}${t.evening === 1 ? " (evening)" : ""}` : null,
       t.deadline ? `due ${t.deadline}` : null,
       t.estimate_min ? `${t.estimate_min}m` : null,
