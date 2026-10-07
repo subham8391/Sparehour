@@ -45,8 +45,7 @@ export interface NavArea {
 const ITEM = "flex h-9 touch:h-11 items-center gap-3 rounded-lg px-3 text-body text-ink transition-colors dur-fast hover:bg-hover active:bg-press";
 // The active pill: surface lifted by the 1 px ring shadow.
 const ACTIVE = "bg-surface shadow-nav";
-// The rail on touch: no iOS link callout and no text selection under a held finger.
-const RAIL_ITEM = "size-9 touch:size-11 justify-center px-0 select-none [-webkit-touch-callout:none]";
+const RAIL_ITEM = "size-9 touch:size-11 justify-center px-0";
 
 function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathname: string; count?: number; rail: boolean; icon: IconName }) {
   const active = isActive(pathname, view.href);
@@ -55,7 +54,8 @@ function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathnam
     <Link
       href={view.href}
       aria-current={active ? "page" : undefined}
-      // The rail's name with its count, which a long-press on touch shows beside it (nav-drag-island.tsx).
+      // The rail's name with its count, which a long-press on touch shows beside it (nav-drag-island.tsx; globals.css
+      // keeps the iOS link callout and text selection from covering it).
       aria-label={rail ? (label ? `${view.label}, ${label}` : view.label) : undefined}
       title={rail ? view.label : undefined}
       className={cx(ITEM, "font-medium", active && ACTIVE, rail && RAIL_ITEM)}

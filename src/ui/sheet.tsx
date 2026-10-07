@@ -77,15 +77,7 @@ export function Sheet({
     trapTab(e);
   };
   return (
-    // From `sm` the side gutter also clears a landscape phone's notch and corners (DESIGN_SYSTEM.md §4a); a portrait
-    // phone has no side insets, so its bottom sheet keeps the full width.
-    <div
-      ref={frame}
-      className={cx(
-        "fixed inset-0 z-40 flex items-end pb-[var(--kb,0px)] sm:justify-center sm:px-[max(1.5rem,env(safe-area-inset-left),env(safe-area-inset-right))]",
-        align === "top" ? "sm:items-start sm:pt-[12vh]" : "sm:items-center sm:pt-0",
-      )}
-    >
+    <div ref={frame} className={cx("fixed inset-0 z-40 flex items-end pb-[var(--kb,0px)] sm:justify-center sm:px-6", align === "top" ? "sm:items-start sm:pt-[12vh]" : "sm:items-center sm:pt-0")}>
       <Scrim onClose={onClose} />
       <div
         ref={panel}

@@ -103,12 +103,10 @@ describe("<Sidebar>", () => {
     expect(collapse).toHaveFocus();
   });
 
-  it("the rail's names carry the count and a tooltip, and its links suppress the iOS callout for the long-press label", () => {
+  it("the rail's names carry the count and a tooltip, Settings included", () => {
     render(<Sidebar rail pathname="/inbox" counts={{ inbox: 3, today: 4 }} areas={areas} sync={sync} />);
-    const today = screen.getByRole("link", { name: "Today, 4" });
-    expect(today).toHaveAttribute("title", "Today");
-    expect(today.className).toContain("[-webkit-touch-callout:none]");
-    expect(screen.getByRole("link", { name: "Settings" }).className).toContain("[-webkit-touch-callout:none]");
+    expect(screen.getByRole("link", { name: "Today, 4" })).toHaveAttribute("title", "Today");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("title", "Settings");
   });
 });
 

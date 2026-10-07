@@ -8,7 +8,7 @@
 export const PREFS = { sidebar: "rail", dayPane: "hidden" } as const;
 
 /** Whether the viewport is at least `px` wide: false where it cannot be measured (tests, the server). */
-export const atLeast = (px: number): boolean => typeof matchMedia === "function" && matchMedia(`(min-width: ${px}px)`).matches;
+export const atLeast = (px: number): boolean => !!globalThis.matchMedia?.(`(min-width: ${px}px)`).matches;
 
 /** A command's reason below the band where its pane exists (the palette lists it off, with this). */
 export const needsWidth = (px: number) => (): string | null => (atLeast(px) ? null : "on a wider screen");
