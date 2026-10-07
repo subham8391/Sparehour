@@ -69,6 +69,8 @@ async function smallTargets(page: Page): Promise<string[]> {
 }
 
 test("a touch screen at 820 px gets 44 px targets on Today, Inbox, Upcoming, a project and Settings", async ({ page }) => {
+  // Six full loads in one context, each waiting for its sync (about ten seconds apiece after the first navigation).
+  test.setTimeout(180_000);
   // The device this project emulates: no hover, a coarse pointer, between `sm` and `md`.
   expect(await page.evaluate(() => matchMedia("(hover: none) and (pointer: coarse)").matches)).toBe(true);
   for (const [path, title] of [
