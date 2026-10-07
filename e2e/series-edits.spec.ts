@@ -42,7 +42,7 @@ const every = (iso: string) => `every ${NAMES[weekday(iso)]}`;
 /** The detail: a pane beside the list on a desktop, a full-screen dialog on a phone. */
 const panel = (page: Page) => page.getByRole("complementary", { name: "Task" }).or(page.getByRole("dialog", { name: "Task" }));
 async function openTask(page: Page, title: string): Promise<Locator> {
-  await page.getByRole("main").getByRole("listitem").filter({ hasText: title }).getByRole("button", { name: title, exact: true }).click();
+  await page.getByRole("main").getByRole("row").filter({ hasText: title }).getByRole("button", { name: title, exact: true }).click();
   const p = panel(page);
   await expect(p.getByRole("textbox", { name: "Title" })).toHaveValue(title);
   return p;

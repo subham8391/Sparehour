@@ -12,12 +12,12 @@ test("/ opens search; the query finds a task and lands in the URL; a chip narrow
   await expect(box).toBeFocused();
   await box.fill(title);
   await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(title).replace(/%20/g, "\\+")}`));
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
 
   await page.getByRole("button", { name: "Add filter" }).click();
   await page.getByRole("menuitem", { name: "No estimate" }).click();
   await expect(page).toHaveURL(/noestimate=1/);
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
   await page.getByRole("button", { name: "Remove filter no estimate" }).click();
   await expect(page).not.toHaveURL(/noestimate=1/);
 });

@@ -25,7 +25,7 @@ test("Today on a phone: tab bar, List · Day toggle, and the FAB adds a task", a
   await page.getByRole("button", { name: "Add", exact: true }).click();
   // The sheet's own Close (the scrim is a second, unnamed-in-the-UI way out).
   await page.getByRole("dialog", { name: "Add a task" }).getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
 });
 
 test.describe("morning review", () => {

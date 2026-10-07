@@ -195,7 +195,7 @@ test("a later day's row action brings the task into the week; the day it lands o
   const [from, to] = [isoPlus(me.today, 9), isoPlus(me.today, 1)];
   // Past the seven columns the agenda goes on by day, each heading with its compact readout out to day 14.
   const laterDay = page.locator(`[data-day="${from}"]`);
-  const row = laterDay.getByRole("listitem").filter({ hasText: later });
+  const row = laterDay.getByRole("row").filter({ hasText: later });
   await expect(row).toBeVisible();
   await expect(laterDay.locator("h3 > span").filter({ hasText: READOUT })).toHaveCount(1);
   await settled(page, to);
@@ -204,7 +204,7 @@ test("a later day's row action brings the task into the week; the day it lands o
   await row.hover();
   await row.getByRole("button", { name: "Tomorrow", exact: true }).click();
   await reveal(column(page, to), column(page, to).getByRole("listitem").filter({ hasText: later }));
-  await expect(laterDay.getByRole("listitem").filter({ hasText: later })).toHaveCount(0);
+  await expect(laterDay.getByRole("row").filter({ hasText: later })).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [later, to])).not.toBeNull();
   await expect.poll(() => readValue(page, to)).toBe(before - 25);
 });

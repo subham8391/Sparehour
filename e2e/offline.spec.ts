@@ -12,7 +12,7 @@ test("a task added offline shows immediately and syncs on reconnect", async ({ p
   await context.setOffline(true);
   const title = uniqueTitle("offline");
   await quickAdd(page, `${title} today`);
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
   await expect(syncChip(page)).toHaveAttribute("data-state", "offline", { timeout: 30_000 });
   expect(await waitForRow("select id from public.tasks where title = $1", [title], 3_000)).toBeNull();
 
