@@ -25,5 +25,6 @@ test("Today's list fails in place: the header and ribbon stay, and Try again dra
   });
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(failed).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: /^Today\b/ })).toBeVisible();
+  // The list's own Today section is back, its count after the label ("Today4 · 1h 05m" to the accessibility tree).
+  await expect(page.getByRole("heading", { level: 2, name: /^Today\s*\d/ })).toBeVisible();
 });
