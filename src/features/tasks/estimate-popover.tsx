@@ -70,7 +70,9 @@ function Popover({ anchor, onClose, children }: { anchor: HTMLElement | null; on
   const panelRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
-      (el.querySelector<HTMLElement>("button") ?? el).focus({ preventScroll: true });
+      // With a keyboard the minutes field takes focus, as the detail's picker does for E; a touch screen keeps its keyboard down.
+      const typed = !window.matchMedia?.("(hover: none)").matches && el.querySelector<HTMLElement>("[data-autofocus]");
+      (typed || el.querySelector<HTMLElement>("button") || el).focus({ preventScroll: true });
       return place(el);
     },
     [place],

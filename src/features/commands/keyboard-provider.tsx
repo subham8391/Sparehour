@@ -117,6 +117,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       go: (href) => router.push(href),
       quickAdd: (prefill) => quickAdd.open(prefill),
       openTask: (id, field) => detail.open(id, field),
+      detailId: detail.selectedId,
       editTicked: (field) => void requestBulkField(field),
       moveSelection: (delta) => selection.moveSelection(delta),
       openPalette: (query, scope) => onOpenPalette?.(query, scope),

@@ -37,6 +37,8 @@ export interface CommandContext {
   quickAdd: (prefill?: string) => void;
   /** Opens the task's detail; with a field, that field's picker opens with it, focused. */
   openTask: (id: string, field?: DetailField) => void;
+  /** The task whose detail is open, if any: E there opens the panel's own Estimate field. */
+  detailId?: string | null;
   /** One picker for every ticked row: the choice is one write and one undo; the ticks clear after. */
   editTicked: (field: DetailField) => void;
   moveSelection: (delta: 1 | -1) => void;
@@ -129,8 +131,9 @@ const priority = (value: Priority) => onTargets((ctx, ids) => applyPatch(ctx, id
  */
 const pickField = (field: DetailField) =>
   onTargets((ctx, ids) => {
-    // E on one row opens the presets beside its estimate chip, the chip's own picker (SCREENS.md §2.4); the detail otherwise.
-    if (ids.length === 1) void ((field === "estimate" && requestRow(ids[0], "estimate")) || ctx.openTask(ids[0], field));
+    // E on one row opens the presets beside its estimate chip, the chip's own picker (SCREENS.md §2.4); the detail when
+    // that task's detail is open, or where no row answers.
+    if (ids.length === 1) void ((field === "estimate" && ctx.detailId !== ids[0] && requestRow(ids[0], "estimate")) || ctx.openTask(ids[0], field));
     else ctx.editTicked(field);
   });
 
