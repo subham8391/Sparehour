@@ -116,6 +116,7 @@ export function usePlacing(d: PlacingDay) {
     const task = d.findTask(taskId);
     if (!task) return;
     d.onPlaced?.();
+    setPlacing(null);
     const existing = ofTask(task.id);
     const whole = blockLength(task.estimateMin, d.defaultEstimateMin);
     if (existing.length > 0 && whole - coveredMinutes(existing) < 15) {
