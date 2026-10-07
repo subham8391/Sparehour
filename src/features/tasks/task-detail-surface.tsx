@@ -45,7 +45,7 @@ export function DetailSurface({ id, field, onClose, view }: { id: string; field:
     <>
       <Scrim onClose={onClose} className="fixed z-20 md:hidden" />
       {/* From the medium band the pane's width is the view's own (--pane-w), set from its left edge. */}
-      <PaneResizer key={view} view={view} label="Resize the task pane" fallback={384} className="md:block" />
+      <PaneResizer key={view} view={view} label="Resize the task pane" fallback={384} band="md" />
       <aside
         ref={surface}
         aria-label="Task"
@@ -57,9 +57,9 @@ export function DetailSurface({ id, field, onClose, view }: { id: string; field:
           "fixed inset-0 z-30 flex flex-col bg-surface pt-[env(safe-area-inset-top)] outline-none",
           // The phone sheet rises from the bottom, the narrow band's from the right; the pane from `md` up just appears.
           "max-md:transition-[translate,opacity] max-md:dur-slow max-md:ease-drawer max-sm:starting:translate-y-full sm:max-md:starting:translate-x-full",
-          // The narrow band's sheet clears a landscape phone's notch and rounded corner on the right (DESIGN_SYSTEM.md §4a).
-          "sm:left-auto sm:w-[calc(420px+env(safe-area-inset-right))] sm:border-l sm:border-line sm:pt-0 sm:pr-[env(safe-area-inset-right)] sm:shadow-sheet",
-          "md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-(--pane-w,24rem) md:shrink-0 md:pr-0 md:shadow-none",
+          // The narrow band's sheet keeps its content clear of a landscape phone's notch and corner (DESIGN_SYSTEM.md §4a).
+          "sm:left-auto sm:w-[420px] sm:border-l sm:border-line sm:pt-0 sm:shadow-sheet sm:max-md:pr-[env(safe-area-inset-right)]",
+          "md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-(--pane-w,24rem) md:shrink-0 md:shadow-none",
         )}
       >
         <Grabber />

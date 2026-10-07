@@ -812,7 +812,7 @@ export default function TodayPage() {
       {model.capacity && hasDay && (
         <>
         {/* From the wide band the pane's width is Today's own (--pane-w), set from its left edge. */}
-        <PaneResizer view="today" label="Resize the day pane" fallback={344} className={detail.selectedId ? "" : "lg:block"} data-today-pane="" />
+        <PaneResizer view="today" label="Resize the day pane" fallback={344} band={detail.selectedId ? undefined : "lg"} data-today-pane="" />
         {/* "Your day": a card in the list's place below the wide band; from it, a surface pane under the daylight gradient
             that spans the region's height beside the list and scrolls on its own only when the day is taller than the screen. */}
         <aside

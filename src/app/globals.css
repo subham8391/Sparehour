@@ -1,4 +1,14 @@
 @import "tailwindcss";
+/* Only the app's own sources make utilities: words in the docs, the end-to-end specs, the unit tests and the SQL are
+   not class names, and each one Tailwind took for one was a rule in every shell's stylesheet. */
+@source not "../../*.md";
+@source not "../../docs";
+@source not "../../e2e";
+@source not "../../supabase";
+@source not "../../scripts";
+@source not "../../powersync";
+@source not "../../public";
+@source not "../**/*.test.{ts,tsx}";
 
 /* Refined Daylight tokens (docs/design/DESIGN_SYSTEM.md §2, DECISIONS.md Q26).
    Light is the base; the dark set applies to the un-stamped system theme and

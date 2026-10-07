@@ -14,7 +14,8 @@ const TAPS = [PANE_MIN, 400, 480, PANE_MAX];
 
 // The edge's look rides with the island rather than in every shell's stylesheet: a 12 px strip over the pane's
 // border whose 2 px ink line shows on hover and on keyboard focus; on a touch screen a 44 px grip, always shown.
-const EDGE_CSS = `.pane-edge{position:absolute;inset-block:0;left:-6px;z-index:10;width:12px;cursor:col-resize;touch-action:none;user-select:none;outline:none}
+const EDGE_CSS = `@media (min-width:900px){.pane-edge-md{display:block}}@media (min-width:1180px){.pane-edge-lg{display:block}}
+.pane-edge{position:absolute;inset-block:0;left:-6px;z-index:10;width:12px;cursor:col-resize;touch-action:none;user-select:none;outline:none}
 .pane-edge>span{position:absolute;inset-block:0;left:5px;width:2px;background:var(--ink);opacity:0;transition:opacity var(--dur-fast)}
 .pane-edge:hover>span{opacity:.25}.pane-edge:focus-visible>span{opacity:1}
 @media (hover:none){.pane-edge{inset-block:auto;top:50%;left:-22px;width:44px;height:44px;translate:0 -50%}.pane-edge>span{inset-block:6px;left:20px;width:4px;border-radius:9999px;background:var(--line-strong);opacity:1}}`;
@@ -57,7 +58,8 @@ export function setPaneWidth(view: string, w: number | null, save = true): void 
   }
 }
 
-export function PaneResizer({ view, label, fallback, className, ...rest }: { view: string; label: string; fallback: number; className: string } & HTMLAttributes<HTMLDivElement>) {
+/** `band`: where the edge shows, from the medium band (the task pane) or the wide one (Today's day pane); none hides it. */
+export function PaneResizer({ view, label, fallback, band, ...rest }: { view: string; label: string; fallback: number; band?: "md" | "lg" } & HTMLAttributes<HTMLDivElement>) {
   const stored = () => clampPane(readPaneWidths()[view] ?? fallback);
   const [w, setW] = useState(stored);
   const set = (next: number | null, save?: boolean) => {
@@ -95,7 +97,7 @@ export function PaneResizer({ view, label, fallback, className, ...rest }: { vie
     el.addEventListener("pointercancel", up);
   };
   return (
-    <div {...rest} className={cx("relative hidden w-0 shrink-0 print:hidden!", className)}>
+    <div {...rest} className={cx("relative hidden w-0 shrink-0 print:hidden!", band && `pane-edge-${band}`)}>
       <div
         role="separator"
         aria-orientation="vertical"

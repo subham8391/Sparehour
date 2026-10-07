@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 function setup(view = "inbox", fallback = 384) {
-  render(<PaneResizer view={view} label="Resize the task pane" fallback={fallback} className="md:block" />);
+  render(<PaneResizer view={view} label="Resize the task pane" fallback={fallback} band="md" />);
   return screen.getByRole("separator", { name: "Resize the task pane" });
 }
 

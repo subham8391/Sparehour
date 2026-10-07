@@ -100,7 +100,7 @@ export function RitualActions(p: RitualRowProps) {
   return (
     (plan || review) && (
         // Flush under the ritual row: the page's 24 px gap less the row's own 12 px, as when the two were one block.
-        <div data-testid="ritual-actions" className="-mt-3 -mb-3 -ml-2 flex flex-wrap items-center gap-x-2 sm:hidden print:hidden">
+        <div data-testid="ritual-actions" className="-my-3 -ml-2 flex flex-wrap items-center gap-x-2 sm:hidden print:hidden">
           {plan && (
             <button type="button" aria-expanded={plan.open} onClick={plan.onOpen} className={buttonClass({ variant: "link" })}>
               {plan.label}

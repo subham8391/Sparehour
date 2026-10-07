@@ -77,11 +77,12 @@ export function Sheet({
     trapTab(e);
   };
   return (
-    // The side insets keep the panel clear of a landscape phone's notch and corners (DESIGN_SYSTEM.md §4a); zero in portrait.
+    // From `sm` the side gutter also clears a landscape phone's notch and corners (DESIGN_SYSTEM.md §4a); a portrait
+    // phone has no side insets, so its bottom sheet keeps the full width.
     <div
       ref={frame}
       className={cx(
-        "fixed inset-0 z-40 flex items-end pr-[env(safe-area-inset-right)] pb-[var(--kb,0px)] pl-[env(safe-area-inset-left)] sm:justify-center sm:pr-[max(1.5rem,env(safe-area-inset-right))] sm:pl-[max(1.5rem,env(safe-area-inset-left))]",
+        "fixed inset-0 z-40 flex items-end pb-[var(--kb,0px)] sm:justify-center sm:px-[max(1.5rem,env(safe-area-inset-left),env(safe-area-inset-right))]",
         align === "top" ? "sm:items-start sm:pt-[12vh]" : "sm:items-center sm:pt-0",
       )}
     >
