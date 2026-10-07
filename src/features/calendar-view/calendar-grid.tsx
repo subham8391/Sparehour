@@ -7,7 +7,7 @@
 // its block, one undo), a block dragged in from another day, Alt+drag to copy, blocks of your own drawn on empty
 // space — with the same "will sync" / "not synced" marks and the same refusals while blocking is paused as Today.
 // A day that has passed is drawn, not edited. In the medium band a week folds its weekend into one narrow column.
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { placeAt, pxPerMinute } from "@/core/blocking";
 import { compareDates, formatTime, timeFromMinutes, type Instant, type LocalDate } from "@/core/time";
 import { weekdayName } from "@/core/time/format-day";
@@ -22,7 +22,10 @@ import type { TimelineBlock } from "@/features/today/hooks/use-today";
 import { Timeline, ZoomControl, drawnRange, useTimelineZoom, type TimelineProps } from "@/features/today/timeline";
 import { ReadoutText } from "@/features/upcoming/capacity-bar";
 import { dayReadout } from "@/features/upcoming/week";
+import { iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
+import { Icon } from "@/ui/icons";
+import { scrollMotion } from "@/ui/reduced-motion";
 import { EYEBROW } from "@/ui/section-label";
 import { columnsInView, gridColumns, type CalendarBand } from "./grid";
 import type { CalendarDay } from "./use-calendar-days";
@@ -96,11 +99,48 @@ export function CalendarGrid(p: CalendarGridProps) {
     if (el) el.scrollTop = Math.max(0, openAt * scale);
   }, [openAt, scale]);
 
+  // Three days at a time (the narrow band, a phone held sideways): the rest scroll sideways, today's column first in
+  // view, and two buttons step a day either way, so the affordance is shown, not implied (DESIGN_SYSTEM.md §4a).
+  const sideways = inView < columns.length;
+  const todayAt = columns.findIndex((c) => c.kind === "day" && c.day.equals(p.today));
+  const [edges, setEdges] = useState({ start: true, end: false });
+  const readEdges = () => {
+    const el = scrollRef.current;
+    if (el) setEdges({ start: el.scrollLeft <= 1, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 });
+  };
+  const columnWidth = () => {
+    const el = scrollRef.current;
+    const first = el?.querySelector<HTMLElement>("[data-day]");
+    return first?.offsetWidth ?? 0;
+  };
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !sideways) return;
+    el.scrollLeft = Math.max(0, Math.min(todayAt, columns.length - inView)) * columnWidth();
+    readEdges();
+    // Once per range: a new range starts on its first day, or on today.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, sideways]);
+  const stepSideways = (delta: 1 | -1) => scrollRef.current?.scrollBy({ left: delta * columnWidth(), behavior: scrollMotion() });
+
   return (
     <div className="flex flex-col">
-      <ZoomControl zoom={zoom} />
+      <div className="flex items-start justify-end gap-1">
+        {sideways && (
+          <div className="-mt-1 mr-auto flex items-center">
+            <button type="button" aria-label="Earlier days" disabled={edges.start} onClick={() => stepSideways(-1)} className={iconButtonClass()}>
+              <Icon name="arrow-left" size={16} />
+            </button>
+            <button type="button" aria-label="Later days" disabled={edges.end} onClick={() => stepSideways(1)} className={iconButtonClass()}>
+              <Icon name="arrow-right" size={16} />
+            </button>
+          </div>
+        )}
+        <ZoomControl zoom={zoom} />
+      </div>
       <div
         ref={scrollRef}
+        onScroll={sideways ? readEdges : undefined}
         data-calendar-grid=""
         data-band={p.band}
         className="max-h-[70dvh] overflow-auto overscroll-contain rounded-xl border border-line bg-surface sm:max-h-[calc(100dvh-14rem)] sm:min-h-96"

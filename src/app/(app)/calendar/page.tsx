@@ -12,7 +12,8 @@ import type { Task } from "@/core/types";
 import { useQuery } from "@/data/powersync";
 import { WEEK_START_SQL } from "@/data/queries/week";
 import { CalendarGrid } from "@/features/calendar-view/calendar-grid";
-import { setCalendarMode, useCalendarMode, type CalendarMode } from "@/features/calendar-view/calendar-mode";
+import { setCalendarMode, type CalendarMode } from "@/features/calendar-view/calendar-mode";
+import { setCalendarDay, useCalendarDayParam, useCalendarMode } from "@/features/calendar-view/use-calendar-view";
 import { CalendarRail, RailSheet, TasksButton } from "@/features/calendar-view/calendar-rail";
 import { focusDay, rangeTitle, shownDays, shownMode, stepShown } from "@/features/calendar-view/grid";
 import { useCalendarBand } from "@/features/calendar-view/use-calendar-band";
@@ -24,6 +25,7 @@ import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { loadDragAdapter } from "@/features/tasks/drag-adapter";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { pausedLine, useCalendarState } from "@/features/today/calendar-state";
+import { daysAway, parseDay } from "@/features/today/day-address";
 import { useToday, type BlockTask } from "@/features/today/hooks/use-today";
 import { PlacingBar } from "@/features/today/timeline";
 import { Button, buttonClass, iconButtonClass } from "@/ui/button";
@@ -50,12 +52,11 @@ export default function CalendarPage() {
   const shown = shownMode(mode, band);
   const { data: weekStartRows } = useQuery<{ week_start: number | null }>(WEEK_START_SQL);
   const weekStart = weekStartRows?.[0]?.week_start ?? 0;
-  // The day the range is anchored on: today until `[` / `]` move it.
-  const [anchorIso, setAnchorIso] = useState<string | null>(null);
+  // The day the range is anchored on: today until `[` / `]` move it, kept in the address (`?day=`) like Today's.
+  const anchorIso = parseDay(useCalendarDayParam())?.toString() ?? null;
   const todayIso = today.toString();
   const anchor = useMemo(() => localDate(anchorIso ?? todayIso), [anchorIso, todayIso]);
   const days = useMemo(() => shownDays(anchor, shown, weekStart), [anchor, shown, weekStart]);
-  const showsToday = days.some((d) => d.equals(today));
 
   // The rows' drag adapter comes with the page, so a rail row can be dragged as soon as it is drawn.
   useEffect(() => void loadDragAdapter().catch(() => undefined), []);
@@ -85,8 +86,13 @@ export default function CalendarPage() {
   }
 
   // `[` / `]` and the arrows step a day, or a week; `T` with nothing selected and "Today" come back.
-  const step = (delta: 1 | -1) => setAnchorIso((iso) => stepShown(localDate(iso ?? todayIso), shown, delta).toString());
-  const home = () => setAnchorIso(null);
+  // A step counts from the address, not from the last render, so a quickly repeated `]` never steps from one day twice.
+  const step = (delta: 1 | -1) => {
+    const from = parseDay(new URLSearchParams(window.location.search).get("day")) ?? today;
+    const next = stepShown(from, shown, delta);
+    setCalendarDay(next.equals(today) ? null : next.toString());
+  };
+  const home = () => setCalendarDay(null);
   const keys = useRef({ step, home, away: anchorIso !== null });
   useEffect(() => {
     keys.current = { step, home, away: anchorIso !== null };
@@ -129,7 +135,7 @@ export default function CalendarPage() {
 
   return (
     <main ref={mainRef} className={cx(VIEW_COLUMN, "sm:max-w-none")}>
-      <ViewHeader eyebrow={showsToday && shown === "day" ? "Calendar · today" : "Calendar"} title={rangeTitle(days, today)} />
+      <ViewHeader eyebrow={shown === "day" ? `Calendar · ${daysAway(anchor, today)}` : "Calendar"} title={rangeTitle(days, today)} />
       <div className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         {multi && <Segmented label="Calendar mode" value={mode} onChange={setCalendarMode} options={MODES} />}
         <div className="flex items-center">

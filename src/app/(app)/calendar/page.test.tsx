@@ -92,6 +92,7 @@ beforeEach(() => {
   h.blocks = { create: vi.fn(async () => "new"), createOnTaskDay: vi.fn(async () => "moved"), move: vi.fn(async () => {}), duplicate: vi.fn(async () => "copy"), remove: vi.fn(), setLocked: vi.fn(), rename: vi.fn() };
   h.detail = { open: vi.fn() };
   localStorage.clear();
+  window.history.replaceState(null, "", "/calendar");
   band(1400, 1100);
 });
 afterEach(() => {
@@ -134,8 +135,17 @@ describe("the modes (SCREENS.md §4)", () => {
     await user.click(screen.getByRole("button", { name: "Next day" }));
     await user.click(screen.getByRole("button", { name: "Next day" }));
     expect(columns()).toEqual(["2026-10-08"]);
+    expect(window.location.search).toBe("?day=2026-10-08");
     await user.click(screen.getByRole("button", { name: /Today/ }));
     expect(columns()).toEqual(["2026-10-07"]);
+    expect(window.location.search).toBe("");
+  });
+
+  it("the day lives in the address, so a reload keeps the range", () => {
+    window.history.replaceState(null, "", "/calendar?day=2026-10-14");
+    view();
+    expect(columns()[0]).toBe("2026-10-12");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Mon 12 – Sun 18 October");
   });
 });
 
