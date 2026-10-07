@@ -7,7 +7,7 @@
 // Cmd+\ or its button folds the full sidebar to the rail (panes.ts); the shell
 // draws both and `data-sidebar` on <html> picks one, so nothing flashes.
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Mark } from "@/ui/brand";
@@ -137,7 +137,6 @@ export function Sidebar({
   sync,
   rail = false,
   className = "",
-  footer,
 }: {
   pathname: string;
   counts: NavCounts;
@@ -145,7 +144,6 @@ export function Sidebar({
   sync: SyncChipModel;
   rail?: boolean;
   className?: string;
-  footer?: ReactNode;
 }) {
   return (
     <nav
@@ -202,7 +200,6 @@ export function Sidebar({
       </div>
 
       <div className={cx("flex shrink-0 flex-col gap-0.5 border-t border-line pt-2.5 pb-4", rail ? "items-center px-2.5" : "px-3")}>
-        {footer}
         {/* The rail stands in for the folded sidebar from the medium band; in the narrow band it is all there is. */}
         {rail && <SidebarToggle rail />}
         <NavItem view={VIEWS.settings} pathname={pathname} rail={rail} icon={VIEW_ICONS.settings} />

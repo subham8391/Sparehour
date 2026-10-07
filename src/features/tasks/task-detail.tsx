@@ -61,12 +61,12 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
     [selectedId, close, open],
   );
   const api = useMemo(() => ({ selectedId, field, open, close, toggle }), [selectedId, field, open, close, toggle]);
-  useEffect(() => preloadOnIdle(() => loadSurface().then((m) => m.preloadSurface())), []);
+  useEffect(() => preloadOnIdle(loadSurface), []);
   return <TaskDetailContext.Provider value={api}>{children}</TaskDetailContext.Provider>;
 }
 
 /** Mounted once by the shell; empty until a task is opened, then the surface (task-detail-surface.tsx). */
-export function TaskDetailPane({ pathname }: { pathname: string }) {
+export function TaskDetailPane() {
   const { selectedId, field, close } = useTaskDetail();
-  return selectedId && <DetailSurface id={selectedId} field={field} onClose={close} view={pathname.split("/")[1]} />;
+  return selectedId && <DetailSurface id={selectedId} field={field} onClose={close} />;
 }

@@ -5,6 +5,7 @@
 // Escape closes it unless a popover inside claimed the key first. The pane appears at once; the sheets slide in from
 // their edge (DESIGN_SYSTEM.md §7 "Sheets"), or simply appear under reduced motion.
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
 import { PaneResizer } from "@/features/shell/pane-resizer";
 import { cx } from "@/ui/cx";
@@ -19,7 +20,8 @@ export function Opening() {
 // needs: a second island, fetched in idle time with this one.
 const loadPanel = () => import("./task-detail-connected");
 const TaskDetail = dynamic(() => loadPanel().then((m) => m.TaskDetail), { ssr: false, loading: Opening });
-export const preloadSurface = loadPanel;
+// The surface is itself fetched in idle time or on the first open, so it starts the panel's download at once.
+void loadPanel().catch(() => undefined);
 
 const OVERLAY_QUERY = "(max-width: 47.9375rem)";
 const subscribeOverlay = (onChange: () => void) => {
@@ -35,7 +37,9 @@ const readOverlay = () => typeof window.matchMedia === "function" && window.matc
  * is a modal dialog there: focus moves in, stays in, and goes back to the row on close (SCREENS.md §1 rules 5 and 6).
  * From `md` up it is a pane beside the list, and focus stays where the person is working.
  */
-export function DetailSurface({ id, field, onClose, view }: { id: string; field: FieldRequest | null; onClose: () => void; view: string }) {
+export function DetailSurface({ id, field, onClose }: { id: string; field: FieldRequest | null; onClose: () => void }) {
+  // The pane's width is the view's own (pane-resizer.tsx): /inbox, /project/…, /today.
+  const view = usePathname().split("/")[1];
   const overlay = useSyncExternalStore(subscribeOverlay, readOverlay, () => false);
   const surface = useDialogFocus<HTMLElement>(overlay);
   useEffect(() => {
