@@ -66,7 +66,6 @@ export function PickerSheet(p: PickerSheetProps) {
     }
   };
 
-  let lastGroup: string | undefined;
   return (
     <Sheet label={p.label} onClose={p.onClose} width="sm" className="max-sm:max-h-[80dvh] sm:max-h-[70vh]">
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 transition-colors dur-fast has-[input:focus]:border-ink">
@@ -96,8 +95,7 @@ export function PickerSheet(p: PickerSheetProps) {
       <ul id={listId} role="listbox" aria-label={p.label} className="min-h-0 flex-1 overflow-y-auto p-2">
         {p.options.length === 0 && <li className="px-3 py-6 text-body text-ink-3">{p.empty ?? "Nothing matched."}</li>}
         {p.options.map((o, i) => {
-          const header = o.group !== undefined && o.group !== lastGroup ? o.group : null;
-          lastGroup = o.group;
+          const header = o.group !== undefined && o.group !== p.options[i - 1]?.group ? o.group : null;
           return (
             <li key={o.key} role="presentation">
               {header && (

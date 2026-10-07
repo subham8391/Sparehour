@@ -62,6 +62,10 @@ export interface TaskDetailPanelProps {
   onBlock?: () => void;
   /** Convert task → project (PRODUCT_SPEC.md §6): the footer's ⋯ and the checklist's ⋯ offer it. */
   onConvert?: () => void;
+  /** A copy right after the task, which then opens (SCREENS.md §10 footer ⋯ "Duplicate"). */
+  onDuplicate?: () => void;
+  /** Copies `<origin>/today?task=<id>` (SCREENS.md §10 footer ⋯ "Copy link"). */
+  onCopyLink?: () => void;
   onClose: () => void;
   /** A new step; with `sortKey`, at that place (Enter on a step adds the next one under it). */
   onChecklistAdd?: (title: string, sortKey?: string) => void;
@@ -619,10 +623,10 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
         <span className="flex-1 max-sm:hidden" />
         {quietActions}
-        {(hasQuiet || onConvert || seriesActions) && (
+        {(hasQuiet || onConvert || seriesActions || p.onDuplicate || p.onCopyLink) && (
           // On a phone every quiet action is here; from `sm` Someday and Drop are buttons, and the menu stays for a
-          // repeat's own actions and Convert to project, which lives here on every band (SCREENS.md §10 footer ⋯).
-          <div className={cx(!seriesActions && !onConvert && "sm:hidden")}>
+          // repeat's own actions, Duplicate, Convert to project and Copy link, which live here on every band (SCREENS.md §10 footer ⋯).
+          <div className={cx(!seriesActions && !onConvert && !p.onDuplicate && !p.onCopyLink && "sm:hidden")}>
             <MenuButton label="More actions" direction="up">
               {(close) => (
                 <>
@@ -651,9 +655,19 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                       Drop
                     </button>
                   )}
+                  {p.onDuplicate && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onDuplicate?.())}>
+                      Duplicate
+                    </button>
+                  )}
                   {onConvert && (
                     <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), onConvert())}>
                       Convert to project
+                    </button>
+                  )}
+                  {p.onCopyLink && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onCopyLink?.())}>
+                      Copy link
                     </button>
                   )}
                 </>

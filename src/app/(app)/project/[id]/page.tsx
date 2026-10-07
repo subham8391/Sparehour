@@ -22,6 +22,7 @@ import { dayChip } from "@/features/tasks/day-chip";
 import { InlineAdd } from "@/features/tasks/inline-add";
 import { DayChipTag, MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { keyBetween } from "@/core/ordering";
+import { requestOrganize } from "@/features/tasks/organize";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useHeadingRepo, useProjectRepo } from "@/features/tasks/use-repos";
@@ -220,6 +221,10 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
                     Back to active
                   </button>
                 )}
+                {/* SCREENS.md §9 header ⋯: a copy named "… (copy)" with its headings and open tasks, which then opens. */}
+                <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (requestOrganize({ kind: "duplicate-project", id: project.id }), close())}>
+                  Duplicate
+                </button>
               </>
             )}
           </MenuButton>

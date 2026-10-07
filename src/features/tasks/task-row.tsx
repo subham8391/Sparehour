@@ -28,6 +28,7 @@ import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
+import { copyTaskLink, requestOrganize } from "./organize";
 import { useTaskRepo } from "./use-task-repo";
 
 const LONG_PRESS_MS = 500;
@@ -362,6 +363,7 @@ export function TaskRow({
                   <RowActionsLayoutProvider layout="menu" close={close}>
                     {rowActions}
                     {task.recurrenceRule && (task.state === "active" || task.state === "inbox") && <SkipOccurrence id={task.id} />}
+                    <OrganizeActions task={task} />
                   </RowActionsLayoutProvider>
                 )}
               </MenuButton>
@@ -384,6 +386,22 @@ export function carriedLabel(task: Pick<Task, "carryCount" | "doDate">, today: L
 function SkipOccurrence({ id }: { id: string }) {
   const repo = useTaskRepo();
   return <RowAction label="Skip this occurrence" onClick={() => void repo.series().then((s) => s.skip(id))} />;
+}
+
+/**
+ * Organising from a phone row's ⋯ (SCREENS.md §12, §24 `#` `@`): the pickers open as bottom sheets, Duplicate opens the
+ * copy, Copy link copies `/today?task=<id>`. All of it runs in a lazy island (organize.tsx).
+ */
+function OrganizeActions({ task }: { task: Task }) {
+  const open = task.state === "inbox" || task.state === "active" || task.state === "someday";
+  return (
+    <>
+      {open && <RowAction label="Move to project…" onClick={() => requestOrganize({ kind: "move", ids: [task.id] })} />}
+      {open && <RowAction label="Add a tag…" onClick={() => requestOrganize({ kind: "tag", ids: [task.id] })} />}
+      <RowAction label="Duplicate" onClick={() => requestOrganize({ kind: "duplicate", id: task.id })} />
+      <RowAction label="Copy link" onClick={() => void copyTaskLink(task.id)} />
+    </>
+  );
 }
 
 export function TaskList({ children, className = "" }: { children: ReactNode; className?: string }) {

@@ -18,6 +18,7 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { preloadMarkdown } from "@/ui/note-field";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { copyTaskLink, requestOrganize } from "./organize";
 import { Opening, type FieldRequest } from "./task-detail";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useChecklistRepo, useTagRepo } from "./use-repos";
@@ -97,6 +98,8 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
       onConvert={() => void convert(task.id)}
+      onDuplicate={() => requestOrganize({ kind: "duplicate", id: task.id })}
+      onCopyLink={() => void copyTaskLink(task.id)}
       onClose={onClose}
       fieldRequest={field}
       exceptions={exceptions}
