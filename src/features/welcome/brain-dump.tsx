@@ -75,15 +75,24 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
 
   // A paste is one undo for all its tasks, here and on the stack, run once whichever comes first (PRODUCT_SPEC.md §5.1 rule 6).
   const onPasted = (ids: readonly string[]) => {
+    // Whether the paste's rows are here: the composer's Undo and the stack's can both take them back, and each
+    // counts them out once.
+    let here = true;
     const leave = () => {
+      if (!here) return;
+      here = false;
       committed.current -= ids.length;
       setAdded((list) => list.filter((a) => !ids.includes(a.id)));
     };
     let taken: Promise<void> | null = null;
     const takeBack = () => (taken ??= tasks.removeCreated(ids).then(leave));
-    // A redo makes the tasks again (the rows and their tag links); the rows above the box follow it either way.
+    // A redo makes the tasks again (the rows and their tag links); the rows above the box follow it either way, and
+    // the composer's Undo takes them back again rather than answer with the earlier take-back.
     const settled = (now: "redone" | "undone") => {
       if (now === "undone") return leave();
+      if (here) return;
+      here = true;
+      taken = null;
       committed.current += ids.length;
       setAdded((list) => [...list, ...ids.flatMap((id) => (list.some((a) => a.id === id) ? [] : [{ id, draft: drafts.current.get(id) }])).filter((a): a is Added => a.draft !== undefined)]);
     };

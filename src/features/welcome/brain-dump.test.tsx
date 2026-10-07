@@ -11,7 +11,7 @@ import { instant, localDate } from "@/core/time";
 const h = vi.hoisted(() => ({
   created: [] as { id: string; draft: TaskDraft; ctx: unknown }[],
   removed: [] as string[][],
-  undo: [] as { label: string; toast?: boolean; undo: () => Promise<void> }[],
+  undo: [] as { label: string; toast?: boolean; undo: () => Promise<void>; settled?: (now: "redone" | "undone") => void }[],
 }));
 vi.mock("@/data/powersync", () => ({
   useQuery: () => ({ data: [] }),
@@ -27,7 +27,7 @@ vi.mock("@/features/tasks/use-task-repo", () => ({
     removeCreated: async (ids: string[]) => void h.removed.push([...ids]),
   }),
 }));
-vi.mock("@/features/undo/undo-provider", () => ({ useUndoSink: () => ({ record: (e: { label: string; toast?: boolean; undo: () => Promise<void> }) => void h.undo.push(e) }) }));
+vi.mock("@/features/undo/undo-provider", () => ({ useUndoSink: () => ({ record: (e: (typeof h.undo)[number]) => void h.undo.push(e) }) }));
 
 import { BrainDump } from "./brain-dump";
 
@@ -103,6 +103,29 @@ describe("<BrainDump>", () => {
     expect(h.removed).toEqual([["t1", "t2", "t3"]]);
     await waitFor(() => expect(screen.queryByRole("list", { name: "On your plate" })).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
+  });
+
+  it("a redone paste puts its rows back, and the composer's Undo then takes them back again", async () => {
+    const { user, input } = setup();
+    await user.click(input);
+    await user.paste("Buy milk\nCall Dana");
+    await waitFor(() => expect(h.created).toHaveLength(2));
+    // ⌘Z on the stack, then ⇧⌘Z: the redo has made the rows again on the device and says so.
+    await act(() => h.undo[0].undo());
+    await waitFor(() => expect(screen.queryByRole("list", { name: "On your plate" })).not.toBeInTheDocument());
+    act(() => h.undo[0].settled?.("redone"));
+    expect(within(await screen.findByRole("list", { name: "On your plate" })).getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Next — 2 things" })).toBeInTheDocument();
+    // The composer's notice still offers Undo: it takes the redone rows back, not answer with the first take-back.
+    await user.click(within(screen.getByRole("status")).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(h.removed).toEqual([["t1", "t2"], ["t1", "t2"]]));
+    await waitFor(() => expect(screen.queryByRole("list", { name: "On your plate" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
+    // An undo after the redo leaves them counted out once, not twice.
+    act(() => h.undo[0].settled?.("undone"));
+    await user.type(input, "Pay rent{Enter}");
+    await waitFor(() => expect(h.created).toHaveLength(3));
+    expect(await screen.findByRole("button", { name: "Next — 1 thing" })).toBeInTheDocument();
   });
 
   it("after the twentieth, the quiet line shows and the rest go to the Inbox", async () => {

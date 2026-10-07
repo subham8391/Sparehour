@@ -85,7 +85,11 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
     (ids: readonly string[]) => {
       let taken: Promise<void> | null = null;
       const takeBack = () => (taken ??= tasks.removeCreated(ids));
-      undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: true, rows: { tasks: ids, task_tags: { task_id: ids } }, undo: takeBack });
+      // Once a redo has made them again, the sheet's Undo takes them back again rather than answer with the old take-back.
+      const settled = (now: "redone" | "undone") => {
+        if (now === "redone") taken = null;
+      };
+      undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: true, rows: { tasks: ids, task_tags: { task_id: ids } }, undo: takeBack, settled });
       return takeBack;
     },
     [tasks, undo],
