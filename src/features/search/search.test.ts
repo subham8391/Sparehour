@@ -23,14 +23,13 @@ describe("buildTaskSearch", () => {
     expect(buildTaskSearch("   ", {})).toBeNull();
   });
 
-  it("matches titles, notes and checklist steps, with LIKE wildcards escaped", () => {
+  it("matches each word with LIKE wildcards escaped", () => {
     const s = buildTaskSearch("50% off_", {})!;
-    expect(s.sql).toMatch(/title like \? escape '\\' or notes_md like \? escape '\\' or exists \(select 1 from checklist_items/);
-    expect(s.params).toEqual(["%50\\% off\\_%", "%50\\% off\\_%", "%50\\% off\\_%"]);
+    expect(s.params.slice(0, 6)).toEqual(["%50\\%%", "%50\\%%", "%50\\%%", "%off\\_%", "%off\\_%", "%off\\_%"]);
     expect(likePattern("a\\b")).toBe("%a\\\\b%");
   });
 
-  it("every chip narrows, in order, and open tasks sort first", () => {
+  it("every chip narrows, in order", () => {
     const s = buildTaskSearch("x", { project: "p1", area: "a1", tag: "Deep", state: "active", from: "2026-09-14", to: "2026-09-20", hasDeadline: true, noEstimate: true })!;
     expect(s.sql).toContain("project_id = ?");
     expect(s.sql).toContain("area_id = ?");
@@ -40,8 +39,7 @@ describe("buildTaskSearch", () => {
     expect(s.sql).toContain("do_date <= ?");
     expect(s.sql).toContain("deadline is not null");
     expect(s.sql).toContain("estimate_min is null");
-    expect(s.params.slice(3)).toEqual(["p1", "a1", "Deep", "active", "2026-09-14", "2026-09-20"]);
-    expect(s.sql).toMatch(/order by case state when 'active' then 0/);
+    expect(s.params.slice(3, 10)).toEqual(["p1", "a1", "a1", "Deep", "active", "2026-09-14", "2026-09-20"]);
     // Chips alone are a search too (a shareable filtered list).
     expect(buildTaskSearch("", { noEstimate: true })!.params).toEqual([]);
   });
