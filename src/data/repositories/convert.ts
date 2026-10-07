@@ -4,7 +4,7 @@
 //
 // The ruling (DECISIONS.md, M1 gap rulings 2026-10-06): the project takes the
 // task's title as its name, its note, its deadline and the area of the task's
-// project; unticked steps become open, undated tasks in step order and ticked
+// project (or the task's own, for a loose task in an area); unticked steps become open, undated tasks in step order and ticked
 // ones done tasks; the task itself is retired by archiving it in a one-task
 // batch of its own (so Settings › Data › Archive can bring it back once the
 // toast has gone), keeping its tags, dates, estimate, priority and checklist.
@@ -50,7 +50,8 @@ export async function convertTaskToProject(
     if (!before || !canConvert(text(before.state))) return null;
     const spaceId = text(before.space_id) ?? "";
     const area = before.project_id ? await tx.getOptional<{ area_id: string | null }>(`select area_id from projects where id = ?`, [before.project_id]) : null;
-    const areaId = area?.area_id ?? null;
+    // A loose task names its own area (tasks.area_id); a project task's area is its project's.
+    const areaId = text(before.area_id) ?? area?.area_id ?? null;
 
     const projectId = crypto.randomUUID();
     const lastProject = await tx.getOptional<{ sort_key: string | null }>(

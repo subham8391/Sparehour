@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { sorted } from "@/core/ordering";
 import { localSqlite } from "@/test/local-sqlite";
 import { AreaRepo } from "./area-repo";
+import { convertTaskToProject } from "./convert";
 import { ProjectOrderRepo } from "./project-order-repo";
 import { TaskRepo } from "./task-repo";
 
@@ -165,5 +166,13 @@ describe("AreaRepo.remove (Delete area)", () => {
     const { areas, history } = setup();
     await areas.remove("nope");
     expect(history.record).not.toHaveBeenCalled();
+  });
+});
+
+describe("Convert to project, from a loose task", () => {
+  it("makes the project in the task's own area", async () => {
+    const { s, history } = setup();
+    const out = await convertTaskToProject(s.db, history, "t1");
+    expect(s.row("projects", out!.projectId)).toMatchObject({ name: "Expenses", area_id: "a1" });
   });
 });
