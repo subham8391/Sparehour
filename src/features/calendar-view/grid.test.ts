@@ -87,6 +87,12 @@ describe("columns", () => {
     const kinds = gridColumns(fromSunday, "medium", false).map((c) => c.kind);
     expect(kinds).toEqual(["folded", "day", "day", "day", "day", "day", "folded"]);
   });
+
+  it("never folds today: on a Saturday it stays a day of its own and only Sunday folds", () => {
+    const week = visibleDays(thu, "week", 0);
+    const cols = gridColumns(week, "medium", false, localDate("2026-10-10"));
+    expect(cols.map((c) => (c.kind === "day" ? c.day.toString() : `fold:${iso(c.days).join("+")}`)).slice(5)).toEqual(["2026-10-10", "fold:2026-10-11"]);
+  });
 });
 
 describe("the day B answers for", () => {

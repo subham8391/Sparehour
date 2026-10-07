@@ -74,6 +74,7 @@ export function CalendarGrid(p: CalendarGridProps) {
     days.map((d) => d.day),
     p.band,
     p.unfolded,
+    p.today,
   );
   const inView = columnsInView(p.band, columns.length);
   const template = [RULER, ...columns.map((c) => (c.kind === "folded" ? FOLDED : "minmax(0, 1fr)"))].join(" ");

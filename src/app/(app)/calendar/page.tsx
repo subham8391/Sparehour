@@ -198,7 +198,10 @@ export default function CalendarPage() {
       {empty && canBlock && (
         <p className="-mt-2 text-body text-pretty text-ink-3">
           <span className="touch:hidden">Nothing on. Drag a task in, or drag on the grid to block time.</span>
-          <span className="hidden touch:block">Nothing on. Tap Tasks for a task and then a time, or tap the grid to block time.</span>
+          {/* The wide band has the rail, not the Tasks button, on a touch screen too (a tablet held sideways). */}
+          <span className="hidden touch:block">
+            {wide ? "Nothing on. Choose Block on a task, then tap a time, or tap the grid to block time." : "Nothing on. Tap Tasks for a task and then a time, or tap the grid to block time."}
+          </span>
         </p>
       )}
       {model.settings && !data.connected && (

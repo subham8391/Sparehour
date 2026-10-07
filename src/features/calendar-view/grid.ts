@@ -64,15 +64,16 @@ export function stepShown(anchor: LocalDate, mode: ShownMode, delta: 1 | -1): Lo
 
 /**
  * A column of the grid: one day, or a folded Saturday and Sunday (the medium band's week), drawn narrow with their
- * names until unfolded.
+ * names until unfolded. Today is never folded: on a weekend its column stays open, with its now line, and `B`
+ * still has it to place on.
  */
 export type GridColumn = { kind: "day"; day: LocalDate } | { kind: "folded"; days: LocalDate[] };
 
-export function gridColumns(days: readonly LocalDate[], band: CalendarBand, unfolded: boolean): GridColumn[] {
+export function gridColumns(days: readonly LocalDate[], band: CalendarBand, unfolded: boolean, today?: LocalDate): GridColumn[] {
   const fold = band === "medium" && !unfolded && days.length === 7;
   const out: GridColumn[] = [];
   for (const day of days) {
-    if (fold && day.dayOfWeek >= 6) {
+    if (fold && day.dayOfWeek >= 6 && !today?.equals(day)) {
       const last = out[out.length - 1];
       if (last?.kind === "folded") last.days.push(day);
       else out.push({ kind: "folded", days: [day] });

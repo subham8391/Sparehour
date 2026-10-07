@@ -246,4 +246,13 @@ describe("empty and unconnected", () => {
     expect(screen.getByText("No calendar connected — your meetings would show here.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Connect" })).toHaveAttribute("href", "/settings#calendar");
   });
+
+  it("on touch it drops \"drag\", and points at the rail where there is one and at Tasks where there is not", () => {
+    const { unmount } = view();
+    expect(screen.getByText("Nothing on. Choose Block on a task, then tap a time, or tap the grid to block time.")).toBeInTheDocument();
+    unmount();
+    band(700, 600);
+    view();
+    expect(screen.getByText("Nothing on. Tap Tasks for a task and then a time, or tap the grid to block time.")).toBeInTheDocument();
+  });
 });
