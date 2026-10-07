@@ -13,7 +13,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { addAllDayHours, devAccount, isoPlus, putBack, removeOwn, standAside, withDb, type DevAccount, type StoodAside } from "./db";
 import { DEV_USER, openApp, uniqueTitle } from "./helpers";
-import { blockOn, drag, hhmm, pointAt, quietStretch, seedBlock, seedTask } from "./timeline-helpers";
+import { blockOn, drag, hhmm, pointAt, quietStretch, seedBlock, seedTask, showMinute } from "./timeline-helpers";
 
 let me: DevAccount;
 let weekStart = 0;
@@ -149,9 +149,13 @@ test("a rail task dragged onto another day's slot moves there with its block; on
   await withDb((c) => seedTask(c, me, title, { estimate: 45 }));
   await openCalendar(page, "week", D);
   const row = rail(page).getByRole("row").filter({ hasText: title });
-  await expect(row).toBeVisible();
-  const box = (await row.boundingBox())!;
-  await drag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, () => pointAt(timelineOn(page, D), S + 2));
+  const handle = row.getByRole("button", { name: title, exact: true });
+  await expect(handle).toBeVisible();
+  await showMinute(timelineOn(page, D), S);
+  const grab = (await handle.boundingBox())!;
+  await drag(page, { x: grab.x + 20, y: grab.y + grab.height / 2 }, () => pointAt(timelineOn(page, D), S + 2, false), {
+    beforeDrop: () => expect(timelineOn(page, D).getByTestId("timeline-ghost")).toContainText(`${hhmm(S)}${title}`),
+  });
   await expect.poll(() => stored(title), { timeout: 15_000 }).toEqual({ doDate: D, blocks: [`${D} ${hhmm(S)}–${hhmm(S + 45)}`] });
   // It has a time now, on another day: it leaves today's rail.
   await expect(row).toHaveCount(0);
@@ -167,11 +171,13 @@ test("a block dragged onto the next day moves there, keeping its length", async 
   await openCalendar(page, "week", D);
   const block = blockOn(timelineOn(page, D), title);
   await expect(block).toBeVisible();
-  await block.scrollIntoViewIfNeeded();
+  await showMinute(timelineOn(page, D), S);
   const from = (await block.boundingBox())!;
-  await drag(page, { x: from.x + from.width / 2, y: from.y + 4 }, async () => {
-    const at = await pointAt(timelineOn(page, D1), S, false);
-    return { x: at.x, y: at.y + 5 };
+  // Straight across: the two days share one scroll, so the same height is the same minute on the next day.
+  const grab = { x: from.x + from.width / 2, y: from.y + 10 };
+  await drag(page, grab, async () => {
+    const next = (await timelineOn(page, D1).boundingBox())!;
+    return { x: next.x + next.width * 0.6, y: grab.y };
   });
   await expect
     .poll(
