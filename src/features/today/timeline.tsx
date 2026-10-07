@@ -324,9 +324,9 @@ export function Timeline(p: TimelineProps) {
       else if (selected && r === "duplicate-block") arm("copy");
     };
   });
-  // The timeline holding the selected block takes the commands: in the Calendar's grid every day is a timeline.
-  const holdsBlock = Boolean(selected);
-  useEffect(() => registerTimeline({ run: (r) => runRef.current(r), hasBlock: () => hasBlockRef.current }), [holdsBlock]);
+  // The timeline holding the selected block takes the commands (timeline-request.ts): in the Calendar's grid every
+  // day is a timeline.
+  useEffect(() => registerTimeline({ run: (r) => runRef.current(r), hasBlock: () => hasBlockRef.current }), []);
 
   // With a block selected: L locks, Backspace/Delete removes, Enter opens its task (or renames a block of your
   // own), Shift+↑/↓ shortens or lengthens it by five minutes, Escape lets go — before the task shortcuts see the key.

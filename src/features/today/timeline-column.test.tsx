@@ -88,6 +88,34 @@ describe("a grid column (the Calendar)", () => {
     act(() => void requestTimeline("rename-block"));
     expect(screen.getByRole("textbox", { name: "Block name" })).toBeInTheDocument();
   });
+
+  it("the selection moving to an earlier day takes the block commands with it, whichever timeline mounted last", async () => {
+    const user = userEvent.setup();
+    const renameMon = vi.fn();
+    const renameTue = vi.fn();
+    const mon: TimelineBlock[] = [{ id: "m1", taskId: null, title: "Monday focus", start: 780, end: 840, locked: false }];
+    const tue: TimelineBlock[] = [{ id: "t1", taskId: null, title: "Tuesday focus", start: 780, end: 840, locked: false }];
+    // One selection for every day on screen, as the Calendar holds it.
+    function Grid() {
+      const [selected, setSelected] = useState<string | null>(null);
+      const day = (b: TimelineBlock[], onRenameBlock: TimelineProps["onRenameBlock"]) => (
+        <Timeline c={capacity} now={now} zone="UTC" blocks={b} column selectedBlockId={selected} onSelectBlock={setSelected} onRenameBlock={onRenameBlock} />
+      );
+      return (
+        <>
+          {day(mon, renameMon)}
+          {day(tue, renameTue)}
+        </>
+      );
+    }
+    render(<Grid />);
+    await user.click(screen.getByRole("button", { name: /^Block: Tuesday focus/ }));
+    await user.click(screen.getByRole("button", { name: /^Block: Monday focus/ }));
+    expect(timelineUnavailable(true)).toBeNull();
+    act(() => void requestTimeline("rename-block"));
+    const field = screen.getByRole("textbox", { name: "Block name" });
+    expect(field).toHaveValue("Monday focus");
+  });
 });
 
 describe("the block's menu (SCREENS.md §4)", () => {
