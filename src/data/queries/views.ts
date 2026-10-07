@@ -1,19 +1,20 @@
 // Named SQL for the list views. Each is the simplest true statement of what
 // the view shows; the engines do the thinking on the rows.
+import { TAG_NAMES } from "./shell";
 
 // The few the shells read (the keyboard layer, the morning review, Today, Settings' export) live in shell.ts, so a
 // first download carries only them (SYSTEM_DESIGN.md §11.6).
 export { DAY_PLAN_SQL, DONE_BETWEEN_SQL, LOGBOOK_MONTHS, PLANNED_BETWEEN_SQL, PROJECT_NAME_SQL, TASK_STATE_SQL, dayRangeParams, logbookStream, monthsBack } from "./shell";
 
 /** Untriaged, newest first — the inbox is a queue. */
-export const INBOX_SQL = `select * from tasks where deleted_at is null and state = 'inbox' order by created_at desc, id`;
+export const INBOX_SQL = `select *, ${TAG_NAMES} from tasks where deleted_at is null and state = 'inbox' order by created_at desc, id`;
 
 /** Someday (SCREENS.md §7): every parked task in its list order; the page groups them (auto-filed, by project, loose). */
-export const SOMEDAY_SQL = `select * from tasks where deleted_at is null and state = 'someday' order by sort_key, id`;
+export const SOMEDAY_SQL = `select *, ${TAG_NAMES} from tasks where deleted_at is null and state = 'someday' order by sort_key, id`;
 
 /** Open tasks with no day yet that have started by `?` (today). */
 export const UNPLANNED_SQL = `
-  select * from tasks
+  select *, ${TAG_NAMES} from tasks
   where deleted_at is null and state = 'active' and do_date is null
     and (start_date is null or start_date <= ?)
   order by sort_key, id`;
@@ -23,7 +24,7 @@ export const UNPLANNED_SQL = `
  * that have started by `?2` (today), in day order.
  */
 export const PLANNED_AFTER_SQL = `
-  select * from tasks
+  select *, ${TAG_NAMES} from tasks
   where deleted_at is null and state = 'active'
     and do_date > ?1
     and (start_date is null or start_date <= ?2)
@@ -31,7 +32,7 @@ export const PLANNED_AFTER_SQL = `
 
 /** Open tasks hidden by a start date after `?` (today), by the day they start: Upcoming's collapsed "Starting later" groups. */
 export const STARTING_LATER_SQL = `
-  select * from tasks
+  select *, ${TAG_NAMES} from tasks
   where deleted_at is null and state = 'active' and start_date > ?
   order by start_date, do_date, sort_key, id`;
 
@@ -78,7 +79,7 @@ export const TAG_NAMES_SQL = `
 
 /** Everything still open in one project, in the project's own order. */
 export const PROJECT_TASKS_SQL = `
-  select * from tasks
+  select *, ${TAG_NAMES} from tasks
   where deleted_at is null and project_id = ? and state in ('inbox', 'active', 'someday')
   order by sort_key, id`;
 

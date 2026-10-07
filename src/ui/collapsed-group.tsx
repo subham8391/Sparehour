@@ -32,7 +32,7 @@ export function CollapsedGroup({
 }) {
   return (
     <details open={open} className={cx("group/collapsed", className)} onToggle={(e) => onToggle?.(e.currentTarget.open)}>
-      <summary className={cx(EYEBROW, "-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-2 transition-colors dur-fast hover:bg-hover sm:min-h-7 [&::-webkit-details-marker]:hidden")}>
+      <summary className={cx(EYEBROW, "-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-2 transition-colors dur-fast hover:bg-hover sm:min-h-7 touch:min-h-11 [&::-webkit-details-marker]:hidden")}>
         {/* The turn is the disclosure's state, not decoration, so only the transition is gated on motion. */}
         <Icon name="chevron-right" size={14} className="shrink-0 text-ink-3 group-open/collapsed:rotate-90 motion-safe:transition-transform motion-safe:dur-fast" />
         {label}

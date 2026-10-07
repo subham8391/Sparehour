@@ -38,10 +38,10 @@ export interface NavArea {
 
 // One item look for views, areas and projects: 36 px, radius 10, ink text with the icon a step quieter.
 // Weight is set per use (views and areas medium, projects regular) so no two weights sit on one element.
-const ITEM = "flex h-9 items-center gap-3 rounded-lg px-3 text-body text-ink transition-colors dur-fast hover:bg-hover active:bg-press";
+const ITEM = "flex h-9 touch:h-11 items-center gap-3 rounded-lg px-3 text-body text-ink transition-colors dur-fast hover:bg-hover active:bg-press";
 // The active pill: surface lifted by the 1 px ring shadow.
 const ACTIVE = "bg-surface shadow-nav";
-const RAIL_ITEM = "size-9 justify-center px-0";
+const RAIL_ITEM = "size-9 touch:size-11 justify-center px-0";
 
 function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathname: string; count?: number; rail: boolean; icon: IconName }) {
   const active = isActive(pathname, view.href);
@@ -78,7 +78,7 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-label={`${open ? "Collapse" : "Expand"} ${area.name}`}
-          className="-mr-1 -ml-1.5 flex size-7 shrink-0 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:bg-hover hover:text-ink"
+          className="-mr-1 -ml-1.5 flex size-7 touch:size-11 shrink-0 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:bg-hover hover:text-ink"
         >
           <Icon name={open ? "chevron-down" : "chevron-right"} size={16} />
         </button>
@@ -87,7 +87,7 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
           <span className="min-w-0 flex-1 truncate">{area.name}</span>
         ) : (
           // The row is what drags, so the link inside it does not start a link drag of its own.
-          <Link href={`/area/${area.id}`} draggable={false} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate">
+          <Link href={`/area/${area.id}`} draggable={false} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate touch:leading-11">
             {area.name}
           </Link>
         )}
@@ -138,7 +138,7 @@ export function Sidebar({
       className={cx("sticky top-0 h-dvh shrink-0 flex-col border-r border-line bg-paper", rail ? "w-14 items-center" : "w-66", className)}
     >
       <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "px-6")}>
-        <Link href="/today" aria-label="Sparehour — Today" className="flex items-center gap-2.5 rounded-lg">
+        <Link href="/today" aria-label="Sparehour — Today" className="flex items-center gap-2.5 rounded-lg touch:min-h-11 touch:min-w-11 touch:justify-center">
           <Mark size={22} />
           {!rail && <span className="font-display text-pane font-medium leading-none text-ink">Sparehour</span>}
         </Link>
@@ -168,7 +168,7 @@ export function Sidebar({
                 href="/browse?add=area"
                 aria-label="Add area"
                 title="Add area"
-                className="-my-1 flex size-7 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:bg-hover hover:text-ink"
+                className="-my-1 flex size-7 touch:size-11 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:bg-hover hover:text-ink"
               >
                 <Icon name="plus" size={14} />
               </Link>

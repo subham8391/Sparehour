@@ -323,7 +323,7 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
       {onTrim && h.over && h.min > WELL_OVER_MIN && (
         <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-ink-2 num">
           {formatMinutes(h.min)} more than fits — want help trimming?
-          <button type="button" onClick={onTrim} className="-my-1 flex h-11 items-center rounded-sm px-2 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:bg-hover max-sm:-ml-2 sm:h-8">
+          <button type="button" onClick={onTrim} className="-my-1 flex h-11 items-center rounded-sm px-2 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:bg-hover max-sm:-ml-2 sm:h-8 touch:h-11">
             Trim today
           </button>
         </p>

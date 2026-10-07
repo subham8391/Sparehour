@@ -1,6 +1,7 @@
 // Named SQL for the Today screen. Date filters use the ISO date prefix of the
 // stored timestamp so they are robust to " " vs "T" formats; the capacity
 // engine clips to the day precisely.
+import { TAG_NAMES } from "./shell";
 import type { LocalDate } from "@/core/time";
 
 export const SETTINGS_SQL = `select * from user_settings limit 1`;
@@ -8,7 +9,7 @@ export const WORK_HOURS_SQL = `select * from work_hours where deleted_at is null
 
 /** Open tasks planned on or before `today` and already started: Today + Carried over in one query. */
 export const TASKS_THROUGH_TODAY_SQL = `
-  select * from tasks
+  select *, ${TAG_NAMES} from tasks
   where deleted_at is null
     and state in ('inbox','active')
     and do_date is not null and do_date <= ?

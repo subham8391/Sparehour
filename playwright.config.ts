@@ -27,13 +27,20 @@ export default defineConfig({
       name: "desktop",
       use: { ...devices["Desktop Chrome"], storageState: AUTH },
       dependencies: ["setup"],
-      testIgnore: /phone\.spec\.ts/,
+      testIgnore: /(phone|tablet)\.spec\.ts/,
     },
     {
       name: "phone",
       use: { ...devices["Pixel 7"], storageState: AUTH },
       dependencies: ["setup"],
       testMatch: /phone\.spec\.ts/,
+    },
+    {
+      // A touch screen between `sm` and `md` with no hover (SCREENS.md §0, DECISIONS.md "Touch targets"): one short spec.
+      name: "tablet",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState: AUTH },
+      dependencies: ["setup"],
+      testMatch: /tablet\.spec\.ts/,
     },
   ],
   webServer: {

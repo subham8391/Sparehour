@@ -240,7 +240,7 @@ export function SyncChip({
         title={compact ? model.label : undefined}
         data-state={model.state}
         className={`flex items-center rounded-lg text-body-sm font-medium transition-colors dur-fast hover:bg-hover hover:text-ink active:bg-press ${TONE[model.state]} ${
-          compact ? "size-11 justify-center sm:size-9" : "h-8 gap-2.5 px-3"
+          compact ? "size-11 justify-center sm:size-9 touch:size-11" : "h-8 gap-2.5 px-3 touch:h-11"
         }`}
       >
         {compact ? <Icon name={model.icon} size={18} /> : <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${DOT[model.state]}`} />}

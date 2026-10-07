@@ -12,20 +12,23 @@ import { Icon, type IconName } from "@/ui/icons";
 import { MENU_ITEM } from "@/ui/popover";
 import type { DayChip, DayChipTone } from "./day-chip";
 
-export type RowActionsLayout = "inline" | "menu";
+/** `swipe`: drawn nowhere, each action handing its handler to the row's swipe (swipe-layer.tsx), so a swipe runs exactly what the ⋯ item runs. */
+export type RowActionsLayout = "inline" | "menu" | "swipe";
 
 interface Layout {
   layout: RowActionsLayout;
   close?: () => void;
   /** Opens the row's day picker beside `anchor` (Move to…, Someday's Pick a date), named `label`. */
   move?: (anchor: HTMLElement | null, label?: string) => void;
+  /** The swipe layout's sink for each action's label and handler. */
+  register?: (label: string, run: () => void) => void;
 }
 
 const LayoutContext = createContext<Layout>({ layout: "inline" });
 
 /** Wraps the actions where the row renders them; `close` dismisses the menu after a choice. */
-export function RowActionsLayoutProvider({ layout, close, move, children }: Layout & { children: ReactNode }) {
-  return <LayoutContext.Provider value={{ layout, close, move }}>{children}</LayoutContext.Provider>;
+export function RowActionsLayoutProvider({ layout, close, move, register, children }: Layout & { children: ReactNode }) {
+  return <LayoutContext.Provider value={{ layout, close, move, register }}>{children}</LayoutContext.Provider>;
 }
 
 /** The row's layout, close and day picker, for the menu's own items (the snooze presets, Move to…). */
@@ -40,8 +43,8 @@ export function OwnedLabels({ labels, children }: { labels: ReadonlySet<string>;
   return <OwnedContext.Provider value={labels}>{children}</OwnedContext.Provider>;
 }
 
-// 28 px in the desktop row's zone; 44 px wherever the inline layout shows on a phone (the morning plan's carried list).
-const INLINE = "inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color,transform] dur-fast hover:bg-hover hover:text-ink motion-safe:active:scale-97 sm:h-7";
+// 28 px in the desktop row's zone with a mouse; 44 px on a phone (the morning plan's carried list) and on any touch device.
+const INLINE = "inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color,transform] dur-fast hover:bg-hover hover:text-ink motion-safe:active:scale-97 sm:h-7 touch:h-11";
 
 /**
  * One row action. `label` is its accessible name; `text` is what the row
@@ -71,8 +74,12 @@ export function RowAction({
   primary?: boolean;
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
-  const { layout, close } = useContext(LayoutContext);
+  const { layout, close, register } = useContext(LayoutContext);
   const owned = useContext(OwnedContext);
+  if (layout === "swipe") {
+    register?.(label, onClick as () => void);
+    return null;
+  }
   const visual = glyph ?? (icon && <Icon name={icon} size={12} strokeWidth={2} className="shrink-0" />);
   if (layout === "menu") {
     if (owned?.has(label)) return null;
@@ -95,7 +102,7 @@ export function RowAction({
   }
   const iconOnly = text === null;
   return (
-    <button type="button" aria-label={iconOnly || text !== undefined ? label : undefined} title={title} onClick={onClick} className={cx(INLINE, iconOnly && "w-11 justify-center px-0 sm:w-7", primary && "text-ink")}>
+    <button type="button" aria-label={iconOnly || text !== undefined ? label : undefined} title={title} onClick={onClick} className={cx(INLINE, iconOnly && "w-11 justify-center px-0 sm:w-7 touch:w-11", primary && "text-ink")}>
       {visual}
       {!iconOnly && (text ?? label)}
     </button>
@@ -134,7 +141,7 @@ export function MoveActions({
  */
 export function MenuOnly({ children }: { children: ReactNode }) {
   const { layout } = useContext(LayoutContext);
-  return layout === "menu" ? <>{children}</> : null;
+  return layout !== "inline" ? <>{children}</> : null;
 }
 
 /**
@@ -143,7 +150,7 @@ export function MenuOnly({ children }: { children: ReactNode }) {
  */
 export function MoveToAction({ label = "Move to…", text, icon = "calendar", title }: { label?: string; text?: string | null; icon?: IconName; title?: string }) {
   const { layout, move } = useContext(LayoutContext);
-  if (layout === "menu" || !move) return null;
+  if (layout !== "inline" || !move) return null;
   return <RowAction label={label} text={text} icon={icon} title={title ?? label} onClick={(e) => move(e.currentTarget, label)} />;
 }
 
@@ -168,7 +175,7 @@ export function DayChipTag({ chip, count = true }: { chip: DayChip | null; count
 }
 
 // 44 px on the phone, pulled into the panel's padding so it stays compact; 28 px beside the sentence on desktop.
-const ASK_ACTION = "inline-flex h-11 items-center whitespace-nowrap rounded-sm px-2 text-body-sm font-medium transition-[background-color,color] dur-fast hover:bg-hover max-sm:-my-1.5 sm:h-7";
+const ASK_ACTION = "inline-flex h-11 items-center whitespace-nowrap rounded-sm px-2 text-body-sm font-medium transition-[background-color,color] dur-fast hover:bg-hover max-sm:-my-1.5 sm:h-7 touch:h-11";
 
 /**
  * The gentle ask in place of a row's actions once it has been carried over too many times (SCREENS.md §2.3): an

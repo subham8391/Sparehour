@@ -1,5 +1,5 @@
 // Buttons (DESIGN_SYSTEM.md §5): one scale, 36 px on desktop and 44 px on the
-// phone, five looks. Primary is ink, never green. Pressed scales to .97 only
+// phone and on any touch device (`touch:`, a pointer that cannot hover), five looks. Primary is ink, never green. Pressed scales to .97 only
 // for people who have not asked for reduced motion. The focus ring is the
 // global one and follows the radius.
 import type { ButtonHTMLAttributes } from "react";
@@ -25,11 +25,11 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  auto: "h-11 sm:h-9",
+  auto: "h-11 sm:h-9 touch:h-11",
   touch: "h-11",
-  desktop: "h-9",
+  desktop: "h-9 touch:h-11",
   // The 28 px action beside a label or a row ("Clear the slate"), still 44 px on touch.
-  compact: "h-11 px-2 text-body-sm sm:h-7",
+  compact: "h-11 px-2 text-body-sm sm:h-7 touch:h-11",
   sheet: "h-12 w-full text-body-lg",
 };
 

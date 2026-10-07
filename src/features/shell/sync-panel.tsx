@@ -71,12 +71,12 @@ export function SyncDetail({ model }: { model: SyncChipModel }) {
         </ul>
       )}
       {model.action === "sign_in" && (
-        <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
+        <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0 touch:min-h-11">
           Sign in again
         </Link>
       )}
       {model.action === "export" && (
-        <Link href="/settings#data" className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
+        <Link href="/settings#data" className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0 touch:min-h-11">
           Export your data
         </Link>
       )}

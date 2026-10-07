@@ -91,7 +91,7 @@ export function HeadingSection({
           onClick={onToggle}
           aria-expanded={!collapsed}
           aria-label={`${collapsed ? "Show" : "Fold away"} the tasks under ${heading.title}`}
-          className="-ml-3 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:-ml-2.5 sm:size-9"
+          className="-ml-3 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:-ml-2.5 sm:size-9 touch:size-11"
         >
           <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={14} />
         </button>
@@ -132,7 +132,7 @@ export function HeadingSection({
           onClick={onRemove}
           aria-label={`Delete heading ${heading.title}`}
           title="Delete heading (tasks move up)"
-          className="-my-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:-my-2 sm:size-9"
+          className="-my-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:-my-2 sm:size-9 touch:size-11"
         >
           <Icon name="close" size={14} />
         </button>

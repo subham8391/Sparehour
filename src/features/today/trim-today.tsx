@@ -37,7 +37,7 @@ export function trimOrder(tasks: readonly Task[], defaultEstimateMin: number): T
 /** The readout: "40m more than fits", or "Now fits". */
 export const trimReadout = (overMin: number): string => (overMin > 0 ? `${formatMinutes(overMin)} more than fits` : "Now fits");
 
-const ACTION = "h-11 px-2.5 text-body-sm sm:h-8";
+const ACTION = "h-11 px-2.5 text-body-sm sm:h-8 touch:h-11";
 
 export default function TrimToday({ tasks, overMin, defaultEstimateMin, onTomorrow, onSomeday, onDrop, onClose }: TrimTodayProps) {
   // It closes itself once a trim has made the day fit; opened on a day that already fits, it stays until closed.
@@ -66,7 +66,7 @@ export default function TrimToday({ tasks, overMin, defaultEstimateMin, onTomorr
               {fits && !wasOver ? "Today fits." : trimReadout(overMin)}
             </p>
           </div>
-          <Button variant="quiet" size="auto" className="-mr-2 h-11 px-3 sm:h-9" onClick={onClose}>
+          <Button variant="quiet" size="auto" className="-mr-2 h-11 px-3 sm:h-9 touch:h-11" onClick={onClose}>
             Done
           </Button>
         </div>

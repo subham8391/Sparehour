@@ -278,8 +278,8 @@ export function MenuButton({
         aria-label={label}
         className={
           text
-            ? className || "flex h-11 items-center rounded-sm px-2.5 text-body-sm font-medium text-ink-2 hover:bg-hover hover:text-ink sm:h-9"
-            : cx("flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-hover hover:text-ink sm:size-9", className)
+            ? className || "flex h-11 items-center rounded-sm px-2.5 text-body-sm font-medium text-ink-2 hover:bg-hover hover:text-ink sm:h-9 touch:h-11"
+            : cx("flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-hover hover:text-ink sm:size-9 touch:size-11", className)
         }
       >
         {text ?? <Icon name="more" size={18} strokeWidth={2.6} />}
@@ -298,8 +298,8 @@ export function MenuButton({
   );
 }
 
-const MENU_ITEM_BASE = "flex w-full items-center rounded-sm px-2.5 text-left text-body max-sm:min-h-12 sm:min-h-10";
-/** A row inside a menu panel: 48 px on touch, 40 px from `sm` (DESIGN_SYSTEM.md §4a). */
+const MENU_ITEM_BASE = "flex w-full items-center rounded-sm px-2.5 text-left text-body max-sm:min-h-12 sm:min-h-10 touch:min-h-12";
+/** A row inside a menu panel: 48 px on a phone and any touch device, 40 px from `sm` with a mouse (DESIGN_SYSTEM.md §4a). */
 export const MENU_ITEM = `${MENU_ITEM_BASE} text-ink hover:bg-hover`;
 /** The one destructive menu row: Delete and Disconnect only. Drop is undoable and stays ink (DESIGN_SYSTEM.md §2). */
 export const MENU_ITEM_DESTRUCTIVE = `${MENU_ITEM_BASE} text-deadline hover:bg-deadline-soft`;

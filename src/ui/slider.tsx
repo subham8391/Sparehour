@@ -18,7 +18,7 @@ export function Slider({
   const pct = max > min ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 0;
   return (
     // 44 px tall on the phone so the thumb is a real touch target; the track is drawn centred whatever the height.
-    <span className={cx("relative flex h-11 w-full items-center sm:h-5", className)}>
+    <span className={cx("relative flex h-11 w-full items-center sm:h-5 touch:h-11", className)}>
       <input
         type="range"
         value={value}

@@ -111,7 +111,7 @@ export function DayChoices({
           );
         })}
       </ul>
-      <label className="mt-1 flex min-h-12 items-center justify-between gap-3 border-t border-line px-2.5 pt-1.5 text-body text-ink-2 sm:min-h-10">
+      <label className="mt-1 flex min-h-12 items-center justify-between gap-3 border-t border-line px-2.5 pt-1.5 text-body text-ink-2 sm:min-h-10 touch:min-h-12">
         Pick a date
         <DateField
           aria-label={`Pick a date for ${title}`}

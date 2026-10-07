@@ -44,7 +44,7 @@ export function Segmented<T extends string>({
   const radio = label !== undefined;
   const frame = FRAME[size];
   return (
-    <div role={radio ? "radiogroup" : undefined} aria-label={label} className={cx("inline-flex gap-0.5 rounded-lg bg-surface-2", frame.rail, className)}>
+    <div role={radio ? "radiogroup" : undefined} aria-label={label} data-segmented className={cx("inline-flex gap-0.5 rounded-lg bg-surface-2", frame.rail, className)}>
       {options.map((o) => (
         <button
           key={o.value}

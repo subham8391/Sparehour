@@ -9,12 +9,14 @@
 // of its own: the palette's "Move to…" on the selected row opens the shared
 // day picker beside it (day-picker.tsx, lazy), and `.` opens the task.
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
 import { useSelectionOptional } from "@/features/selection/selection-provider";
 import { edgeFor, type Edge } from "@/features/tasks/reorder";
+import { DefaultEstimate } from "@/features/tasks/default-estimate";
+import { guessLabel } from "@/features/tasks/estimate-presets";
 import { DayPickerIsland } from "@/features/tasks/row-islands";
 import { listenForRowRequests } from "@/features/tasks/row-request";
 import { Chip, DeadlineChip } from "@/ui/chip";
@@ -64,6 +66,7 @@ export function CompactRow({
   }, [selected]);
   // The palette's Move to… on the selected row (row-request.ts): the day picker beside its title, which takes focus back.
   const [moving, setMoving] = useState<HTMLElement | null>(null);
+  const defaultMin = useContext(DefaultEstimate);
   const open = task.state === "active" || task.state === "inbox";
   useEffect(() => {
     if (!selected || !open) return;
@@ -181,8 +184,8 @@ export function CompactRow({
       </div>
       {/* What fits on one line and no more: the estimate first, then the deadline, then the project. */}
       <div className={cx("flex h-5 min-w-0 items-center gap-1 overflow-hidden text-label text-ink-2 num", s.meta)}>
-        <Chip size="sm" tone={task.estimateMin ? "neutral" : "guess"} icon={null}>
-          {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
+        <Chip size="sm" tone={task.estimateMin ? "neutral" : "guess"} icon={null} title={task.estimateMin ? undefined : guessLabel(defaultMin)}>
+          {task.estimateMin ? formatMinutes(task.estimateMin) : `${formatMinutes(defaultMin)}?`}
         </Chip>
         {task.deadline && <DeadlineChip deadline={task.deadline} today={today} size="sm" />}
         {project && <span className="min-w-0 truncate">{project}</span>}

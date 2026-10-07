@@ -57,7 +57,7 @@ const readWide = () => typeof window.matchMedia !== "function" || window.matchMe
 /** The view's h1, editable in place: the same face, step and balance as every other screen title. */
 const TITLE = "font-display text-title font-book text-balance text-ink";
 /** A disclosure line under a list: 44 px on the phone, 36 above, pulled out to the column's edge like a section action. */
-const DISCLOSURE = "-ml-2 flex h-11 items-center gap-1.5 self-start rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-9";
+const DISCLOSURE = "-ml-2 flex h-11 items-center gap-1.5 self-start rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-9 touch:h-11";
 
 export default function ProjectPage({ params, searchParams }: PageProps<"/project/[id]">) {
   const { id } = use(params);
@@ -403,7 +403,7 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
             }
           }}
           onBlur={addHeading}
-          className={cx(EYEBROW, "h-11 min-w-0 flex-1 rounded-sm bg-transparent text-ink placeholder:text-body-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-2 focus-visible:-outline-offset-2 sm:h-9")}
+          className={cx(EYEBROW, "h-11 min-w-0 flex-1 rounded-sm bg-transparent text-ink placeholder:text-body-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-2 focus-visible:-outline-offset-2 sm:h-9 touch:h-11")}
         />
       </div>
 

@@ -10,6 +10,7 @@ import type { Task, TaskState } from "@/core/types";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { HitActions } from "./hit-actions";
 import { Button, buttonClass, iconButtonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
@@ -61,7 +62,7 @@ export interface SearchViewProps {
 const FILTER = cx(buttonClass({ variant: "secondary" }), "pr-0.5 pl-3 text-body-sm num");
 const FILTER_MENU = cx(buttonClass({ variant: "quiet" }), "pr-3 pl-8");
 // The × inside a filter: the chip's own height on the phone, 32 px inside the 36 px chip above.
-const FILTER_REMOVE = cx(iconButtonClass({ size: "touch" }), "rounded-sm text-ink-3 sm:size-8");
+const FILTER_REMOVE = cx(iconButtonClass({ size: "touch" }), "rounded-sm text-ink-3 sm:size-8 touch:size-11");
 const STATES: TaskState[] = ["inbox", "active", "someday", "done", "dropped"];
 
 export function SearchView(p: SearchViewProps) {
@@ -155,7 +156,7 @@ export function SearchView(p: SearchViewProps) {
 
       {/* The chips scroll sideways on a phone; the menu sits outside that scroller so its panel is never clipped. */}
       <div className="-my-1 flex items-center gap-2">
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto py-1">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto py-1 pr-7 fade-end">
           {active.map((key) => {
             const label = filterLabel(key, filters, names);
             if (!label) return null;
@@ -261,7 +262,7 @@ export function SearchView(p: SearchViewProps) {
 
       {p.alsoFound.length > 0 && (
         <details ref={alsoRef} className="group">
-          <summary className={cx(EYEBROW, "-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-2 transition-colors dur-fast hover:bg-hover sm:min-h-7 [&::-webkit-details-marker]:hidden")}>
+          <summary className={cx(EYEBROW, "-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-2 transition-colors dur-fast hover:bg-hover sm:min-h-7 touch:min-h-11 [&::-webkit-details-marker]:hidden")}>
             {/* The turn is the disclosure's state, not decoration, so only the transition is gated on motion. */}
             <Icon name="chevron-right" size={14} className="shrink-0 text-ink-3 group-open:rotate-90 motion-safe:transition-transform motion-safe:dur-fast" />
             Also found
@@ -357,6 +358,7 @@ function Hit({ hit, p }: { hit: SearchHit; p: SearchViewProps }) {
       onOpen={() => p.onOpen(task.id)}
       onDone={task.state === "done" ? undefined : () => p.onDone(task.id)}
       meta={hit.projectName && <span>{hit.projectName}</span>}
+      actions={<HitActions task={task} today={p.today} />}
       chips={
         task.state === "done" || task.state === "dropped" || task.state === "archived" ? (
           <Chip size="auto" className="text-ink-3">

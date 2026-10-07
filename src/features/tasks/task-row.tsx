@@ -16,7 +16,7 @@
 // day-picker.tsx, both lazy). A footer can sit under the row (the
 // carried-over ask).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Temporal, formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
@@ -29,12 +29,13 @@ import { ListCard } from "@/ui/list-card";
 import { MenuButton, type MenuHandle } from "@/ui/popover";
 import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
-import { DayPickerIsland, RowMenuIsland, preloadRowIslands } from "./row-islands";
+import { DayPickerIsland, EstimateIsland, RowMenuIsland, SwipeIsland, preloadRowIslands } from "./row-islands";
 import { listenForRowRequests } from "./row-request";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
 import { requestOrganize } from "./organize";
 import { useTaskRepo } from "./use-task-repo";
+import { DefaultEstimate } from "./default-estimate";
 
 const LONG_PRESS_MS = 500;
 /** Check-off (DESIGN_SYSTEM.md §7): the ring fills at once; the row leaves 400 ms later. */
@@ -140,6 +141,7 @@ export function TaskRow({
   const ticked = sel?.checkedIds.includes(task.id) ?? false;
   const multi = (sel?.checkedIds.length ?? 0) > 0 || Boolean(sel?.selecting);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [swipe, setSwipe] = useState(false);
   /** A long-press just ticked the row: the click the finger's release sends is part of it, not a tap that opens. */
   const longPressed = useRef(false);
   const cancelPress = () => {
@@ -150,6 +152,8 @@ export function TaskRow({
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     // A new press starts clean, even if the last long-press sent no click (the finger slid off).
     longPressed.current = false;
+    // The first touch brings the swipe in (swipe-layer.tsx, lazy); a mouse never does.
+    if (e.pointerType === "touch") setSwipe(true);
     if (!sel || e.pointerType !== "touch") return;
     cancelPress();
     pressTimer.current = setTimeout(() => {
@@ -240,6 +244,9 @@ export function TaskRow({
   const menu = useRef<MenuHandle>(null);
   const [moving, setMoving] = useState<{ anchor: HTMLElement | null; label?: string } | null>(null);
   const move = (anchor: HTMLElement | null, label?: string) => setMoving({ anchor: anchor ?? menu.current?.trigger() ?? ref.current, label });
+  // The estimate presets, beside the chip (the chip or E opens them).
+  const [estimating, setEstimating] = useState<HTMLElement | null>(null);
+  const estimateRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (hasActions) preloadRowIslands();
   }, [hasActions]);
@@ -271,7 +278,13 @@ export function TaskRow({
   useEffect(() => {
     if (!selected || !(hasActions || canRename)) return;
     return listenForRowRequests((id, request) => {
-      if (id !== task.id || (request === "move" && !movable) || (request === "rename" ? !canRename : !hasActions)) return false;
+      if (id !== task.id) return false;
+      if (request === "estimate") {
+        const chip = estimateRef.current;
+        if (chip) setEstimating(chip);
+        return Boolean(chip);
+      }
+      if ((request === "move" && !movable) || (request === "rename" ? !canRename : !hasActions)) return false;
       if (request === "rename") {
         renamed.current = false;
         setRenaming(true);
@@ -317,8 +330,22 @@ export function TaskRow({
       {done && <Icon name="check" size={12} strokeWidth={2.2} className={completing ? "animate-check-fill" : undefined} />}
     </span>
   );
-  // The struck title keeps the `line-through` class: tests read it.
-  const titleClass = cx("line-clamp-2 text-body-lg leading-snug [overflow-wrap:anywhere] transition-colors dur-fast sm:line-clamp-1 sm:leading-5", done ? "text-ink-3 line-through decoration-ink-3" : "text-ink");
+  // The struck title keeps the `line-through` class: tests read it. A task whose start date is still ahead shows in
+  // its project dimmed (PRODUCT_SPEC.md §8.1), its day chip saying when it starts; it lights up on that day.
+  const later = task.startDate && Temporal.PlainDate.compare(task.startDate, day) > 0;
+  const titleClass = cx("line-clamp-2 text-body-lg leading-snug [overflow-wrap:anywhere] transition-colors dur-fast sm:line-clamp-1 sm:leading-5", done ? "text-ink-3 line-through decoration-ink-3" : later ? "text-ink-3" : "text-ink");
+  // The estimate (PRODUCT_SPEC.md §9.2): the account's default with a question mark, dashed, when there is none.
+  const defaultMin = useContext(DefaultEstimate);
+  const estimate = formatMinutes(task.estimateMin || defaultMin);
+  // The words match guessLabel (estimate-presets.ts), kept inline so the shell does not carry that module.
+  const guess = task.estimateMin ? undefined : `No estimate — counted as ${estimate}`;
+  const estimateChip = (
+    <Chip tone={guess ? "guess" : "neutral"} size="auto" title={guess}>
+      {estimate}
+      {guess && "?"}
+    </Chip>
+  );
+  const editable = Boolean(onOpen) && !done && task.state !== "dropped";
   const chipRun = (
     <>
       {chips}
@@ -331,9 +358,14 @@ export function TaskRow({
           ×{task.carryCount}
         </span>
       )}
-      <Chip tone={task.estimateMin ? "neutral" : "guess"} size="auto">
-        {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
-      </Chip>
+      {editable ? (
+        // From `sm` the chip opens the presets in place (SCREENS.md §2.4); on a phone the line is no target, the detail and E are.
+        <button ref={estimateRef} type="button" aria-label={guess ?? `Estimate ${estimate}`} title={guess} onClick={(e) => setEstimating(e.currentTarget)} className="hit-touch rounded-sm hover:bg-hover">
+          {estimateChip}
+        </button>
+      ) : (
+        estimateChip
+      )}
       {/* Over 8 hours is saved as asked and gently questioned (PRODUCT_SPEC.md §5.2, §5.4): quiet words, never a warning colour. */}
       {long && <span className="text-ink-2">Long — break it down?</span>}
     </>
@@ -352,6 +384,8 @@ export function TaskRow({
           : "[--row-bg:var(--surface)] [--row-wash:transparent] hover:[--row-wash:var(--hover)] active:[--row-wash:var(--press)]",
         dragging && "opacity-40",
         "focus-visible:-outline-offset-2",
+        // A sideways finger is the swipe's; the page keeps vertical scrolling and pinch zoom.
+        hasActions && "touch:[touch-action:pan-y_pinch-zoom]",
       )}
       role="row"
       data-roving={roving || undefined}
@@ -369,11 +403,11 @@ export function TaskRow({
       onPointerLeave={cancelPress}
     >
       {edge && <span aria-hidden="true" data-testid="drop-edge" className={cx("pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-ink", edge === "top" ? "-top-px" : "-bottom-px")} />}
-      <div role="gridcell" className={cx("min-h-0", completing && "overflow-hidden")}>
+      <div role="gridcell" className={cx("relative min-h-0", completing && "overflow-hidden")}>
         <div
           className={cx(
             "relative flex min-h-14 items-center gap-x-3 py-2 sm:grid sm:min-h-11 sm:gap-x-0 sm:py-0",
-            multi && sel ? "sm:grid-cols-[28px_44px_minmax(0,1fr)_auto_auto_auto]" : "sm:grid-cols-[44px_minmax(0,1fr)_auto_auto_auto]",
+            multi && sel ? "sm:grid-cols-[28px_44px_minmax(0,1fr)_auto_auto_auto] touch:grid-cols-[44px_44px_minmax(0,1fr)_auto_auto_auto]" : "sm:grid-cols-[44px_minmax(0,1fr)_auto_auto_auto]",
             !hasActions && "max-sm:pr-4",
           )}
         >
@@ -384,8 +418,15 @@ export function TaskRow({
               aria-label={`Select ${task.title}`}
               onChange={() => sel.toggleCheck(task.id)}
               onClick={(e) => e.stopPropagation()}
-              className="relative z-1 sm:size-7 sm:justify-self-center"
+              className="relative z-1 sm:size-7 sm:justify-self-center touch:size-11"
             />
+          )}
+          {task.priority > 1 && !done && !(multi && sel) && (
+            // !1 (stored 3) and !2 (stored 2) lead the row, the second a step quieter; never a warning colour (SCREENS.md §2.4).
+            // While rows are being ticked the checkbox holds the leading edge, so the mark steps aside rather than sit on it.
+            <span role="img" aria-label={`priority ${4 - task.priority}`} className={cx("absolute left-0.5 text-label font-semibold", task.priority > 2 ? "text-ink" : "text-ink-2")}>
+              {task.priority > 2 ? "!!" : "!"}
+            </span>
           )}
           {onDone ? (
             <button
@@ -436,7 +477,12 @@ export function TaskRow({
             {/* No target of its own on a phone: the fade's mask makes a layer over the title's stretched tap area, and the
                 whole row opens the task there (DESIGN_SYSTEM.md §5 Task row), so taps pass through to it. */}
             <div id={`${rowId}f`} className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:pointer-events-none max-sm:fade-end sm:contents">
-              {meta && <span className={META_RUN}>{meta}</span>}
+              {(meta || task.tags) && (
+                <span className={META_RUN}>
+                  {meta}
+                  {task.tags?.map((t) => <span key={t}>@{t}</span>)}
+                </span>
+              )}
               {/* A completed row quietens its chips to ink-3 rather than fading them: at 60 % opacity the estimate fell to 2.4:1 on surface-2. */}
               <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", task.state === "done" && "[&>*]:text-ink-3!")}>{chipRun}</span>
             </div>
@@ -467,6 +513,8 @@ export function TaskRow({
                   const own = (
                     <>
                       {rowActions}
+                      {/* The ring's action, here too: every swipe has a tap path in the ⋯ (DESIGN_SYSTEM.md §5). */}
+                      {onDone && !done && <RowAction label="Complete" onClick={complete} />}
                       {task.recurrenceRule && (task.state === "active" || task.state === "inbox") && <SkipOccurrence id={task.id} />}
                       <OrganizeActions task={task} />
                     </>
@@ -474,7 +522,7 @@ export function TaskRow({
                   return (
                     <RowActionsLayoutProvider layout="menu" close={close} move={movable ? move : undefined}>
                       {movable ? (
-                        <RowMenuIsland taskId={task.id} lead={menuLead}>
+                        <RowMenuIsland taskId={task.id} lead={menuLead} parked={task.state === "someday"}>
                           {own}
                         </RowMenuIsland>
                       ) : (
@@ -498,6 +546,8 @@ export function TaskRow({
             onClose={() => setMoving(null)}
           />
         )}
+        {swipe && hasActions && <SwipeIsland row={ref} task={task} today={day} complete={onDone && complete} own={rowActions} lead={menuLead} />}
+        {estimating && <EstimateIsland taskId={task.id} title={task.title} current={task.estimateMin} anchor={estimating} onClose={() => setEstimating(null)} />}
       </div>
     </div>
   );

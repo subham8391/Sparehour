@@ -6,7 +6,7 @@
 // header, 48 px field rows that open popovers, then the checklist, tags and
 // notes under section labels, and a footer with Complete first; on a phone
 // the footer sits above the safe area and the quiet actions fold into a menu.
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, useLayoutEffect } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, useLayoutEffect } from "react";
 import { readTypedDate, type TypedDate as TypedDateValue } from "@/core/quickadd/read-date";
 import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
@@ -33,6 +33,8 @@ import { dayLabel } from "@/features/quickadd/interpret";
 import { Checklist } from "./checklist";
 import { repeatPolicy } from "./repeat-policy";
 import { PausePicker, pausedUntil, RepeatLine, SeriesPrompt } from "./series-controls";
+import { DefaultEstimate } from "./default-estimate";
+import { ESTIMATE_PRESETS, guessLabel } from "./estimate-presets";
 import { BLOCK_GLYPH } from "./task-actions";
 import type { DetailField, FieldRequest } from "./task-detail";
 import { snoozePresets, type SnoozePreset } from "./snooze";
@@ -103,7 +105,6 @@ export interface SeriesDayChange {
   evening?: boolean;
 }
 
-const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
 const PRIORITIES: { value: Priority; label: string }[] = [
   { value: 0, label: "None" },
   { value: 3, label: "!1 High" },
@@ -478,7 +479,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             {(close) => <DatePicker value={task.startDate} today={today} now={p.now} zone={p.zone} presets={presets} onChange={(d) => (onPatch({ startDate: d }), close())} />}
           </FieldRow>
 
-          <FieldRow label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <Chip tone="guess">30m?</Chip>} request={asked("estimate")}>
+          <FieldRow label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <GuessChip />} request={asked("estimate")}>
             {(close) => <EstimatePicker value={task.estimateMin} onChange={(m) => (onPatch({ estimateMin: m }), close())} />}
           </FieldRow>
 
@@ -734,7 +735,7 @@ function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; all
           // A tag is a neutral chip (green and blue mean time and projects); the remove target keeps 44 px on a phone without stretching the chip.
           <span key={t.id} className="inline-flex h-7 items-center gap-0.5 rounded-sm bg-surface-2 pr-0.5 pl-2 text-body-sm font-medium text-ink-2">
             @{t.name}
-            <button type="button" onClick={() => onRemove?.(t.id)} aria-label={`Remove tag ${t.name}`} className="-my-2 flex size-11 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:text-ink sm:my-0 sm:size-6">
+            <button type="button" onClick={() => onRemove?.(t.id)} aria-label={`Remove tag ${t.name}`} className="-my-2 flex size-11 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:text-ink sm:my-0 sm:size-6 touch:size-11">
               <Icon name="close" size={11} strokeWidth={2} />
             </button>
           </span>
@@ -752,7 +753,7 @@ function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; all
             }
           }}
           onBlur={add}
-          className={cx(BARE, "h-11 min-w-24 flex-1 text-body text-ink sm:h-9")}
+          className={cx(BARE, "h-11 min-w-24 flex-1 text-body text-ink sm:h-9 touch:h-11")}
         />
         <datalist id={listId}>
           {allTags
@@ -869,12 +870,22 @@ export function DatePicker({
   );
 }
 
+/** An unestimated task's chip: the account's default with a question mark, dashed, and what it means in words. */
+function GuessChip() {
+  const min = useContext(DefaultEstimate);
+  return (
+    <Chip tone="guess" title={guessLabel(min)}>
+      {formatMinutes(min)}?<span className="sr-only"> ({guessLabel(min)})</span>
+    </Chip>
+  );
+}
+
 /** The estimate picker: the preset chips, minutes typed in (focused when the picker is opened by `E`), and No estimate. */
 export function EstimatePicker({ value, onChange }: { value: number | null; onChange: (minutes: number | null) => void }) {
   return (
     <>
       <div className="flex flex-wrap gap-1.5">
-        {ESTIMATES.map((m) => (
+        {ESTIMATE_PRESETS.map((m) => (
           <button key={m} type="button" className={PICK} aria-pressed={value === m} onClick={() => onChange(m)}>
             {formatMinutes(m)}
           </button>

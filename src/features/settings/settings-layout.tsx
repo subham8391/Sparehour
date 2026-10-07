@@ -151,7 +151,7 @@ export function SettingsLayout({
                   data-section={item.key}
                   aria-current={item.key === current ? "page" : undefined}
                   onClick={(e) => onOpen(e, item.key)}
-                  className="flex min-h-14 items-center gap-3 px-4 py-2 text-ink transition-colors dur-fast hover:bg-hover focus-visible:-outline-offset-2 active:bg-press max-md:first:rounded-t-xl max-md:last:rounded-b-xl md:min-h-9 md:rounded-lg md:px-3 md:py-1.5 md:aria-[current=page]:bg-surface md:aria-[current=page]:shadow-nav"
+                  className="flex min-h-14 items-center gap-3 px-4 py-2 text-ink transition-colors dur-fast hover:bg-hover focus-visible:-outline-offset-2 active:bg-press max-md:first:rounded-t-xl max-md:last:rounded-b-xl md:min-h-9 md:touch:min-h-11 md:rounded-lg md:px-3 md:py-1.5 md:aria-[current=page]:bg-surface md:aria-[current=page]:shadow-nav"
                 >
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="text-body-lg md:text-body md:font-medium">{item.title}</span>

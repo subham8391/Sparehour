@@ -19,7 +19,7 @@ import type { TimelineBlock } from "./hooks/use-today";
 /** A slot taller than this carries its time range on a second line. */
 export const TWO_LINE_PX = 40;
 /** A selected block's toolbar action: 44 px on touch, 28 px above, like every other row action. */
-const TOOLBAR_ACTION = "flex h-11 shrink-0 items-center rounded-sm px-2 text-body-sm font-medium text-ink transition-colors dur-fast hover:bg-hover disabled:text-ink-3 sm:h-7";
+const TOOLBAR_ACTION = "flex h-11 shrink-0 items-center rounded-sm px-2 text-body-sm font-medium text-ink transition-colors dur-fast hover:bg-hover disabled:text-ink-3 sm:h-7 touch:h-11";
 
 export const hhmm = (m: number) => formatTime(timeFromMinutes(m));
 /** "10:00–11:30 · 1h 30m" */
@@ -256,7 +256,7 @@ export function BlockToolbar({ block, top, below, armed, note, actions }: { bloc
             </button>
           )}
           {(actions.onRename || actions.onArm) && (
-            <MenuButton label="More block actions" portal className="size-11 sm:size-7">
+            <MenuButton label="More block actions" portal className="size-11 sm:size-7 touch:size-11">
               {(close) => (
                 <>
                   {actions.onRename && (
@@ -282,9 +282,9 @@ export function BlockToolbar({ block, top, below, armed, note, actions }: { bloc
 /** The bar over the timeline while something waits for a tap (SCREENS.md §2.8): what it is, and Cancel (or Escape). */
 export function PlacingBar({ text, onCancel }: { text: string; onCancel: () => void }) {
   return (
-    <div role="status" className="mb-3 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-ink px-3 py-1.5 text-body-sm text-ink-inverse sm:min-h-9">
+    <div role="status" className="mb-3 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-ink px-3 py-1.5 text-body-sm text-ink-inverse sm:min-h-9 touch:min-h-11">
       <span className="min-w-0 truncate">{text}</span>
-      <button type="button" onClick={onCancel} className="flex h-11 shrink-0 items-center rounded-sm px-2 font-medium underline decoration-ink-inverse/50 hover:decoration-ink-inverse sm:h-7">
+      <button type="button" onClick={onCancel} className="flex h-11 shrink-0 items-center rounded-sm px-2 font-medium underline decoration-ink-inverse/50 hover:decoration-ink-inverse sm:h-7 touch:h-11">
         Cancel
       </button>
     </div>

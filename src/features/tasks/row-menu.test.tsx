@@ -52,9 +52,10 @@ describe("the row ⋯ menu", () => {
     // The ⋯ sits in the action zone with the inline actions (one element, revealed together).
     expect(trigger.closest("[role=row]")?.querySelector(".sm\\:absolute")?.contains(trigger)).toBe(true);
     await user.click(trigger);
-    await waitFor(() => expect(menuWords()).toEqual(["Today", "Someday", "Move to project…", "Add a tag…", "Duplicate", "Copy link", "This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week", "Move to…"]));
-    // The row's own "Tomorrow" stepped aside for the preset: it is listed once.
+    await waitFor(() => expect(menuWords()).toEqual(["Today", "Move to project…", "Add a tag…", "Duplicate", "Copy link", "This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week", "Someday", "Move to…"]));
+    // The row's own "Tomorrow" and "Someday" stepped aside for the menu's own: each is listed once.
     expect(screen.getAllByRole("menuitem", { name: "Tomorrow" })).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem", { name: "Someday" })).toHaveLength(1);
     expect(within(screen.getByRole("menu")).getByRole("separator")).toBeInTheDocument();
   });
 

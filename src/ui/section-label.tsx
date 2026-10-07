@@ -43,5 +43,5 @@ export function SectionLabel({
 
 /** The text action on a section label: 28 px beside the eyebrow, 44 px on the phone, pulled out to the card's edge. */
 export function SectionAction({ className, type = "button", ...rest }: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button type={type} className={cx("-mr-2 flex h-11 shrink-0 items-center whitespace-nowrap rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-7", className)} {...rest} />;
+  return <button type={type} className={cx("-mr-2 flex h-11 shrink-0 items-center whitespace-nowrap rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color] dur-fast hover:bg-hover hover:text-ink sm:h-7 touch:h-11", className)} {...rest} />;
 }

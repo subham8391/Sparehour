@@ -177,6 +177,9 @@ const SUGGESTIONS: { label: string; insert: string }[] = [
 
 /** A suggestion or a project match: the chip that is a button (DESIGN_SYSTEM.md §5 "Chips"). */
 const SUGGEST = chipButtonClass();
+// One row that scrolls sideways on a phone, the chip cut off at the edge fading out (the scroll affordance, DESIGN_SYSTEM.md
+// §4a), so the Add button stays put above the keyboard; wrapped from `sm`.
+const CHIP_ROW = "-mx-1 -my-1 flex items-center gap-1.5 overflow-x-auto px-1 py-1 max-sm:pr-7 max-sm:fade-end sm:flex-wrap";
 
 /** The line itself: the field look at 48 px and 16 px type on every width, so iOS never zooms. The border turns ink on focus, so no ring. */
 const LINE = "h-12 w-full rounded-lg border border-line-control px-3.5 text-base outline-none placeholder:text-ink-4 focus:border-ink focus-visible:outline-none";
@@ -586,7 +589,7 @@ export function QuickAdd({
 
         {tagSpan && !tagKnown ? (
           // The tag being typed: its matches first, then (or alone, when none) "Create @name" (SCREENS.md §11).
-          <div role="group" aria-label="Tags" className="flex flex-wrap items-center gap-1.5">
+          <div role="group" aria-label="Tags" className={CHIP_ROW}>
             {tagSuggestions.map((t) => (
               <button key={t.id} type="button" onClick={() => pickTag(t)} className={SUGGEST}>
                 @{t.name}
@@ -602,7 +605,7 @@ export function QuickAdd({
           projectName &&
           !exact && (
             // Two projects of one name are told apart by their area, and neither is created again (§5.4).
-            <div role="group" aria-label="Projects" className="flex flex-wrap items-center gap-1.5">
+            <div role="group" aria-label="Projects" className={CHIP_ROW}>
               {suggestions.map((p) => (
                 <button key={p.id} type="button" onClick={() => pickProject(p)} className={SUGGEST}>
                   {projectOptionLabel(p, projects)}
@@ -620,7 +623,7 @@ export function QuickAdd({
         )}
 
         {!inline && (
-          <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label="Suggestions" className={CHIP_ROW}>
             {SUGGESTIONS.map((s) => (
               <button key={s.label} type="button" onClick={() => insert(s.insert)} className={SUGGEST}>
                 {s.label}
@@ -644,10 +647,11 @@ export function QuickAdd({
           {/* In the page the step's own button is the primary; Add stays as the tap path for a keyboard without Enter. */}
           <Button
             variant={inline ? "secondary" : "primary"}
-            size={inline ? "auto" : "desktop"}
+            // The sheet's 48 px full-width primary on a phone (touch or not), the desktop size from `sm` (44 px there on touch).
+            size={inline ? "auto" : "sheet"}
             onClick={() => void submit(false)}
             disabled={!draft || busy}
-            className={inline ? undefined : "max-sm:h-12 max-sm:w-full max-sm:text-body-lg"}
+            className={inline ? undefined : "sm:h-9 sm:w-auto sm:text-body sm:touch:h-11"}
           >
             Add
           </Button>
@@ -705,7 +709,7 @@ function FactChip({ fact, first, onRemove }: { fact: Fact; first: boolean; onRem
             onClick={onRemove}
             aria-label={`Remove “${text}”`}
             title="Keep these words in the title"
-            className="-my-3 flex size-11 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5"
+            className="-my-3 flex size-11 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5 hit-touch"
           >
             <Icon name="close" size={10} strokeWidth={2} />
           </button>

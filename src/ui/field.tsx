@@ -9,9 +9,9 @@ export type FieldSize = "auto" | "touch" | "desktop";
 const BASE = "w-full rounded-lg border border-line-control bg-surface px-3 text-base text-ink outline-none placeholder:text-ink-4 focus:border-ink focus-visible:outline-none disabled:opacity-60 sm:text-body";
 
 const SIZE: Record<FieldSize, string> = {
-  auto: "h-11 sm:h-9",
+  auto: "h-11 sm:h-9 touch:h-11",
   touch: "h-11",
-  desktop: "h-9",
+  desktop: "h-9 touch:h-11",
 };
 
 export function fieldClass({ size = "auto" }: { size?: FieldSize } = {}): string {

@@ -5,7 +5,7 @@
 // "Not now", Escape and the scrim record only that, so nothing is ever lost.
 // A bottom sheet on a phone, a centred dialog from `sm` up; the list scrolls
 // inside it and the footer keeps the bottom edge above the safe area.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Temporal, formatMinutes, localDate, type Instant, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { Button, buttonClass } from "@/ui/button";
@@ -15,6 +15,7 @@ import { DateField } from "@/ui/date-field";
 import { Segmented } from "@/ui/segmented";
 import { Sheet } from "@/ui/sheet";
 import { useCarryAsks, useRecordAsks } from "@/features/rollover/use-carry-asks";
+import { DefaultEstimate } from "@/features/tasks/default-estimate";
 import { DEFAULT_CHOICE, allFromYesterday, applyChoices, reviewLine, type Choice, type ChoiceRepo } from "./carry-review";
 
 /** The dialog's accessible name. */
@@ -165,10 +166,10 @@ export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose, carryAs
           ))}
         </ul>
         <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-3 sm:py-4">
-          <Button variant="quiet" size="sheet" disabled={busy} onClick={() => void notNow()} className="max-w-32 sm:h-9 sm:w-auto sm:max-w-none sm:text-body">
+          <Button variant="quiet" size="sheet" disabled={busy} onClick={() => void notNow()} className="max-w-32 sm:h-9 sm:w-auto sm:max-w-none sm:text-body sm:touch:h-11">
             Not now
           </Button>
-          <Button variant="primary" size="sheet" disabled={busy} onClick={() => void done()} className="flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body">
+          <Button variant="primary" size="sheet" disabled={busy} onClick={() => void done()} className="flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body sm:touch:h-11">
             Done
           </Button>
         </div>
@@ -213,7 +214,7 @@ function Row({
         <p className="col-start-1 row-start-2 flex items-center gap-1.5 text-label text-ink-2 num sm:mt-0.5">
           {task.carryCount > 1 && <span className="text-ink-3">×{task.carryCount}</span>}
           <Chip tone={task.estimateMin ? "neutral" : "guess"} size="sm">
-            {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
+            {task.estimateMin ? formatMinutes(task.estimateMin) : <GuessText />}
           </Chip>
           {ask && <span className="text-over">Carried over {task.carryCount} times — still want this?</span>}
         </p>
@@ -252,4 +253,9 @@ function Row({
       </div>
     </li>
   );
+}
+
+/** An unestimated task's figure: the account's default with a question mark (PRODUCT_SPEC.md §9.2). */
+function GuessText() {
+  return <>{formatMinutes(useContext(DefaultEstimate))}?</>;
 }

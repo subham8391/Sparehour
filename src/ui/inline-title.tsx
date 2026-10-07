@@ -71,7 +71,7 @@ export function InlineTitle({
         onClick={start}
         aria-label={`${value}, edit`}
         title={`Edit ${label.toLowerCase()}`}
-        className="inline-flex min-h-11 max-w-full items-center rounded-sm text-left underline decoration-line decoration-dashed decoration-1 underline-offset-[6px] transition-[text-decoration-color] dur-fast hover:decoration-line-strong sm:min-h-0"
+        className="inline-flex min-h-11 max-w-full items-center rounded-sm text-left underline decoration-line decoration-dashed decoration-1 underline-offset-[6px] transition-[text-decoration-color] dur-fast hover:decoration-line-strong sm:min-h-0 touch:min-h-11"
       >
         <span className="min-w-0 truncate">{value}</span>
       </button>

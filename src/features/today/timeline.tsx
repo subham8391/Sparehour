@@ -448,7 +448,7 @@ export function Timeline(p: TimelineProps) {
             title={dir === 1 ? "Zoom in (+)" : "Zoom out (-)"}
             disabled={stepZoom(zoom, dir) === zoom}
             onClick={() => setZoom(stepZoom(zoom, dir))}
-            className="flex size-11 items-center justify-center rounded-lg text-body font-medium text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink disabled:text-ink-3 disabled:hover:bg-transparent sm:size-7"
+            className="flex size-11 items-center justify-center rounded-lg text-body font-medium text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink disabled:text-ink-3 disabled:hover:bg-transparent sm:size-7 touch:size-11"
           >
             {dir === 1 ? "+" : "−"}
           </button>

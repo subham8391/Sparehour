@@ -291,6 +291,26 @@ describe("command registry", () => {
     expect(taken.openTask).not.toHaveBeenCalled();
   });
 
+  it("E opens the selected row's estimate presets; the detail's field when that detail is open or no row answers", async () => {
+    const lone = ctxWith();
+    await byId("task.estimate").run(lone);
+    expect(lone.openTask).toHaveBeenCalledWith("t1", "estimate");
+    const { listenForRowRequests } = await import("@/features/tasks/row-request");
+    const asked: string[] = [];
+    const stop = listenForRowRequests((id, request) => {
+      asked.push(`${id}:${request}`);
+      return request === "estimate";
+    });
+    const row = ctxWith();
+    await byId("task.estimate").run(row);
+    const open = ctxWith({ detailId: "t1" });
+    await byId("task.estimate").run(open);
+    stop();
+    expect(asked).toEqual(["t1:estimate"]);
+    expect(row.openTask).not.toHaveBeenCalled();
+    expect(open.openTask).toHaveBeenCalledWith("t1", "estimate");
+  });
+
   it("⌘Enter toggles: a done task reopens, an open one completes", async () => {
     const done = ctxWith({ taskState: vi.fn(async () => "done") });
     await byId("task.complete").run(done);
