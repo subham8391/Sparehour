@@ -105,6 +105,18 @@ describe("<OrganizeIsland> move picker (# and M)", () => {
     expect(s.row("tasks", "t2")).toMatchObject({ project_id: null, state: "inbox" });
   });
 
+  it("one task filed from its detail while other rows are ticked leaves those ticks alone", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: "tick two" }));
+    act(() => requestOrganize({ kind: "move", ids: ["t3"] }));
+    const sheet = await screen.findByRole("dialog", { name: "Move this task to a project" });
+    await user.type(within(sheet).getByRole("combobox"), "garden{Enter}");
+    expect(s.row("tasks", "t3")?.project_id).toBe("p3");
+    await toastWith("Moved “Call” to Garden");
+    expect(screen.getByText("checked: t1,t2")).toBeInTheDocument();
+    expect(s.row("tasks", "t1")?.project_id).toBeNull();
+  });
+
   it("a tap on No project takes a task out of its project", async () => {
     const user = setup();
     act(() => requestOrganize({ kind: "move", ids: ["t3"], areas: true }));
@@ -159,6 +171,13 @@ describe("<OrganizeIsland> duplicate and notices", () => {
     act(() => requestOrganize({ kind: "copy-link", id: "t 1" }));
     expect(writeText).toHaveBeenCalledWith(`${location.origin}/today?task=t%201`);
     expect(within(await toastWith("Link copied")).queryByRole("button")).toBeNull();
+  });
+
+  it("Copy link with no clipboard (an insecure origin) says it couldn’t copy instead of throwing", async () => {
+    setup();
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    expect(() => act(() => requestOrganize({ kind: "copy-link", id: "t1" }))).not.toThrow();
+    expect(await toastWith("Couldn’t copy")).toBeTruthy();
   });
 
   it("a notice is a quiet toast with no Undo", async () => {

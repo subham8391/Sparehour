@@ -25,6 +25,7 @@ const NOTICE_MS = 4000;
 const SPACE_SQL = `select personal_space_id from users limit 1`;
 const NO_ROWS = `select id, name from tags where 0`;
 const TASK_PROJECT_SQL = `select project_id from tasks where id = ?`;
+const NO_COPY = "Couldn’t copy — the browser didn’t allow it.";
 
 /** `<origin>/today?task=<id>`: Today with the task's detail open, on any device signed in (DECISIONS.md "Copy link"). */
 export const taskLink = (id: string, origin = location.origin): string => `${origin}/today?task=${encodeURIComponent(id)}`;
@@ -59,9 +60,11 @@ export function OrganizeIsland() {
           case "copy-link": {
             // Called in the same tick as the tap or key that asked (the island is loaded by then), as browsers require.
             const say = (text: string) => setNotice((n) => ({ text, seq: (n?.seq ?? 0) + 1 }));
+            // No clipboard at all off a secure origin (a phone on the LAN address): say so rather than throw.
+            if (!navigator.clipboard?.writeText) return say(NO_COPY);
             return void navigator.clipboard.writeText(taskLink(r.id)).then(
               () => say("Link copied"),
-              () => say("Couldn’t copy — the browser didn’t allow it."),
+              () => say(NO_COPY),
             );
           }
           case "duplicate":
@@ -98,9 +101,11 @@ export function OrganizeIsland() {
   const { data: attachedRows } = useQuery<{ id: string }>(picking?.kind === "tag" && one ? TASK_TAGS_SQL : NO_ROWS, picking?.kind === "tag" && one ? [one] : []);
   const { data: users } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
 
-  // The picker acted on the ticked rows: they are let go once it has written, as the bulk bar does.
-  const finish = () => {
-    if (selection.checkedIds.length > 0) selection.clearChecks();
+  // The picker acted on the ticked rows: they are let go once it has written, as the bulk bar does. One task filed
+  // from its detail or its row's ⋯ while other rows are ticked leaves those ticks alone.
+  const finish = (ids: readonly string[]) => () => {
+    const ticked = selection.checkedIds;
+    if (ticked.length > 0 && ids.length === ticked.length && ids.every((id) => ticked.includes(id))) selection.clearChecks();
   };
 
   const move = (ids: readonly string[], target: MoveTarget) => {
@@ -111,12 +116,12 @@ export function OrganizeIsland() {
     }
     const note = target.id ? `Moved {title} to ${target.name ?? "the project"}` : "Moved {title} out of its project";
     const write = ids.length === 1 ? repo.update(ids[0], { projectId: target.id }, note) : repo.updateMany(ids, { projectId: target.id }, note);
-    void write.then(finish);
+    void write.then(finish(ids));
   };
   const tag = (ids: readonly string[], name: string) => {
     const spaceId = users?.[0]?.personal_space_id;
     if (!spaceId) return;
-    void tags.attachMany(ids, spaceId, name).then(finish);
+    void tags.attachMany(ids, spaceId, name).then(finish(ids));
   };
 
   const projects = useMemo(
