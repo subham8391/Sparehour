@@ -44,3 +44,17 @@ export async function quickAdd(page: Page, text: string): Promise<void> {
 export function syncChip(page: Page) {
   return page.getByRole("navigation", { name: "Main" }).locator("[data-state]").first();
 }
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Mon 5 Oct" for an ISO date, as the app writes a day this year (core/time/format-day). */
+export function shortDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+/** The weekday of an ISO date: 0 is Sunday. */
+export function weekday(iso: string): number {
+  return new Date(`${iso}T00:00:00Z`).getUTCDay();
+}
