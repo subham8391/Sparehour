@@ -11,9 +11,13 @@ const PowerSyncProvider = dynamic(() => import("@/data/powersync/provider").then
   loading: () => <div className="p-8 text-ink-3">Opening your data…</div>,
 });
 
+// Storage that will not open (a private window, most often) shows the inline error state; it loads only then.
+const StorageError = dynamic(() => import("@/features/pwa/storage-error"), { ssr: false });
+const storageFailed = (error: unknown) => <StorageError error={error} />;
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <PowerSyncProvider>
+    <PowerSyncProvider failed={storageFailed}>
       <RestoreGate>
         <AppShell>{children}</AppShell>
       </RestoreGate>

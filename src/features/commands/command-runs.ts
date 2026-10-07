@@ -7,11 +7,13 @@ import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
+import { requestTriageAll } from "@/features/inbox/triage-request";
 import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
 import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
+import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
@@ -64,6 +66,8 @@ export interface CommandRun {
   passes?: (ctx: CommandContext) => boolean;
   /** The one view the command belongs to (`/today`, or every `/project/…` page): listed elsewhere, but disabled with the reason. */
   onlyOn?: { path: string; reason: string };
+  /** Why it cannot run right now (no timeline on screen, no block selected), or null when it can. */
+  unavailable?: () => string | null;
 }
 
 /** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
@@ -139,6 +143,18 @@ const uncomplete = onTargets(async (ctx, ids) => {
   }
 });
 
+/**
+ * ⌘Enter (SCREENS.md §24 "Complete / un-complete"): a done task reopens (as U does, its own undo entry), anything
+ * else completes, the open ones in one write and one undo (a repeat still rolls on). Mixed ticked rows each toggle.
+ */
+const toggleComplete = onTargets(async (ctx, ids) => {
+  const states = await Promise.all(ids.map((id) => ctx.taskState(id)));
+  const open = ids.filter((_, i) => states[i] !== "done");
+  for (const id of ids.filter((_, i) => states[i] === "done")) await ctx.tasks.reopen(id);
+  if (open.length === 1) await ctx.tasks.complete(open[0]);
+  else if (open.length > 1) await ctx.tasks.completeMany(open);
+});
+
 /** The project a `/project/<id>` path shows, else null. */
 const projectIn = (pathname: string): string | null => {
   const id = /^\/project\/([^/?#]+)/.exec(pathname)?.[1];
@@ -170,9 +186,10 @@ const pick = (kind: "move" | "tag", areas = false) => onTargets((_, ids) => requ
 /** In the registry's order: the palette lists its words over these, by id. */
 export const RUNS: readonly CommandRun[] = [
   // ---- selected task (or every ticked row)
-  { id: "task.open", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.peek", shortcut: "space", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.complete", shortcut: "mod+enter", requiresSelection: true, run: onTargets((ctx, ids) => (ids.length === 1 ? ctx.tasks.complete(ids[0]) : ctx.tasks.completeMany(ids))) },
+  // Space peeks (opens the detail); Enter edits the title in place, or opens the task where no row can (SCREENS.md §24).
+  { id: "task.open", shortcut: "space", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
+  { id: "task.rename", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => void (requestRow(id, "rename") || ctx.openTask(id))) },
+  { id: "task.complete", shortcut: "mod+enter", requiresSelection: true, run: toggleComplete },
   { id: "task.uncomplete", shortcut: "u", requiresSelection: true, run: uncomplete },
   {
     id: "task.today",
@@ -275,6 +292,8 @@ export const RUNS: readonly CommandRun[] = [
   // panel opens (and keeps "today" finding Go to Today first).
   { id: "day.trim", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
   { id: "day.replan", run: (ctx) => ctx.planDay("replan") },
+  // Triage all (SCREENS.md §5): the Inbox's walk, at once or as soon as the Inbox is open.
+  { id: "inbox.triage-all", run: (ctx) => void (requestTriageAll() || ctx.go("/inbox")) },
 
   // ---- list plumbing
   { id: "list.down", shortcut: "j", run: (ctx) => selectNext(ctx, 1) },
@@ -306,6 +325,12 @@ export const RUNS: readonly CommandRun[] = [
     }),
   ),
   { id: "view.show-completed", onlyOn: ON_TODAY, run: () => void requestToday({ kind: "completed" }) },
+  // The timeline on screen (SCREENS.md §2.6, §24): + and - step its rows; with no timeline the keys type as unbound keys do.
+  ...(["zoom-in", "zoom-out"] as const).map(
+    (z): CommandRun => ({ id: `view.${z}`, shortcut: z === "zoom-in" ? "+" : "-", run: () => void requestTimeline(z), passes: () => timelineUnavailable(false) !== null, unavailable: () => timelineUnavailable(false) }),
+  ),
+  // The selected block's Move to…, Duplicate and Rename: no single key (DECISIONS.md "`M` on the timeline"), the toolbar and here.
+  ...(["move", "duplicate", "rename"] as const).map((b): CommandRun => ({ id: `block.${b}`, run: () => void requestTimeline(`${b}-block`), unavailable: () => timelineUnavailable(true) })),
   { id: "view.theme-light", run: (ctx) => ctx.setTheme("light") },
   { id: "view.theme-dark", run: (ctx) => ctx.setTheme("dark") },
   { id: "view.theme-system", run: (ctx) => ctx.setTheme("system") },
@@ -336,5 +361,6 @@ export function availability(command: CommandRun, ctx: Pick<CommandContext, "sel
   const only = command.onlyOn;
   if (only && ctx.pathname !== only.path && !(only.path.endsWith("/") && ctx.pathname?.startsWith(only.path))) return { enabled: false, reason: only.reason };
   if (command.requiresSelection && targets(ctx).length === 0) return { enabled: false, reason: "select a task first" };
-  return { enabled: true };
+  const why = command.unavailable?.();
+  return why ? { enabled: false, reason: why } : { enabled: true };
 }

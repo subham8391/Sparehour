@@ -68,7 +68,7 @@ test.afterAll(async () => {
 const reset = () =>
   withDb((c) => c.query("update public.tasks set project_id = $2, do_date = null, do_time = null, evening = false where title = any($1)", [[T.sheet, T.days, T.filed], ids.home]));
 
-const row = (page: Page, title: string) => page.getByRole("main").getByRole("listitem").filter({ hasText: title });
+const row = (page: Page, title: string) => page.getByRole("main").getByRole("row").filter({ hasText: title });
 
 /** Whether a point at the element's middle lands on the element itself: nothing (the tab bar, the FAB) covers it. */
 const uncovered = (el: Element) => {

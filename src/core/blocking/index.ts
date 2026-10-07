@@ -69,6 +69,45 @@ export function resizeEnd(block: Interval, newEndMin: number): Interval {
   return { start: block.start, end };
 }
 
+/** Resizing from the top edge: the start moves, never before midnight, never closer than five minutes to the end. */
+export function resizeStart(block: Interval, newStartMin: number): Interval {
+  const start = Math.max(0, Math.min(block.end - MIN_BLOCK_MIN, snapTo(newStartMin)));
+  return { start, end: block.end };
+}
+
+/**
+ * An ad-hoc block drawn by dragging on empty timeline space (PRODUCT_SPEC.md §10.2): from where the pointer went
+ * down to where it is, either direction, snapped out to fifteen minutes and never shorter than fifteen.
+ */
+export function drawnBlock(fromMin: number, toMin: number): Interval {
+  const a = clampMinute(Math.min(fromMin, toMin));
+  const b = clampMinute(Math.max(fromMin, toMin));
+  const end = Math.min(24 * 60, Math.max(Math.floor(a / AD_HOC_SNAP_MIN) * AD_HOC_SNAP_MIN + AD_HOC_SNAP_MIN, Math.ceil(b / AD_HOC_SNAP_MIN) * AD_HOC_SNAP_MIN));
+  const start = Math.min(Math.floor(a / AD_HOC_SNAP_MIN) * AD_HOC_SNAP_MIN, end - AD_HOC_SNAP_MIN);
+  return { start, end };
+}
+
+/**
+ * The timeline's zoom (SCREENS.md §2.6, DECISIONS.md "Timeline zoom"): rows of 30, 15 or 5 minutes, each row the
+ * same 33 px, so the default is the design's 66 px per hour.
+ */
+export const ZOOM_STEPS = [30, 15, 5] as const;
+export type ZoomStep = (typeof ZOOM_STEPS)[number];
+const ROW_PX = 33;
+
+/** Pixels per minute at a zoom step. */
+export function pxPerMinute(step: ZoomStep): number {
+  return ROW_PX / step;
+}
+
+/** The next zoom step in (`+`, finer rows) or out (`-`); the ends stay where they are. */
+export function stepZoom(step: ZoomStep, dir: 1 | -1): ZoomStep {
+  const i = Math.max(0, ZOOM_STEPS.indexOf(step));
+  return ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, i + dir))];
+}
+
+export { coveredMinutes, estimateMismatch } from "./coverage";
+
 /** Blocks that overlap each other, for drawing side by side (a block over a meeting is allowed). */
 export function overlaps(a: Interval, b: Interval): boolean {
   return a.start < b.end && b.start < a.end;

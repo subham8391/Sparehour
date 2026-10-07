@@ -62,6 +62,8 @@ export interface TaskDetailPanelProps {
   onDrop: () => void;
   /** Places the task on today's timeline; absent where no day is in view. */
   onBlock?: () => void;
+  /** The task's blocks as field rows (features/blocking/block-rows.tsx), under the Estimate. */
+  blockRows?: ReactNode;
   /** Convert task → project (PRODUCT_SPEC.md §6): the footer's ⋯ and the checklist's ⋯ offer it. */
   onConvert?: () => void;
   /** A copy right after the task, which then opens (SCREENS.md §10 footer ⋯ "Duplicate"). */
@@ -141,7 +143,7 @@ const Clear = ({ children, onClick }: { children: ReactNode; onClick: () => void
  * it again, with focus inside: on its typed field from `sm` up, on the sheet
  * itself on a phone so the keyboard does not cover the choices.
  */
-function FieldRow({
+export function FieldRow({
   label,
   value,
   request = 0,
@@ -479,6 +481,9 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           <FieldRow label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <Chip tone="guess">30m?</Chip>} request={asked("estimate")}>
             {(close) => <EstimatePicker value={task.estimateMin} onChange={(m) => (onPatch({ estimateMin: m }), close())} />}
           </FieldRow>
+
+          {/* The task's blocks, each with start and end fields (SCREENS.md §10 "Blocked 9:30–10:15 · locked"). */}
+          {p.blockRows}
 
           <FieldRow label="Priority" value={task.priority ? <Chip>{PRIORITIES.find((x) => x.value === task.priority)?.label}</Chip> : <Muted>None</Muted>}>
             {(close) => (

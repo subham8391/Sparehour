@@ -50,7 +50,7 @@ describe("the row ⋯ menu", () => {
     render(<Row />);
     const trigger = screen.getByRole("button", { name: "More actions" });
     // The ⋯ sits in the action zone with the inline actions (one element, revealed together).
-    expect(trigger.closest("li")?.querySelector(".sm\\:absolute")?.contains(trigger)).toBe(true);
+    expect(trigger.closest("[role=row]")?.querySelector(".sm\\:absolute")?.contains(trigger)).toBe(true);
     await user.click(trigger);
     await waitFor(() => expect(menuWords()).toEqual(["Today", "Someday", "Move to project…", "Add a tag…", "Duplicate", "Copy link", "This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week", "Move to…"]));
     // The row's own "Tomorrow" stepped aside for the preset: it is listed once.

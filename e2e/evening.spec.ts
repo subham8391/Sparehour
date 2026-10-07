@@ -84,7 +84,7 @@ test("while a row is dragged an empty This Evening shows where to drop it, and t
     );
   });
   await openApp(page, "/today");
-  const row = page.getByRole("listitem").filter({ hasText: dragged });
+  const row = page.getByRole("row").filter({ hasText: dragged });
   await expect(row).toBeVisible();
   const drop = page.getByTestId("section-drop").filter({ hasText: "Drop here for this evening" });
   await expect(drop).toHaveCount(0);
@@ -125,7 +125,7 @@ test("the evening's budget runs from the evening start to the cut-off: under it 
   // Two hours of evening for an hour and a half planned: no line.
   await eveningEndsAt(page, hhmm(startMin + 120));
   await expect(header).toHaveText(/This evening\s*2 · 1h 30m/);
-  await expect(page.getByRole("listitem").filter({ hasText: long })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: long })).toBeVisible();
   await expect(full).toHaveCount(0);
 
   // One hour: full. The header keeps its own words; the line is quiet, under it.

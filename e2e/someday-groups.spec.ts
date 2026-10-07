@@ -57,7 +57,7 @@ test.describe("grouped by project, with the row actions", () => {
     await openApp(page, "/someday");
     const inProject = page.getByRole("region", { name: project!.name, exact: true });
     const loose = page.getByRole("region", { name: "Not in a project" });
-    const rowIn = (where: typeof loose, title: string) => where.getByRole("listitem").filter({ hasText: title });
+    const rowIn = (where: typeof loose, title: string) => where.getByRole("row").filter({ hasText: title });
     await expect(rowIn(inProject, toToday)).toBeVisible();
     await expect(rowIn(inProject, toActive)).toBeVisible();
     await expect(rowIn(loose, toDate)).toBeVisible();
@@ -189,7 +189,7 @@ test.describe("the auto-filed group", () => {
   test("the auto-filed task is pinned and announced once; Bring them all back restores it, and ⌘Z parks it again", async ({ page }) => {
     await openApp(page, "/someday");
     const group = page.getByRole("region", { name: "Moved here automatically" });
-    await expect(group.getByRole("listitem").filter({ hasText: filed })).toBeVisible();
+    await expect(group.getByRole("row").filter({ hasText: filed })).toBeVisible();
     await expect(group).toContainText(/You hadn.t touched these in \d+ days\./);
     // Pinned above every other group.
     const groups = await page.locator("main section[aria-label]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
@@ -208,12 +208,12 @@ test.describe("the auto-filed group", () => {
     await expect(group).toHaveCount(0);
     // Back to active, and the server's stamp is gone with the move.
     expect(await waitForRow("select id from public.tasks where title = $1 and state = 'active' and auto_filed_at is null and do_date is null", [filed])).not.toBeNull();
-    await expect(page.getByRole("listitem").filter({ hasText: filed })).toHaveCount(0);
+    await expect(page.getByRole("row").filter({ hasText: filed })).toHaveCount(0);
 
     // One undo for the batch: parked again, now as an ordinary Someday task (a person can clear the stamp, never set it).
     await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
     expect(await waitForRow("select id from public.tasks where title = $1 and state = 'someday' and auto_filed_at is null and do_date is null", [filed])).not.toBeNull();
-    await expect(page.getByRole("region", { name: "Not in a project" }).getByRole("listitem").filter({ hasText: filed })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Not in a project" }).getByRole("row").filter({ hasText: filed })).toBeVisible();
     await expect(page.getByRole("region", { name: "Moved here automatically" })).toHaveCount(0);
   });
 });

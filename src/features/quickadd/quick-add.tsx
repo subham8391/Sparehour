@@ -6,7 +6,7 @@
 // "← Quick add"; from the narrow band up, a dialog under the top edge
 // (DESIGN_SYSTEM.md §5 "Sheet"). Presentational and testable: data arrives as
 // props.
-import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { parse, type ParseContext, type ParseResult, type Range, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Button } from "@/ui/button";
@@ -51,6 +51,13 @@ export interface QuickAddSubmission {
 
 /** A save, resolved to the id of the task it created (the paste's undo needs them all). */
 export type QuickAddSave = (submission: QuickAddSubmission) => Promise<string | void>;
+
+/**
+ * Saves the words still in the box as Enter would, after anything still saving: true once everything typed is
+ * saved (or the box was empty), false when it could not be (no name yet, or the save failed and the words are
+ * back in the box with the reason). A page that holds the composer calls it before it moves on, so no line is lost.
+ */
+export type QuickAddFlush = () => Promise<boolean>;
 
 type Parsed = Extract<ParseResult, { ok: true }>;
 
@@ -206,6 +213,15 @@ export interface QuickAddProps {
   onSubmit: QuickAddSave;
   onPasted?: (ids: readonly string[]) => (() => Promise<void>) | null | undefined;
   onDiscard?: (text: string, title: string) => void;
+  /** The first run's brain dump: the same composer in the page, not a sheet (ONBOARDING.md step 3). */
+  inline?: boolean;
+  placeholder?: string;
+  /** Said under the box until the line has something to restate. */
+  hint?: ReactNode;
+  /** How the line will be saved when the caller files it its own way (the brain dump puts it on today). */
+  shape?: (draft: TaskDraft) => TaskDraft;
+  /** Set to the composer's flush, for a page that moves on while words may still be in the box (the brain dump). */
+  flushRef?: Ref<QuickAddFlush>;
 }
 
 export function QuickAdd({
@@ -218,6 +234,11 @@ export function QuickAdd({
   onSubmit,
   onPasted,
   onDiscard,
+  inline = false,
+  placeholder,
+  hint,
+  shape,
+  flushRef,
 }: {
   open: boolean;
   initial?: string;
@@ -230,6 +251,11 @@ export function QuickAdd({
   onPasted?: (ids: readonly string[]) => (() => Promise<void>) | null | undefined;
   /** The sheet closed with words in the box: `text` as typed, `title` as the strip would save it (§5.1 rule 4). */
   onDiscard?: (text: string, title: string) => void;
+  inline?: boolean;
+  placeholder?: string;
+  hint?: ReactNode;
+  shape?: (draft: TaskDraft) => TaskDraft;
+  flushRef?: Ref<QuickAddFlush>;
 }) {
   // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title
   // text while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
@@ -294,7 +320,7 @@ export function QuickAdd({
   const tagKnown = tagSpan ? resolveTag(tagName, tags) : null;
   const tagSuggestions = tagSpan && !tagKnown ? tagMatches(tagName, tags).slice(0, 3) : [];
   const newTags = draft ? draft.tagNames.filter((t) => !resolveTag(t, tags)) : [];
-  const interpretation = draft ? interpret(draft, ctx.today, projectLabel, newTags) : null;
+  const interpretation = draft ? interpret(shape ? shape(draft) : draft, ctx.today, projectLabel, newTags) : null;
   /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
   const needsName = !result.ok && value.trim() !== "";
 
@@ -353,8 +379,11 @@ export function QuickAdd({
   // Brain-dump mode (PRODUCT_SPEC.md §5.1 rule 4): Enter clears the box at once and the save runs behind it,
   // one after another in the order asked, so the next line can be typed while the last one is still saving.
   const saves = useRef<Promise<unknown>>(Promise.resolve());
-  const submit = (close: boolean) => {
-    if (!result.ok || busy) return;
+  /** How many of those saves have not settled yet. */
+  const inFlight = useRef(0);
+  /** Resolves true once this line is saved, false when it could not be (its words are back in the box). */
+  const submit = (close: boolean): Promise<boolean> => {
+    if (!result.ok || busy) return Promise.resolve(false);
     const text = value;
     const literal = line.literal;
     const filed = fileLine(text, result, projects, parseCtx, choice, literal);
@@ -362,21 +391,35 @@ export function QuickAdd({
     setCreateProject(false);
     setPicked(null);
     setError(null);
-    saves.current = saves.current
+    inFlight.current += 1;
+    const saved = saves.current
       .then(() => onSubmit(filed.submission))
       .then(
         () => {
           setNotice({ text: addedNotice(filed) });
           if (close) onClose();
+          return true;
         },
         (e: unknown) => {
           setNotice(null);
           setError(`Couldn't save “${filed.title}”: ${reason(e)}`);
           // The words come back unless something new has been typed since.
           setLine((now) => (now.text.trim() === "" ? { text, literal } : now));
+          return false;
         },
-      );
+      )
+      .finally(() => {
+        inFlight.current -= 1;
+      });
+    saves.current = saved;
+    return saved;
   };
+  // Words in the box are saved as Enter would save them; an empty box waits for the saves still under way, and is
+  // false when the last of them failed (its words are back in the box with the reason).
+  useImperativeHandle(flushRef, () => () => {
+    if (value.trim() !== "") return submit(false);
+    return inFlight.current === 0 ? Promise.resolve(true) : saves.current.then((ok) => ok !== false);
+  });
 
   // Closing with words in the box discards them, and offers them back once (§5.1 rule 4); an empty box just closes.
   const dismiss = () => {
@@ -391,7 +434,7 @@ export function QuickAdd({
     if (e.key === "Enter") {
       e.preventDefault();
       void submit(e.metaKey || e.ctrlKey);
-    } else if (e.key === "Escape") {
+    } else if (e.key === "Escape" && !inline) {
       e.preventDefault();
       dismiss();
     } else if (e.key === "Backspace" && !wasBackspacing && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -467,15 +510,17 @@ export function QuickAdd({
   if (!open) return null;
 
   return (
-    <Sheet label="Add a task" onClose={dismiss} width="lg">
-      <div className="flex flex-col gap-3 p-4 sm:p-5">
+    <Frame inline={inline} onClose={dismiss}>
+      <div className={cx("flex flex-col gap-3", !inline && "p-4 sm:p-5")}>
         {/* The phone sheet's way back (SCREENS.md §22 "← Quick add"): the keyboard hides the scrim and there is no Esc key. */}
-        <div className="-mt-2 -ml-3 flex items-center gap-1 sm:hidden">
-          <Button variant="icon" aria-label="Close" onClick={dismiss}>
-            <Icon name="arrow-left" size={18} />
-          </Button>
-          <h2 className="text-body-lg font-medium text-ink">Quick add</h2>
-        </div>
+        {!inline && (
+          <div className="-mt-2 -ml-3 flex items-center gap-1 sm:hidden">
+            <Button variant="icon" aria-label="Close" onClick={dismiss}>
+              <Icon name="arrow-left" size={18} />
+            </Button>
+            <h2 className="text-body-lg font-medium text-ink">Quick add</h2>
+          </div>
+        )}
         <div className="relative">
           {/* The painted line sits under the box: the same metrics, the box's own border width added to the padding, so the glyphs land exactly under the caret. */}
           <div ref={paintRef} aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-lg bg-surface px-[calc(0.875rem+1px)] text-base whitespace-pre text-ink">
@@ -505,8 +550,8 @@ export function QuickAdd({
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
-            enterKeyHint="done"
-            placeholder={narrow ? PLACEHOLDER_NARROW : PLACEHOLDER}
+            enterKeyHint={inline ? "enter" : "done"}
+            placeholder={placeholder ?? (narrow ? PLACEHOLDER_NARROW : PLACEHOLDER)}
             className={cx(LINE, "relative bg-transparent text-transparent caret-ink")}
           />
         </div>
@@ -521,7 +566,7 @@ export function QuickAdd({
           ) : needsName ? (
             <span className="text-ink-2">Give it a name</span>
           ) : (
-            <span className="text-ink-3">Dates, times, ~estimates, #projects, @tags and !priority are understood.</span>
+            <span className="text-ink-3">{hint ?? "Dates, times, ~estimates, #projects, @tags and !priority are understood."}</span>
           )}
           {interpretation && (
             <span className="inline-flex items-center gap-1">
@@ -574,16 +619,18 @@ export function QuickAdd({
           )
         )}
 
-        <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
-          {SUGGESTIONS.map((s) => (
-            <button key={s.label} type="button" onClick={() => insert(s.insert)} className={SUGGEST}>
-              {s.label}
-            </button>
-          ))}
-        </div>
+        {!inline && (
+          <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
+            {SUGGESTIONS.map((s) => (
+              <button key={s.label} type="button" onClick={() => insert(s.insert)} className={SUGGEST}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <div className="flex items-center justify-between gap-3">
-          <p className="hidden items-center gap-4 text-body-sm text-ink-2 sm:flex">
+        <div className={cx("flex items-center gap-3", inline ? "justify-end" : "justify-between")}>
+          <p className={cx("hidden items-center gap-4 text-body-sm text-ink-2", !inline && "sm:flex")}>
             <span className="inline-flex items-center gap-1.5">
               <Kbd>⏎</Kbd> save and keep going
             </span>
@@ -594,7 +641,14 @@ export function QuickAdd({
               <Kbd>esc</Kbd> discard
             </span>
           </p>
-          <Button variant="primary" size="desktop" onClick={() => void submit(false)} disabled={!draft || busy} className="max-sm:h-12 max-sm:w-full max-sm:text-body-lg">
+          {/* In the page the step's own button is the primary; Add stays as the tap path for a keyboard without Enter. */}
+          <Button
+            variant={inline ? "secondary" : "primary"}
+            size={inline ? "auto" : "desktop"}
+            onClick={() => void submit(false)}
+            disabled={!draft || busy}
+            className={inline ? undefined : "max-sm:h-12 max-sm:w-full max-sm:text-body-lg"}
+          >
             Add
           </Button>
         </div>
@@ -614,6 +668,16 @@ export function QuickAdd({
           </p>
         )}
       </div>
+    </Frame>
+  );
+}
+
+/** The composer's frame: the sheet, or nothing of its own when a page holds it (the brain dump). */
+function Frame({ inline, onClose, children }: { inline: boolean; onClose: () => void; children: ReactNode }) {
+  if (inline) return children;
+  return (
+    <Sheet label="Add a task" onClose={onClose} width="lg">
+      {children}
     </Sheet>
   );
 }

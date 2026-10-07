@@ -81,7 +81,7 @@ test.afterAll(async () => {
 
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {
-  const row = page.getByRole("listitem").filter({ hasText: title });
+  const row = page.getByRole("row").filter({ hasText: title });
   await row.getByRole("button", { name: title, exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
@@ -109,12 +109,12 @@ test("an area's project card says what was done this week and what is open; its 
   await expect(card.getByTestId("project-progress")).toBeAttached();
 
   const tasks = page.getByRole("region", { name: `Tasks in ${areaOne}` });
-  await expect(tasks.getByRole("listitem").filter({ hasText: T.inArea })).toBeVisible();
+  await expect(tasks.getByRole("row").filter({ hasText: T.inArea })).toBeVisible();
   // The add row files a new task in the area itself, with no project.
   const add = tasks.getByRole("textbox", { name: `Add to ${areaOne}` });
   await add.fill(T.added);
   await add.press("Enter");
-  await expect(tasks.getByRole("listitem").filter({ hasText: T.added })).toBeVisible();
+  await expect(tasks.getByRole("row").filter({ hasText: T.added })).toBeVisible();
   expect(await waitForRow("select 1 from public.tasks where title = $1 and area_id = $2 and project_id is null", [T.added, ids.areaOne])).not.toBeNull();
 });
 
@@ -152,7 +152,7 @@ test("Browse's ⋯ moves an area up (⌘Z puts it back) and a project to another
 test("the detail's Project field files a task loose in an area, out of its project", async ({ page }) => {
   await reset();
   await openApp(page, `/project/${ids.loose}`);
-  await page.getByRole("listitem").filter({ hasText: T.byDetail }).getByRole("button", { name: T.byDetail, exact: true }).click();
+  await page.getByRole("row").filter({ hasText: T.byDetail }).getByRole("button", { name: T.byDetail, exact: true }).click();
   const panel = page.getByRole("complementary", { name: "Task" });
   await panel.getByRole("button", { name: /^Project/ }).click();
   await page.getByRole("dialog", { name: "Project" }).getByRole("button", { name: `Area ${areaOne}` }).click();
@@ -160,10 +160,10 @@ test("the detail's Project field files a task loose in an area, out of its proje
   // The field names the area now, and the task has left the project's list.
   await expect(panel.getByRole("button", { name: /^Project/ })).toContainText(areaOne);
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("main").getByRole("listitem").filter({ hasText: T.byDetail })).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("row").filter({ hasText: T.byDetail })).toHaveCount(0);
 
   await openApp(page, `/area/${ids.areaOne}`);
-  await expect(page.getByRole("region", { name: `Tasks in ${areaOne}` }).getByRole("listitem").filter({ hasText: T.byDetail })).toBeVisible();
+  await expect(page.getByRole("region", { name: `Tasks in ${areaOne}` }).getByRole("row").filter({ hasText: T.byDetail })).toBeVisible();
 });
 
 test("M lists the areas after the projects; one files the selected task loose in it, and ⌘Z puts it back", async ({ page }) => {
@@ -187,7 +187,7 @@ test("M lists the areas after the projects; one files the selected task loose in
 });
 
 test("search: every word in any order, a title match above a note match, archived only on asking, and the area chip takes loose tasks", async ({ page }) => {
-  const results = () => page.locator("section").filter({ has: page.getByRole("heading", { name: /^Tasks/ }) }).getByRole("listitem");
+  const results = () => page.locator("section").filter({ has: page.getByRole("heading", { name: /^Tasks/ }) }).getByRole("row");
   const titles = async () => (await results().allTextContents()).map((t) => Object.values(T).find((title) => t.includes(title)) ?? t);
 
   // "proposal <word>": the title holding both words, then the task whose note holds "proposal", though touched later.

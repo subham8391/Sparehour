@@ -79,6 +79,8 @@ export const user_settings = new Table({
   today_sort: column.text,
   /** Today's ⋯ Show completed: today's finished tasks under a Done divider. */
   show_completed: column.integer,
+  /** When the first run (working hours, brain dump) was finished or skipped; null sends a new account to /welcome. */
+  onboarded_at: column.text,
   created_at: column.text,
   updated_at: column.text,
 });

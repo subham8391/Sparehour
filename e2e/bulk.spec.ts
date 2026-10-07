@@ -10,8 +10,8 @@ test("X ticks, the bulk bar moves both to today, one undo puts both back", async
   const b = uniqueTitle("bulk b");
   await quickAdd(page, a);
   await quickAdd(page, b);
-  const rowA = page.getByRole("listitem").filter({ hasText: a });
-  const rowB = page.getByRole("listitem").filter({ hasText: b });
+  const rowA = page.getByRole("row").filter({ hasText: a });
+  const rowB = page.getByRole("row").filter({ hasText: b });
   // The title selects the row and opens the detail; Escape closes the detail and keeps the selection (the chips sit under the hover actions).
   await rowA.getByRole("button", { name: a, exact: true }).click();
   await page.keyboard.press("Escape");
@@ -29,5 +29,5 @@ test("X ticks, the bulk bar moves both to today, one undo puts both back", async
 
   await page.getByRole("button", { name: "Undo" }).click();
   expect(await waitForRow("select count(*)::int as n from public.tasks where title in ($1, $2) and do_date is null having count(*) = 2", [a, b])).not.toBeNull();
-  await expect(page.getByRole("listitem").filter({ hasText: a })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: a })).toBeVisible();
 });

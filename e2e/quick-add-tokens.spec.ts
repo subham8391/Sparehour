@@ -109,7 +109,7 @@ test("'evening' alone lands in This evening today; a bare time that has passed l
   await expect(box).toHaveCount(0);
   // Today's own list draws it under "This evening", not in the day's list.
   const thisEvening = page.locator("section").filter({ has: page.getByRole("heading", { name: /^This evening/ }) });
-  await expect(thisEvening.getByRole("listitem").filter({ hasText: evening })).toBeVisible();
+  await expect(thisEvening.getByRole("row").filter({ hasText: evening })).toBeVisible();
 });
 
 test("@ offers the tags that fit and Tab completes one; an unknown name offers Create, and the tag is made once", async ({ page }) => {

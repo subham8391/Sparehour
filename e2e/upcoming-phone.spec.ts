@@ -104,15 +104,15 @@ test("a row's More actions moves the task to tomorrow; both days' readouts follo
   await page.setViewportSize({ width: 360, height: 780 });
   await openApp(page, "/upcoming");
   const [from, to] = [isoPlus(me.today, 3), isoPlus(me.today, 1)];
-  const row = day(page, from).getByRole("listitem").filter({ hasText: moved });
+  const row = day(page, from).getByRole("row").filter({ hasText: moved });
   await expect(row).toBeVisible();
   await settled(page, from, to);
   const before = { from: await readValue(page, from), to: await readValue(page, to) };
 
   await row.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Tomorrow" }).click();
-  await expect(day(page, to).getByRole("listitem").filter({ hasText: moved })).toBeVisible();
-  await expect(day(page, from).getByRole("listitem").filter({ hasText: moved })).toHaveCount(0);
+  await expect(day(page, to).getByRole("row").filter({ hasText: moved })).toBeVisible();
+  await expect(day(page, from).getByRole("row").filter({ hasText: moved })).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [moved, to])).not.toBeNull();
   await expect.poll(() => readValue(page, from)).toBe(before.from + 50);
   await expect.poll(() => readValue(page, to)).toBe(before.to - 50);

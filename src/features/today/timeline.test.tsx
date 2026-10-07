@@ -96,13 +96,13 @@ describe("<Timeline>", () => {
     const { rerender } = render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} placing={{ title: "Call Mum" }} onTapSlot={onTapSlot} onSelectBlock={onSelectBlock} />);
     const timeline = screen.getByTestId("timeline");
     expect(timeline).toHaveAttribute("aria-label", "Tap a time for Call Mum");
-    // jsdom lays the timeline out at y = 0, and the drawn range opens at 08:00, an hour before the working day:
-    // 121 px down is 110 minutes in, 09:50, snapped to five.
-    fireEvent.click(timeline, { clientY: 121 });
+    // jsdom lays the timeline out at y = 0, and the whole day is drawn from midnight: 650 px down is 590.9
+    // minutes in, 09:50 snapped to five.
+    fireEvent.click(timeline, { clientY: 650 });
     expect(onTapSlot).toHaveBeenCalledWith(590);
     expect(onSelectBlock).not.toHaveBeenCalled();
     rerender(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={blocks} placing={null} onTapSlot={onTapSlot} onSelectBlock={onSelectBlock} />);
-    fireEvent.click(timeline, { clientY: 121 });
+    fireEvent.click(timeline, { clientY: 650 });
     expect(onTapSlot).toHaveBeenCalledTimes(1);
     expect(onSelectBlock).toHaveBeenCalledWith(null);
   });
@@ -115,33 +115,33 @@ describe("<Timeline>", () => {
     expect(screen.queryByRole("button", { name: /Resize block/ })).not.toBeInTheDocument();
   });
 
-  it("draws blocks outside working hours inside itself: the range widens to them, labels their hours and dims what is not the working day", () => {
+  it("draws the whole day: blocks outside working hours sit at their times, every hour is labelled and what is not the working day is dimmed", () => {
     // A 07:30 run before a 09:00–18:00 day, and a 19:30 call after it (PRODUCT_SPEC.md §10.2: allowed).
     const early: TimelineBlock = { id: "b-early", taskId: null, title: "Gym", start: 450, end: 480, locked: false };
     const late: TimelineBlock = { id: "b-late", taskId: null, title: "Call Sydney", start: 1170, end: 1200, locked: false };
     render(<Timeline c={{ ...capacity, outsideHoursMin: 60 }} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={[early, ...blocks, late]} />);
     const timeline = screen.getByTestId("timeline");
-    // 07:00 to 20:00: the earliest block's hour to the latest block's end.
+    // 00:00 to 24:00, scrolled to open on the working day.
     const height = parseFloat(timeline.style.height);
-    expect(height).toBeCloseTo((1200 - 420) * PX_PER_MIN);
+    expect(height).toBeCloseTo(1440 * PX_PER_MIN);
     const top = (name: RegExp) => parseFloat((screen.getByRole("button", { name }).parentElement as HTMLElement).style.top);
-    expect(top(/Block: Gym, 07:30 to 08:00/)).toBeCloseTo(30 * PX_PER_MIN + 1);
-    expect(top(/Block: Call Sydney, 19:30 to 20:00/)).toBeCloseTo((1170 - 420) * PX_PER_MIN + 1);
+    expect(top(/Block: Gym, 07:30 to 08:00/)).toBeCloseTo(450 * PX_PER_MIN + 1);
+    expect(top(/Block: Call Sydney, 19:30 to 20:00/)).toBeCloseTo(1170 * PX_PER_MIN + 1);
     expect(top(/Block: Call Sydney/)).toBeLessThan(height);
-    for (const label of ["07:00", "08:00", "19:00", "20:00"]) expect(screen.getByText(label)).toBeInTheDocument();
+    for (const label of ["00:00", "07:00", "08:00", "19:00", "20:00", "23:00"]) expect(screen.getByText(label)).toBeInTheDocument();
     // The two stretches outside 09:00–18:00 are dimmed; the working day is not.
     const dimmed = screen.getAllByTestId("outside-hours").map((d) => [parseFloat(d.style.top), parseFloat(d.style.height)]);
     expect(dimmed).toHaveLength(2);
     expect(dimmed[0][0]).toBeCloseTo(0);
-    expect(dimmed[0][1]).toBeCloseTo(120 * PX_PER_MIN);
-    expect(dimmed[1][0]).toBeCloseTo((1080 - 420) * PX_PER_MIN);
-    expect(dimmed[1][1]).toBeCloseTo(120 * PX_PER_MIN);
+    expect(dimmed[0][1]).toBeCloseTo(540 * PX_PER_MIN);
+    expect(dimmed[1][0]).toBeCloseTo(1080 * PX_PER_MIN);
+    expect(dimmed[1][1]).toBeCloseTo(360 * PX_PER_MIN);
   });
 
   it("shows the now line after the working day, and draws everything as past once the planned day is over", () => {
     const { unmount } = render(<Timeline c={capacity} now={instant("2026-09-14T19:15:00Z")} zone="UTC" blocks={blocks} />);
     expect(screen.getByText("19:15")).toBeInTheDocument();
-    expect(parseFloat(screen.getByTestId("timeline").style.height)).toBeCloseTo((1200 - 480) * PX_PER_MIN);
+    expect(parseFloat(screen.getByTestId("timeline").style.height)).toBeCloseTo(1440 * PX_PER_MIN);
     unmount();
     // 01:30 the next morning still belongs to the 14th's plan (the day rolls over at 04:00): no now line at 01:30 of the 14th.
     render(<Timeline c={capacity} now={instant("2026-09-15T01:30:00Z")} zone="UTC" blocks={blocks} />);

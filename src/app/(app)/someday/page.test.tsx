@@ -51,7 +51,7 @@ function setup() {
 }
 
 const section = (name: string) => screen.getByRole("region", { name });
-const titlesIn = (name: string) => within(section(name)).getAllByRole("listitem").map((li) => li.textContent ?? "");
+const titlesIn = (name: string) => within(section(name)).getAllByRole("row").map((li) => li.textContent ?? "");
 
 describe("Someday (SCREENS.md §7)", () => {
   beforeEach(() => {
@@ -97,7 +97,7 @@ describe("Someday (SCREENS.md §7)", () => {
 
   it("every row offers Today · Pick a date · Back to active · Drop", async () => {
     const user = setup();
-    const row = within(section("Not in a project")).getAllByRole("listitem")[0];
+    const row = within(section("Not in a project")).getAllByRole("row")[0];
     for (const name of ["Today", "Pick a date", "Back to active", "Drop"]) expect(within(row).getAllByRole("button", { name }).length).toBeGreaterThan(0);
     await user.click(within(row).getAllByRole("button", { name: "Back to active" })[0]);
     const call = execute.mock.calls.find((c) => String(c[0]).startsWith("update tasks set state = ?"));
@@ -107,7 +107,7 @@ describe("Someday (SCREENS.md §7)", () => {
 
   it("a long task's hint is answered: Break it down converts it (PRODUCT_SPEC.md §5.4)", async () => {
     const user = setup();
-    const row = within(section("Not in a project")).getAllByRole("listitem")[0];
+    const row = within(section("Not in a project")).getAllByRole("row")[0];
     expect(row).toHaveTextContent("Long — break it down?");
     getOptional.mockClear();
     await user.click(within(row).getAllByRole("button", { name: "Break it down" })[0]);
@@ -116,7 +116,7 @@ describe("Someday (SCREENS.md §7)", () => {
 
   it("Pick a date opens the day picker: the next seven days and the date field", async () => {
     const user = setup();
-    const row = within(section("Not in a project")).getAllByRole("listitem")[0];
+    const row = within(section("Not in a project")).getAllByRole("row")[0];
     await user.click(within(row).getAllByRole("button", { name: "Pick a date" })[0]);
     const picker = await screen.findByRole("dialog", { name: "Pick a date" });
     expect(within(picker).getAllByRole("listitem")).toHaveLength(7);

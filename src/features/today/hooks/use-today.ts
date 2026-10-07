@@ -113,7 +113,8 @@ export interface TodayModel {
   eveningTasks: Task[];
   /** Today's blocks, in the user's zone, with the task's title when it has one. */
   blocks: TimelineBlock[];
-  blockByTask: ReadonlyMap<string, TimelineBlock>;
+  /** Each task's blocks today, earliest first: a task may have several (PRODUCT_SPEC.md §10.2 "Multiple blocks per task"). */
+  blocksByTask: ReadonlyMap<string, readonly TimelineBlock[]>;
   /** Today's timed meetings with their titles; the capacity's busy intervals stay the geometry, these only name them. */
   meetings: TimelineMeeting[];
   repo: TaskRepo;
@@ -183,7 +184,8 @@ export function useToday(now: Temporal.Instant): TodayModel {
 
     const zone = settings?.timezone ?? "UTC";
     const blocks = timelineBlocks(blockRows ?? [], blockTasks, zone, today);
-    const blockByTask = new Map<string, TimelineBlock>(blocks.filter((b) => b.taskId).map((b) => [b.taskId as string, b]));
+    const blocksByTask = new Map<string, TimelineBlock[]>();
+    for (const b of blocks) if (b.taskId) blocksByTask.set(b.taskId, [...(blocksByTask.get(b.taskId) ?? []), b]);
     // PRODUCT_SPEC.md §10.3 rule 7: a private calendar shows its events as "Busy"; a calendar switched off does not show at all.
     const privateIds = new Set((calendarRows ?? []).filter((c) => c.private === 1).map((c) => c.id));
     const meetings: TimelineMeeting[] = (eventRows ?? [])
@@ -214,7 +216,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
       todayTasks: onDay.filter((t) => !t.evening),
       eveningTasks: onDay.filter((t) => t.evening),
       blocks,
-      blockByTask,
+      blocksByTask,
       meetings,
       repo,
       // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: one line when the calendar has a problem.

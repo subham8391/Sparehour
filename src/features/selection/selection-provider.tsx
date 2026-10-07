@@ -2,7 +2,7 @@
 // One selected row per view, shared with the keyboard layer, plus the rows
 // ticked for a bulk edit. A view registers its rows in order; the selection
 // survives re-renders and moves to the neighbour when its row leaves.
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from "react";
 import { EMPTY_SELECTION, checkAll, checkRange, clearChecks, move, reconcile, select, toggleCheck, type SelectionState } from "./selection";
 
 type Action =
@@ -44,12 +44,16 @@ interface SelectionApi {
   checkAll: () => void;
   clearChecks: () => void;
   register: (ids: readonly string[], groups?: readonly (readonly string[])[]) => void;
+  /** Bulk mode with nothing ticked yet: a view's "Select" (the Inbox's, SCREENS.md §5) shows every row's checkbox, as a long-press does. */
+  selecting: boolean;
+  setSelecting: (on: boolean) => void;
 }
 
 const SelectionContext = createContext<SelectionApi | null>(null);
 
 export function SelectionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, EMPTY_SELECTION);
+  const [selecting, setSelecting] = useState(false);
   // Stable callbacks: views register their rows in effects keyed on these,
   // so a changing identity would clear and re-register on every selection.
   const select = useCallback((id: string | null) => dispatch({ type: "select", id }), []);
@@ -60,8 +64,20 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => dispatch({ type: "clear" }), []);
   const register = useCallback((ids: readonly string[], groups?: readonly (readonly string[])[]) => dispatch({ type: "register", ids, groups }), []);
   const api = useMemo<SelectionApi>(
-    () => ({ selectedId: state.selectedId, checkedIds: state.checked, select, moveSelection, toggleCheck: toggle, checkRange: range, checkAll: all, clearChecks: clear, register }),
-    [state.selectedId, state.checked, select, moveSelection, toggle, range, all, clear, register],
+    () => ({
+      selectedId: state.selectedId,
+      checkedIds: state.checked,
+      select,
+      moveSelection,
+      toggleCheck: toggle,
+      checkRange: range,
+      checkAll: all,
+      clearChecks: clear,
+      register,
+      selecting,
+      setSelecting,
+    }),
+    [state.selectedId, state.checked, select, moveSelection, toggle, range, all, clear, register, selecting],
   );
   return <SelectionContext.Provider value={api}>{children}</SelectionContext.Provider>;
 }

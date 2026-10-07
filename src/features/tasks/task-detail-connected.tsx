@@ -16,6 +16,7 @@ import type { SeriesRepo } from "@/data/repositories/series-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
+import { BlockRows } from "@/features/blocking/block-rows";
 import { preloadMarkdown } from "@/ui/note-field";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { requestOrganize } from "./organize";
@@ -100,6 +101,7 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onSomeday={() => void repo.setState(task.id, "someday").then(onClose)}
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
+      blockRows={<BlockRows taskId={task.id} estimateMin={task.estimateMin} zone={zone} today={today} />}
       onConvert={() => void convert(task.id)}
       onDuplicate={() => requestOrganize({ kind: "duplicate", id: task.id })}
       onMovePicker={() => requestOrganize({ kind: "move", ids: [task.id] })}

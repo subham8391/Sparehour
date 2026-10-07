@@ -56,7 +56,7 @@ const TASK = "select t.* from public.tasks t where t.title = $1";
 
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {
-  const row = page.getByRole("listitem").filter({ hasText: title });
+  const row = page.getByRole("row").filter({ hasText: title });
   await row.getByRole("button", { name: title, exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
@@ -149,7 +149,7 @@ test("with two rows ticked, E sets both estimates in one write, and one ⌘Z tak
   const one = await select(page, bulkOne);
   await page.keyboard.press("x");
   await expect(one).toHaveAttribute("data-ticked", "true");
-  const two = page.getByRole("listitem").filter({ hasText: bulkTwo });
+  const two = page.getByRole("row").filter({ hasText: bulkTwo });
   await two.getByRole("checkbox", { name: `Select ${bulkTwo}` }).check();
   await expect(two).toHaveAttribute("data-ticked", "true");
   // The keys are the page's, not the focused checkbox's.
@@ -179,7 +179,7 @@ test("with two rows ticked, E sets both estimates in one write, and one ⌘Z tak
 
 test("a deadline before the do-date says so in the detail, and Do it by then moves the day to the deadline", async ({ page }) => {
   await openApp(page, `/project/${projectId}`);
-  const row = page.getByRole("listitem").filter({ hasText: early });
+  const row = page.getByRole("row").filter({ hasText: early });
   await row.getByRole("button", { name: early, exact: true }).click();
   const panel = page.getByRole("complementary", { name: "Task" });
   const hint = panel.getByText("Due before you plan to do it");

@@ -59,7 +59,7 @@ test.afterAll(async () => {
 /** Every task of the spec's project back to no day (each test starts from there, run once or again). */
 const undated = () => withDb((c) => c.query("update public.tasks set do_date = null, do_time = null, evening = false where project_id = $1", [projectId]));
 
-const row = (page: Page, title: string) => page.getByRole("main").getByRole("listitem").filter({ hasText: title });
+const row = (page: Page, title: string) => page.getByRole("main").getByRole("row").filter({ hasText: title });
 
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {

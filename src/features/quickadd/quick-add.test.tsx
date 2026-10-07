@@ -439,4 +439,20 @@ describe("<QuickAdd>", () => {
     const { container } = render(<QuickAdd open={false} projects={projects} ctx={ctx} onClose={() => {}} onSubmit={async () => {}} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("inline (the first run's brain dump): in the page, its own placeholder and hint, the strip as the caller files it, Esc keeps the words", async () => {
+    const onDiscard = vi.fn();
+    const { user, input, onClose } = setup({ inline: true, placeholder: "Call the plumber", hint: "Try 3pm", shape: (d) => ({ ...d, doDate: ctx.today }), onDiscard });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Suggestions" })).not.toBeInTheDocument();
+    expect(input).toHaveAttribute("placeholder", "Call the plumber");
+    const strip = document.getElementById(input.getAttribute("aria-describedby")!);
+    expect(strip).toHaveTextContent("Try 3pm");
+    await user.type(input, "Water the plants");
+    expect(strip).toHaveTextContent("Today → Today");
+    await user.keyboard("{Escape}");
+    expect(input).toHaveValue("Water the plants");
+    expect(onDiscard).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

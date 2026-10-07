@@ -61,7 +61,10 @@ export interface SettingsFormProps {
   /** Each weekday's segments in start order (0 = Monday); an empty list is a day off. */
   workHours: readonly (readonly Segment[])[];
   detectedTimeZone: string | null;
-  account: { name: string | null; email: string | null };
+  /** Who is signed in; `avatarUrl` is the provider's picture (users.avatar_url), and the initials stand in without one. */
+  account: { name: string | null; email: string | null; avatarUrl?: string | null };
+  /** The sign-in methods linked to the account ("Google", "Email code"), asked of the auth server when Account opens; omitted outside the app shell. */
+  signInMethods?: () => Promise<string[]>;
   /** Install and storage state (SYSTEM_DESIGN.md §10.4–10.5); omitted outside the app shell. */
   app?: { install: InstallState; persistence: PersistenceState; version: string; onInstall: () => void };
   /** Push state for this device; omitted where there is no browser. */

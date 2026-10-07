@@ -7,7 +7,7 @@ import { cx } from "./cx";
 
 export const CARD = "rounded-xl border border-line bg-surface";
 
-export function ListCard({ as: Tag = "ul", className, children, ...rest }: { as?: "ul" | "ol" | "div" | "section"; className?: string; children: ReactNode; "aria-label"?: string }) {
+export function ListCard({ as: Tag = "ul", className, children, ...rest }: { as?: "ul" | "ol" | "div" | "section"; className?: string; children: ReactNode; "aria-label"?: string; role?: "grid" }) {
   return (
     <Tag className={cx(CARD, className)} {...rest}>
       {children}
@@ -21,6 +21,17 @@ export function EmptyCard({ fact, children, action, className }: { /** The serif
       {fact && <p className="font-display text-pane font-medium text-ink">{fact}</p>}
       {children && <p className="text-body-lg text-ink-2">{children}</p>}
       {action && <div className="-ml-2 flex flex-wrap items-center gap-1">{action}</div>}
+    </div>
+  );
+}
+
+/** A line in a task list (a grid) that is not a task — the add row, "Nothing planned yet." — as a row of one cell. */
+export function ListLine({ className, cellClassName, children }: { className?: string; cellClassName?: string; children: ReactNode }) {
+  return (
+    <div role="row" className={className}>
+      <div role="gridcell" className={cellClassName}>
+        {children}
+      </div>
     </div>
   );
 }

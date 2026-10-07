@@ -18,6 +18,7 @@ import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
+import { ListLine } from "@/ui/list-card";
 import { EYEBROW, SectionAction } from "@/ui/section-label";
 
 const NOTHING_SQL = `select * from tasks where 0`;
@@ -61,7 +62,7 @@ function PullInList({ items, today, onOpen, onToday }: Omit<PullInProps, "spareM
 export function AllDone({ pulling, onPull, ...p }: PullInProps & { pulling: boolean; onPull: () => void }) {
   const suggestions = usePullIn(pulling, p.today);
   return (
-    <li className="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
+    <ListLine cellClassName="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
       <p className="font-display text-pane font-medium text-pretty text-ink">
         That&rsquo;s everything you planned.
         {p.spareMin > 0 && <> {formatMinutes(p.spareMin)} left.</>}
@@ -75,7 +76,7 @@ export function AllDone({ pulling, onPull, ...p }: PullInProps & { pulling: bool
         </Link>
       </div>
       {pulling && (suggestions.length > 0 ? <PullInList items={suggestions} {...p} /> : <p className="text-body-sm text-ink-2">Nothing waiting to pull in.</p>)}
-    </li>
+    </ListLine>
   );
 }
 
@@ -83,7 +84,7 @@ export function AllDone({ pulling, onPull, ...p }: PullInProps & { pulling: bool
 export function EmptyDay(p: PullInProps) {
   const suggestions = usePullIn(true, p.today);
   return (
-    <li className="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
+    <ListLine cellClassName="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
       <p className="font-display text-pane font-medium text-pretty text-ink">
         Nothing planned for today.
         {p.spareMin > 0 && <> You have {formatMinutes(p.spareMin)}.</>}
@@ -98,7 +99,7 @@ export function EmptyDay(p: PullInProps) {
         </div>
       )}
       <p className="text-body-sm text-ink-3">Or just start typing.</p>
-    </li>
+    </ListLine>
   );
 }
 
@@ -121,13 +122,13 @@ export function CarriedFolded({ count, onOpen }: { count: number; onOpen: () => 
 /** The whole carried pile at once, each one statement and one undo (SCREENS.md §2.3): the last row of the list. */
 export function CarriedPile({ onTomorrow, onSomeday }: { onTomorrow: () => void; onSomeday: () => void }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-1 border-t border-line px-2 py-1 print:hidden sm:px-3">
+    <ListLine className="border-t border-line print:hidden" cellClassName="flex flex-wrap items-center gap-x-1 px-2 py-1 sm:px-3">
       <SectionAction onClick={onTomorrow} className="mr-0">
         Move all to tomorrow
       </SectionAction>
       <SectionAction onClick={onSomeday} className="mr-0">
         All to Someday
       </SectionAction>
-    </li>
+    </ListLine>
   );
 }

@@ -11,6 +11,8 @@ const ROUTES = [
   { route: "inbox", target: 320, ceiling: 320 },
   { route: "settings", target: 320, ceiling: 320 },
   { route: "search", target: 320, ceiling: 320 },
+  // The first run: the shell plus the hours step; the brain dump (and its parser) is an island.
+  { route: "welcome", target: 320, ceiling: 320 },
   { route: "login", target: 200, ceiling: 270 },
 ];
 

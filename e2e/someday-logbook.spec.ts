@@ -10,7 +10,7 @@ test("Someday parks a task and Today brings it back; the Logbook lists what was 
   const done = uniqueTitle("done");
   await quickAdd(page, parked);
   await quickAdd(page, done);
-  const row = page.getByRole("listitem").filter({ hasText: parked });
+  const row = page.getByRole("row").filter({ hasText: parked });
   // The row's actions appear on hover, as they do for a person.
   await row.hover();
   await row.getByRole("button", { name: "Someday" }).click();
@@ -18,7 +18,7 @@ test("Someday parks a task and Today brings it back; the Logbook lists what was 
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'someday'", [parked])).not.toBeNull();
 
   await page.getByRole("link", { name: "Someday" }).click();
-  const parkedRow = page.getByRole("listitem").filter({ hasText: parked });
+  const parkedRow = page.getByRole("row").filter({ hasText: parked });
   await expect(parkedRow).toBeVisible();
   await parkedRow.hover();
   await parkedRow.getByRole("button", { name: "Today", exact: true }).click();
@@ -26,9 +26,9 @@ test("Someday parks a task and Today brings it back; the Logbook lists what was 
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'active' and do_date = $2", [parked, today])).not.toBeNull();
 
   await page.getByRole("link", { name: /^Inbox/ }).click();
-  const doneRow = page.getByRole("listitem").filter({ hasText: done });
+  const doneRow = page.getByRole("row").filter({ hasText: done });
   await doneRow.getByRole("button", { name: `Complete ${done}` }).click();
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'done'", [done])).not.toBeNull();
   await page.getByRole("link", { name: "Logbook" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: done })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("row").filter({ hasText: done })).toBeVisible({ timeout: 30_000 });
 });

@@ -33,7 +33,7 @@ async function permission(page: Page, value: NotificationPermission) {
 
 async function blockOne(page: Page, title: string) {
   await quickAdd(page, `${title} today ~15m`);
-  const row = page.getByRole("listitem").filter({ hasText: title });
+  const row = page.getByRole("row").filter({ hasText: title });
   await row.getByRole("button", { name: title, exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(row).toHaveAttribute("aria-current", "true");

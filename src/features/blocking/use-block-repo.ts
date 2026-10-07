@@ -25,6 +25,15 @@ class PushingBlockRepo extends BlockRepo {
     await super.remove(id);
     schedulePush();
   }
+  override async rename(id: string, title: string | null): Promise<void> {
+    await super.rename(id, title);
+    schedulePush();
+  }
+  override async duplicate(id: string, startAt: string, endAt: string): Promise<string | null> {
+    const copy = await super.duplicate(id, startAt, endAt);
+    if (copy) schedulePush();
+    return copy;
+  }
   // A plan's batch goes to Google like any block, and so does taking it back.
   override async approvePlan(plan: ApprovedPlan, opts: { afterUndo?: () => void } = {}): Promise<string[]> {
     const ids = await super.approvePlan(plan, {

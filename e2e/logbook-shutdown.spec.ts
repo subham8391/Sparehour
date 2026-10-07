@@ -79,9 +79,9 @@ test.afterAll(async () => {
   });
 });
 
-const row = (page: Page, title: string) => page.getByRole("main").getByRole("listitem").filter({ hasText: title });
+const row = (page: Page, title: string) => page.getByRole("main").getByRole("row").filter({ hasText: title });
 /** A Logbook day: its header, its line, its rows. */
-const day = (page: Page, title: string) => page.getByRole("main").locator("section").filter({ has: page.getByRole("listitem").filter({ hasText: title }) });
+const day = (page: Page, title: string) => page.getByRole("main").locator("section").filter({ has: page.getByRole("row").filter({ hasText: title }) });
 
 test("project and Done | Dropped narrow the Logbook and its day counts; the filters live in the URL; Escape takes off the newest", async ({ page }) => {
   await openApp(page, "/logbook");

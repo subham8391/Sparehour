@@ -90,7 +90,7 @@ test("Today says once that a task expired; Review opens the Logbook's expired vi
   await line(page).getByRole("link", { name: "Review" }).click();
   await expect(page).toHaveURL(/\/logbook\?show=expired$/);
   await expect(page.getByRole("heading", { level: 1, name: "Expired" })).toBeVisible();
-  const row = page.getByRole("listitem").filter({ hasText: expired });
+  const row = page.getByRole("row").filter({ hasText: expired });
   await expect(row).toBeVisible();
   await expect(row.getByText("Expired", { exact: true })).toBeVisible();
   // Reviewing is being told: the batch is recorded as seen.

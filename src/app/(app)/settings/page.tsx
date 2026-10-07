@@ -27,7 +27,10 @@ import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { LOADING_LINE } from "../loading-view";
 
-const USER_SQL = `select id, email, display_name, personal_space_id from users limit 1`;
+const USER_SQL = `select id, email, display_name, avatar_url, personal_space_id from users limit 1`;
+// Account's "Signed in with" asks the auth server when the section opens; the loader (and the auth client behind it)
+// stays out of the shell.
+const signInMethods = () => import("@/features/account/sign-in-methods").then((m) => m.loadSignInMethods());
 
 const MISS_POLICIES: readonly MissPolicy[] = ["carry", "skip", "expire"];
 const OPEN_TO: readonly OpenTo[] = ["today", "inbox", "upcoming"];
@@ -48,7 +51,7 @@ export default function SettingsPage() {
   const [unsynced, setUnsynced] = useState<number | null>(null);
   const { data: settings } = useQuery<UserSettingsRow & { id: string }>(SETTINGS_SQL);
   const { data: hours } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
-  const { data: users } = useQuery<{ id: string; email: string | null; display_name: string | null; personal_space_id: string | null }>(USER_SQL);
+  const { data: users } = useQuery<{ id: string; email: string | null; display_name: string | null; avatar_url: string | null; personal_space_id: string | null }>(USER_SQL);
   const s = settings?.[0];
   const user = users?.[0];
 
@@ -186,7 +189,8 @@ export default function SettingsPage() {
     values,
     workHours,
     detectedTimeZone: detected,
-    account: { name: user?.display_name ?? null, email: user?.email ?? null },
+    account: { name: user?.display_name ?? null, email: user?.email ?? null, avatarUrl: user?.avatar_url ?? null },
+    signInMethods,
     app: { install: pwa.install, persistence: pwa.persistence, version: BUILD_ID, onInstall: () => void pwa.promptInstall() },
     notifications: {
       copy: push.copy,

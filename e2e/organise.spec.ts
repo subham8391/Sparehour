@@ -68,7 +68,7 @@ test.afterAll(async () => {
   });
 });
 
-const row = (page: Page, title: string) => page.getByRole("main").getByRole("listitem").filter({ hasText: title });
+const row = (page: Page, title: string) => page.getByRole("main").getByRole("row").filter({ hasText: title });
 
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {
@@ -204,7 +204,7 @@ test("Duplicate copies a task (note, steps unticked, tags, estimate, priority) a
   const made = await waitForRow<{ id: string }>("select id from public.projects where name = $1 and deleted_at is null", [`${home} (copy)`]);
   expect(made).not.toBeNull();
   await expect(page).toHaveURL(new RegExp(`/project/${made!.id}$`));
-  await expect(page.getByRole("main").getByRole("listitem").filter({ hasText: T.linked })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("row").filter({ hasText: T.linked })).toBeVisible();
   const OPEN = (id: string) => `(select count(*) from public.tasks where project_id = '${id}' and deleted_at is null and state in ('inbox', 'active', 'someday'))`;
   expect(await waitForRow(`select 1 where ${OPEN(made!.id)} = ${OPEN(ids.home)} and ${OPEN(ids.home)} > 0`, [])).not.toBeNull();
 });

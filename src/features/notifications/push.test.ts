@@ -57,6 +57,15 @@ describe("permissionCopy", () => {
   it("on an iPhone in the browser, the answer is the Home Screen first; without a worker, it says so", () => {
     expect(permissionCopy("default", platform(IPHONE), false, true)).toMatchObject({ action: "install", headline: "Reminders need the Home Screen app." });
     expect(permissionCopy("unsupported", platform(IPHONE), false, false).detail).toMatch(/Home Screen/);
+    // Safari outside the Home Screen app has no Notification API at all: that is the install coaching too, three steps
+    // that cover Share behind ··· and the Apple rule (ONBOARDING.md §After the reveal).
+    const coach = permissionCopy("unsupported", platform(IPHONE), false, false);
+    expect(coach).toMatchObject({ action: "install", detail: "Notifications and offline only work from the Home Screen — that’s an Apple rule, not ours." });
+    expect(coach.steps).toEqual(["Tap Share, or ··· then Share, at the bottom of Safari.", "Scroll down and tap Add to Home Screen.", "Tap Add."]);
+    const ipad = detectPushPlatform({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15", standalone: false }, false);
+    expect(permissionCopy("unsupported", ipad, false, false).steps[0]).toMatch(/at the top of Safari/);
+    // Once on the Home Screen, nothing about installing.
+    expect(permissionCopy("default", platform(IPHONE, true), false, true)).toMatchObject({ action: "enable" });
     expect(permissionCopy("default", platform(CHROME), false, false)).toMatchObject({ action: null, headline: "Reminders aren't available in this build." });
   });
 });

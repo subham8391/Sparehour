@@ -21,6 +21,10 @@ import { useNow } from "@/features/shell/use-local-day";
 import { minuteOnDay } from "@/features/today/day-minute";
 import { useToday } from "@/features/today/hooks/use-today";
 import { useConvertToProject } from "@/features/tasks/use-convert";
+import { usePlacing } from "@/features/blocking/use-placing";
+import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
+import { useTaskDetail } from "@/features/tasks/task-detail";
+import { placerTimeline } from "@/features/today/day-pane";
 import { useRecordAsks } from "@/features/rollover/use-carry-asks";
 
 const USER_SQL = `select id, personal_space_id from users limit 1`;
@@ -37,6 +41,8 @@ export default function PlanPage() {
   // Step 2's asks are Today's: the same two a day, the same seven-day memory (PRODUCT_SPEC.md §8.3.4).
   const asks = useMemo(() => new Set(model.carried.filter((t) => t.ask).map((t) => t.id)), [model.carried]);
   const breakDown = useConvertToProject(model.repo);
+  const detail = useTaskDetail();
+  const quickAdd = useQuickAdd();
   const sync = useSyncChip();
   const tomorrow = model.today.add({ days: 1 });
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
@@ -64,8 +70,24 @@ export default function PlanPage() {
   // Step 2 starts from Today's spare figure: an ad-hoc block holds its time here as it does on Today.
   const cap = model.capacity;
   const pickedIds = new Set(onToday.filter((t) => !t.evening).map((t) => t.id));
-  const fitsMin = fitsToday(cap, model.blocks, pickedIds, minuteOnDay(now, model.settings?.timezone ?? "UTC", model.today).minute);
+  const zone = model.settings?.timezone ?? "UTC";
+  const nowMin = minuteOnDay(now, zone, model.today).minute;
+  const fitsMin = fitsToday(cap, model.blocks, pickedIds, nowMin);
   const user = users?.[0];
+  // Step 3 blocks the picked tasks with Today's own placing (B, drags, taps, moves), registered for B while the plan is open.
+  // Only what is picked for today: B on a row still waiting in step 2 does not block a task the day does not hold.
+  const findTask = (id: string) => onToday.find((t) => t.id === id);
+  const placer = usePlacing({
+    day: model.today,
+    zone,
+    blocks: model.blocks,
+    free: cap?.free ?? [],
+    dayStart: cap?.windows[0]?.start ?? 9 * 60,
+    dayEnd: cap?.windows[cap.windows.length - 1]?.end ?? 17 * 60,
+    nowMinute: nowMin,
+    defaultEstimateMin: model.settings?.defaultEstimateMin ?? 30,
+    findTask,
+  });
 
   if (!model.ready || !model.settings) return <Loading />;
   const settings = model.settings;
@@ -105,6 +127,13 @@ export default function PlanPage() {
         else void model.repo.setState(id, to === "someday" ? "someday" : "dropped");
       }}
       onMoveToTomorrow={(id) => void model.repo.reschedule(id, tomorrow)}
+      onEstimate={(id, minutes) => void model.repo.update(id, { estimateMin: minutes })}
+      onAddTask={() => quickAdd.open("today ")}
+      blocking={{
+        timeline: placerTimeline(placer, findTask, detail.open),
+        placing: placer.placingTask ? { title: placer.placingTask.title, onCancel: () => placer.setPlacing(null) } : null,
+        onPlace: placer.setPlacing,
+      }}
       onDone={() => {
         if (user?.personal_space_id) void dayPlans.upsert(model.today.toString(), { spaceId: user.personal_space_id, userId: user.id }, { plannedAt: new Date().toISOString() });
         router.push("/today");

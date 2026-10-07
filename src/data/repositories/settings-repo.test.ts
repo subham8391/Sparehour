@@ -83,3 +83,17 @@ describe("SettingsRepo.update", () => {
     expect((statements[0][1] as unknown[]).slice(0, 4)).toEqual(["expire", "inbox", 10, 0]);
   });
 });
+
+describe("SettingsRepo.finishFirstRun", () => {
+  it("stamps the first run done once, and a second finish keeps the first stamp", async () => {
+    const { db, insert, row } = localSqlite();
+    insert("user_settings", { id: "row1", user_id: "u1", timezone: "UTC", onboarded_at: null });
+    const repo = new SettingsRepo(db);
+    await repo.finishFirstRun("row1");
+    const first = row("user_settings", "row1")?.onboarded_at;
+    expect(first).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    await new Promise((r) => setTimeout(r, 5));
+    await repo.finishFirstRun("row1");
+    expect(row("user_settings", "row1")?.onboarded_at).toBe(first);
+  });
+});

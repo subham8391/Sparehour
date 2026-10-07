@@ -154,6 +154,7 @@ Each feature is tagged with the milestone where it fits:
 | Feature | When |
 |---|---|
 | Onboarding: connect calendar → set working hours → first morning plan | M2 |
+| Minimal first run: confirm working hours, then a brain dump into today (`/welcome`, built 2026-10-07) | M1 |
 | Free tier + Pro (~$6/mo yearly), 30-day no-card trial, founding-member price | M3 |
 | Landing page, billing | M3 |
 

@@ -13,7 +13,7 @@ test("inline add, a heading, and deleting the heading keeps the task", async ({ 
   const add = page.getByRole("textbox", { name: "Add a task" }).first();
   await add.fill(title);
   await add.press("Enter");
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
 
   const heading = uniqueTitle("heading");
   const headingBox = page.getByRole("textbox", { name: "Add a heading" });
@@ -23,5 +23,5 @@ test("inline add, a heading, and deleting the heading keeps the task", async ({ 
 
   await page.getByRole("button", { name: `Delete heading ${heading}` }).click();
   await expect(page.getByRole("heading", { level: 2, name: heading })).toHaveCount(0);
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
 });

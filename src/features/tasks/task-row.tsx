@@ -16,7 +16,7 @@
 // day-picker.tsx, both lazy). A footer can sit under the row (the
 // carried-over ask).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Temporal, formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
@@ -61,6 +61,7 @@ export function TaskRow({
   draggable: canDrag = false,
   onDropTask,
   onBreakDown,
+  menuLead,
 }: {
   task: Task;
   /** The user's today, for the deadline wording; the device's date when a view has none to give. */
@@ -86,8 +87,10 @@ export function TaskRow({
   onDropTask?: (sourceId: string, edge: Edge) => void;
   /** Converts the task to a project: the long-estimate hint ("Long — break it down?") offers it. */
   onBreakDown?: () => void;
+  /** `RowAction`s that head the ⋯ menu (the Inbox's triage on a phone, SCREENS.md §5); one of the same name below steps aside. */
+  menuLead?: ReactNode;
 }) {
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   const dataRef = useRef<TaskDragData>({ type: "task", id: task.id, title: task.title, estimateMin: task.estimateMin });
   useEffect(() => {
@@ -135,7 +138,7 @@ export function TaskRow({
   // checkbox once any row is ticked, and a long-press on touch.
   const sel = useSelectionOptional();
   const ticked = sel?.checkedIds.includes(task.id) ?? false;
-  const multi = (sel?.checkedIds.length ?? 0) > 0;
+  const multi = (sel?.checkedIds.length ?? 0) > 0 || Boolean(sel?.selecting);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** A long-press just ticked the row: the click the finger's release sends is part of it, not a tap that opens. */
   const longPressed = useRef(false);
@@ -144,7 +147,7 @@ export function TaskRow({
     pressTimer.current = null;
   };
   useEffect(() => cancelPress, []);
-  const onPointerDown = (e: ReactPointerEvent<HTMLLIElement>) => {
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     // A new press starts clean, even if the last long-press sent no click (the finger slid off).
     longPressed.current = false;
     if (!sel || e.pointerType !== "touch") return;
@@ -156,7 +159,7 @@ export function TaskRow({
     }, LONG_PRESS_MS);
   };
   // Captured before any target in the row sees it, so neither the detail nor the ring answers the release.
-  const onClickCapture = (e: ReactMouseEvent<HTMLLIElement>) => {
+  const onClickCapture = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (!longPressed.current) return;
     longPressed.current = false;
     e.preventDefault();
@@ -164,7 +167,7 @@ export function TaskRow({
   };
   /** Shift-click ticks a range and ⌘/Ctrl-click ticks one row (SCREENS.md §24): selection, nothing else. */
   const selecting = (e: ReactMouseEvent) => Boolean(sel) && (e.shiftKey || e.metaKey || e.ctrlKey);
-  const onClick = (e: ReactMouseEvent<HTMLLIElement>) => {
+  const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (sel && e.shiftKey) {
       e.preventDefault();
       sel.checkRange(task.id);
@@ -240,16 +243,70 @@ export function TaskRow({
   useEffect(() => {
     if (hasActions) preloadRowIslands();
   }, [hasActions]);
-  // `.` and the palette's Move to… reach the selected row (row-request.ts).
+  // Enter on the selected row (SCREENS.md §10, §24): the title becomes a field in place, the detail stays shut. Enter
+  // or leaving it saves one plain rename (DECISIONS.md "Inline rename": no tokens parsed), Escape keeps the old one.
+  const repo = useTaskRepo();
+  const [renaming, setRenaming] = useState(false);
+  /** Set once the field has answered: focus going back to the row blurs it, which must not save a second time. */
+  const renamed = useRef(false);
+  /** `refocus`: back to the row, unless focus is already on its way to something the person clicked or tabbed to. */
+  const endRename = (input: HTMLInputElement, save: boolean, refocus = true) => {
+    if (renamed.current) return;
+    renamed.current = true;
+    const next = input.value.trim();
+    setRenaming(false);
+    if (save && next && next !== task.title) void repo.update(task.id, { title: next });
+    if (refocus) ref.current?.focus({ preventScroll: true });
+  };
+  const onRenameKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    // An IME's Enter picks a candidate; it is not the end of the name.
+    if ((e.key !== "Enter" && e.key !== "Escape") || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    endRename(e.currentTarget, e.key === "Enter");
+  };
+
+  // `.`, Enter and the palette's Move to… reach the selected row (row-request.ts).
+  const canRename = Boolean(onOpen);
   useEffect(() => {
-    if (!selected || !hasActions) return;
+    if (!selected || !(hasActions || canRename)) return;
     return listenForRowRequests((id, request) => {
-      if (id !== task.id || (request === "move" && !movable)) return false;
-      if (request === "menu") menu.current?.open();
+      if (id !== task.id || (request === "move" && !movable) || (request === "rename" ? !canRename : !hasActions)) return false;
+      if (request === "rename") {
+        renamed.current = false;
+        setRenaming(true);
+      } else if (request === "menu") menu.current?.open();
       else setMoving({ anchor: menu.current?.trigger() ?? ref.current });
       return true;
     });
-  }, [selected, hasActions, movable, task.id]);
+  }, [selected, hasActions, movable, task.id, canRename]);
+
+  // The list is a grid (SCREENS.md §1 rules 1 and 7): one Tab stop per view — the selected row, else the first —
+  // and the other rows' controls step out of the Tab order, so Tab moves between scopes and J/K within one. The
+  // row the selection moves to takes focus while focus is on a row or nowhere, so a screen reader reads it.
+  const roving = Boolean(onSelect && sel);
+  const anySelected = Boolean(sel?.selectedId);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !roving) return;
+    // With nothing selected the stop is the view's first row on screen (a folded section's rows are not).
+    const stop = anySelected ? selected : (el.closest("main") ?? document).querySelector("[data-roving]") === el;
+    el.tabIndex = stop ? 0 : -1;
+    for (const c of el.querySelectorAll<HTMLElement>("button, input, a[href]")) {
+      if (stop && c.dataset.rove) {
+        c.removeAttribute("tabindex");
+        delete c.dataset.rove;
+      } else if (!stop && !c.hasAttribute("tabindex")) {
+        c.tabIndex = -1;
+        c.dataset.rove = "1";
+      }
+    }
+  });
+  useEffect(() => {
+    const at = document.activeElement;
+    if (selected && roving && (!at || at === document.body || at.getAttribute("role") === "row" || at.getAttribute("aria-label") === "Content")) ref.current?.focus({ preventScroll: true });
+  }, [selected, roving]);
+  const rowId = useId();
   const ring = (
     <span
       className={cx(
@@ -283,7 +340,7 @@ export function TaskRow({
   );
 
   return (
-    <li
+    <div
       ref={ref}
       className={cx(
         "group relative grid border-t border-line transition-[grid-template-rows,opacity,background-color] ease-out-quart [transition-delay:160ms,160ms,0ms] [transition-duration:240ms,240ms,120ms] first:border-t-0 hover:bg-hover active:bg-press",
@@ -294,7 +351,12 @@ export function TaskRow({
           ? "bg-surface-2 hover:bg-surface-2 [--row-bg:var(--surface-2)] [--row-wash:transparent]"
           : "[--row-bg:var(--surface)] [--row-wash:transparent] hover:[--row-wash:var(--hover)] active:[--row-wash:var(--press)]",
         dragging && "opacity-40",
+        "focus-visible:-outline-offset-2",
       )}
+      role="row"
+      data-roving={roving || undefined}
+      aria-labelledby={`${rowId}t ${rowId}f`}
+      aria-selected={multi ? ticked : undefined}
       aria-current={selected ? "true" : undefined}
       data-ticked={ticked || undefined}
       data-completing={completing || undefined}
@@ -307,7 +369,7 @@ export function TaskRow({
       onPointerLeave={cancelPress}
     >
       {edge && <span aria-hidden="true" data-testid="drop-edge" className={cx("pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-ink", edge === "top" ? "-top-px" : "-bottom-px")} />}
-      <div className={cx("min-h-0", completing && "overflow-hidden")}>
+      <div role="gridcell" className={cx("min-h-0", completing && "overflow-hidden")}>
         <div
           className={cx(
             "relative flex min-h-14 items-center gap-x-3 py-2 sm:grid sm:min-h-11 sm:gap-x-0 sm:py-0",
@@ -341,7 +403,17 @@ export function TaskRow({
           )}
           {/* The body stacks title and second line on a phone; from `sm` both boxes dissolve and their pieces become grid cells. */}
           <div className="min-w-0 flex-1 sm:contents">
-            {onOpen ? (
+            {renaming ? (
+              <input
+                autoFocus
+                aria-label="Title"
+                defaultValue={task.title}
+                onKeyDown={onRenameKey}
+                onBlur={(e) => endRename(e.currentTarget, true, !e.relatedTarget)}
+                onClick={(e) => e.stopPropagation()}
+                className="relative z-1 block h-11 w-full min-w-0 rounded-sm bg-transparent text-body-lg text-ink outline-none sm:pr-3"
+              />
+            ) : onOpen ? (
               <button
                 type="button"
                 // A selecting click is left to the row (the range or the one tick); it must not open the detail too.
@@ -350,16 +422,20 @@ export function TaskRow({
                 }}
                 className="block w-full min-w-0 rounded-sm text-left focus-visible:-outline-offset-2 max-sm:before:absolute max-sm:before:inset-0 max-sm:before:content-[''] sm:flex sm:min-h-11 sm:items-center sm:pr-3"
               >
-                <span className={titleClass}>{task.title}</span>
+                <span id={`${rowId}t`} className={titleClass}>
+                  {task.title}
+                </span>
               </button>
             ) : (
               <span className="block min-w-0 sm:flex sm:min-h-11 sm:items-center sm:pr-3">
-                <span className={titleClass}>{task.title}</span>
+                <span id={`${rowId}t`} className={titleClass}>
+                  {task.title}
+                </span>
               </span>
             )}
             {/* No target of its own on a phone: the fade's mask makes a layer over the title's stretched tap area, and the
                 whole row opens the task there (DESIGN_SYSTEM.md §5 Task row), so taps pass through to it. */}
-            <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:pointer-events-none max-sm:fade-end sm:contents">
+            <div id={`${rowId}f`} className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:pointer-events-none max-sm:fade-end sm:contents">
               {meta && <span className={META_RUN}>{meta}</span>}
               {/* A completed row quietens its chips to ink-3 rather than fading them: at 60 % opacity the estimate fell to 2.4:1 on surface-2. */}
               <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", task.state === "done" && "[&>*]:text-ink-3!")}>{chipRun}</span>
@@ -397,7 +473,13 @@ export function TaskRow({
                   );
                   return (
                     <RowActionsLayoutProvider layout="menu" close={close} move={movable ? move : undefined}>
-                      {movable ? <RowMenuIsland taskId={task.id}>{own}</RowMenuIsland> : own}
+                      {movable ? (
+                        <RowMenuIsland taskId={task.id} lead={menuLead}>
+                          {own}
+                        </RowMenuIsland>
+                      ) : (
+                        own
+                      )}
                     </RowActionsLayoutProvider>
                   );
                 }}
@@ -406,18 +488,18 @@ export function TaskRow({
           )}
         </div>
         {footer}
+        {moving && (
+          <DayPickerIsland
+            taskId={task.id}
+            title={task.title}
+            current={task.doDate}
+            label={moving.label}
+            anchor={moving.anchor}
+            onClose={() => setMoving(null)}
+          />
+        )}
       </div>
-      {moving && (
-        <DayPickerIsland
-          taskId={task.id}
-          title={task.title}
-          current={task.doDate}
-          label={moving.label}
-          anchor={moving.anchor}
-          onClose={() => setMoving(null)}
-        />
-      )}
-    </li>
+    </div>
   );
 }
 
@@ -449,6 +531,15 @@ function OrganizeActions({ task }: { task: Task }) {
   );
 }
 
+/**
+ * A list of task rows is a grid (SCREENS.md §1 rule 7; a listbox's options could not hold the row's buttons): each
+ * row a `row` with one cell. Anything else a view puts in the list — the add row, an empty line — is a `ListLine`.
+ */
 export function TaskList({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <ListCard className={className}>{children}</ListCard>;
+  return (
+    <ListCard as="div" role="grid" className={className}>
+      {children}
+    </ListCard>
+  );
 }
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BROWSE_VIEWS, SIDEBAR_VIEWS, TAB_VIEWS, activeTab, countLabel, isActive, showsQuickAdd, showsTabBar } from "./nav";
+import { BROWSE_VIEWS, SIDEBAR_VIEWS, TAB_VIEWS, activeTab, countLabel, isActive, showsChrome, showsQuickAdd, showsTabBar } from "./nav";
 
 describe("navigation model", () => {
   it("keeps the fixed sidebar order from the spec", () => {
@@ -42,6 +42,13 @@ describe("navigation model", () => {
   it("the add bar and the FAB show on task lists only", () => {
     for (const p of ["/today", "/inbox", "/upcoming", "/someday", "/browse", "/project/p1", "/area/a1"]) expect(showsQuickAdd(p)).toBe(true);
     for (const p of ["/plan", "/shutdown", "/search", "/settings", "/calendar", "/logbook"]) expect(showsQuickAdd(p)).toBe(false);
+  });
+
+  it("the first run stands alone: no tab bar, no add bar, no sidebar", () => {
+    expect(showsTabBar("/welcome")).toBe(false);
+    expect(showsQuickAdd("/welcome")).toBe(false);
+    expect(showsChrome("/welcome")).toBe(false);
+    for (const p of ["/today", "/plan", "/settings", "/search"]) expect(showsChrome(p)).toBe(true);
   });
 
   it("never shows a zero count", () => {

@@ -25,7 +25,7 @@ export type Command = CommandRun & Words;
 
 const WORDS: Record<string, Words> = {
   "task.open": { title: "Open", group: "Selected task" },
-  "task.peek": { title: "Peek", group: "Selected task", hidden: true },
+  "task.rename": { title: "Rename in place", group: "Selected task", keywords: "edit title inline", hidden: true },
   "task.complete": { title: "Complete", group: "Selected task" },
   "task.uncomplete": { title: "Un-complete", group: "Selected task", keywords: "reopen restore done logbook" },
   "task.today": { title: "Move to Today", group: "Selected task" },
@@ -79,6 +79,7 @@ const WORDS: Record<string, Words> = {
   "day.plan-my-day": { title: "Plan my day", group: "Go to", keywords: "schedule suggest timeline blocks" },
   "day.trim": { title: "Trim today…", group: "Go to", keywords: "over too much fits move tomorrow someday" },
   "day.replan": { title: "Re-plan the rest of today", group: "Go to", keywords: "plan my day schedule blocks afternoon" },
+  "inbox.triage-all": { title: "Triage all", group: "Go to", keywords: "inbox zero one at a time" },
   "list.down": { title: "Select next", group: "List", hidden: true },
   "list.up": { title: "Select previous", group: "List", hidden: true },
   "list.down-arrow": { title: "Select next", group: "List", hidden: true },
@@ -90,6 +91,11 @@ const WORDS: Record<string, Words> = {
   "view.next": { title: "Next week", group: "View", hidden: true },
   "view.sort": { title: "Sort by…", group: "View", keywords: "order manual time priority deadline estimate" },
   "view.show-completed": { title: "Show completed", group: "View", keywords: "done finished hide" },
+  "view.zoom-in": { title: "Zoom timeline in", group: "View", keywords: "zoom timeline day rows 15 5 minutes closer" },
+  "view.zoom-out": { title: "Zoom timeline out", group: "View", keywords: "zoom timeline day rows 30 minutes wider" },
+  "block.move": { title: "Move block to…", group: "Selected task", keywords: "block time slot timeline reschedule" },
+  "block.duplicate": { title: "Duplicate block", group: "Selected task", keywords: "block copy again timeline" },
+  "block.rename": { title: "Rename block", group: "Selected task", keywords: "block title name timeline" },
   "view.theme-light": { title: "Light theme", group: "View", keywords: "appearance" },
   "view.theme-dark": { title: "Dark theme", group: "View", keywords: "appearance" },
   "view.theme-system": { title: "Follow the system theme", group: "View", keywords: "appearance auto" },

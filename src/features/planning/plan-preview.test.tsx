@@ -171,7 +171,8 @@ describe("<PlanPreview>", () => {
     const { onClose } = setup();
     (document.activeElement as HTMLElement | null)?.blur();
     expect(document.activeElement).toBe(document.body);
-    fireEvent.keyDown(document.body, { key: "Escape" });
+    // Claimed (defaultPrevented), so the keyboard layer does not also let go of the selection on the same press.
+    expect(fireEvent.keyDown(document.body, { key: "Escape" })).toBe(false);
     expect(onClose).toHaveBeenCalledTimes(1);
 
     const field = document.createElement("input");

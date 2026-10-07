@@ -11,7 +11,8 @@ export interface KeyChord {
 
 /** Parses "shift+t", "mod+enter", "g" into a chord. `mod` is ⌘ on Mac, Ctrl elsewhere. */
 export function parseChord(spec: string): KeyChord {
-  const parts = spec.toLowerCase().split("+");
+  // A "+" joins keys, except where it is the key itself: "+", "mod++".
+  const parts = spec.toLowerCase().split(/\+(?=.)/);
   const key = parts[parts.length - 1];
   return {
     key,
