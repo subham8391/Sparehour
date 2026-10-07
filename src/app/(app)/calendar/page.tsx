@@ -1,143 +1,213 @@
 "use client";
-// Calendar (SCREENS.md §4): the time-first view. Today is drawn by the same
-// timeline as Today's day pane, from the same capacity, so the two screens
-// never disagree; the rest of the week lists the mirror's meetings and the
-// blocks already placed, day by day, and a run of free days folds into one
-// line. Connecting a calendar arrives with P5; until then the empty state
-// says exactly what would show here.
-import { useMemo } from "react";
+// Calendar (SCREENS.md §4): the time-first view. Today's timeline, one per day, at full width — Day · Work week ·
+// Week, remembered on the device (`Cmd+1/2/3` in the installed app, the control and the palette everywhere) — with
+// each day's date and capacity readout over it, today's unblocked tasks in a rail beside it, and blocking on any day
+// that has not passed. `[` / `]` step a day in the Day mode and a week in the others; `T` with nothing selected, or
+// "Today", comes back. The phone has the Day mode only (three days held sideways), the rail behind a `Tasks` button,
+// and tap-to-schedule; the narrow band shows three days that scroll sideways, the medium one folds the weekend.
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { compareDates, localDate } from "@/core/time";
+import type { Task } from "@/core/types";
 import { useQuery } from "@/data/powersync";
-import { formatTime, instant, timeFromMinutes, type LocalDate } from "@/core/time";
-import { weekdayName } from "@/core/time/format-day";
-import { normaliseTimestamp } from "@/data/mappers";
-import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
-import { BLOCKS_AROUND_SQL } from "@/data/queries/today";
-import { EVENTS_BETWEEN_SQL, dayRangeParams } from "@/data/queries/views";
-import type { CalendarEventRow, TimeBlockRow } from "@/data/schema.client";
+import { WEEK_START_SQL } from "@/data/queries/week";
+import { CalendarGrid } from "@/features/calendar-view/calendar-grid";
+import { setCalendarMode, useCalendarMode, type CalendarMode } from "@/features/calendar-view/calendar-mode";
+import { CalendarRail, RailSheet, TasksButton } from "@/features/calendar-view/calendar-rail";
+import { focusDay, rangeTitle, shownDays, shownMode, stepShown } from "@/features/calendar-view/grid";
+import { useCalendarBand } from "@/features/calendar-view/use-calendar-band";
+import { useCalendarDays } from "@/features/calendar-view/use-calendar-days";
+import { registerViewKeys } from "@/features/commands/view-keys";
+import { useListSelection } from "@/features/selection/selection-provider";
 import { useNow } from "@/features/shell/use-local-day";
-import { EmptyState, VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
-import { useToday } from "@/features/today/hooks/use-today";
-import { Timeline } from "@/features/today/timeline";
+import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
+import { loadDragAdapter } from "@/features/tasks/drag-adapter";
+import { useTaskDetail } from "@/features/tasks/task-detail";
+import { pausedLine, useCalendarState } from "@/features/today/calendar-state";
+import { useToday, type BlockTask } from "@/features/today/hooks/use-today";
+import { PlacingBar } from "@/features/today/timeline";
+import { Button, buttonClass, iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
-import { ListCard } from "@/ui/list-card";
-import { SectionLabel } from "@/ui/section-label";
+import { Icon } from "@/ui/icons";
+import { EmptyCard } from "@/ui/list-card";
+import { Segmented } from "@/ui/segmented";
 
-interface Shown {
-  id: string;
-  title: string;
-  when: string;
-  /** Meetings are other people's time, blocks the time you chose: each keeps its own colour. */
-  kind: "meet" | "block";
-  /** Minutes into the day, all-day items first. */
-  at: number;
-}
-
-type Day = { day: LocalDate; items: Shown[] };
-/** A day with something on it, or a run of days with nothing. */
-type Group = { kind: "day"; day: Day; today: boolean } | { kind: "free"; from: LocalDate; to: LocalDate };
-
-const dayLabel = (d: LocalDate) => `${weekdayName(d)} ${d.day}`;
+const MODES: { value: CalendarMode; label: string }[] = [
+  { value: "day", label: "Day" },
+  { value: "workweek", label: "Work week" },
+  { value: "week", label: "Week" },
+];
 
 export default function CalendarPage() {
   const now = useNow();
   const model = useToday(now);
-  const { today } = model;
-  const zone = model.settings?.timezone ?? "UTC";
-  const [from, to] = dayRangeParams(today, 7);
-  const { data: events } = useQuery<CalendarEventRow>(EVENTS_BETWEEN_SQL, [from, to]);
-  const { data: blockRows } = useQuery<TimeBlockRow>(BLOCKS_AROUND_SQL, [from, to]);
-  const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
-  const connected = model.calendarConnected;
-  const hasDay = model.ready && model.capacity !== null && model.capacity.state !== "no_work_day";
+  const { today, settings } = model;
+  const zone = settings?.timezone ?? "UTC";
+  const detail = useTaskDetail();
+  const mainRef = useRef<HTMLElement>(null);
+  const band = useCalendarBand(mainRef);
+  const mode = useCalendarMode();
+  const shown = shownMode(mode, band);
+  const { data: weekStartRows } = useQuery<{ week_start: number | null }>(WEEK_START_SQL);
+  const weekStart = weekStartRows?.[0]?.week_start ?? 0;
+  // The day the range is anchored on: today until `[` / `]` move it.
+  const [anchorIso, setAnchorIso] = useState<string | null>(null);
+  const todayIso = today.toString();
+  const anchor = useMemo(() => localDate(anchorIso ?? todayIso), [anchorIso, todayIso]);
+  const days = useMemo(() => shownDays(anchor, shown, weekStart), [anchor, shown, weekStart]);
+  const showsToday = days.some((d) => d.equals(today));
 
-  const days = useMemo((): Day[] => {
-    const byDay = new Map<string, Shown[]>();
-    const add = (day: LocalDate, item: Shown) => byDay.set(day.toString(), [...(byDay.get(day.toString()) ?? []), item]);
-    // PRODUCT_SPEC.md §10.3 rule 7: a private calendar shows its events as "Busy"; a calendar switched off does not show at all.
-    const privateIds = new Set((calendarRows ?? []).filter((c) => c.private === 1).map((c) => c.id));
-    const hiddenIds = new Set((calendarRows ?? []).filter((c) => c.read === 0).map((c) => c.id));
-    for (const e of events ?? []) {
-      if (e.calendar_id && hiddenIds.has(e.calendar_id)) continue;
-      const title = e.calendar_id && privateIds.has(e.calendar_id) ? "Busy" : (e.summary ?? "Busy");
-      if (e.start_date) {
-        add(instant(`${e.start_date}T00:00:00Z`).toZonedDateTimeISO("UTC").toPlainDate(), { id: e.id, title, when: "All day", kind: "meet", at: -1 });
-      } else if (e.start_at) {
-        const start = instant(normaliseTimestamp(e.start_at)).toZonedDateTimeISO(zone);
-        const end = e.end_at ? instant(normaliseTimestamp(e.end_at)).toZonedDateTimeISO(zone) : null;
-        const when = end ? `${formatTime(start.toPlainTime())} – ${formatTime(end.toPlainTime())}` : formatTime(start.toPlainTime());
-        add(start.toPlainDate(), { id: e.id, title, when, kind: "meet", at: start.hour * 60 + start.minute });
-      }
-    }
-    for (const b of blockRows ?? []) {
-      if (!b.start_at || !b.end_at) continue;
-      const start = instant(normaliseTimestamp(b.start_at)).toZonedDateTimeISO(zone);
-      const end = instant(normaliseTimestamp(b.end_at)).toZonedDateTimeISO(zone);
-      add(start.toPlainDate(), { id: b.id, title: b.title ?? "Block", when: `${formatTime(start.toPlainTime())} – ${formatTime(end.toPlainTime())}`, kind: "block", at: start.hour * 60 + start.minute });
-    }
-    return Array.from({ length: 7 }, (_, i) => {
-      const day = today.add({ days: i });
-      return { day, items: (byDay.get(day.toString()) ?? []).sort((a, b) => a.at - b.at) };
-    });
-  }, [events, blockRows, calendarRows, today, zone]);
+  // The rows' drag adapter comes with the page, so a rail row can be dragged as soon as it is drawn.
+  useEffect(() => void loadDragAdapter().catch(() => undefined), []);
 
-  // Today always stands alone (it is the timeline); after it, empty days fold into one "Free." line per run.
-  const groups = useMemo((): Group[] => {
-    const out: Group[] = [];
-    for (const [i, d] of days.entries()) {
-      if (i === 0 || d.items.length > 0) {
-        out.push({ kind: "day", day: d, today: i === 0 });
-        continue;
-      }
-      const last = out[out.length - 1];
-      if (last?.kind === "free") last.to = d.day;
-      else out.push({ kind: "free", from: d.day, to: d.day });
-    }
-    return out;
-  }, [days]);
+  // ---- the rail: today's tasks without a block today (DECISIONS.md "Calendar rail in week modes")
+  const todays = useMemo(() => [...model.todayTasks, ...model.eveningTasks], [model.todayTasks, model.eveningTasks]);
+  const rail = useMemo(() => todays.filter((t) => !model.blocksByTask.has(t.id)), [todays, model.blocksByTask]);
+  const known = useMemo(() => new Map<string, BlockTask>(todays.map((t) => [t.id, { title: t.title, state: t.state }])), [todays]);
+  const findTask = useCallback((id: string): Task | undefined => todays.find((t) => t.id === id) ?? model.carried.find((t) => t.id === id), [todays, model.carried]);
+  const sel = useListSelection(rail.map((t) => t.id));
 
-  const dayStart = model.capacity?.windows[0]?.start ?? 0;
-  const dayEnd = model.capacity?.windows[model.capacity.windows.length - 1]?.end ?? 0;
+  const data = useCalendarDays({ days, today, now, settings, tasks: known });
+  const { writes } = useCalendarState();
+  const off = pausedLine(writes.off);
+
+  // The selected block and the task waiting for a tap, shared by every day on screen. A step lets go of the block.
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [placingId, setPlacingId] = useState<string | null>(null);
+  const placingTask = placingId && !off ? findTask(placingId) : undefined;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [unfolded, setUnfolded] = useState(false);
+  const rangeKey = `${days[0]}:${days.length}`;
+  const [seenRange, setSeenRange] = useState(rangeKey);
+  if (seenRange !== rangeKey) {
+    setSeenRange(rangeKey);
+    setSelectedBlockId(null);
+  }
+
+  // `[` / `]` and the arrows step a day, or a week; `T` with nothing selected and "Today" come back.
+  const step = (delta: 1 | -1) => setAnchorIso((iso) => stepShown(localDate(iso ?? todayIso), shown, delta).toString());
+  const home = () => setAnchorIso(null);
+  const keys = useRef({ step, home, away: anchorIso !== null });
+  useEffect(() => {
+    keys.current = { step, home, away: anchorIso !== null };
+  });
+  useEffect(
+    () =>
+      registerViewKeys({
+        prev: () => keys.current.step(-1),
+        next: () => keys.current.step(1),
+        home: () => keys.current.away && (keys.current.home(), true),
+      }),
+    [],
+  );
+
+  const wide = band === "wide";
+  const multi = band !== "phone" && band !== "landscape";
+  const unit = shown === "day" || shown === "three" ? "day" : "week";
+  const stepButton = (delta: 1 | -1) => (
+    <button
+      type="button"
+      aria-label={delta === 1 ? `Next ${unit}` : `Previous ${unit}`}
+      title={delta === 1 ? `Next ${unit} (])` : `Previous ${unit} ([)`}
+      onClick={() => step(delta)}
+      className={iconButtonClass()}
+    >
+      <Icon name={delta === 1 ? "arrow-right" : "arrow-left"} size={16} />
+    </button>
+  );
+  const pick = (id: string) => {
+    setSheetOpen(false);
+    setSelectedBlockId(null);
+    setPlacingId(id);
+  };
+
+  // Nothing on any day shown: how blocks get there. A day that is still loading says nothing yet.
+  const ready = data.days.every((d) => d.capacity !== null);
+  const empty = ready && data.days.every((d) => d.blocks.length === 0 && d.meetings.length === 0);
+  const focus = focusDay(days, today);
+  const canBlock = !off && compareDates(days[days.length - 1], today) >= 0;
 
   return (
-    <main className={VIEW_COLUMN}>
-      <ViewHeader eyebrow="Calendar" title="This week" />
-      {groups.map((g) =>
-        g.kind === "free" ? (
-          <section key={g.from.toString()} className="flex flex-col gap-2">
-            <SectionLabel className="px-0.5">{g.from.equals(g.to) ? dayLabel(g.from) : `${dayLabel(g.from)} – ${dayLabel(g.to)}`}</SectionLabel>
-            <p className="px-4 text-body-lg text-ink-3">Free.</p>
-          </section>
-        ) : (
-          <section key={g.day.day.toString()} className="flex flex-col gap-2">
-            <SectionLabel className="px-0.5" detail={g.today ? "today" : undefined}>
-              {dayLabel(g.day.day)}
-            </SectionLabel>
-            {g.today && hasDay && model.capacity ? (
-              <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5">
-                <p className="mb-4.5 text-body-sm text-ink-3 num">
-                  {formatTime(timeFromMinutes(dayStart))} – {formatTime(timeFromMinutes(dayEnd))}
-                </p>
-                <Timeline c={model.capacity} now={now} zone={zone} blocks={model.blocks} meetings={model.meetings} />
-              </div>
-            ) : g.day.items.length === 0 ? (
-              <p className="px-4 text-body-lg text-ink-3">Free.</p>
-            ) : (
-              <ListCard>
-                {g.day.items.map((e) => (
-                  <li key={e.id} className="flex min-h-11 items-center gap-3 border-t border-line px-4 py-2 first:border-t-0">
-                    <span className={cx("w-0.75 self-stretch rounded-full", e.kind === "meet" ? "bg-meet-fill" : "bg-block-fill")} aria-hidden="true" />
-                    {/* The edge's colour is the only thing that tells a meeting from a block; the word is there for everyone who cannot see it. */}
-                    <span className="sr-only">{e.kind === "meet" ? "Meeting" : "Block"}: </span>
-                    <span className="min-w-0 flex-1 truncate text-body-lg text-ink">{e.title}</span>
-                    <span className={cx("shrink-0 text-body-sm num", e.kind === "meet" ? "text-meet" : "text-ink-2")}>{e.when}</span>
-                  </li>
-                ))}
-              </ListCard>
-            )}
-          </section>
-        ),
+    <main ref={mainRef} className={cx(VIEW_COLUMN, "sm:max-w-none")}>
+      <ViewHeader eyebrow={showsToday && shown === "day" ? "Calendar · today" : "Calendar"} title={rangeTitle(days, today)} />
+      <div className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+        {multi && <Segmented label="Calendar mode" value={mode} onChange={setCalendarMode} options={MODES} />}
+        <div className="flex items-center">
+          {stepButton(-1)}
+          {stepButton(1)}
+        </div>
+        {anchorIso !== null && (
+          <Button variant="link" size="compact" onClick={home} title="Back to today (T)">
+            <Icon name="arrow-left" size={14} />
+            Today
+          </Button>
+        )}
+        {!wide && (
+          <span className="ml-auto">
+            <TasksButton count={rail.length} onOpen={() => setSheetOpen(true)} />
+          </span>
+        )}
+      </div>
+
+      {/* Blocking paused (PRODUCT_SPEC.md §10.3 rule 5): why no new block lands; Today's banner fixes it. */}
+      {off && (
+        <p role="note" className="-mt-2 rounded-lg bg-surface-2 px-3 py-2 text-body-sm text-pretty text-ink-2">
+          {off}
+        </p>
       )}
-      {!connected && <EmptyState>No calendar connected — your meetings would show here.</EmptyState>}
+      {placingTask && (
+        <div className="-mb-3">
+          <PlacingBar text={`Tap a time for “${placingTask.title}”`} onCancel={() => setPlacingId(null)} />
+        </div>
+      )}
+
+      <div className={cx(wide ? "grid grid-cols-[16rem_minmax(0,1fr)] items-start gap-5" : "flex flex-col")}>
+        {wide && (
+          <CalendarRail
+            tasks={rail}
+            today={today}
+            selectedId={sel.selectedId}
+            onSelect={sel.select}
+            onOpen={detail.open}
+            onDone={(id) => void model.repo.complete(id)}
+            onBlock={off ? undefined : (id) => pick(id)}
+          />
+        )}
+        <CalendarGrid
+          days={data.days}
+          band={band}
+          today={today}
+          now={now}
+          zone={zone}
+          defaultEstimateMin={settings?.defaultEstimateMin ?? 30}
+          findTask={findTask}
+          state={{ selectedBlockId, setSelectedBlockId, placing: placingId, setPlacing: setPlacingId }}
+          focus={focus}
+          off={off}
+          onOpenTask={detail.open}
+          unfolded={unfolded}
+          onUnfold={() => setUnfolded(true)}
+        />
+      </div>
+
+      {empty && canBlock && (
+        <p className="-mt-2 text-body text-pretty text-ink-3">
+          <span className="touch:hidden">Nothing on. Drag a task in, or drag on the grid to block time.</span>
+          <span className="hidden touch:inline">Nothing on. Tap Tasks for a task and then a time, or tap the grid to block time.</span>
+        </p>
+      )}
+      {model.settings && !data.connected && (
+        <EmptyCard
+          action={
+            <Link href="/settings#calendar" className={buttonClass({ variant: "link" })}>
+              Connect
+            </Link>
+          }
+        >
+          No calendar connected — your meetings would show here.
+        </EmptyCard>
+      )}
+      {sheetOpen && <RailSheet tasks={rail} paused={off} onPick={pick} onClose={() => setSheetOpen(false)} />}
     </main>
   );
 }
