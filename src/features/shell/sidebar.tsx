@@ -70,7 +70,8 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
   const activeArea = !area.loose && isActive(pathname, `/area/${area.id}`);
   return (
     <li>
-      <div className={cx(ITEM, "font-medium", activeArea && ACTIVE)}>
+      {/* `data-nav-area` / `data-nav-project`: the rows the drag island (nav-drag.ts) makes draggable and drop targets. */}
+      <div data-nav-area={area.id} className={cx(ITEM, "font-medium", activeArea && ACTIVE)}>
         {/* A 28 px target whose chevron is centred on the icon column, so the area name lines up with the view names. */}
         <button
           type="button"
@@ -85,7 +86,8 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
           // Projects without an area: there is no area page to go to, so the group's name is plain text.
           <span className="min-w-0 flex-1 truncate">{area.name}</span>
         ) : (
-          <Link href={`/area/${area.id}`} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate">
+          // The row is what drags, so the link inside it does not start a link drag of its own.
+          <Link href={`/area/${area.id}`} draggable={false} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate">
             {area.name}
           </Link>
         )}
@@ -96,7 +98,7 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
             const active = isActive(pathname, `/project/${p.id}`);
             return (
               <li key={p.id}>
-                <Link href={`/project/${p.id}`} aria-current={active ? "page" : undefined} className={cx(ITEM, "pl-4", active && ACTIVE)}>
+                <Link href={`/project/${p.id}`} data-nav-project={p.id} aria-current={active ? "page" : undefined} className={cx(ITEM, "pl-4", active && ACTIVE)}>
                   {/* The dot sits in the icon column, a step in from the area's chevron, so project names read as nested. */}
                   <span className="flex size-4.5 shrink-0 items-center justify-center" aria-hidden="true">
                     <span className="size-1.5 rounded-full bg-line-control" />

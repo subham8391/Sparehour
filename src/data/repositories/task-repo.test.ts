@@ -519,10 +519,10 @@ describe("TaskRepo: no date and no project is the Inbox; any date or a project i
   });
 
   it("the undo snapshot covers the state whenever the patch can change it", () => {
-    expect(columnsTouched({ projectId: "p1" })).toEqual(["project_id", "state"]);
+    expect(columnsTouched({ projectId: "p1" })).toEqual(["project_id", "area_id", "heading_id", "state"]);
     expect(columnsTouched({ deadline: localDate("2026-10-09") })).toEqual(["deadline", "state"]);
     expect(columnsTouched({ startDate: localDate("2026-10-05") })).toEqual(["start_date", "state"]);
-    expect(columnsTouched({ projectId: null })).toEqual(["project_id"]);
+    expect(columnsTouched({ projectId: null })).toEqual(["project_id", "area_id", "heading_id"]);
   });
 });
 

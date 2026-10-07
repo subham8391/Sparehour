@@ -112,6 +112,8 @@ export const tasks = new Table(
     ...base,
     project_id: column.text,
     heading_id: column.text,
+    /** Filed directly in an area (a loose task); never set together with project_id (migration 20261007124400). */
+    area_id: column.text,
     assignee_id: column.text,
     title: column.text,
     notes_md: column.text,
@@ -157,6 +159,7 @@ export const tasks = new Table(
     indexes: {
       today: ["space_id", "do_date"],
       project: ["project_id"],
+      area: ["area_id"],
       state: ["space_id", "state"],
       deadline: ["space_id", "deadline"],
     },

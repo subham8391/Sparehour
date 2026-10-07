@@ -2,6 +2,7 @@
 // A project (SCREENS.md §9): headings as section dividers, tasks in the
 // project's own order with a day chip per row, an add row under every
 // section, completed tasks tucked away, Someday collapsed at the bottom.
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { use, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@/data/powersync";
@@ -39,6 +40,9 @@ import { FieldPopover } from "@/ui/field-popover";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { relativeDay } from "@/ui/relative-day";
 import { EYEBROW } from "@/ui/section-label";
+
+/** "Move to area…" (the tap path for dragging a project in the sidebar): a picker loaded when it is first opened. */
+const OrganiseSheet = dynamic(() => import("@/features/projects/organise-sheet").then((m) => m.OrganiseSheet), { ssr: false });
 
 /** From 640 px the project's notes open when it has any; below, they start folded to their first line. */
 const WIDE_QUERY = "(min-width: 40rem)";
@@ -78,6 +82,7 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
   const [showSomeday, setShowSomeday] = useState(false);
   const [notesOpen, setNotesOpen] = useState<boolean | null>(null);
   const [newHeading, setNewHeading] = useState("");
+  const [movingArea, setMovingArea] = useState(false);
   const wide = useSyncExternalStore(subscribeWide, readWide, () => false);
   // Each heading's "Show completed · N" counts what was finished in the last week, so the week is always on hand.
   const weekAgo = useMemo(() => `${today.subtract({ days: 7 }).toString()}T00:00:00.000Z`, [today]);
@@ -220,6 +225,9 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
                     Back to active
                   </button>
                 )}
+                <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (setMovingArea(true), close())}>
+                  Move to area…
+                </button>
               </>
             )}
           </MenuButton>
@@ -418,6 +426,7 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
           )}
         </section>
       )}
+      {movingArea && <OrganiseSheet target={{ kind: "project", id: project.id, name: project.name }} step="move" onClose={() => setMovingArea(false)} />}
     </main>
   );
 }

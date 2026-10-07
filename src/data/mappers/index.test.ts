@@ -13,7 +13,7 @@ describe("normaliseTimestamp", () => {
 describe("row → domain", () => {
   it("maps a task row with calendar values and booleans", () => {
     const t = toTask({
-      id: "t1", space_id: "s1", project_id: null, heading_id: null, assignee_id: null, title: "Write proposal", notes_md: null,
+      id: "t1", space_id: "s1", project_id: null, heading_id: null, area_id: null, assignee_id: null, title: "Write proposal", notes_md: null,
       state: "active", priority: 3, do_date: "2026-09-15", do_time: "09:45:00", deadline: "2026-09-18", start_date: null,
       evening: 0, estimate_min: 90, actual_min: null, carry_count: 2, last_carried_at: "2026-09-14",
       last_touched_at: "2026-09-13 10:00:00+00", miss_policy: "carry", recurrence_rule: null, recurrence_mode: null,

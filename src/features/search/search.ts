@@ -64,33 +64,57 @@ export function likePattern(query: string): string {
   return `%${query.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
+/** The words of a query, each matched on its own and in any order ("acme proposal" finds "Draft the Acme proposal"); at most eight. */
+export function searchWords(query: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const w of query.trim().split(/\s+/)) {
+    const key = w.toLocaleLowerCase();
+    if (!w || seen.has(key)) continue;
+    seen.add(key);
+    out.push(w);
+  }
+  return out.slice(0, 8);
+}
+
+const IN_TASK = `(title like ? escape '\\' or notes_md like ? escape '\\' or exists (select 1 from checklist_items c where c.task_id = tasks.id and c.deleted_at is null and c.title like ? escape '\\'))`;
+const IN_TITLE = `title like ? escape '\\'`;
+/** A person's last touch, or failing that the last write; the server's "2026-10-07 08:00:00+00" and the device's "2026-10-07T08:00:00.000Z" compare alike once the T is a space. */
+const TOUCHED = `replace(coalesce(last_touched_at, updated_at, created_at, ''), 'T', ' ')`;
+
 export interface SearchStatement {
   sql: string;
   params: (string | number)[];
 }
 
 /**
- * The task statement for a query and its chips: titles, notes and checklist
- * items match the words; every chip narrows. Null when there is nothing to
- * search for. Open tasks come first, then by day, then in list order.
+ * The task statement for a query and its chips (PRODUCT_SPEC.md §15): every
+ * word of the query is found somewhere in the task — its title, its notes or
+ * one of its steps — in any order; every chip narrows. Archived tasks stay out
+ * unless the state chip asks for them. Null when there is nothing to search
+ * for. Ranked by recency, then relevance: the day it was last touched, newest
+ * first; within a day, a title holding every word before a title holding some,
+ * before a match only in the notes or steps; then the exact time.
  */
 export function buildTaskSearch(query: string, filters: SearchFilters): SearchStatement | null {
-  const q = query.trim();
-  if (!q && !hasFilters(filters)) return null;
+  const words = searchWords(query);
+  if (words.length === 0 && !hasFilters(filters)) return null;
   const where: string[] = ["deleted_at is null"];
   const params: (string | number)[] = [];
-  if (q) {
-    const like = likePattern(q);
-    where.push(`(title like ? escape '\\' or notes_md like ? escape '\\' or exists (select 1 from checklist_items c where c.task_id = tasks.id and c.deleted_at is null and c.title like ? escape '\\'))`);
+  for (const w of words) {
+    const like = likePattern(w);
+    where.push(IN_TASK);
     params.push(like, like, like);
   }
+  if (filters.state !== "archived") where.push("state <> 'archived'");
   if (filters.project) {
     where.push("project_id = ?");
     params.push(filters.project);
   }
   if (filters.area) {
-    where.push("project_id in (select id from projects where deleted_at is null and area_id = ?)");
-    params.push(filters.area);
+    // Filed in the area directly (a loose task), or in one of its projects.
+    where.push("(area_id = ? or project_id in (select id from projects where deleted_at is null and area_id = ?))");
+    params.push(filters.area, filters.area);
   }
   if (filters.tag) {
     where.push("exists (select 1 from task_tags tt join tags g on g.id = tt.tag_id where tt.task_id = tasks.id and tt.deleted_at is null and g.deleted_at is null and lower(g.name) = lower(?))");
@@ -110,12 +134,27 @@ export function buildTaskSearch(query: string, filters: SearchFilters): SearchSt
   }
   if (filters.hasDeadline) where.push("deadline is not null");
   if (filters.noEstimate) where.push("estimate_min is null");
-  const sql = `select * from tasks where ${where.join(" and ")} order by case state when 'active' then 0 when 'inbox' then 1 when 'someday' then 2 else 3 end, case when do_date is null then 1 else 0 end, do_date, sort_key, id limit 200`;
+  const order: string[] = [`substr(${TOUCHED}, 1, 10) desc`];
+  if (words.length > 0) {
+    const all = words.map(() => IN_TITLE).join(" and ");
+    const some = words.map(() => IN_TITLE).join(" or ");
+    order.push(`case when ${all} then 0 when ${some} then 1 else 2 end`);
+    for (const w of [...words, ...words]) params.push(likePattern(w));
+  }
+  order.push(`${TOUCHED} desc`, "id");
+  const sql = `select * from tasks where ${where.join(" and ")} order by ${order.join(", ")} limit 200`;
   return { sql, params };
 }
 
-/** Checklist items that match, so a row can show which step it was found in. */
-export const CHECKLIST_MATCH_SQL = `select task_id, title from checklist_items where deleted_at is null and title like ? escape '\\' limit 200`;
+/** Checklist items holding any word of the query, so a row can show which step it was found in; null without words. */
+export function buildChecklistMatch(query: string): SearchStatement | null {
+  const words = searchWords(query);
+  if (words.length === 0) return null;
+  return {
+    sql: `select task_id, title from checklist_items where deleted_at is null and (${words.map(() => `title like ? escape '\\'`).join(" or ")}) limit 200`,
+    params: words.map(likePattern),
+  };
+}
 
 export interface Snippet {
   before: string;
@@ -123,14 +162,17 @@ export interface Snippet {
   after: string;
 }
 
-/** One line around the first case-insensitive hit, or null when the text has none. */
+/** One line around the first case-insensitive hit of the whole query, or else of its longest word found; null when the text has none. */
 export function snippet(text: string | null | undefined, query: string, radius = 40): Snippet | null {
   if (!text) return null;
-  const q = query.trim();
-  if (!q) return null;
+  const whole = query.trim();
+  if (!whole) return null;
   const flat = text.replace(/\s+/g, " ").trim();
-  const at = flat.toLocaleLowerCase().indexOf(q.toLocaleLowerCase());
-  if (at === -1) return null;
+  const lower = flat.toLocaleLowerCase();
+  const candidates = [whole, ...searchWords(whole).sort((a, b) => b.length - a.length)];
+  const q = candidates.find((c) => lower.includes(c.toLocaleLowerCase()));
+  if (!q) return null;
+  const at = lower.indexOf(q.toLocaleLowerCase());
   const start = Math.max(0, at - radius);
   const end = Math.min(flat.length, at + q.length + radius);
   return {
@@ -154,9 +196,12 @@ export function contextFor(task: Pick<Task, "title" | "notes">, checklistHits: r
 
 /**
  * Closed tasks and ones whose start date has not come go under "Also found",
- * collapsed, so a search reads as what you can act on.
+ * collapsed, so a search reads as what you can act on. When the state chip
+ * asks for a closed state (Done, Dropped, Archived), those tasks are what was
+ * asked for, so they are the results rather than a folded afterthought.
  */
-export function splitResults<T extends Pick<Task, "state" | "startDate">>(tasks: readonly T[], today: LocalDate): { found: T[]; alsoFound: T[] } {
+export function splitResults<T extends Pick<Task, "state" | "startDate">>(tasks: readonly T[], today: LocalDate, asked?: TaskState): { found: T[]; alsoFound: T[] } {
+  if (asked === "done" || asked === "dropped" || asked === "archived") return { found: [...tasks], alsoFound: [] };
   const found: T[] = [];
   const alsoFound: T[] = [];
   for (const t of tasks) {

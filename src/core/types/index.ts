@@ -19,6 +19,8 @@ export interface Task {
   projectId: ProjectId | null;
   /** Section inside the project, if any. */
   headingId: string | null;
+  /** Filed directly in an area, with no project (a loose task); a project task's area is its project's. Never both. */
+  areaId?: string | null;
   title: string;
   notes: string | null;
   state: TaskState;

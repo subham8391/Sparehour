@@ -43,6 +43,8 @@ export interface TaskDetailPanelProps {
   areaName: string | null;
   /** `area` tells two projects of one name apart in the picker (PRODUCT_SPEC.md §5.4). */
   projects: readonly { id: string; name: string; area?: string | null }[];
+  /** The areas a task can be filed in directly, after the projects in the Project field's picker (a project or an area, never both). */
+  areas?: readonly { id: string; name: string }[];
   /** The headings of the task's project, for the Heading field: the tap path for what a drag does in the project. */
   headings?: readonly { id: string; title: string }[];
   onHeading?: (headingId: string | null) => void;
@@ -481,7 +483,10 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             )}
           </FieldRow>
 
-          <FieldRow label="Project" value={p.projectName ? <Chip tone="meet">#{p.projectName}</Chip> : <Muted>None</Muted>}>
+          <FieldRow
+            label="Project"
+            value={p.projectName ? <Chip tone="meet">#{p.projectName}</Chip> : task.areaId && p.areaName ? <Chip>{p.areaName}</Chip> : <Muted>None</Muted>}
+          >
             {(close) => (
               <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
                 <button type="button" className={cx(MENU_ITEM, "text-ink-2")} onClick={() => (onPatch({ projectId: null }), close())}>
@@ -490,6 +495,17 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                 {p.projects.map((pr) => (
                   <button key={pr.id} type="button" aria-pressed={task.projectId === pr.id} className={cx(MENU_ITEM, "aria-pressed:bg-surface-2")} onClick={() => (onPatch({ projectId: pr.id }), close())}>
                     {projectOptionLabel(pr, p.projects)}
+                  </button>
+                ))}
+                {/* Or straight into an area, with no project: a loose task in the area view (SCREENS.md §9). */}
+                {p.areas && p.areas.length > 0 && (
+                  <SectionLabel as="p" className="px-2.5 pt-2">
+                    Areas
+                  </SectionLabel>
+                )}
+                {p.areas?.map((a) => (
+                  <button key={a.id} type="button" aria-pressed={task.areaId === a.id} aria-label={`Area ${a.name}`} className={cx(MENU_ITEM, "aria-pressed:bg-surface-2")} onClick={() => (onPatch({ areaId: a.id }), close())}>
+                    {a.name}
                   </button>
                 ))}
               </div>

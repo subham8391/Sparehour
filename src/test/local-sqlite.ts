@@ -21,7 +21,7 @@ interface DatabaseSync {
 
 const BASE = "id text primary key, space_id text, created_at text, updated_at text, deleted_at text";
 const TABLES: Record<string, string> = {
-  tasks: `project_id, heading_id, assignee_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date, evening, estimate_min, actual_min,
+  tasks: `project_id, heading_id, area_id, assignee_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date, evening, estimate_min, actual_min,
           carry_count, last_carried_at, last_touched_at, miss_policy, recurrence_rule, recurrence_mode, recurrence_series_id, recurrence_paused_until,
           sort_key, day_sort_key, source, routine_run_id, routine_item_key, routine_item_id, routine_date, completed_at, expired_at, auto_filed_at,
           carry_asked_at, archive_batch_id, archived_from_state, archived_at`,

@@ -7,6 +7,7 @@ import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import { AreaRepo } from "@/data/repositories/area-repo";
 import { ChecklistRepo } from "@/data/repositories/checklist-repo";
 import { HeadingRepo } from "@/data/repositories/heading-repo";
+import { ProjectOrderRepo } from "@/data/repositories/project-order-repo";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import { TagRepo } from "@/data/repositories/tag-repo";
 import type { UndoRecorder } from "@/data/repositories/undo";
@@ -21,5 +22,6 @@ function useUndoableRepo<R>(Repo: new (db: LocalDatabase, history?: UndoRecorder
 export const useProjectRepo = (): ProjectRepo => useUndoableRepo(ProjectRepo);
 export const useHeadingRepo = (): HeadingRepo => useUndoableRepo(HeadingRepo);
 export const useAreaRepo = (): AreaRepo => useUndoableRepo(AreaRepo);
+export const useProjectOrderRepo = (): ProjectOrderRepo => useUndoableRepo(ProjectOrderRepo);
 export const useTagRepo = (): TagRepo => useUndoableRepo(TagRepo);
 export const useChecklistRepo = (): ChecklistRepo => useUndoableRepo(ChecklistRepo);

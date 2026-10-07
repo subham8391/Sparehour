@@ -12,7 +12,7 @@ import { TAGS_SQL, logbookStream } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { rankNamed } from "@/features/commands/palette-rank";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
-import { CHECKLIST_MATCH_SQL, buildTaskSearch, contextFor, likePattern, parseSearchParams, splitResults, toSearchParams, type SearchFilters } from "@/features/search/search";
+import { buildChecklistMatch, buildTaskSearch, contextFor, parseSearchParams, splitResults, toSearchParams, type SearchFilters } from "@/features/search/search";
 import { SearchView, type SearchHit } from "@/features/search/search-view";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -64,7 +64,8 @@ function SearchScreen() {
   const { data: taskRows, isLoading } = useQuery<TaskRowType>(statement?.sql ?? NONE_SQL, statement?.params ?? [], {
     streams: statement ? [{ ...stream, ttl: 60 * 60 }] : undefined,
   });
-  const { data: itemRows } = useQuery<{ task_id: string; title: string }>(query.trim() ? CHECKLIST_MATCH_SQL : NO_ITEMS_SQL, query.trim() ? [likePattern(query)] : []);
+  const steps = useMemo(() => buildChecklistMatch(query), [query]);
+  const { data: itemRows } = useQuery<{ task_id: string; title: string }>(steps?.sql ?? NO_ITEMS_SQL, steps?.params ?? []);
   const { data: projectRows } = useQuery<ProjectStateRow>(ALL_PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: tagRows } = useQuery<TagRef>(TAGS_SQL);
@@ -78,10 +79,10 @@ function SearchScreen() {
     for (const r of itemRows ?? []) steps.set(r.task_id, [...(steps.get(r.task_id) ?? []), r.title]);
     const names = new Map(allProjects.map((p) => [p.id, p.name]));
     const tasks = (taskRows ?? []).map(toTask);
-    const split = splitResults(tasks, today);
+    const split = splitResults(tasks, today, filters.state);
     const hit = (t: (typeof tasks)[number]): SearchHit => ({ task: t, projectName: t.projectId ? (names.get(t.projectId) ?? null) : null, context: contextFor(t, steps.get(t.id) ?? [], query) });
     return { hits: split.found.map(hit), alsoFound: split.alsoFound.map(hit) };
-  }, [taskRows, itemRows, allProjects, today, query]);
+  }, [taskRows, itemRows, allProjects, today, query, filters.state]);
   const projectMatches = useMemo(() => rankNamed(query, allProjects, 5).map((p) => ({ id: p.id, name: p.name, href: `/project/${p.id}`, note: projectStateLabel(p.state) })), [query, allProjects]);
   const areaMatches = useMemo(() => rankNamed(query, areas, 5).map((a) => ({ ...a, href: `/area/${a.id}` })), [query, areas]);
 

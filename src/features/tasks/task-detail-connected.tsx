@@ -55,7 +55,9 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
   );
   const projects = useMemo(() => allProjects.filter((p) => p.open), [allProjects]);
   const project = allProjects.find((p) => p.id === task?.projectId) ?? null;
-  const area = (areaRows ?? []).find((a) => a.id === project?.areaId) ?? null;
+  // A project task's area is its project's; a loose task names its own (a project or an area, never both).
+  const area = (areaRows ?? []).find((a) => a.id === (project ? project.areaId : task?.areaId)) ?? null;
+  const areas = useMemo(() => (areaRows ?? []).map((a) => ({ id: a.id, name: a.name ?? "Untitled area" })), [areaRows]);
 
   // The notes' Markdown renderer is its own small chunk: fetched as the detail opens, so a note is drawn, not flashed as raw text.
   useEffect(() => void preloadMarkdown(), []);
@@ -75,6 +77,7 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       projectName={project?.name ?? null}
       areaName={area?.name ?? null}
       projects={projects}
+      areas={areas}
       headings={(headingRows ?? []).map((h) => ({ id: h.id, title: h.title ?? "Untitled heading" }))}
       onHeading={(headingId) => void repo.setHeading(task.id, headingId)}
       checklist={checklist}
