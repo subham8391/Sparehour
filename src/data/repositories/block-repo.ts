@@ -126,6 +126,54 @@ export class BlockRepo {
 
   async setLocked(id: string, locked: boolean): Promise<void> {
     await this.db.execute(`update time_blocks set locked = ?, updated_at = ? where id = ?`, [locked ? 1 : 0, new Date().toISOString(), id]);
+    this.history?.record({
+      label: locked ? "Locked the block" : "Unlocked the block",
+      toast: false,
+      undo: () => this.db.execute(`update time_blocks set locked = ?, updated_at = ? where id = ?`, [locked ? 0 : 1, new Date().toISOString(), id]).then(() => undefined),
+    });
+  }
+
+  /**
+   * Renames a block (SCREENS.md §2.6 "Double-click renames"). An empty title clears it, so a task's block reads its
+   * task's title again and an ad-hoc block reads "Block".
+   */
+  async rename(id: string, title: string | null): Promise<void> {
+    const next = title?.trim() || null;
+    const before = await this.db.getOptional<{ title: string | null }>(`select title from time_blocks where id = ?`, [id]);
+    if (before && (before.title ?? null) === next) return;
+    await this.db.execute(`update time_blocks set title = ?, updated_at = ? where id = ?`, [next, new Date().toISOString(), id]);
+    if (before) {
+      this.history?.record({
+        label: next ? `Renamed the block to “${next}”` : "Cleared the block’s name",
+        toast: true,
+        undo: () => this.db.execute(`update time_blocks set title = ?, updated_at = ? where id = ?`, [before.title ?? null, new Date().toISOString(), id]).then(() => undefined),
+      });
+    }
+  }
+
+  /**
+   * A copy of a block at another time (SCREENS.md §2.6 "Alt+drag duplicates a block"): same task and title,
+   * unlocked, written as a manual block and pushed like any other. One undo entry takes the copy away.
+   */
+  async duplicate(id: string, startAt: string, endAt: string): Promise<string | null> {
+    const from = await this.db.getOptional<{ space_id: string; user_id: string; task_id: string | null; title: string | null }>(
+      `select space_id, user_id, task_id, title from time_blocks where id = ? and deleted_at is null`,
+      [id],
+    );
+    if (!from) return null;
+    const copy = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await this.db.execute(
+      `insert into time_blocks (id, space_id, user_id, task_id, title, start_at, end_at, locked, source, push_state, created_at, updated_at)
+       values (?, ?, ?, ?, ?, ?, ?, 0, 'manual', 'local', ?, ?)`,
+      [copy, from.space_id, from.user_id, from.task_id, from.title, startAt, endAt, now, now],
+    );
+    this.history?.record({
+      label: from.title ? `Copied “${from.title}”` : "Copied the block",
+      toast: true,
+      undo: () => this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [new Date().toISOString(), new Date().toISOString(), copy]).then(() => undefined),
+    });
+    return copy;
   }
 
   /** Soft-deletes the block; the task stays exactly where it was. */
