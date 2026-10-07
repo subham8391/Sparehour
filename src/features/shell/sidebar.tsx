@@ -125,7 +125,7 @@ function SidebarToggle({ rail }: { rail: boolean }) {
   const name = rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     <button type="button" data-sidebar-toggle aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "hidden md:flex" : "ml-auto")}>
-      <Icon name="sidebar" size={18} />
+      <Icon name="menu" size={18} />
     </button>
   );
 }

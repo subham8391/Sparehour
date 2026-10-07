@@ -7,10 +7,17 @@
 // The widths are remembered per view in one stored map, drawn as `[data-view="today"] { --pane-w: 420px }` rules
 // in one <style> (the shell's frame carries data-view): the theme bootstrap writes it before the first paint, and
 // this island rewrites it on every change, so a pane never opens at the wrong width.
-import { useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useState, type HTMLAttributes, type KeyboardEvent, type PointerEvent } from "react";
 import { cx } from "@/ui/cx";
 import { PANES_KEY, PANE_MAX, PANE_MIN } from "./panes";
 const TAPS = [PANE_MIN, 400, 480, PANE_MAX];
+
+// The edge's look rides with the island rather than in every shell's stylesheet: a 12 px strip over the pane's
+// border whose 2 px ink line shows on hover and on keyboard focus; on a touch screen a 44 px grip, always shown.
+const EDGE_CSS = `.pane-edge{position:absolute;inset-block:0;left:-6px;z-index:10;width:12px;cursor:col-resize;touch-action:none;user-select:none;outline:none}
+.pane-edge>span{position:absolute;inset-block:0;left:5px;width:2px;background:var(--ink);opacity:0;transition:opacity var(--dur-fast)}
+.pane-edge:hover>span{opacity:.25}.pane-edge:focus-visible>span{opacity:1}
+@media (hover:none){.pane-edge{inset-block:auto;top:50%;left:-22px;width:44px;height:44px;translate:0 -50%}.pane-edge>span{inset-block:6px;left:20px;width:4px;border-radius:9999px;background:var(--line-strong);opacity:1}}`;
 
 export const clampPane = (w: number): number => Math.round(Math.min(PANE_MAX, Math.max(PANE_MIN, w)));
 
@@ -50,7 +57,7 @@ export function setPaneWidth(view: string, w: number | null, save = true): void 
   }
 }
 
-export function PaneResizer({ view, label, fallback, className }: { view: string; label: string; fallback: number; className: string }) {
+export function PaneResizer({ view, label, fallback, className, ...rest }: { view: string; label: string; fallback: number; className: string } & HTMLAttributes<HTMLDivElement>) {
   const stored = () => clampPane(readPaneWidths()[view] ?? fallback);
   const [w, setW] = useState(stored);
   const set = (next: number | null, save?: boolean) => {
@@ -88,7 +95,7 @@ export function PaneResizer({ view, label, fallback, className }: { view: string
     el.addEventListener("pointercancel", up);
   };
   return (
-    <div className={cx("relative hidden w-0 shrink-0 print:hidden!", className)}>
+    <div {...rest} className={cx("relative hidden w-0 shrink-0 print:hidden!", className)}>
       <div
         role="separator"
         aria-orientation="vertical"
@@ -102,10 +109,13 @@ export function PaneResizer({ view, label, fallback, className }: { view: string
         onKeyDown={keys}
         onPointerDown={down}
         onDoubleClick={() => set(null)}
-        className="group absolute inset-y-0 -left-1.5 z-10 w-3 cursor-col-resize touch-none select-none focus-visible:outline-none touch:inset-y-auto touch:top-1/2 touch:-left-5.5 touch:size-11 touch:-translate-y-1/2"
+        className="pane-edge"
       >
-        <span aria-hidden="true" className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-ink opacity-0 transition-opacity dur-fast group-hover:opacity-25 group-focus-visible:opacity-100 touch:inset-y-1.5 touch:w-1 touch:rounded-full touch:bg-line-strong touch:opacity-100" />
+        <span aria-hidden="true" />
       </div>
+      <style href="pane-edge" precedence="default">
+        {EDGE_CSS}
+      </style>
     </div>
   );
 }

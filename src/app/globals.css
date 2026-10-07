@@ -427,15 +427,38 @@
   }
 }
 
-/* The folded sidebar (SCREENS.md §1, Cmd+\): from the medium band the rail stands in for the full sidebar while
-   <html> carries data-sidebar="rail", stamped before the first paint (features/shell/panes.ts). Unlayered: it must
-   beat the navs' own band utilities. */
+/* The per-device layout choices on <html>, stamped before the first paint (features/shell/panes.ts). Unlayered: they
+   must beat the panes' own band utilities. From the medium band the rail stands in for the folded sidebar (Cmd+\);
+   from the wide band Today's day pane and its edge can be put away (Cmd+.). */
 @media (min-width: 900px) {
   [data-sidebar="rail"] nav[data-variant="full"] {
     display: none;
   }
   [data-sidebar="rail"] nav[data-variant="rail"] {
     display: flex;
+  }
+}
+@media (min-width: 1180px) {
+  [data-day-pane="hidden"] [data-today-pane] {
+    display: none;
+  }
+}
+/* Today on a phone (SCREENS.md §2.8, §22): the ribbon card and the ritual row stay under the top edge while the lists
+   scroll, on paper so the rows pass beneath. A wrapper with no box of its own from the narrow band up. */
+[data-hero] {
+  display: contents;
+}
+@media (max-width: 639px) {
+  [data-hero="sticky"]:not(:empty) {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 6);
+    margin: calc(var(--spacing) * -3) calc(var(--spacing) * -5);
+    padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
+    background: var(--paper);
   }
 }
 

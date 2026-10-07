@@ -32,8 +32,7 @@ export type IconName =
   | "arrow-left"
   | "arrow-right"
   | "calendar-week"
-  | "share"
-  | "sidebar";
+  | "share";
 
 const PATHS: Record<IconName, string> = {
   inbox: "M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5 M3 11.5l2-6.5h10l2 6.5 M3 11.5h4l1.2 2h3.6l1.2-2h4",
@@ -68,8 +67,6 @@ const PATHS: Record<IconName, string> = {
   "calendar-week": "M5.5 4.5h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z M3.5 8.5h13M7 3v3M13 3v3 M6.5 12h2M9 12h2M11.5 12h2",
   // Safari's Share: a tray open at the top with an arrow leaving it (the install coaching, ONBOARDING.md).
   share: "M7.5 8H6a1.5 1.5 0 0 0-1.5 1.5v6A1.5 1.5 0 0 0 6 17h8a1.5 1.5 0 0 0 1.5-1.5v-6A1.5 1.5 0 0 0 14 8h-1.5 M10 12V3 M7.2 5.6 10 3l2.8 2.6",
-  // A window with its left pane drawn: Collapse / Expand sidebar.
-  sidebar: "M4.5 4h11A1.5 1.5 0 0 1 17 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5v-9A1.5 1.5 0 0 1 4.5 4z M8 4v12",
 };
 
 export function Icon({ name, size = 18, className, ...rest }: { name: IconName; size?: number } & Omit<SVGProps<SVGSVGElement>, "name">) {

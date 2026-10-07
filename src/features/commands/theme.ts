@@ -3,7 +3,7 @@
 // (globals.css handles all three states). The browser chrome follows through
 // the theme-color meta tags, and a pre-paint script in the root layout stamps
 // the stored choice before the first paint so dark never flashes light.
-import { PANES_KEY, PANE_MAX, PANE_MIN, SIDEBAR_KEY } from "@/features/shell/panes";
+import { PANES_KEY, PANE_MAX, PANE_MIN, PREFS } from "@/features/shell/panes";
 import type { Theme } from "./command-runs";
 
 export const THEME_KEY = "sparehour.theme";
@@ -16,13 +16,13 @@ export const MOTION_KEY = "sparehour.motion";
 
 /**
  * Inline in `<head>`, before any paint: stamps `data-motion="reduce"` when this
- * device asked for less motion, `data-sidebar="rail"` when it folded the
- * sidebar (shell/panes.ts), the context pane's width per view as one
+ * device asked for less motion, the layout choices (`data-sidebar="rail"`,
+ * `data-day-pane="hidden"`, shell/panes.ts), the context pane's width per view as one
  * <style> (shell/pane-resizer.tsx) and `data-theme` from the stored choice, then
  * points the theme-color metas at that paper once the head has parsed (pages
  * without the app shell never run `applyTheme`). Kept tiny.
  */
-export const THEME_BOOTSTRAP = `(function(){try{var d=document.documentElement;if(localStorage.getItem("${MOTION_KEY}")==="reduce")d.dataset.motion="reduce";if(localStorage.getItem("${SIDEBAR_KEY}")==="rail")d.dataset.sidebar="rail";try{var p=JSON.parse(localStorage.getItem("${PANES_KEY}")||"{}"),s="";for(var k in p)if(/^[a-z-]+$/.test(k))s+='[data-view="'+k+'"]{--pane-w:'+Math.min(${PANE_MAX},Math.max(${PANE_MIN},+p[k]||0))+'px}';if(s){var e=document.createElement("style");e.id="pane-w";e.textContent=s;document.head.appendChild(e)}}catch(e){}var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")return;d.dataset.theme=t;var c=t==="dark"?"${PAPER.dark}":"${PAPER.light}";document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.dataset.media=m.media;m.removeAttribute("media");m.content=c;});});}catch(e){}})();`;
+export const THEME_BOOTSTRAP = `(function(){try{var d=document.documentElement;if(localStorage.getItem("${MOTION_KEY}")==="reduce")d.dataset.motion="reduce";${Object.keys(PREFS).map((k) => `var ${k}=localStorage.getItem("sparehour.${k}");if(${k})d.dataset.${k}=${k};`).join("")}try{var p=JSON.parse(localStorage.getItem("${PANES_KEY}")||"{}"),s="";for(var k in p)if(/^[a-z-]+$/.test(k))s+='[data-view="'+k+'"]{--pane-w:'+Math.min(${PANE_MAX},Math.max(${PANE_MIN},+p[k]||0))+'px}';if(s){var e=document.createElement("style");e.id="pane-w";e.textContent=s;document.head.appendChild(e)}}catch(e){}var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")return;d.dataset.theme=t;var c=t==="dark"?"${PAPER.dark}":"${PAPER.light}";document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.dataset.media=m.media;m.removeAttribute("media");m.content=c;});});}catch(e){}})();`;
 
 export function readTheme(): Theme {
   try {
