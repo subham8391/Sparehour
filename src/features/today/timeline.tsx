@@ -11,7 +11,7 @@
 // resizes, Escape lets go. The whole 24 hours scroll, opening on the working day; the hours outside the work
 // windows are dimmed but stay usable (SCREENS.md §2.6).
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { blockLength, drawnBlock, minuteAtOffset, placeAt, pxPerMinute, resizeEnd, resizeStart, stepZoom, ZOOM_STEPS, type ZoomStep } from "@/core/blocking";
 import type { Capacity, Interval } from "@/core/capacity";
 import { subtract } from "@/core/capacity/intervals";
@@ -20,6 +20,7 @@ import { asDragData } from "@/features/blocking/drag";
 import type { PlanGhost } from "@/features/planning/drawing";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
+import type { MenuHandle } from "@/ui/popover";
 import { Block, BlockToolbar, PlacingBar, TWO_LINE_PX, hhmm, laneStyle, rangeLine, type Armed } from "./block-tools";
 import { minuteOnDay } from "./day-minute";
 import type { TimelineBlock, TimelineMeeting } from "./hooks/use-today";
@@ -68,6 +69,15 @@ const subscribeZoom = (l: () => void) => {
   return () => void zoomListeners.delete(l);
 };
 const defaultZoom = (): ZoomStep => 30;
+/** The zoom every timeline on screen shares, for whatever draws beside them (the Calendar's ruler). */
+export const useTimelineZoom = (): ZoomStep => useSyncExternalStore(subscribeZoom, readZoom, defaultZoom);
+
+/**
+ * Left edges inside the timeline, from the ruler gutter (`--tl-g`, 3 rem, none in a grid column): the hour lines and
+ * the dimmed hours start at it, everything drawn on the day a quarter rem inside it.
+ */
+const AT_GUTTER = "left-(--tl-g)";
+const INSIDE = "left-[calc(var(--tl-g)_+_0.25rem)]";
 
 export interface TimelineProps {
   c: Capacity;
@@ -101,6 +111,11 @@ export interface TimelineProps {
   shownMeeting?: number | null;
   /** Today's day pane scrolls itself from the wide band; below it, and everywhere else, the timeline scrolls in its own box. */
   paneScrolls?: boolean;
+  /**
+   * One day among several (the Calendar's grid, SCREENS.md §4): no ruler gutter, no zoom control and no scroll box of
+   * its own — the grid draws one ruler and one zoom for every column and scrolls them together.
+   */
+  column?: boolean;
 }
 
 interface Ghost {
@@ -146,7 +161,7 @@ function scrollerOf(el: HTMLElement | null): HTMLElement | null {
 
 export function Timeline(p: TimelineProps) {
   const { c, now, zone } = p;
-  const zoom = useSyncExternalStore(subscribeZoom, readZoom, defaultZoom);
+  const zoom = useTimelineZoom();
   const scale = pxPerMinute(zoom);
   const workEnd = c.windows[c.windows.length - 1]?.end ?? 17 * 60;
   const { minute: nowMin, onDay: nowShown } = minuteOnDay(now, zone, c.day);
@@ -174,6 +189,9 @@ export function Timeline(p: TimelineProps) {
   const [said, setSaid] = useState("");
   const suppressClick = useRef(false);
   const lastPointer = useRef<string>("mouse");
+  // A right-click selects the block and opens its menu, once its toolbar is drawn.
+  const menuRef = useRef<MenuHandle>(null);
+  const menuFor = useRef<string | null>(null);
 
   const blocks = p.blocks ?? [];
   const selected = blocks.find((b) => b.id === p.selectedBlockId) ?? null;
@@ -186,6 +204,12 @@ export function Timeline(p: TimelineProps) {
     if (armed && armed.id !== p.selectedBlockId) setArmed(null);
   }
   if (armed && !armedBlock) setArmed(null);
+  const selectedId = selected?.id ?? null;
+  useEffect(() => {
+    if (!selectedId || menuFor.current !== selectedId) return;
+    menuFor.current = null;
+    menuRef.current?.open();
+  }, [selectedId]);
 
   // The latest props, so the drop target and the keys register once.
   const propsRef = useRef(p);
@@ -263,10 +287,12 @@ export function Timeline(p: TimelineProps) {
   // is turned to the morning.
   const scrolledFor = useRef<number | null>(null);
   const openAt = nowShown && nowMin > opening.start + 6 * 60 ? nowMin - 90 : opening.start;
+  // A grid column leaves this to the grid, which scrolls every day at once.
+  const column = Boolean(p.column);
   useEffect(() => {
     const box = boxRef.current;
     const root = rootRef.current;
-    if (!box || !root) return;
+    if (!box || !root || column) return;
     const turn = () => {
       if (scrolledFor.current === scale || root.offsetHeight === 0) return;
       const scroller = scrollerOf(box);
@@ -282,7 +308,7 @@ export function Timeline(p: TimelineProps) {
     const watch = new ResizeObserver(turn);
     watch.observe(box);
     return () => watch.disconnect();
-  }, [scale, openAt, nowShown, nowMin]);
+  }, [scale, openAt, nowShown, nowMin, column]);
 
   // `+` / `-` and the palette's block commands reach the timeline on screen.
   const runRef = useRef<(r: string) => void>(() => undefined);
@@ -297,7 +323,9 @@ export function Timeline(p: TimelineProps) {
       else if (selected && r === "duplicate-block") arm("copy");
     };
   });
-  useEffect(() => registerTimeline({ run: (r) => runRef.current(r), hasBlock: () => hasBlockRef.current }), []);
+  // The timeline holding the selected block takes the commands: in the Calendar's grid every day is a timeline.
+  const holdsBlock = Boolean(selected);
+  useEffect(() => registerTimeline({ run: (r) => runRef.current(r), hasBlock: () => hasBlockRef.current }), [holdsBlock]);
 
   // With a block selected: L locks, Backspace/Delete removes, Enter opens its task (or renames a block of your
   // own), Shift+↑/↓ shortens or lengthens it by five minutes, Escape lets go — before the task shortcuts see the key.
@@ -438,27 +466,12 @@ export function Timeline(p: TimelineProps) {
     <div className="flex flex-col">
       {bar && <PlacingBar text={bar} onCancel={() => setArmed(null)} />}
       {/* The zoom (SCREENS.md §2.6): + and - from the keyboard, this on every screen, the phone's tap path. */}
-      <div className="-mt-1 mb-1 flex items-center justify-end gap-0.5 print:hidden" role="group" aria-label="Timeline zoom">
-        <span className="mr-1 text-micro text-ink-3 num">{zoom}m rows</span>
-        {([-1, 1] as const).map((dir) => (
-          <button
-            key={dir}
-            type="button"
-            aria-label={dir === 1 ? "Zoom in" : "Zoom out"}
-            title={dir === 1 ? "Zoom in (+)" : "Zoom out (-)"}
-            disabled={stepZoom(zoom, dir) === zoom}
-            onClick={() => setZoom(stepZoom(zoom, dir))}
-            className="flex size-11 items-center justify-center rounded-lg text-body font-medium text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink disabled:text-ink-3 disabled:hover:bg-transparent sm:size-7 touch:size-11"
-          >
-            {dir === 1 ? "+" : "−"}
-          </button>
-        ))}
-      </div>
-      <div ref={boxRef} className={cx("max-h-[70dvh] overflow-y-auto overscroll-contain", p.paneScrolls && "lg:max-h-none lg:overflow-visible")}>
+      {!column && <ZoomControl zoom={zoom} />}
+      <div ref={boxRef} className={cx(!column && "max-h-[70dvh] overflow-y-auto overscroll-contain", p.paneScrolls && "lg:max-h-none lg:overflow-visible")}>
         <div
           ref={rootRef}
           className={cx("relative select-none", waiting && "cursor-crosshair")}
-          style={{ height: (end - start) * scale }}
+          style={{ height: (end - start) * scale, "--tl-g": column ? "0px" : "3rem" } as CSSProperties}
           data-testid="timeline"
           data-zoom={zoom}
           data-placing={waiting ? "true" : undefined}
@@ -468,24 +481,24 @@ export function Timeline(p: TimelineProps) {
         >
           {/* Under the grid: the page's own paper shows through where the working day is not, a step down from the surface in either theme. */}
           {outside.map((o) => (
-            <div key={`o${o.start}`} aria-hidden="true" data-testid="outside-hours" className="pointer-events-none absolute right-0 left-12 bg-paper/80" style={{ top: y(o.start), height: (o.end - o.start) * scale }} />
+            <div key={`o${o.start}`} aria-hidden="true" data-testid="outside-hours" className={cx("pointer-events-none absolute right-0 bg-paper/80", AT_GUTTER)} style={{ top: y(o.start), height: (o.end - o.start) * scale }} />
           ))}
           {hours.map((h) => (
             <div key={h} className="pointer-events-none absolute inset-x-0" style={{ top: y(h) }}>
-              <div className="absolute top-0 right-0 left-12 border-t border-line" />
-              {!labelHidden(h) && <span className="absolute -top-[7px] left-0 w-10 text-micro font-medium text-ink-3 num">{formatTime(timeFromMinutes(h))}</span>}
+              <div className={cx("absolute top-0 right-0 border-t border-line", AT_GUTTER)} />
+              {!column && !labelHidden(h) && <span className="absolute -top-[7px] left-0 w-10 text-micro font-medium text-ink-3 num">{formatTime(timeFromMinutes(h))}</span>}
               {rows.map((r) => (
-                <div key={r} className={cx("absolute right-0 left-12 border-t border-line", r % 30 === 0 ? "opacity-55" : "opacity-30")} style={{ top: r * scale }}>
-                  {zoom === 5 && r % 15 === 0 && !labelHidden(h + r) && <span className="absolute -top-[7px] -left-12 w-10 text-micro text-ink-3 num">{formatTime(timeFromMinutes(h + r))}</span>}
+                <div key={r} className={cx("absolute right-0 border-t border-line", AT_GUTTER, r % 30 === 0 ? "opacity-55" : "opacity-30")} style={{ top: r * scale }}>
+                  {!column && zoom === 5 && r % 15 === 0 && !labelHidden(h + r) && <span className="absolute -top-[7px] -left-12 w-10 text-micro text-ink-3 num">{formatTime(timeFromMinutes(h + r))}</span>}
                 </div>
               ))}
-              {zoom === 30 && [15, 30, 45].map((q) => <span key={q} className="absolute left-11 h-px w-1 bg-line-strong" style={{ top: q * scale }} />)}
+              {!column && zoom === 30 && [15, 30, 45].map((q) => <span key={q} className="absolute left-11 h-px w-1 bg-line-strong" style={{ top: q * scale }} />)}
             </div>
           ))}
           {gaps.map((g, i) => (
             <div
               key={`f${i}`}
-              className="pointer-events-none absolute right-2 left-13 flex items-center justify-center rounded-sm bg-spare-soft/45 text-label font-semibold text-spare num"
+              className={cx("pointer-events-none absolute right-2 flex items-center justify-center rounded-sm bg-spare-soft/45 text-label font-semibold text-spare num", INSIDE)}
               style={{ top: y(g.start) + 1, height: (g.end - g.start) * scale - 2 }}
             >
               {formatMinutes(g.end - g.start)} free{finishMin !== null && g.start >= finishMin && " · after the plan"}
@@ -503,7 +516,8 @@ export function Timeline(p: TimelineProps) {
                 data-meeting={b.start}
                 data-unanswered={unanswered ? "true" : undefined}
                 className={cx(
-                  "absolute right-2 left-13 overflow-hidden rounded-sm border-l-[3px] px-2 pl-2.5",
+                  "absolute right-2 overflow-hidden rounded-sm border-l-[3px] px-2 pl-2.5",
+                  INSIDE,
                   tall ? "py-1" : "flex items-center gap-1.5",
                   past ? "border-meet-line bg-[color-mix(in_oklab,var(--meet-soft)_55%,var(--surface))]" : "border-meet-fill bg-meet-soft",
                   unanswered && "meet-hatch",
@@ -542,6 +556,18 @@ export function Timeline(p: TimelineProps) {
                   if (title !== null && title.trim() !== b.title) p.onRenameBlock?.(b.id, title);
                 }}
                 onResizeStart={p.onResizeBlock && !b.locked ? beginResize(b) : undefined}
+                onMenu={
+                  p.onSelectBlock &&
+                  (() => {
+                    setOffer(null);
+                    setArmed(null);
+                    if (p.selectedBlockId === b.id) menuRef.current?.open();
+                    else {
+                      menuFor.current = b.id;
+                      p.onSelectBlock?.(b.id);
+                    }
+                  })
+                }
               />
             );
           })}
@@ -552,6 +578,7 @@ export function Timeline(p: TimelineProps) {
               below={selected.start * scale < 56}
               armed={armed?.id === selected.id ? armed.kind : null}
               note={note}
+              menu={menuRef}
               actions={{
                 onOpen: selected.taskId && p.onOpenTask ? () => p.onOpenTask?.(selected.taskId as string) : undefined,
                 onArm: p.onMoveBlock ? arm : undefined,
@@ -575,7 +602,8 @@ export function Timeline(p: TimelineProps) {
                 data-testid="plan-ghost"
                 data-plan-ghost={g.key}
                 className={cx(
-                  "pointer-events-none absolute right-2 left-13 scroll-mt-14 overflow-hidden rounded-sm border-[1.5px] border-dashed border-block-fill bg-block-soft/60 px-2",
+                  "pointer-events-none absolute right-2 scroll-mt-14 overflow-hidden rounded-sm border-[1.5px] border-dashed border-block-fill bg-block-soft/60 px-2",
+                  INSIDE,
                   tall ? "flex flex-col justify-start py-1" : "flex items-center gap-1.5",
                 )}
                 style={{ top: y(g.start) + 1, height }}
@@ -588,7 +616,7 @@ export function Timeline(p: TimelineProps) {
           {shade && (
             <div
               data-testid="timeline-ghost"
-              className="pointer-events-none absolute right-2 left-13 flex items-center gap-1.5 overflow-hidden rounded-sm border border-dashed border-line-strong bg-surface/80 px-2 text-label text-ink-2"
+              className={cx("pointer-events-none absolute right-2 flex items-center gap-1.5 overflow-hidden rounded-sm border border-dashed border-line-strong bg-surface/80 px-2 text-label text-ink-2", INSIDE)}
               style={{ top: y(shade.start) + 1, height: Math.max(12, (shade.end - shade.start) * scale - 2) }}
             >
               <span className="num">{ghost ? hhmm(shade.start) : `${hhmm(shade.start)}–${hhmm(shade.end)}`}</span>
@@ -597,17 +625,17 @@ export function Timeline(p: TimelineProps) {
           )}
           {offer !== null && (
             // Touch: a block of your own where the tap was, half an hour, ready to rename and resize.
-            <div className="absolute right-2 left-13 z-10 flex items-start" style={{ top: y(offer) }} onClick={(e) => e.stopPropagation()}>
+            <div className={cx("absolute right-2 z-10 flex items-start", INSIDE)} style={{ top: y(offer) }} onClick={(e) => e.stopPropagation()}>
               <button type="button" onClick={() => createAt(offer)} className="flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-surface px-3 text-body-sm font-medium text-ink shadow-raised">
                 New block here <span className="text-ink-3 num">{hhmm(offer)}</span>
               </button>
             </div>
           )}
           {/* The working day's end, a shade firmer than an hour line. */}
-          <div className="pointer-events-none absolute right-0 left-12 border-t border-line-strong" style={{ top: y(workEnd) }} />
+          <div className={cx("pointer-events-none absolute right-0 border-t border-line-strong", AT_GUTTER)} style={{ top: y(workEnd) }} />
           {finishMin !== null && (
             <>
-              <div className="pointer-events-none absolute right-0 left-12 z-2 border-t-[1.5px] border-dashed border-spare-fill" style={{ top: y(finishMin) }} />
+              <div className={cx("pointer-events-none absolute right-0 z-2 border-t-[1.5px] border-dashed border-spare-fill", AT_GUTTER)} style={{ top: y(finishMin) }} />
               <Chip tone="spare" size="sm" className="pointer-events-none absolute left-0 z-4 px-2" style={{ top: y(finishMin) - 10 }}>
                 done by {formatTime(c.projectedFinish!)}
               </Chip>
@@ -615,16 +643,18 @@ export function Timeline(p: TimelineProps) {
           )}
           {c.overflowMin > 0 && (
             // The plan runs past the day (SCREENS.md §2.6 "Projected finish"): pinned to the edge, saying by how much.
-            <Chip tone="over" size="sm" data-testid="overrun" className="pointer-events-none absolute left-13 z-4 px-2" style={{ top: y(workEnd) + 4 }}>
+            <Chip tone="over" size="sm" data-testid="overrun" className={cx("pointer-events-none absolute z-4 px-2", INSIDE)} style={{ top: y(workEnd) + 4 }}>
               {formatMinutes(c.overflowMin)} past the end of your day
             </Chip>
           )}
           {nowShown && (
             <>
-              <span className="pointer-events-none absolute left-0 z-3 w-10 text-micro font-semibold text-ink num" style={{ top: y(nowMin) - 7 }}>
-                {formatTime(timeFromMinutes(nowMin))}
-              </span>
-              <div className="pointer-events-none absolute right-0 left-10 z-3 border-t-2 border-ink" style={{ top: y(nowMin) - 1 }}>
+              {!column && (
+                <span className="pointer-events-none absolute left-0 z-3 w-10 text-micro font-semibold text-ink num" style={{ top: y(nowMin) - 7 }}>
+                  {formatTime(timeFromMinutes(nowMin))}
+                </span>
+              )}
+              <div className={cx("pointer-events-none absolute right-0 z-3 border-t-2 border-ink", column ? "left-0" : "left-10")} style={{ top: y(nowMin) - 1 }}>
                 <span className="absolute -top-[5.5px] left-0 size-[9px] rounded-full bg-ink" />
               </div>
             </>
@@ -634,6 +664,28 @@ export function Timeline(p: TimelineProps) {
       <p aria-live="polite" className="sr-only">
         {said}
       </p>
+    </div>
+  );
+}
+
+/** The − / + control: the zoom's tap path (SCREENS.md §2.6); the Calendar's grid draws one for all its days. */
+export function ZoomControl({ zoom }: { zoom: ZoomStep }) {
+  return (
+    <div className="-mt-1 mb-1 flex items-center justify-end gap-0.5 print:hidden" role="group" aria-label="Timeline zoom">
+      <span className="mr-1 text-micro text-ink-3 num">{zoom}m rows</span>
+      {([-1, 1] as const).map((dir) => (
+        <button
+          key={dir}
+          type="button"
+          aria-label={dir === 1 ? "Zoom in" : "Zoom out"}
+          title={dir === 1 ? "Zoom in (+)" : "Zoom out (-)"}
+          disabled={stepZoom(zoom, dir) === zoom}
+          onClick={() => setZoom(stepZoom(zoom, dir))}
+          className="flex size-11 items-center justify-center rounded-lg text-body font-medium text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink disabled:text-ink-3 disabled:hover:bg-transparent sm:size-7 touch:size-11"
+        >
+          {dir === 1 ? "+" : "−"}
+        </button>
+      ))}
     </div>
   );
 }

@@ -5,13 +5,13 @@
 // From / To pair of time fields (which resize too), Duplicate does the same for a copy, and Rename edits the
 // title. Lives in the day pane's island, out of Today's first download.
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type Ref } from "react";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import type { BlockDragData } from "@/features/blocking/drag";
 import { minutesOfField } from "@/features/blocking/minutes";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
-import { MENU_ITEM, MenuButton } from "@/ui/popover";
+import { MENU_ITEM, MENU_ITEM_DESTRUCTIVE, MENU_SEPARATOR, MenuButton, type MenuHandle } from "@/ui/popover";
 import { TimeField } from "@/ui/time-field";
 import type { Lane } from "./overlap";
 import type { TimelineBlock } from "./hooks/use-today";
@@ -25,11 +25,12 @@ export const hhmm = (m: number) => formatTime(timeFromMinutes(m));
 /** "10:00–11:30 · 1h 30m" */
 export const rangeLine = (start: number, end: number) => `${hhmm(start)}–${hhmm(end)} · ${formatMinutes(end - start)}`;
 
-/** A block's horizontal slot: the full row, or its share of a cluster of overlapping blocks. */
+/** A block's horizontal slot: the full row, or its share of a cluster of overlapping blocks. From the ruler gutter (`--tl-g`) in. */
 export function laneStyle(lane: Lane | undefined): { left?: string; width?: string } {
   if (!lane || lane.columns <= 1) return {};
-  const share = `(100% - 3.25rem - 0.5rem) / ${lane.columns}`;
-  return { left: `calc(3.25rem + ${share} * ${lane.column})`, width: `calc(${share} - 3px)` };
+  const inset = "(var(--tl-g, 3rem) + 0.25rem)";
+  const share = `(100% - ${inset} - 0.5rem) / ${lane.columns}`;
+  return { left: `calc(${inset} + ${share} * ${lane.column})`, width: `calc(${share} - 3px)` };
 }
 
 /** What the toolbar's Move… or Duplicate is waiting for: a tap on the timeline, or a time typed. */
@@ -47,6 +48,7 @@ export function Block({
   onRename,
   onRenamed,
   onResizeStart,
+  onMenu,
 }: {
   block: TimelineBlock;
   lane?: Lane;
@@ -62,6 +64,8 @@ export function Block({
   /** The new name, or null when the edit was let go (Escape). */
   onRenamed: (title: string | null) => void;
   onResizeStart?: (edge: "start" | "end", e: ReactPointerEvent<HTMLDivElement>) => void;
+  /** A right-click: the block's menu (SCREENS.md §4), the same one as the toolbar's `⋯` on touch. */
+  onMenu?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const { id, start, end } = block;
@@ -98,13 +102,21 @@ export function Block({
       data-block={id}
       data-done={done ? "true" : undefined}
       className={cx(
-        "absolute right-2 left-13 rounded-sm border-l-[3px]",
+        "absolute right-2 left-[calc(var(--tl-g,3rem)_+_0.25rem)] rounded-sm border-l-[3px]",
         // The past is dimmed by a token mix, opaque so nothing beneath shows through.
         quiet ? "border-line-strong bg-[color-mix(in_oklab,var(--block-soft)_55%,var(--surface))]" : "border-block-fill bg-block-soft",
         movable && !renaming && "cursor-grab",
         selected && "outline-2 outline-offset-1 outline-ink",
       )}
       style={{ top: style.top + 1, height, ...laneStyle(lane) } as CSSProperties}
+      onContextMenu={
+        onMenu &&
+        ((e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onMenu();
+        })
+      }
     >
       {renaming ? (
         <input
@@ -167,11 +179,29 @@ export interface ToolbarActions {
 }
 
 /**
- * The selected block's toolbar: Open, Move…, Lock and Remove, with Rename and Duplicate behind `⋯`. Drawn above
- * the block (below it near midnight), outside the block so nothing interactive is nested. While Move… or
- * Duplicate waits, it holds the From / To fields instead: a tap on the timeline still works.
+ * The selected block's toolbar: Open, Move…, Lock and Remove, with the block's menu behind `⋯` — Open task, Lock or
+ * Unlock, Unblock (a task's block) or Delete (a block of your own), Rename and Duplicate — which a right-click on the
+ * block opens too (SCREENS.md §4). Drawn above the block (below it near midnight), outside the block so nothing
+ * interactive is nested. While Move… or Duplicate waits, it holds the From / To fields instead: a tap on the
+ * timeline still works.
  */
-export function BlockToolbar({ block, top, below, armed, note, actions }: { block: TimelineBlock; top: number; below: boolean; armed: Armed["kind"] | null; note: string | null; actions: ToolbarActions }) {
+export function BlockToolbar({
+  block,
+  top,
+  below,
+  armed,
+  note,
+  actions,
+  menu,
+}: {
+  block: TimelineBlock;
+  top: number;
+  below: boolean;
+  armed: Armed["kind"] | null;
+  note: string | null;
+  actions: ToolbarActions;
+  menu?: Ref<MenuHandle>;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [from, setFrom] = useState(hhmm(block.start));
   const [to, setTo] = useState(hhmm(block.end));
@@ -255,10 +285,27 @@ export function BlockToolbar({ block, top, below, armed, note, actions }: { bloc
               Remove
             </button>
           )}
-          {(actions.onRename || actions.onArm) && (
-            <MenuButton label="More block actions" portal className="size-11 sm:size-7 touch:size-11">
+          {(actions.onRename || actions.onArm || actions.onToggleLock || actions.onRemove) && (
+            <MenuButton label="More block actions" portal handle={menu} className="size-11 sm:size-7 touch:size-11">
               {(close) => (
                 <>
+                  {actions.onOpen && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), actions.onOpen?.())}>
+                      Open task
+                    </button>
+                  )}
+                  {actions.onToggleLock && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), actions.onToggleLock?.())}>
+                      {block.locked ? "Unlock" : "Lock"}
+                    </button>
+                  )}
+                  {/* A task's block is let go of and the task stays; a block of your own has nothing else, so it is deleted. */}
+                  {actions.onRemove && (
+                    <button type="button" role="menuitem" className={block.taskId ? MENU_ITEM : MENU_ITEM_DESTRUCTIVE} onClick={() => (close(), actions.onRemove?.())}>
+                      {block.taskId ? "Unblock" : "Delete"}
+                    </button>
+                  )}
+                  {(actions.onRename || actions.onArm) && (actions.onOpen || actions.onToggleLock || actions.onRemove) && <div role="separator" className={MENU_SEPARATOR} />}
                   {actions.onRename && (
                     <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), actions.onRename?.())}>
                       Rename
