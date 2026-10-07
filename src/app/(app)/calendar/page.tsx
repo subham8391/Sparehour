@@ -67,7 +67,8 @@ export default function CalendarPage() {
   const rail = useMemo(() => todays.filter((t) => !model.blocksByTask.has(t.id)), [todays, model.blocksByTask]);
   const known = useMemo(() => new Map<string, BlockTask>(todays.map((t) => [t.id, { title: t.title, state: t.state }])), [todays]);
   const findTask = useCallback((id: string): Task | undefined => todays.find((t) => t.id === id) ?? model.carried.find((t) => t.id === id), [todays, model.carried]);
-  const sel = useListSelection(rail.map((t) => t.id));
+  // J / K walk the rail where it is on screen; the sheet below the wide band is tapped, not walked.
+  const sel = useListSelection(band === "wide" ? rail.map((t) => t.id) : []);
 
   const data = useCalendarDays({ days, today, now, settings, tasks: known });
   const { writes } = useCalendarState();

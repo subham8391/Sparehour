@@ -82,7 +82,8 @@ export function CalendarGrid(p: CalendarGridProps) {
   // Opening on the working day (SCREENS.md §2.6), across every day shown; on today, late in the day, on now. Again
   // whenever the range or the zoom changes.
   const scrollRef = useRef<HTMLDivElement>(null);
-  const key = `${days.map((d) => d.day.toString()).join(",")}@${scale}`;
+  // Again once the days' capacities have arrived, so it opens on the working day rather than a guess.
+  const key = `${days.map((d) => d.day.toString()).join(",")}@${scale}${days.every((d) => d.capacity) ? "" : "…"}`;
   const openAt = useMemo(() => {
     let at = 24 * 60;
     for (const d of days) {
@@ -203,7 +204,7 @@ function DayHeader({ d, day, today }: { d: CalendarDay | undefined; day: LocalDa
 /** The hours, once for every column: the labels a lone timeline keeps in its own gutter. */
 function Ruler({ height, scale }: { height: number; scale: number }) {
   return (
-    <div aria-hidden="true" className="sticky left-0 z-10 bg-surface" style={{ height }} data-ruler="">
+    <div aria-hidden="true" className="sticky left-0 z-20 bg-surface" style={{ height }} data-ruler="">
       {Array.from({ length: 24 }, (_, h) => (
         <span key={h} className="absolute text-micro font-medium text-ink-3 num" style={{ top: h * 60 * scale - 7, left: 4 }}>
           {h === 0 ? "" : formatTime(timeFromMinutes(h * 60))}
