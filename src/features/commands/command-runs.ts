@@ -297,24 +297,6 @@ export const RUNS: readonly CommandRun[] = [
   { id: "go.inbox", shortcut: "g i", run: (ctx) => ctx.go("/inbox") },
   { id: "go.upcoming", shortcut: "g u", run: (ctx) => ctx.go("/upcoming") },
   { id: "go.calendar", shortcut: "g c", run: (ctx) => ctx.go("/calendar") },
-  // Calendar: Day · Work week · Week (SCREENS.md §4, §24): the mode is remembered on the device (the key is
-  // calendar-view/calendar-mode.ts's CALENDAR_MODE_KEY, written here so no shell carries that module; the storage
-  // event tells an open Calendar), and the Calendar opens in it. The keys reach the page only in the installed app;
-  // in a browser tab they stay the browser's.
-  ...["day", "workweek", "week"].map(
-    (mode, i): CommandRun => ({
-      id: `calendar.${mode}`,
-      shortcut: `mod+${i + 1}`,
-      passes: () => !window.matchMedia?.("(display-mode: standalone)").matches,
-      run: (ctx) => {
-        try {
-          localStorage.setItem("sparehour.calendar.mode", mode);
-        } catch {}
-        dispatchEvent(new StorageEvent("storage"));
-        if (ctx.pathname !== "/calendar") ctx.go("/calendar");
-      },
-    }),
-  ),
   { id: "go.someday", shortcut: "g s", run: (ctx) => ctx.go("/someday") },
   { id: "go.logbook", shortcut: "g l", run: (ctx) => ctx.go("/logbook") },
   { id: "go.project", shortcut: "g p", run: (ctx) => ctx.openPalette("", "projects") },

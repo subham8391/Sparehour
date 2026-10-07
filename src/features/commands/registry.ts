@@ -5,6 +5,7 @@
 // shell carries; the words here (title, group, keywords) load with the palette
 // and the ? overlay. A new command is a run there and its words here.
 import { TODAY_SORTS } from "@/core/today/sort-options";
+import { CALENDAR_RUNS } from "./calendar-commands";
 import { RUNS, type CommandRun } from "./command-runs";
 
 export { availability, keyBindings, prefillHere, targets, type Availability, type CommandContext, type PaletteScope, type Theme } from "./command-runs";
@@ -121,4 +122,5 @@ const WORDS: Record<string, Words> = {
   ),
 };
 
-export const COMMANDS: readonly Command[] = RUNS.map((r) => ({ ...r, ...WORDS[r.id] }));
+// The Calendar's mode commands are the palette's and the overlay's only: the Calendar binds their keys itself.
+export const COMMANDS: readonly Command[] = [...RUNS, ...CALENDAR_RUNS].map((r) => ({ ...r, ...WORDS[r.id] }));

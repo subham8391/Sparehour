@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 // The Calendar's modes (SCREENS.md §4, §24; DECISIONS.md "`Cmd+1/2/3` in a browser tab"): Cmd/Ctrl+1–3 and the
 // palette's "Calendar: Day / Work week / Week" set the mode remembered on the device and open the Calendar. The keys
-// answer in the installed app only — in a browser tab they pass on to the browser, which keeps them for its tabs —
-// and the ? overlay says so.
-import { render, screen, within } from "@testing-library/react";
+// are the Calendar's own, not the keyboard layer's every shell carries, and answer in the installed app only — in a
+// browser tab they are left to the browser, which keeps them for its tabs — and the ? overlay says so.
+import { fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CALENDAR_MODE_KEY, readCalendarMode, subscribeCalendarMode } from "@/features/calendar-view/calendar-mode";
+import { CALENDAR_MODE_KEY, readCalendarMode, setCalendarMode, subscribeCalendarMode } from "@/features/calendar-view/calendar-mode";
+import { useCalendarModeKeys } from "@/features/calendar-view/use-calendar-view";
 import { chordMatches, chordOf, parseChord } from "./keys";
-import { COMMANDS, availability } from "./registry";
+import { COMMANDS, availability, keyBindings } from "./registry";
 import { ShortcutsDialog } from "./shortcuts-dialog";
 
 const byId = (id: string) => {
@@ -57,11 +58,27 @@ describe("Calendar: Day · Work week · Week", () => {
     expect(availability(byId("calendar.week"), { selectedTaskId: null, checkedTaskIds: [], pathname: "/inbox" })).toEqual({ enabled: true });
   });
 
-  it("the keys pass on to the browser in a tab, and answer in the installed app", () => {
+  it("the keyboard layer every shell carries does not bind them", () => {
+    expect(keyBindings().some((b) => b.shortcut.startsWith("mod+") && /^mod\+[123]$/.test(b.shortcut))).toBe(false);
+  });
+
+  it("on the Calendar the keys are left to the browser in a tab, and switch the mode in the installed app", () => {
+    setCalendarMode("week");
+    const { unmount } = renderHook(() => useCalendarModeKeys(true));
     standalone(false);
-    expect(byId("calendar.week").passes?.({} as never)).toBe(true);
+    expect(fireEvent.keyDown(window, { key: "1", ctrlKey: true })).toBe(true);
+    expect(readCalendarMode()).toBe("week");
     standalone(true);
-    expect(byId("calendar.week").passes?.({} as never)).toBe(false);
+    expect(fireEvent.keyDown(window, { key: "1", ctrlKey: true })).toBe(false);
+    expect(readCalendarMode()).toBe("day");
+    fireEvent.keyDown(window, { key: "2", ctrlKey: true });
+    expect(readCalendarMode()).toBe("workweek");
+    // Not from a text field.
+    const field = document.body.appendChild(document.createElement("input"));
+    fireEvent.keyDown(field, { key: "3", ctrlKey: true });
+    expect(readCalendarMode()).toBe("workweek");
+    field.remove();
+    unmount();
   });
 
   it("the ? overlay marks them as the installed app's", () => {

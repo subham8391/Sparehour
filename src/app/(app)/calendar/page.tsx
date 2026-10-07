@@ -13,7 +13,7 @@ import { useQuery } from "@/data/powersync";
 import { WEEK_START_SQL } from "@/data/queries/week";
 import { CalendarGrid } from "@/features/calendar-view/calendar-grid";
 import { setCalendarMode, type CalendarMode } from "@/features/calendar-view/calendar-mode";
-import { setCalendarDay, useCalendarDayParam, useCalendarMode } from "@/features/calendar-view/use-calendar-view";
+import { setCalendarDay, useCalendarDayParam, useCalendarMode, useCalendarModeKeys } from "@/features/calendar-view/use-calendar-view";
 import { CalendarRail, RailSheet, TasksButton } from "@/features/calendar-view/calendar-rail";
 import { focusDay, rangeTitle, shownDays, shownMode, stepShown } from "@/features/calendar-view/grid";
 import { useCalendarBand } from "@/features/calendar-view/use-calendar-band";
@@ -110,6 +110,7 @@ export default function CalendarPage() {
 
   const wide = band === "wide";
   const multi = band !== "phone" && band !== "landscape";
+  useCalendarModeKeys(multi);
   const unit = shown === "day" || shown === "three" ? "day" : "week";
   const stepButton = (delta: 1 | -1) => (
     <button
