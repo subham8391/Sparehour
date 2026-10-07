@@ -55,6 +55,21 @@ describe("<Ribbon>", () => {
     expect(screen.queryByText(/done by/)).not.toBeInTheDocument();
   });
 
+  it("with nothing planned the line says so and invites the morning plan (PRODUCT_SPEC.md §9.4 Empty)", () => {
+    const { container } = render(<Ribbon c={{ ...capacityFixture, committedMin: 0, unscheduledMin: 0, blocks: [], spareMin: 400, projectedFinish: null }} nowMin={540} />);
+    expect(screen.getByText("6h 40m")).toBeInTheDocument();
+    const line = screen.getByText(/nothing planned yet/);
+    expect(line).toHaveTextContent("nothing planned yet · 1h in meetings · Plan your day");
+    expect(screen.getByRole("link", { name: "Plan your day" })).toHaveAttribute("href", "/plan");
+    expect(container).not.toHaveTextContent(/\dm planned/);
+  });
+
+  it("is only a drawing unless Today hands it its interactions", () => {
+    render(<Ribbon c={capacityFixture} nowMin={680} />);
+    expect(screen.queryByRole("button", { name: "Spare time breakdown" })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-day]")?.closest("[aria-hidden='true']")).not.toBeNull();
+  });
+
   it("without a calendar the meetings line becomes the way to connect one", () => {
     render(<Ribbon c={capacityFixture} connected={false} />);
     expect(screen.getByRole("link", { name: "connect a calendar to see real free time" })).toHaveAttribute("href", "/settings#calendar");
