@@ -10,7 +10,7 @@ import type { Priority, SpaceId, Task, TaskId } from "@/core/types";
 const db = vi.hoisted(() => ({ execute: vi.fn().mockResolvedValue({}), getOptional: vi.fn().mockResolvedValue(null), getAll: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/data/powersync", () => ({ useLocalDatabase: () => db, useQuery: () => ({ data: [] }) }));
 
-import { SelectionProvider, useListSelection } from "@/features/selection/selection-provider";
+import { SelectionProvider, useListSelection, useSelection } from "@/features/selection/selection-provider";
 import { DefaultEstimate } from "./default-estimate";
 import { DayChipTag } from "./task-actions";
 import { dayChip } from "./day-chip";
@@ -74,6 +74,30 @@ describe("the priority mark", () => {
   it("leaves a finished task alone", () => {
     render(row(task({ priority: 3, state: "done" })));
     expect(screen.queryByRole("img", { name: /^priority/ })).toBeNull();
+  });
+
+  it("steps aside for the checkbox while rows are being ticked", async () => {
+    function Ticking() {
+      useListSelection(["t1"]);
+      const { toggleCheck } = useSelection();
+      return (
+        <>
+          <button type="button" onClick={() => toggleCheck("t1")}>
+            tick
+          </button>
+          {row(task({ priority: 3 }))}
+        </>
+      );
+    }
+    render(
+      <SelectionProvider>
+        <Ticking />
+      </SelectionProvider>,
+    );
+    expect(screen.getByRole("img", { name: "priority 1" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "tick" }));
+    expect(screen.getByRole("checkbox", { name: "Select Draft the proposal" })).toBeChecked();
+    expect(screen.queryByRole("img", { name: "priority 1" })).toBeNull();
   });
 });
 

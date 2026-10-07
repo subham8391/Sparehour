@@ -421,8 +421,9 @@ export function TaskRow({
               className="relative z-1 sm:size-7 sm:justify-self-center touch:size-11"
             />
           )}
-          {task.priority > 1 && !done && (
+          {task.priority > 1 && !done && !(multi && sel) && (
             // !1 (stored 3) and !2 (stored 2) lead the row, the second a step quieter; never a warning colour (SCREENS.md §2.4).
+            // While rows are being ticked the checkbox holds the leading edge, so the mark steps aside rather than sit on it.
             <span role="img" aria-label={`priority ${4 - task.priority}`} className={cx("absolute left-0.5 text-label font-semibold", task.priority > 2 ? "text-ink" : "text-ink-2")}>
               {task.priority > 2 ? "!!" : "!"}
             </span>
