@@ -48,6 +48,25 @@ export function redone(item: RedoItem): UndoEntry {
   };
 }
 
+/**
+ * A screen's own change of a value (a setting, a day's working hours, this device's motion choice): undoing writes
+ * the old value back over the new one, redoing writes the new one again. `write(to, from)` makes the change.
+ */
+export function valueEntry<T>(label: string, write: (to: T, from: T) => unknown, before: T, after: T): UndoEntry {
+  const again: Redo = {
+    redo: async () => void (await write(after, before)),
+    undo: async () => void (await write(before, after)),
+  };
+  return {
+    label,
+    toast: false,
+    undo: async () => {
+      await again.undo();
+      return again;
+    },
+  };
+}
+
 /** The toast after an undo, and what the live region says: "Undone: Dropped “Draft the proposal”". */
 export const undoneWords = (entry: Pick<UndoEntry, "label">): string => `Undone: ${entry.label}`;
 /** What the live region says after a redo: "Redone: Dropped “Draft the proposal”". */

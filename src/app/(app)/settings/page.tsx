@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { isTodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import { useUndoSink } from "@/features/undo/undo-provider";
+import { valueEntry } from "@/features/undo/undo-stack";
 import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/data/repositories/settings-repo";
@@ -129,7 +130,7 @@ export default function SettingsPage() {
     if (!s || !values) return;
     const previous = asPatch(values, Object.keys(patch) as (keyof SettingsPatch)[]);
     void write(s.id, patch);
-    undo?.record({ label: "Changed a setting", toast: false, undo: () => write(s.id, previous) });
+    undo?.record(valueEntry("Changed a setting", (to: SettingsPatch) => write(s.id, to), previous, patch));
   };
   // A day's segments are written together, so one ⌘Z puts the whole day back.
   const onWorkHours = (weekday: number, segments: Segment[]) => {
@@ -141,13 +142,13 @@ export default function SettingsPage() {
       return hoursRepo.replaceDay(weekday, segs, ctx);
     };
     void writeDay(segments);
-    undo?.record({ label: "Changed working hours", toast: false, undo: () => writeDay(previous) });
+    undo?.record(valueEntry("Changed working hours", writeDay, previous, segments));
   };
   // Reduce motion is this device's choice, like the theme; it answers ⌘Z too.
   const onMotion = (next: MotionChoice) => {
     const previous = readMotion();
     applyMotion(next);
-    undo?.record({ label: "Changed a setting", toast: false, undo: async () => applyMotion(previous) });
+    undo?.record(valueEntry("Changed a setting", applyMotion, previous, next));
   };
 
   async function signOut(anyway = false) {

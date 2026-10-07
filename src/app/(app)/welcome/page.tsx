@@ -16,6 +16,7 @@ import { canonicalZone, segmentsLabel } from "@/features/settings/settings-rules
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useUndoSink } from "@/features/undo/undo-provider";
+import { valueEntry } from "@/features/undo/undo-stack";
 import { HoursStep } from "@/features/welcome/hours-step";
 import { forgetFirstRun, hoursConfirmedHere, rememberHoursConfirmed } from "@/features/welcome/step-memory";
 import { detectedZone, weekFromRows, type Segment } from "@/features/welcome/welcome-rules";
@@ -76,7 +77,7 @@ export default function WelcomePage() {
     setFailure(null);
     try {
       await write(zone, week, before);
-      undo?.record({ label: "Set your working hours", toast: false, undo: () => write(before.zone, before.week, { zone, week }) });
+      undo?.record(valueEntry("Set your working hours", (to: typeof before, from: typeof before) => write(to.zone, to.week, from), before, { zone, week }));
       rememberHoursConfirmed(user.id);
       setConfirmed(true);
     } catch (e) {

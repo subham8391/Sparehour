@@ -85,16 +85,27 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
     (ids: readonly string[]) => {
       let taken: Promise<void> | null = null;
       const takeBack = () => (taken ??= tasks.removeCreated(ids));
-      undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: true, undo: takeBack });
+      undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: true, rows: { tasks: ids, task_tags: { task_id: ids } }, undo: takeBack });
       return takeBack;
     },
     [tasks, undo],
   );
 
-  // Esc with words in the box discards them with a one-step undo (§5.1 rule 4): the toast reopens the sheet holding them.
+  // Esc with words in the box discards them with a one-step undo (§5.1 rule 4): the toast reopens the sheet holding
+  // them, and a redo discards them again.
   const onDiscard = useCallback(
-    (text: string, title: string) => undo?.record({ label: `Discarded “${title}”`, toast: true, undo: async () => reopen(text) }),
-    [undo, reopen],
+    (text: string, title: string) => {
+      const again = { redo: async () => close(), undo: async () => reopen(text) };
+      undo?.record({
+        label: `Discarded “${title}”`,
+        toast: true,
+        undo: async () => {
+          await again.undo();
+          return again;
+        },
+      });
+    },
+    [undo, reopen, close],
   );
 
   const api = useMemo(() => ({ open }), [open]);
