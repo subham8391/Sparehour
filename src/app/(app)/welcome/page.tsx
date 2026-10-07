@@ -11,6 +11,7 @@ import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo } from "@/data/repositories/settings-repo";
 import type { WorkHoursRow } from "@/data/schema.client";
+import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { canonicalZone, segmentsLabel } from "@/features/settings/settings-rules";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -37,6 +38,7 @@ export default function WelcomePage() {
   const settingsRepo = useMemo(() => new SettingsRepo(db), [db]);
   const hoursRepo = useMemo(() => new WorkHoursRepo(db), [db]);
   const undo = useUndoSink();
+  const pwa = usePwaOptional();
   const now = useNow();
   const { today, zone: accountZone, settings } = useLocalDay(now);
   const { data: rows } = useQuery<{ id: string; onboarded_at: string | null; timezone: string | null }>(SETTINGS_ROW_SQL);
@@ -90,6 +92,8 @@ export default function WelcomePage() {
     try {
       await settingsRepo.finishFirstRun(row.id);
       forgetFirstRun();
+      // The end of the first run is the moment to ask the browser to keep our storage (PRODUCT_SPEC.md §19 rule 2).
+      pwa?.requestPersist();
       router.replace("/today");
     } catch {
       setBusy(false);
