@@ -286,15 +286,21 @@ export default function TodayPage() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [placingId, setPlacingId] = useState<string | null>(null);
   const placingTask = placingId ? findTask(placingId) : undefined;
+  // Tap-to-schedule and the plan preview need the timeline: the Day view, and from the wide band a day pane put
+  // away with Cmd+. comes back.
+  const toDay = () => {
+    setView("day");
+    setPref("dayPane", false);
+  };
   const startPlacing = (id: string) => {
     setPlacingId(id);
-    setView("day");
+    toDay();
   };
   // Plan my day (SCREENS.md §2.1, §2.6): the preview shows the Day view with the proposal drawn on it, nothing written until Approve.
   // It plans today, so asked for on another day it comes home first.
   const planning = usePlanPreview(() => {
     goHome();
-    setView("day");
+    toDay();
     setSelectedBlockId(null);
     setPlacingId(null);
     detail.close();
@@ -614,10 +620,9 @@ export default function TodayPage() {
                 onAdd: () => quickAdd.open(dayWords(day, model.today)),
                 addFor: onToday ? undefined : formatDay(day, { today: model.today }),
                 onMeeting: (m) => {
-                  setView("day");
                   // From the wide band an open detail stands in the day pane's place, and a put-away pane comes back.
+                  toDay();
                   if (detail.selectedId) detail.close();
-                  setPref("dayPane", false);
                   setShownMeeting(m.start);
                 },
               }}

@@ -258,6 +258,15 @@ describe("Today's panes (SCREENS.md §1 Context pane, §2.8; DECISIONS.md “Med
     expect(document.documentElement.dataset.dayPane).toBeUndefined();
   });
 
+  it("Plan my day brings a put-away day pane back, so its proposal shows (SCREENS.md §2.6a)", async () => {
+    wide(true);
+    document.documentElement.dataset.dayPane = "hidden";
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    await userEvent.click(screen.getAllByRole("button", { name: "Plan my day" })[0]);
+    expect(document.documentElement.dataset.dayPane).toBeUndefined();
+  });
+
   it("on a phone the ribbon card and the List | Day row stick together; Plan my day scrolls with the lists", async () => {
     view();
     await screen.findByRole("heading", { level: 1, name: title(today) });
