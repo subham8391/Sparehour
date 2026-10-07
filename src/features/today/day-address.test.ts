@@ -2,6 +2,7 @@
 // Today on another day (SCREENS.md §2.1, §24): the `?day=` address, the way a day is opened, the header's words for
 // it, and the words quick-add files a new task there with.
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parse } from "@/core/quickadd/parse";
 import { readTypedDate } from "@/core/quickadd/read-date";
 import { instant, localDate } from "@/core/time";
 import { dayHref, dayWords, daysAway, openDay, parseDay } from "./day-address";
@@ -53,6 +54,17 @@ describe("quick-add's words for the day shown", () => {
     }
     expect(dayWords(localDate("2026-10-08"), TODAY)).toBe("tomorrow ");
     expect(dayWords(localDate("2026-10-13"), TODAY)).toBe("13 oct ");
+  });
+
+  it("ahead of the title the person types, as quick-add holds them", () => {
+    for (const [iso, typed] of [
+      ["2026-10-08", "Call the bank"],
+      ["2026-10-13", "Buy milk ~15m"],
+    ]) {
+      const r = parse(`${dayWords(localDate(iso), TODAY)}${typed}`, ctx);
+      expect(r.ok && r.draft.doDate?.toString()).toBe(iso);
+      expect(r.ok && r.draft.title).toBe(typed.replace(" ~15m", ""));
+    }
   });
 
   it("a day that has passed takes new tasks on today", () => {
