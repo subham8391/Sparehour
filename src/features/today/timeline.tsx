@@ -117,6 +117,11 @@ export interface TimelineProps {
    * its own — the grid draws one ruler and one zoom for every column and scrolls them together.
    */
   column?: boolean;
+  /**
+   * A grid column's "Tap a new time for …" bar, with its Cancel, handed to the grid to draw above every day (in the
+   * column it would push that day's hours out of line with the others); null when nothing waits.
+   */
+  onArmed?: (bar: { text: string; cancel: () => void } | null) => void;
 }
 
 interface Ghost {
@@ -462,10 +467,20 @@ export function Timeline(p: TimelineProps) {
   // The dashed outline under a pointer: a dragged row or block, or a block being drawn.
   const shade: Ghost | null = ghost ?? (drawing && { ...drawing, label: "New block" });
   const bar = armed && armedBlock ? (armed.kind === "move" ? `Tap a new time for “${armedBlock.title}”` : `Tap a time for a copy of “${armedBlock.title}”`) : null;
+  // A grid column's bar is the grid's to draw: the tap path's prompt and its Cancel, which a phone has no Escape for.
+  const onArmedRef = useRef(p.onArmed);
+  useEffect(() => {
+    onArmedRef.current = p.onArmed;
+  });
+  useEffect(() => {
+    if (!column || !bar) return;
+    onArmedRef.current?.({ text: bar, cancel: () => setArmed(null) });
+    return () => onArmedRef.current?.(null);
+  }, [column, bar]);
 
   return (
     <div className="flex flex-col">
-      {/* In a grid column the bar would push one day's hours out of line: the toolbar's fields and the label say it there. */}
+      {/* In a grid column the bar would push one day's hours out of line: the grid draws it above every day (onArmed). */}
       {bar && !column && <PlacingBar text={bar} onCancel={() => setArmed(null)} />}
       {/* The zoom (SCREENS.md §2.6): + and - from the keyboard, this on every screen, the phone's tap path. */}
       {!column && <ZoomControl zoom={zoom} />}

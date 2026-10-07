@@ -217,6 +217,21 @@ describe("the rail and blocking", () => {
     expect(h.blocks.create).not.toHaveBeenCalled();
   });
 
+  it("a block's Move… says to tap a time above the grid, and its Cancel lets go (a phone has no Escape)", async () => {
+    db.insert("time_blocks", { id: "b9", space_id: "s1", user_id: "u1", task_id: null, title: "Deep work", start_at: "2026-10-08T13:00:00Z", end_at: "2026-10-08T14:00:00Z", locked: 0, deleted_at: null });
+    const user = userEvent.setup();
+    view();
+    await user.click(within(column("2026-10-08")).getByRole("button", { name: /^Block: Deep work/ }));
+    await user.click(within(column("2026-10-08")).getByRole("button", { name: "Move Deep work to another time" }));
+    const bar = screen.getByText("Tap a new time for “Deep work”").closest<HTMLElement>("[role='status']")!;
+    expect(bar).not.toBeNull();
+    // Above the grid, not inside one day's column.
+    expect(column("2026-10-08").contains(bar)).toBe(false);
+    await user.click(within(bar).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Tap a new time for “Deep work”")).toBeNull();
+    expect(h.blocks.move).not.toHaveBeenCalled();
+  });
+
   it("a day that has passed takes nothing", async () => {
     const user = userEvent.setup();
     view();

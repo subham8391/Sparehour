@@ -19,7 +19,7 @@ import { useCalendarState } from "@/features/today/calendar-state";
 import { placerTimeline } from "@/features/today/day-pane";
 import { minuteOnDay } from "@/features/today/day-minute";
 import type { TimelineBlock } from "@/features/today/hooks/use-today";
-import { Timeline, ZoomControl, drawnRange, useTimelineZoom, type TimelineProps } from "@/features/today/timeline";
+import { PlacingBar, Timeline, ZoomControl, drawnRange, useTimelineZoom, type TimelineProps } from "@/features/today/timeline";
 import { ReadoutText } from "@/features/upcoming/capacity-bar";
 import { dayReadout } from "@/features/upcoming/week";
 import { iconButtonClass } from "@/ui/button";
@@ -125,9 +125,12 @@ export function CalendarGrid(p: CalendarGridProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, sideways]);
   const stepSideways = (delta: 1 | -1) => scrollRef.current?.scrollBy({ left: delta * columnWidth(), behavior: scrollMotion() });
+  // A block's Move… or Duplicate waiting for a tap, on whichever day holds it: its prompt and Cancel, over the grid.
+  const [armed, setArmed] = useState<{ text: string; cancel: () => void } | null>(null);
 
   return (
     <div className="flex flex-col">
+      {armed && <PlacingBar text={armed.text} onCancel={armed.cancel} />}
       <div className="flex items-start justify-end gap-1">
         {sideways && (
           <div className="-mt-1 mr-auto flex items-center">
@@ -176,7 +179,7 @@ export function CalendarGrid(p: CalendarGridProps) {
                 ))}
               </button>
             ) : (
-              <DayColumn key={c.day.toString()} d={byIso.get(c.day.toString())!} p={p} allBlocks={allBlocks} />
+              <DayColumn key={c.day.toString()} d={byIso.get(c.day.toString())!} p={p} allBlocks={allBlocks} onArmed={setArmed} />
             ),
           )}
         </div>
@@ -215,7 +218,7 @@ function Ruler({ height, scale }: { height: number; scale: number }) {
   );
 }
 
-function DayColumn({ d, p, allBlocks }: { d: CalendarDay; p: CalendarGridProps; allBlocks: ReadonlyMap<string, TimelineBlock> }) {
+function DayColumn({ d, p, allBlocks, onArmed }: { d: CalendarDay; p: CalendarGridProps; allBlocks: ReadonlyMap<string, TimelineBlock>; onArmed: TimelineProps["onArmed"] }) {
   const iso = d.day.toString();
   const isToday = d.day.equals(p.today);
   const past = compareDates(d.day, p.today) < 0;
@@ -228,7 +231,7 @@ function DayColumn({ d, p, allBlocks }: { d: CalendarDay; p: CalendarGridProps; 
       </div>
     );
   // "Done by" belongs to today alone (SCREENS.md §4).
-  const drawn = { c: isToday ? c : { ...c, projectedFinish: null }, now: p.now, zone: p.zone, blocks: d.blocks, meetings: d.meetings, defaultEstimateMin: p.defaultEstimateMin, column: true };
+  const drawn = { c: isToday ? c : { ...c, projectedFinish: null }, now: p.now, zone: p.zone, blocks: d.blocks, meetings: d.meetings, defaultEstimateMin: p.defaultEstimateMin, column: true, onArmed };
   return (
     <div role="group" aria-label={label} data-day={iso} className={cx(s.day, "min-w-0")}>
       {past ? <Timeline {...drawn} /> : <PlacingColumn d={d} c={c} drawn={drawn} p={p} allBlocks={allBlocks} isToday={isToday} />}
