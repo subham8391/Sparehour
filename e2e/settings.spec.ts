@@ -69,7 +69,8 @@ test.afterAll(async () => {
 
 async function section(page: Page, name: string) {
   await page.getByRole("navigation", { name: "Settings sections" }).getByRole("link", { name: new RegExp(`^${name}`) }).click();
-  await expect(page.getByRole("region", { name })).toBeVisible();
+  // Exact: Account holds a "Delete account" region of its own.
+  await expect(page.getByRole("region", { name, exact: true })).toBeVisible();
 }
 
 test("a planning default saves immediately, reaches Postgres, and the device panels are present", async ({ page }) => {
@@ -98,6 +99,35 @@ test("a planning default saves immediately, reaches Postgres, and the device pan
   await expect(page.getByRole("button", { name: "JSON" })).toBeVisible();
   await section(page, "Account");
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+});
+
+test("Account shows the initials and how the account signs in; Delete account waits for the typed word, and Cancel keeps it", async ({ page }) => {
+  // Never the dev account: the deletion request is refused here whatever happens (e2e/account-delete.spec.ts deletes a throwaway one).
+  await page.route("**/api/account/delete", (route) => route.abort());
+  await openApp(page, "/settings#account");
+  const account = page.getByRole("region", { name: "Account", exact: true });
+  await expect(account).toBeVisible();
+  // The dev account has no picture, so its initials stand in; it signs in with an emailed code (the "email" identity).
+  await expect(account.getByTestId("avatar-initials")).toHaveText("DU");
+  await expect(account.getByText("Signed in with")).toBeVisible();
+  await expect(account.getByText(/Email code/)).toBeVisible({ timeout: 15_000 });
+
+  await page.getByRole("button", { name: "Delete account", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Delete your account?" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText(/^Every task, step, project, area and tag/)).toBeVisible();
+  await expect(sheet.getByText(/30 days to change your mind/)).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Export your data first" })).toBeVisible();
+  const go = sheet.getByRole("button", { name: "Delete account", exact: true });
+  await expect(go).toBeDisabled();
+  const word = sheet.getByLabel(/to confirm/);
+  await word.fill("delet");
+  await expect(go).toBeDisabled();
+  await word.fill("delete");
+  await expect(go).toBeEnabled();
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  await expect(sheet).toHaveCount(0);
+  expect(await waitForRow("select 1 from public.users where email = $1 and deleted_at is not null", [DEV_USER.email], 1_000)).toBeNull();
 });
 
 test("two columns from 900 px: the list stays beside the section, and #calendar and #data land on theirs", async ({ page }) => {

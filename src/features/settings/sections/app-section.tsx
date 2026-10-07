@@ -2,6 +2,7 @@
 // Settings › App (SYSTEM_DESIGN.md §10.4–10.5): install, whether this
 // device's storage is protected from cleanup, and the version.
 import { persistenceCopy } from "@/features/pwa/install";
+import { InstallCoaching } from "@/features/pwa/install-coaching";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -25,7 +26,8 @@ export function AppSection(p: SettingsFormProps) {
           )}
           {app.install.kind === "browser-menu" && <span className={HINT}>Use your browser&rsquo;s Install option</span>}
         </div>
-        {(app.install.kind === "coach-ios" || app.install.kind === "coach-safari") && (
+        {app.install.kind === "coach-ios" && <InstallCoaching steps={app.install.steps} />}
+        {app.install.kind === "coach-safari" && (
           <ol className="list-decimal pl-5 text-body-sm text-ink-2">
             {app.install.steps.map((s) => (
               <li key={s}>{s}</li>

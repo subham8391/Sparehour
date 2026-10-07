@@ -2,6 +2,7 @@
 // status, honestly stated"): what this browser can do, the words for each
 // state, the subscription as a row, and the deep link a notification opens.
 // Pure, so every platform's copy is tested without a device.
+import { APPLE_RULE, iosInstallSteps } from "@/features/pwa/install";
 import { isPushAction, isPushKind, type PushAction, type PushKind } from "./actions";
 
 export type PermissionState = "default" | "granted" | "denied" | "unsupported";
@@ -47,8 +48,10 @@ export interface PermissionCopy {
 
 /** The Notifications row in Settings: the state as it is, and the one thing to do about it. */
 export function permissionCopy(state: PermissionState, p: PushPlatform, subscribed: boolean, workerAvailable: boolean): PermissionCopy {
-  if (state === "unsupported") return { headline: "This browser can't show reminders.", detail: p.isIOS ? "On iPhone and iPad, reminders work once Sparehour is on your Home Screen." : null, steps: [], action: null };
-  if (p.isIOS && !p.standalone) return { headline: "Reminders need the Home Screen app.", detail: "iPhone only allows notifications for installed apps.", steps: ["Tap Share in Safari", "Choose “Add to Home Screen”", "Open Sparehour from your Home Screen and turn reminders on here"], action: "install" };
+  // First, because Safari outside the Home Screen app has no Notification API at all: "unsupported" there means "install".
+  // The install coaching (ONBOARDING.md §After the reveal), shown where reminders are turned on; an iPad says "Macintosh".
+  if (p.isIOS && !p.standalone) return { headline: "Reminders need the Home Screen app.", detail: APPLE_RULE, steps: iosInstallSteps(/iPad|Macintosh/.test(p.ua)), action: "install" };
+  if (state === "unsupported") return { headline: "This browser can't show reminders.", detail: p.isIOS ? "On iPhone and iPad, reminders need iOS 16.4 or later." : null, steps: [], action: null };
   if (state === "denied") return { headline: "Blocked in your browser.", detail: "Sparehour can't ask again — lift the block, then come back here.", steps: deniedSteps(p), action: null };
   if (!workerAvailable) return { headline: "Reminders aren't available in this build.", detail: "They need the installed app (the service worker is only registered in production).", steps: [], action: null };
   if (state === "granted" && subscribed) return { headline: "Reminders are on for this device.", detail: "Block starts, deadlines and the morning nudge, unless quiet hours say otherwise.", steps: [], action: "disable" };

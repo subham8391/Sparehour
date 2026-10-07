@@ -2,12 +2,20 @@
 // Everything "app-like" (SYSTEM_DESIGN.md §10): whether we are installed and
 // how to install here, storage persistence (asked once, after the first
 // meaningful action), and the update flow — a new version waits until the
-// person chooses to reload.
+// person chooses to reload, unless /api/bootstrap says this build is below the
+// oldest one allowed: then "Update required" blocks the app, lets pending
+// uploads go and moves to the new version (§10.2).
 import { Serwist } from "@serwist/window";
+import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/ui/button";
 import { Toast } from "@/ui/toast";
 import { detectInstallSignals, installState, requestPersistence, type InstallState, type PersistenceState } from "./install";
+import { useIdleMount } from "@/features/shell/preload-on-idle";
+
+// The forced update's check and its blocking screen are an island fetched once the browser is idle.
+const loadVersionGate = () => import("./version-gate");
+const VersionGate = dynamic(loadVersionGate, { ssr: false });
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -85,6 +93,8 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const gateMounted = useIdleMount(loadVersionGate, false);
+
   const requestPersist = useCallback(() => {
     void requestPersistence(navigator.storage, safeStorage()).then(setPersistence);
   }, []);
@@ -109,6 +119,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   return (
     <PwaContext.Provider value={api}>
       {children}
+      {gateMounted && <VersionGate />}
       {updateReady && (
         // The one toast surface (DESIGN_SYSTEM.md §5): raised on surface-3 with one quiet action.
         <Toast

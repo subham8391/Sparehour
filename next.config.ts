@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import type { NextConfig } from "next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
 // The repo sits inside a folder with other projects, so Turbopack is told where the root is
 // rather than inferring it. Resolving the real path lets the tree be reached through a symlink
@@ -46,4 +47,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/** "2026.10.07.1530": the build's UTC minute, so builds sort and /api/bootstrap's min_client_version can name the oldest one allowed (SYSTEM_DESIGN.md §10.2). */
+export function buildStamp(at: Date): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${at.getUTCFullYear()}.${two(at.getUTCMonth() + 1)}.${two(at.getUTCDate())}.${two(at.getUTCHours())}${two(at.getUTCMinutes())}`;
+}
+
+export default function config(phase: string): NextConfig {
+  if (phase !== PHASE_PRODUCTION_BUILD) return nextConfig;
+  // Stamped once per build, before the bundles read it (the build's workers inherit it); a set NEXT_PUBLIC_BUILD_ID
+  // wins, and `next dev` stays "dev", which is never gated.
+  process.env.NEXT_PUBLIC_BUILD_ID ||= buildStamp(new Date());
+  return { ...nextConfig, env: { NEXT_PUBLIC_BUILD_ID: process.env.NEXT_PUBLIC_BUILD_ID } };
+}
