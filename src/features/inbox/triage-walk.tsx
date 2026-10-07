@@ -5,7 +5,7 @@
 // decision is written at once with its undo, and the walk moves on; ⌘Z or Undo takes the last one back and returns
 // to it. It ends on "Inbox zero. Nice." It takes a list of task ids and an action set, so Someday's Review and the
 // weekly review (M2) walk their own lists with it. Lazy: loaded when it is opened (and in idle time before).
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@/data/powersync";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
@@ -113,10 +113,10 @@ export function TriageWalk({ ids, waiting = "inbox", actions = ALL_ACTIONS, labe
     setAt(ids.indexOf(last.id));
   };
 
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (picking || e.defaultPrevented) return;
-    if (e.key === "Tab") return trapTab(e);
-    // A focused button keeps Enter and Space; every other key is the walk's.
+  // The keys are the walk's wherever focus is (a button that went away leaves it on the page), except while a
+  // picker is open over it; a focused button keeps Enter and Space. Taken before the app's own keyboard layer.
+  const onKey = (e: globalThis.KeyboardEvent) => {
+    if (picking || e.defaultPrevented || e.isComposing) return;
     const k = walkKey(e);
     if (!k) return;
     e.preventDefault();
@@ -126,11 +126,23 @@ export function TriageWalk({ ids, waiting = "inbox", actions = ALL_ACTIONS, labe
     else if ("step" in k) step(k.step);
     else act(k.act);
   };
+  const keyRef = useRef(onKey);
+  useEffect(() => {
+    keyRef.current = onKey;
+  });
+  useEffect(() => {
+    const listen = (e: globalThis.KeyboardEvent) => keyRef.current(e);
+    window.addEventListener("keydown", listen, true);
+    return () => window.removeEventListener("keydown", listen, true);
+  }, []);
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Tab") trapTab(e);
+  };
 
   const age = row ? addedLabel(row.created_at, today, zone) : null;
   const note = row ? notePlain(row.notes_md) : "";
   const last = written.at(-1);
-  const BTN = cx(buttonClass({ variant: "secondary" }), "h-11 justify-between gap-2 sm:h-10");
+  const BTN = cx(buttonClass({ variant: "secondary" }), "h-11 justify-between gap-2 sm:h-10 touch:h-11");
 
   return (
     <>
