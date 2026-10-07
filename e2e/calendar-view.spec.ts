@@ -134,7 +134,7 @@ test("[ and ] step a day in the Day mode and a week in the Week mode; T comes ba
   const first = await columns(page).first().getAttribute("data-day");
   await page.keyboard.press("]");
   await expect(columns(page).first()).toHaveAttribute("data-day", isoPlus(first!, 7));
-  await page.getByRole("button", { name: "Today" }).click();
+  await page.getByRole("button", { name: "Today", exact: true }).click();
   await expect(columns(page).first()).toHaveAttribute("data-day", first!);
 });
 

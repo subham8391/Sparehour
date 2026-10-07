@@ -71,7 +71,7 @@ test("the Day mode only, stepped a day at a time with 44 px controls, and back t
   await expect(columns.first()).toHaveAttribute("data-day", isoPlus(me.today, 1));
   await expect(page.getByText(/^Calendar · Tomorrow$/)).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/calendar\\?day=${isoPlus(me.today, 1)}$`));
-  const back = page.getByRole("button", { name: "Today" });
+  const back = page.getByRole("button", { name: "Today", exact: true });
   await expectTouchTarget(back);
   await back.click();
   await expect(columns.first()).toHaveAttribute("data-day", me.today);
