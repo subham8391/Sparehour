@@ -344,6 +344,22 @@
 @utility bg-daylight {
   background-image: var(--daylight);
 }
+/* A control drawn smaller than a finger (a row's estimate chip, a chip's ×) still takes a 44 × 44 px target on a touch
+   device: an invisible box centred on it (SCREENS.md §0, DESIGN_SYSTEM.md §5). Mouse and trackpad keep the drawn size. */
+@utility hit-touch {
+  @media (hover: none) {
+    position: relative;
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      translate: -50% -50%;
+    }
+  }
+}
 /* A line that fades out at its right edge instead of wrapping (the phone row's meta line). */
 @utility fade-end {
   mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);

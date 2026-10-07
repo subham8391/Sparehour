@@ -14,6 +14,7 @@ import { useSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { showsChrome } from "@/features/shell/nav";
 import { requestBulkField } from "@/features/tasks/bulk-field-request";
+import { DefaultEstimate } from "@/features/tasks/default-estimate";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
@@ -83,7 +84,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   const undoApi = useUndoOptional();
   const blocking = useBlockingOptional();
   const now = useNow();
-  const { today, zone } = useLocalDay(now);
+  const { today, zone, settings } = useLocalDay(now);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const isMac = useMemo(() => (typeof navigator !== "undefined" ? /Mac|iPhone|iPad/.test(navigator.platform) : true), []);
 
@@ -224,7 +225,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
 
   return (
     <CommandsContext.Provider value={api}>
-      {children}
+      <DefaultEstimate.Provider value={settings?.defaultEstimateMin ?? 30}>{children}</DefaultEstimate.Provider>
       {shortcutsOpen && <ShortcutsDialog isMac={isMac} onClose={() => setShortcutsOpen(false)} />}
     </CommandsContext.Provider>
   );

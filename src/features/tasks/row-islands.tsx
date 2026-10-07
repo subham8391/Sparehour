@@ -1,6 +1,7 @@
 "use client";
 // The row ⋯ menu's lazy parts (SYSTEM_DESIGN.md §11.6): every shell draws task
-// rows, so the snooze group and the day picker stay out of the first download.
+// rows, so the snooze group, the day picker and the estimate presets stay out of
+// the first download.
 // Both are fetched in idle time after the first row paints; until the menu's
 // group has arrived, a menu shows the row's own actions alone.
 import dynamic from "next/dynamic";
@@ -9,6 +10,7 @@ import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 
 const loadRowMenu = () => import("./row-menu");
 const loadDayPicker = () => import("./day-picker");
+const loadEstimate = () => import("./estimate-popover");
 
 const RowMenuLazy = lazy(() => loadRowMenu().then((m) => ({ default: m.RowMenu })));
 
@@ -22,6 +24,9 @@ export function RowMenuIsland({ taskId, lead, children }: { taskId: string; lead
 }
 
 export const DayPickerIsland = dynamic(() => loadDayPicker().then((m) => m.DayPicker), { ssr: false });
+
+/** The estimate chip's presets (estimate-popover.tsx), fetched when a chip is first clicked or E pressed. */
+export const EstimateIsland = dynamic(() => loadEstimate().then((m) => m.EstimatePopover), { ssr: false });
 
 let preloaded = false;
 

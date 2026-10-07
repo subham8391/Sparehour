@@ -32,4 +32,14 @@ describe("dayChip", () => {
   it("has no chip for an undated open task", () => {
     expect(at(null)).toBeNull();
   });
+
+  it("says when a task not started yet starts, and steps aside on its start day", () => {
+    const starting = (startDate: string, doDate: string | null = null, state: "active" | "someday" | "done" = "active") =>
+      dayChip({ state, doDate: doDate ? localDate(doDate) : null, carryCount: 0, startDate: localDate(startDate) }, today);
+    expect(starting("2026-10-12")).toEqual({ label: "Starts Mon 12 Oct", tone: "neutral" });
+    expect(starting("2026-09-16", "2026-09-18")?.label).toBe("Starts Wed 16 Sep");
+    expect(starting("2026-09-14", "2026-09-15")).toEqual({ label: "Tomorrow", tone: "neutral" });
+    expect(starting("2026-09-13")).toBeNull();
+    expect(starting("2026-10-12", null, "someday")?.label).toBe("Someday");
+  });
 });

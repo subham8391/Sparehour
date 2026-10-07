@@ -16,6 +16,7 @@ import { projectOptionLabel, withAreaNames } from "@/data/queries/project-label"
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { onBulkField } from "@/features/tasks/bulk-field-request";
+import { ESTIMATE_PRESETS } from "@/features/tasks/estimate-presets";
 import { useTaskDetail, type DetailField } from "@/features/tasks/task-detail";
 import { useTagRepo } from "@/features/tasks/use-repos";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
@@ -32,7 +33,6 @@ import { useSelection } from "./selection-provider";
 const BulkField = dynamic(() => import("@/features/tasks/bulk-field").then((m) => m.BulkField), { ssr: false });
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
-const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
 const PRIORITIES: { value: Priority; label: string }[] = [
   { value: 3, label: "!1 High" },
   { value: 2, label: "!2 Medium" },
@@ -165,7 +165,7 @@ export function BulkBar() {
         <MenuButton label="Estimate" text="Estimate" align="left" direction="up" className={QUIET}>
           {(close) => (
             <>
-              {ESTIMATES.map((m) => (
+              {ESTIMATE_PRESETS.map((m) => (
                 <button key={m} type="button" role="menuitem" className={cx(MENU_ITEM, "num")} onClick={() => (close(), patch({ estimateMin: m }, `Estimated {title} at ${formatMinutes(m)}`))}>
                   {formatMinutes(m)}
                 </button>

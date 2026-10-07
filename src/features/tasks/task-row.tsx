@@ -16,7 +16,7 @@
 // day-picker.tsx, both lazy). A footer can sit under the row (the
 // carried-over ask).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Temporal, formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
@@ -29,7 +29,9 @@ import { ListCard } from "@/ui/list-card";
 import { MenuButton, type MenuHandle } from "@/ui/popover";
 import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
-import { DayPickerIsland, RowMenuIsland, preloadRowIslands } from "./row-islands";
+import { DefaultEstimate } from "./default-estimate";
+import { guessLabel } from "./estimate-presets";
+import { DayPickerIsland, EstimateIsland, RowMenuIsland, preloadRowIslands } from "./row-islands";
 import { listenForRowRequests } from "./row-request";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
@@ -240,6 +242,9 @@ export function TaskRow({
   const menu = useRef<MenuHandle>(null);
   const [moving, setMoving] = useState<{ anchor: HTMLElement | null; label?: string } | null>(null);
   const move = (anchor: HTMLElement | null, label?: string) => setMoving({ anchor: anchor ?? menu.current?.trigger() ?? ref.current, label });
+  // The estimate presets, beside the chip (the chip or E opens them).
+  const [estimating, setEstimating] = useState<HTMLElement | null>(null);
+  const estimateRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (hasActions) preloadRowIslands();
   }, [hasActions]);
@@ -271,7 +276,13 @@ export function TaskRow({
   useEffect(() => {
     if (!selected || !(hasActions || canRename)) return;
     return listenForRowRequests((id, request) => {
-      if (id !== task.id || (request === "move" && !movable) || (request === "rename" ? !canRename : !hasActions)) return false;
+      if (id !== task.id) return false;
+      if (request === "estimate") {
+        const chip = estimateRef.current;
+        if (chip) setEstimating(chip);
+        return Boolean(chip);
+      }
+      if ((request === "move" && !movable) || (request === "rename" ? !canRename : !hasActions)) return false;
       if (request === "rename") {
         renamed.current = false;
         setRenaming(true);
@@ -317,8 +328,21 @@ export function TaskRow({
       {done && <Icon name="check" size={12} strokeWidth={2.2} className={completing ? "animate-check-fill" : undefined} />}
     </span>
   );
-  // The struck title keeps the `line-through` class: tests read it.
-  const titleClass = cx("line-clamp-2 text-body-lg leading-snug [overflow-wrap:anywhere] transition-colors dur-fast sm:line-clamp-1 sm:leading-5", done ? "text-ink-3 line-through decoration-ink-3" : "text-ink");
+  // The struck title keeps the `line-through` class: tests read it. A task whose start date is still ahead shows in
+  // its project dimmed (PRODUCT_SPEC.md §8.1), its day chip saying when it starts; it lights up on that day.
+  const later = task.startDate && Temporal.PlainDate.compare(task.startDate, day) > 0;
+  const titleClass = cx("line-clamp-2 text-body-lg leading-snug [overflow-wrap:anywhere] transition-colors dur-fast sm:line-clamp-1 sm:leading-5", done ? "text-ink-3 line-through decoration-ink-3" : later ? "text-ink-3" : "text-ink");
+  // The estimate (PRODUCT_SPEC.md §9.2): the account's default with a question mark, dashed, when there is none.
+  const defaultMin = useContext(DefaultEstimate);
+  const estimate = formatMinutes(task.estimateMin || defaultMin);
+  const guess = task.estimateMin ? undefined : guessLabel(defaultMin);
+  const estimateChip = (
+    <Chip tone={guess ? "guess" : "neutral"} size="auto" title={guess}>
+      {estimate}
+      {guess && "?"}
+    </Chip>
+  );
+  const editable = Boolean(onOpen) && !done && task.state !== "dropped";
   const chipRun = (
     <>
       {chips}
@@ -331,9 +355,14 @@ export function TaskRow({
           ×{task.carryCount}
         </span>
       )}
-      <Chip tone={task.estimateMin ? "neutral" : "guess"} size="auto">
-        {task.estimateMin ? formatMinutes(task.estimateMin) : "30m?"}
-      </Chip>
+      {editable ? (
+        // From `sm` the chip opens the presets in place (SCREENS.md §2.4); on a phone the line is no target, the detail and E are.
+        <button ref={estimateRef} type="button" aria-label={guess ?? `Estimate ${estimate}`} title={guess} onClick={(e) => setEstimating(e.currentTarget)} className="hit-touch rounded-sm hover:[&>span]:border-line-strong">
+          {estimateChip}
+        </button>
+      ) : (
+        estimateChip
+      )}
       {/* Over 8 hours is saved as asked and gently questioned (PRODUCT_SPEC.md §5.2, §5.4): quiet words, never a warning colour. */}
       {long && <span className="text-ink-2">Long — break it down?</span>}
     </>
@@ -387,6 +416,12 @@ export function TaskRow({
               className="relative z-1 sm:size-7 sm:justify-self-center"
             />
           )}
+          {task.priority > 1 && !done && (
+            // !1 (stored 3) and !2 (stored 2) lead the row, the second a step quieter; never a warning colour (SCREENS.md §2.4).
+            <span role="img" aria-label={`priority ${4 - task.priority}`} className={cx("pointer-events-none absolute left-0.5 text-label font-semibold", task.priority > 2 ? "text-ink" : "text-ink-2")}>
+              {task.priority > 2 ? "!!" : "!"}
+            </span>
+          )}
           {onDone ? (
             <button
               type="button"
@@ -436,7 +471,12 @@ export function TaskRow({
             {/* No target of its own on a phone: the fade's mask makes a layer over the title's stretched tap area, and the
                 whole row opens the task there (DESIGN_SYSTEM.md §5 Task row), so taps pass through to it. */}
             <div id={`${rowId}f`} className="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-label text-ink-2 num max-sm:pointer-events-none max-sm:fade-end sm:contents">
-              {meta && <span className={META_RUN}>{meta}</span>}
+              {(meta || task.tags) && (
+                <span className={META_RUN}>
+                  {meta}
+                  {task.tags?.map((t) => <span key={t}>@{t}</span>)}
+                </span>
+              )}
               {/* A completed row quietens its chips to ink-3 rather than fading them: at 60 % opacity the estimate fell to 2.4:1 on surface-2. */}
               <span className={cx("flex shrink-0 items-center gap-1.5 sm:justify-end sm:pr-4 sm:text-body-sm", task.state === "done" && "[&>*]:text-ink-3!")}>{chipRun}</span>
             </div>
@@ -498,6 +538,7 @@ export function TaskRow({
             onClose={() => setMoving(null)}
           />
         )}
+        {estimating && <EstimateIsland taskId={task.id} title={task.title} current={task.estimateMin} anchor={estimating} onClose={() => setEstimating(null)} />}
       </div>
     </div>
   );

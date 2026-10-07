@@ -129,7 +129,8 @@ const priority = (value: Priority) => onTargets((ctx, ids) => applyPatch(ctx, id
  */
 const pickField = (field: DetailField) =>
   onTargets((ctx, ids) => {
-    if (ids.length === 1) ctx.openTask(ids[0], field);
+    // E on one row opens the presets beside its estimate chip, the chip's own picker (SCREENS.md §2.4); the detail otherwise.
+    if (ids.length === 1) void ((field === "estimate" && requestRow(ids[0], "estimate")) || ctx.openTask(ids[0], field));
     else ctx.editTicked(field);
   });
 
