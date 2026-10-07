@@ -14,12 +14,13 @@ import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
 import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
-import { CALENDAR_MODES, installedApp, setCalendarMode } from "@/features/calendar-view/calendar-mode";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
 // Today's day address (`?day=`) loads with Today, or when a Day command first runs: not with every shell.
 const loadDays = () => import("@/features/today/day-address");
+// The Calendar's remembered mode, likewise, loads when a Calendar mode command first runs.
+const loadCalendarMode = () => import("@/features/calendar-view/calendar-mode");
 
 export type Theme = "light" | "dark" | "system";
 /** `G P` and `G A` open the palette on the open projects or the areas alone (SCREENS.md §24). */
@@ -300,13 +301,13 @@ export const RUNS: readonly CommandRun[] = [
   { id: "go.calendar", shortcut: "g c", run: (ctx) => ctx.go("/calendar") },
   // Calendar: Day · Work week · Week (SCREENS.md §4, §24): the mode is remembered on the device, and the Calendar opens
   // in it. The keys reach the page only in the installed app; in a browser tab they stay the browser's.
-  ...CALENDAR_MODES.map(
+  ...(["day", "workweek", "week"] as const).map(
     (mode, i): CommandRun => ({
       id: `calendar.${mode}`,
       shortcut: `mod+${i + 1}`,
-      passes: () => !installedApp(),
-      run: (ctx) => {
-        setCalendarMode(mode);
+      passes: () => !window.matchMedia?.("(display-mode: standalone)").matches,
+      run: async (ctx) => {
+        (await loadCalendarMode()).setCalendarMode(mode);
         if (ctx.pathname !== "/calendar") ctx.go("/calendar");
       },
     }),

@@ -18,6 +18,7 @@ import { CalendarRail, RailSheet, TasksButton } from "@/features/calendar-view/c
 import { focusDay, rangeTitle, shownDays, shownMode, stepShown } from "@/features/calendar-view/grid";
 import { useCalendarBand } from "@/features/calendar-view/use-calendar-band";
 import { useCalendarDays } from "@/features/calendar-view/use-calendar-days";
+import layout from "@/features/calendar-view/calendar.module.css";
 import { registerViewKeys } from "@/features/commands/view-keys";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useNow } from "@/features/shell/use-local-day";
@@ -161,13 +162,9 @@ export default function CalendarPage() {
           {off}
         </p>
       )}
-      {placingTask && (
-        <div className="-mb-3">
-          <PlacingBar text={`Tap a time for “${placingTask.title}”`} onCancel={() => setPlacingId(null)} />
-        </div>
-      )}
+      {placingTask && <PlacingBar text={`Tap a time for “${placingTask.title}”`} onCancel={() => setPlacingId(null)} />}
 
-      <div className={cx(wide ? "grid grid-cols-[16rem_minmax(0,1fr)] items-start gap-5" : "flex flex-col")}>
+      <div className={wide ? layout.wide : "flex flex-col"}>
         {wide && (
           <CalendarRail
             tasks={rail}
@@ -199,7 +196,7 @@ export default function CalendarPage() {
       {empty && canBlock && (
         <p className="-mt-2 text-body text-pretty text-ink-3">
           <span className="touch:hidden">Nothing on. Drag a task in, or drag on the grid to block time.</span>
-          <span className="hidden touch:inline">Nothing on. Tap Tasks for a task and then a time, or tap the grid to block time.</span>
+          <span className="hidden touch:block">Nothing on. Tap Tasks for a task and then a time, or tap the grid to block time.</span>
         </p>
       )}
       {model.settings && !data.connected && (

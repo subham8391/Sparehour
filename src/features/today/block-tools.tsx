@@ -25,12 +25,14 @@ export const hhmm = (m: number) => formatTime(timeFromMinutes(m));
 /** "10:00–11:30 · 1h 30m" */
 export const rangeLine = (start: number, end: number) => `${hhmm(start)}–${hhmm(end)} · ${formatMinutes(end - start)}`;
 
-/** A block's horizontal slot: the full row, or its share of a cluster of overlapping blocks. From the ruler gutter (`--tl-g`) in. */
+/** Where whatever is drawn on the day starts: a quarter rem inside the ruler gutter (`--tl-g`; none in a grid column). */
+export const INSET = "calc(var(--tl-g, 3rem) + 0.25rem)";
+
+/** A block's horizontal slot: the full row, or its share of a cluster of overlapping blocks. */
 export function laneStyle(lane: Lane | undefined): { left?: string; width?: string } {
   if (!lane || lane.columns <= 1) return {};
-  const inset = "(var(--tl-g, 3rem) + 0.25rem)";
-  const share = `(100% - ${inset} - 0.5rem) / ${lane.columns}`;
-  return { left: `calc(${inset} + ${share} * ${lane.column})`, width: `calc(${share} - 3px)` };
+  const share = `(100% - ${INSET} - 0.5rem) / ${lane.columns}`;
+  return { left: `calc(${INSET} + ${share} * ${lane.column})`, width: `calc(${share} - 3px)` };
 }
 
 /** What the toolbar's Move… or Duplicate is waiting for: a tap on the timeline, or a time typed. */
@@ -102,13 +104,13 @@ export function Block({
       data-block={id}
       data-done={done ? "true" : undefined}
       className={cx(
-        "absolute right-2 left-[calc(var(--tl-g,3rem)_+_0.25rem)] rounded-sm border-l-[3px]",
+        "absolute right-2 rounded-sm border-l-[3px]",
         // The past is dimmed by a token mix, opaque so nothing beneath shows through.
         quiet ? "border-line-strong bg-[color-mix(in_oklab,var(--block-soft)_55%,var(--surface))]" : "border-block-fill bg-block-soft",
         movable && !renaming && "cursor-grab",
         selected && "outline-2 outline-offset-1 outline-ink",
       )}
-      style={{ top: style.top + 1, height, ...laneStyle(lane) } as CSSProperties}
+      style={{ left: INSET, top: style.top + 1, height, ...laneStyle(lane) } as CSSProperties}
       onContextMenu={
         onMenu &&
         ((e) => {

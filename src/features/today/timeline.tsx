@@ -21,7 +21,7 @@ import type { PlanGhost } from "@/features/planning/drawing";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import type { MenuHandle } from "@/ui/popover";
-import { Block, BlockToolbar, PlacingBar, TWO_LINE_PX, hhmm, laneStyle, rangeLine, type Armed } from "./block-tools";
+import { Block, BlockToolbar, INSET, PlacingBar, TWO_LINE_PX, hhmm, laneStyle, rangeLine, type Armed } from "./block-tools";
 import { minuteOnDay } from "./day-minute";
 import type { TimelineBlock, TimelineMeeting } from "./hooks/use-today";
 import { layoutLanes } from "./overlap";
@@ -74,10 +74,11 @@ export const useTimelineZoom = (): ZoomStep => useSyncExternalStore(subscribeZoo
 
 /**
  * Left edges inside the timeline, from the ruler gutter (`--tl-g`, 3 rem, none in a grid column): the hour lines and
- * the dimmed hours start at it, everything drawn on the day a quarter rem inside it.
+ * the dimmed hours start at it, everything drawn on the day a quarter rem inside it. Inline, so the app-wide
+ * stylesheet every shell loads gains nothing.
  */
-const AT_GUTTER = "left-(--tl-g)";
-const INSIDE = "left-[calc(var(--tl-g)_+_0.25rem)]";
+const AT_GUTTER = { left: "var(--tl-g)" };
+const INSIDE = { left: INSET };
 
 export interface TimelineProps {
   c: Capacity;
@@ -482,14 +483,14 @@ export function Timeline(p: TimelineProps) {
         >
           {/* Under the grid: the page's own paper shows through where the working day is not, a step down from the surface in either theme. */}
           {outside.map((o) => (
-            <div key={`o${o.start}`} aria-hidden="true" data-testid="outside-hours" className={cx("pointer-events-none absolute right-0 bg-paper/80", AT_GUTTER)} style={{ top: y(o.start), height: (o.end - o.start) * scale }} />
+            <div key={`o${o.start}`} aria-hidden="true" data-testid="outside-hours" className="pointer-events-none absolute right-0 bg-paper/80" style={{ ...AT_GUTTER, top: y(o.start), height: (o.end - o.start) * scale }} />
           ))}
           {hours.map((h) => (
             <div key={h} className="pointer-events-none absolute inset-x-0" style={{ top: y(h) }}>
-              <div className={cx("absolute top-0 right-0 border-t border-line", AT_GUTTER)} />
+              <div className="absolute top-0 right-0 border-t border-line" style={AT_GUTTER} />
               {!column && !labelHidden(h) && <span className="absolute -top-[7px] left-0 w-10 text-micro font-medium text-ink-3 num">{formatTime(timeFromMinutes(h))}</span>}
               {rows.map((r) => (
-                <div key={r} className={cx("absolute right-0 border-t border-line", AT_GUTTER, r % 30 === 0 ? "opacity-55" : "opacity-30")} style={{ top: r * scale }}>
+                <div key={r} className={cx("absolute right-0 border-t border-line", r % 30 === 0 ? "opacity-55" : "opacity-30")} style={{ ...AT_GUTTER, top: r * scale }}>
                   {!column && zoom === 5 && r % 15 === 0 && !labelHidden(h + r) && <span className="absolute -top-[7px] -left-12 w-10 text-micro text-ink-3 num">{formatTime(timeFromMinutes(h + r))}</span>}
                 </div>
               ))}
@@ -499,8 +500,8 @@ export function Timeline(p: TimelineProps) {
           {gaps.map((g, i) => (
             <div
               key={`f${i}`}
-              className={cx("pointer-events-none absolute right-2 flex items-center justify-center rounded-sm bg-spare-soft/45 text-label font-semibold text-spare num", INSIDE)}
-              style={{ top: y(g.start) + 1, height: (g.end - g.start) * scale - 2 }}
+              className="pointer-events-none absolute right-2 flex items-center justify-center rounded-sm bg-spare-soft/45 text-label font-semibold text-spare num"
+              style={{ ...INSIDE, top: y(g.start) + 1, height: (g.end - g.start) * scale - 2 }}
             >
               {formatMinutes(g.end - g.start)} free{finishMin !== null && g.start >= finishMin && " · after the plan"}
             </div>
@@ -518,13 +519,12 @@ export function Timeline(p: TimelineProps) {
                 data-unanswered={unanswered ? "true" : undefined}
                 className={cx(
                   "absolute right-2 overflow-hidden rounded-sm border-l-[3px] px-2 pl-2.5",
-                  INSIDE,
                   tall ? "py-1" : "flex items-center gap-1.5",
                   past ? "border-meet-line bg-[color-mix(in_oklab,var(--meet-soft)_55%,var(--surface))]" : "border-meet-fill bg-meet-soft",
                   unanswered && "meet-hatch",
                   p.shownMeeting === b.start && "outline-2 outline-offset-1 outline-meet-fill",
                 )}
-                style={{ top: y(b.start) + 1, height, ...laneStyle(lanes.get(`m${i}`)) }}
+                style={{ ...INSIDE, top: y(b.start) + 1, height, ...laneStyle(lanes.get(`m${i}`)) }}
               >
                 <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-meet">
                   {meetingTitle(b, p.meetings)}
@@ -604,10 +604,9 @@ export function Timeline(p: TimelineProps) {
                 data-plan-ghost={g.key}
                 className={cx(
                   "pointer-events-none absolute right-2 scroll-mt-14 overflow-hidden rounded-sm border-[1.5px] border-dashed border-block-fill bg-block-soft/60 px-2",
-                  INSIDE,
                   tall ? "flex flex-col justify-start py-1" : "flex items-center gap-1.5",
                 )}
-                style={{ top: y(g.start) + 1, height }}
+                style={{ ...INSIDE, top: y(g.start) + 1, height }}
               >
                 <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-ink">{g.title}</span>
                 <span className={cx("block text-micro text-ink-2 num", tall ? "truncate" : "shrink-0 whitespace-nowrap")}>{tall ? rangeLine(g.start, g.end) : hhmm(g.start)}</span>
@@ -617,8 +616,8 @@ export function Timeline(p: TimelineProps) {
           {shade && (
             <div
               data-testid="timeline-ghost"
-              className={cx("pointer-events-none absolute right-2 flex items-center gap-1.5 overflow-hidden rounded-sm border border-dashed border-line-strong bg-surface/80 px-2 text-label text-ink-2", INSIDE)}
-              style={{ top: y(shade.start) + 1, height: Math.max(12, (shade.end - shade.start) * scale - 2) }}
+              className="pointer-events-none absolute right-2 flex items-center gap-1.5 overflow-hidden rounded-sm border border-dashed border-line-strong bg-surface/80 px-2 text-label text-ink-2"
+              style={{ ...INSIDE, top: y(shade.start) + 1, height: Math.max(12, (shade.end - shade.start) * scale - 2) }}
             >
               <span className="num">{ghost ? hhmm(shade.start) : `${hhmm(shade.start)}–${hhmm(shade.end)}`}</span>
               <span className="truncate">{shade.label}</span>
@@ -626,17 +625,17 @@ export function Timeline(p: TimelineProps) {
           )}
           {offer !== null && (
             // Touch: a block of your own where the tap was, half an hour, ready to rename and resize.
-            <div className={cx("absolute right-2 z-10 flex items-start", INSIDE)} style={{ top: y(offer) }} onClick={(e) => e.stopPropagation()}>
+            <div className="absolute right-2 z-10 flex items-start" style={{ ...INSIDE, top: y(offer) }} onClick={(e) => e.stopPropagation()}>
               <button type="button" onClick={() => createAt(offer)} className="flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-surface px-3 text-body-sm font-medium text-ink shadow-raised">
                 New block here <span className="text-ink-3 num">{hhmm(offer)}</span>
               </button>
             </div>
           )}
           {/* The working day's end, a shade firmer than an hour line. */}
-          <div className={cx("pointer-events-none absolute right-0 border-t border-line-strong", AT_GUTTER)} style={{ top: y(workEnd) }} />
+          <div className="pointer-events-none absolute right-0 border-t border-line-strong" style={{ ...AT_GUTTER, top: y(workEnd) }} />
           {finishMin !== null && (
             <>
-              <div className={cx("pointer-events-none absolute right-0 z-2 border-t-[1.5px] border-dashed border-spare-fill", AT_GUTTER)} style={{ top: y(finishMin) }} />
+              <div className="pointer-events-none absolute right-0 z-2 border-t-[1.5px] border-dashed border-spare-fill" style={{ ...AT_GUTTER, top: y(finishMin) }} />
               <Chip tone="spare" size="sm" className="pointer-events-none absolute left-0 z-4 px-2" style={{ top: y(finishMin) - 10 }}>
                 done by {formatTime(c.projectedFinish!)}
               </Chip>
@@ -644,7 +643,7 @@ export function Timeline(p: TimelineProps) {
           )}
           {c.overflowMin > 0 && (
             // The plan runs past the day (SCREENS.md §2.6 "Projected finish"): pinned to the edge, saying by how much.
-            <Chip tone="over" size="sm" data-testid="overrun" className={cx("pointer-events-none absolute z-4 px-2", INSIDE)} style={{ top: y(workEnd) + 4 }}>
+            <Chip tone="over" size="sm" data-testid="overrun" className="pointer-events-none absolute z-4 px-2" style={{ ...INSIDE, top: y(workEnd) + 4 }}>
               {formatMinutes(c.overflowMin)} past the end of your day
             </Chip>
           )}

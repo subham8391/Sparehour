@@ -4,7 +4,6 @@
 // `Cmd/Ctrl+1–3` for its own tabs, so the keys answer only in the installed app (DECISIONS.md "`Cmd+1/2/3` in a
 // browser tab"); the on-screen control and the palette cover the rest.
 export type CalendarMode = "day" | "workweek" | "week";
-export const CALENDAR_MODES: readonly CalendarMode[] = ["day", "workweek", "week"];
 export const CALENDAR_MODE_KEY = "sparehour.calendar.mode";
 
 const listeners = new Set<() => void>();
@@ -42,11 +41,4 @@ export function subscribeCalendarMode(listener: () => void): () => void {
     listeners.delete(listener);
     window.removeEventListener("storage", listener);
   };
-}
-
-/** Running as the installed app (a standalone window), where `Cmd/Ctrl+1–3` reach the page. */
-export function installedApp(): boolean {
-  if (typeof window === "undefined") return false;
-  const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return standalone || (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches);
 }

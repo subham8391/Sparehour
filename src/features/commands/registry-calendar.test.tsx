@@ -37,14 +37,14 @@ describe("Calendar: Day · Work week · Week", () => {
     expect(chordMatches(chordOf({ key: "2", shiftKey: false, metaKey: false, ctrlKey: true, altKey: false }, false), parseChord("mod+2"))).toBe(true);
   });
 
-  it("set the remembered mode and open the Calendar; on the Calendar only the mode changes", () => {
+  it("set the remembered mode and open the Calendar; on the Calendar only the mode changes", async () => {
     const go = vi.fn();
-    void byId("calendar.day").run({ pathname: "/today", go } as never);
+    await byId("calendar.day").run({ pathname: "/today", go } as never);
     expect(readCalendarMode()).toBe("day");
     expect(localStorage.getItem(CALENDAR_MODE_KEY)).toBe("day");
     expect(go).toHaveBeenCalledWith("/calendar");
     go.mockClear();
-    void byId("calendar.workweek").run({ pathname: "/calendar", go } as never);
+    await byId("calendar.workweek").run({ pathname: "/calendar", go } as never);
     expect(readCalendarMode()).toBe("workweek");
     expect(go).not.toHaveBeenCalled();
   });

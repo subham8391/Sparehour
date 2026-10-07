@@ -29,6 +29,7 @@ import { scrollMotion } from "@/ui/reduced-motion";
 import { EYEBROW } from "@/ui/section-label";
 import { columnsInView, gridColumns, type CalendarBand } from "./grid";
 import type { CalendarDay } from "./use-calendar-days";
+import s from "./calendar.module.css";
 
 /** The ruler's width: the timeline's own gutter. */
 const RULER = "3rem";
@@ -143,14 +144,14 @@ export function CalendarGrid(p: CalendarGridProps) {
         onScroll={sideways ? readEdges : undefined}
         data-calendar-grid=""
         data-band={p.band}
-        className="max-h-[70dvh] overflow-auto overscroll-contain rounded-xl border border-line bg-surface sm:max-h-[calc(100dvh-14rem)] sm:min-h-96"
+        className={cx(s.scroller, "rounded-xl border border-line bg-surface")}
       >
         <div className="grid" style={{ gridTemplateColumns: template, width: inView < columns.length ? `calc((100% - ${RULER}) * ${columns.length} / ${inView} + ${RULER})` : "100%" }}>
           {/* The header row stays on top while the hours scroll under it; the ruler's corner stays put both ways. */}
           <div className="sticky top-0 left-0 z-30 border-b border-line bg-surface" />
           {columns.map((c) =>
             c.kind === "folded" ? (
-              <div key={`f${c.days[0]}`} className="sticky top-0 z-20 border-b border-l border-line bg-surface" />
+              <div key={`f${c.days[0]}`} className={cx(s.day, "sticky top-0 z-20 border-b border-line bg-surface")} />
             ) : (
               <DayHeader key={c.day.toString()} d={byIso.get(c.day.toString())} day={c.day} today={p.today} />
             ),
@@ -163,7 +164,7 @@ export function CalendarGrid(p: CalendarGridProps) {
                 type="button"
                 onClick={p.onUnfold}
                 aria-label={`Show ${c.days.map((d) => weekdayName(d, "long")).join(" and ")}`}
-                className="flex flex-col items-center gap-1 border-l border-line bg-paper/60 pt-3 text-label font-medium text-ink-2 hover:bg-hover hover:text-ink"
+                className={cx(s.day, "flex flex-col items-center gap-1 bg-paper/80 pt-2 text-label font-medium text-ink-2 hover:bg-hover hover:text-ink")}
                 style={{ height }}
               >
                 {c.days.map((d) => (
@@ -188,7 +189,7 @@ function DayHeader({ d, day, today }: { d: CalendarDay | undefined; day: LocalDa
   const past = compareDates(day, today) < 0;
   const readout = d?.capacity && !past ? dayReadout(d.capacity, isToday) : null;
   return (
-    <div data-day-header={day.toString()} className={cx("sticky top-0 z-20 flex min-w-0 flex-col gap-0.5 border-b border-l border-line bg-surface px-2 py-2", isToday && "bg-surface-2")}>
+    <div data-day-header={day.toString()} className={cx(s.day, "sticky top-0 z-20 flex min-w-0 flex-col gap-0.5 border-b border-line px-2 py-2", isToday ? "bg-surface-2" : "bg-surface")}>
       <h2 className="flex min-w-0 items-baseline gap-1.5">
         <span className={EYEBROW}>{weekdayName(day)}</span>
         <span className={cx("font-display text-pane font-book leading-none num", past || readout?.kind === "off" ? "text-ink-2" : "text-ink")}>{day.day}</span>
@@ -204,7 +205,7 @@ function Ruler({ height, scale }: { height: number; scale: number }) {
   return (
     <div aria-hidden="true" className="sticky left-0 z-10 bg-surface" style={{ height }} data-ruler="">
       {Array.from({ length: 24 }, (_, h) => (
-        <span key={h} className="absolute left-1 text-micro font-medium text-ink-3 num" style={{ top: h * 60 * scale - 7 }}>
+        <span key={h} className="absolute text-micro font-medium text-ink-3 num" style={{ top: h * 60 * scale - 7, left: 4 }}>
           {h === 0 ? "" : formatTime(timeFromMinutes(h * 60))}
         </span>
       ))}
@@ -220,14 +221,14 @@ function DayColumn({ d, p, allBlocks }: { d: CalendarDay; p: CalendarGridProps; 
   const c = d.capacity;
   if (!c)
     return (
-      <div role="group" aria-label={label} data-day={iso} className="border-l border-line">
+      <div role="group" aria-label={label} data-day={iso} className={s.day}>
         <p className="px-2 py-3 text-body-sm text-ink-3">Getting the day…</p>
       </div>
     );
   // "Done by" belongs to today alone (SCREENS.md §4).
   const drawn = { c: isToday ? c : { ...c, projectedFinish: null }, now: p.now, zone: p.zone, blocks: d.blocks, meetings: d.meetings, defaultEstimateMin: p.defaultEstimateMin, column: true };
   return (
-    <div role="group" aria-label={label} data-day={iso} className={cx("min-w-0 border-l border-line", isToday && "bg-surface-2/40")}>
+    <div role="group" aria-label={label} data-day={iso} className={cx(s.day, "min-w-0")}>
       {past ? <Timeline {...drawn} /> : <PlacingColumn d={d} c={c} drawn={drawn} p={p} allBlocks={allBlocks} isToday={isToday} />}
     </div>
   );
