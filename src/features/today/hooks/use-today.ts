@@ -111,7 +111,6 @@ export interface TimelineMeeting {
  */
 export const REMOVED_BLOCKS_SQL = `select id, task_id from time_blocks where deleted_at is not null and notice = 'removed_in_google' and task_id is not null`;
 
-
 export interface TodayModel {
   ready: boolean;
   today: LocalDate;
