@@ -83,16 +83,16 @@ export default function UpdateRequired({ min, applyUpdate }: { min: string; appl
 
   // The app behind is out of reach: nothing in it can be focused or clicked, and its shortcuts do not fire.
   useEffect(() => {
-    const others = Array.from(document.body.children).filter((el) => !el.hasAttribute("data-update-required")) as HTMLElement[];
-    const before = others.map((el) => el.inert);
-    for (const el of others) el.inert = true;
+    const others = Array.from(document.body.children).filter((el) => !el.hasAttribute("data-update-required"));
+    const before = others.map((el) => el.hasAttribute("inert"));
+    for (const el of others) el.setAttribute("inert", "");
     const swallow = (e: KeyboardEvent) => {
       if (!(e.target instanceof Element && e.target.closest("[data-update-required]"))) e.stopImmediatePropagation();
     };
     window.addEventListener("keydown", swallow, true);
     heading.current?.focus();
     return () => {
-      others.forEach((el, i) => (el.inert = before[i]));
+      others.forEach((el, i) => el.toggleAttribute("inert", before[i]));
       window.removeEventListener("keydown", swallow, true);
     };
   }, []);
