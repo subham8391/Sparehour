@@ -153,10 +153,13 @@ export function useToday(now: Temporal.Instant, view?: LocalDate | null): TodayM
   const { data: workRows } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
   const { data: taskRows, isLoading } = useQuery<TaskRow>(TASKS_THROUGH_TODAY_SQL, [throughIso, throughIso]);
   const { data: blockRows } = useQuery<TimeBlockRow>(BLOCKS_AROUND_SQL, [from, to]);
-  // The calendar mirror is month-bucketed on the server (§3.5); the query keeps a
-  // subscription to the months around the day shown alive for as long as Today is open.
+  // The calendar mirror is month-bucketed on the server (§3.5); the query keeps a subscription to the months around
+  // the day shown alive for as long as Today is open. Today's three months cover any day within a month of it, so
+  // stepping days keeps the one subscription.
+  const aroundToday = monthsAround(today);
+  const eventMonths = aroundToday.includes(day.toPlainYearMonth().toString()) ? aroundToday : monthsAround(day);
   const { data: eventRows } = useQuery<CalendarEventRow>(EVENTS_AROUND_SQL, [from, to], {
-    streams: [{ name: "calendar_window", parameters: { months: monthsAround(day) }, ttl: 60 * 60 * 24 }],
+    streams: [{ name: "calendar_window", parameters: { months: eventMonths }, ttl: 60 * 60 * 24 }],
   });
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   // The same subscription the closed day's summary takes, so a task completed here stays on the device to say its block is done.
