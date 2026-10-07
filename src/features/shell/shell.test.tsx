@@ -93,7 +93,8 @@ describe("<Sidebar>", () => {
     // Each nav carries one: the rail's only from the medium band, where it stands in for the folded sidebar.
     expect(collapse.closest("nav")).toHaveAttribute("data-variant", "full");
     expect(expand.closest("nav")).toHaveAttribute("data-variant", "rail");
-    expect(expand).toHaveClass("hidden", "md:flex");
+    expect(expand).toHaveClass("max-md:hidden");
+    expect(expand).not.toHaveClass("hidden");
     await user.click(collapse);
     expect(document.documentElement.dataset.sidebar).toBe("rail");
     expect(localStorage.getItem("sparehour.sidebar")).toBe("rail");

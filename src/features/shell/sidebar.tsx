@@ -124,8 +124,9 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
 function SidebarToggle({ rail }: { rail: boolean }) {
   const name = `${rail ? "Expand" : "Collapse"} sidebar`;
   return (
-    // panes.ts finds it by its name to move focus across when the navs swap.
-    <button type="button" aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "hidden md:flex" : "ml-auto")}>
+    // panes.ts finds it by its name to move focus across when the navs swap. The rail's only from the medium band:
+    // `max-md:hidden`, since a plain `hidden` loses to the button's own `inline-flex` (same layer, later rule).
+    <button type="button" aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "max-md:hidden" : "ml-auto")}>
       <Icon name="menu" size={18} />
     </button>
   );
