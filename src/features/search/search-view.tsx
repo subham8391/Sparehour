@@ -10,6 +10,7 @@ import type { Task, TaskState } from "@/core/types";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { HitActions } from "./hit-actions";
 import { Button, buttonClass, iconButtonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
@@ -357,6 +358,7 @@ function Hit({ hit, p }: { hit: SearchHit; p: SearchViewProps }) {
       onOpen={() => p.onOpen(task.id)}
       onDone={task.state === "done" ? undefined : () => p.onDone(task.id)}
       meta={hit.projectName && <span>{hit.projectName}</span>}
+      actions={<HitActions task={task} today={p.today} />}
       chips={
         task.state === "done" || task.state === "dropped" || task.state === "archived" ? (
           <Chip size="auto" className="text-ink-3">

@@ -345,6 +345,13 @@ export default function TodayPage() {
       <RowAction label="Convert to project" onClick={() => void breakDown(id)} />
     </MenuOnly>
   );
+  // A Today row's push-away (its left swipe: Tomorrow · Someday) has its tap path in the ⋯ as well (DESIGN_SYSTEM.md §5).
+  const pushAway = (id: string, tomorrowToo = false) => (
+    <MenuOnly>
+      {tomorrowToo && <RowAction label="Tomorrow" onClick={() => void time("reschedule", () => model.repo.reschedule(id, tomorrow))} />}
+      <RowAction label="Someday" onClick={() => void time("someday", () => model.repo.setState(id, "someday"))} />
+    </MenuOnly>
+  );
   // The pull-in suggestions under All done and the empty day: what they offer, and the two things a row does.
   const pullInProps = {
     today: model.today,
@@ -376,7 +383,12 @@ export default function TodayPage() {
           onSelect={() => sel.select(t.id)}
           onDone={() => void time("complete", () => model.repo.complete(t.id))}
           onBreakDown={() => void breakDown(t.id)}
-          actions={convertItem(t.id)}
+          actions={
+            <>
+              {pushAway(t.id, true)}
+              {convertItem(t.id)}
+            </>
+          }
         />
       ))}
     </TaskList>
@@ -612,6 +624,7 @@ export default function TodayPage() {
                       {hasDay && (
                         <RowAction label={`Block ${t.title}`} text="Block" glyph={BLOCK_GLYPH} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} />
                       )}
+                      {pushAway(t.id)}
                       {convertItem(t.id)}
                     </>
                   }
