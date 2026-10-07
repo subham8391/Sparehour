@@ -99,6 +99,52 @@ describe("the version gate", () => {
     }
   });
 
+  it("asks the worker for the new version first, since a plain reload would get this one again from its precache", async () => {
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...original, reload } });
+    try {
+      // A new worker turns up on update() and installs: it is told to take over, no plain reload first.
+      const worker = Object.assign(new EventTarget(), { state: "installing" as ServiceWorkerState, postMessage: vi.fn() });
+      const registration: { waiting: unknown; installing: unknown; update: () => Promise<void> } = {
+        waiting: null,
+        installing: null,
+        update: vi.fn(async () => {
+          registration.installing = worker;
+          setTimeout(() => {
+            worker.state = "installed";
+            worker.dispatchEvent(new Event("statechange"));
+          }, 5);
+        }),
+      };
+      vi.stubGlobal("navigator", { ...navigator, serviceWorker: { getRegistration: async () => registration } });
+      await moveToNewVersion();
+      expect(registration.update).toHaveBeenCalledTimes(1);
+      expect(worker.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
+      expect(reload).not.toHaveBeenCalled();
+
+      // Nothing new on the server: a reload.
+      const none = { waiting: null, installing: null, update: vi.fn(async () => {}) };
+      vi.stubGlobal("navigator", { ...navigator, serviceWorker: { getRegistration: async () => none } });
+      await moveToNewVersion();
+      expect(none.update).toHaveBeenCalledTimes(1);
+      expect(reload).toHaveBeenCalledTimes(1);
+
+      // A new worker that fails to install: a reload too.
+      const broken = Object.assign(new EventTarget(), { state: "installing" as ServiceWorkerState, postMessage: vi.fn() });
+      setTimeout(() => {
+        broken.state = "redundant";
+        broken.dispatchEvent(new Event("statechange"));
+      }, 5);
+      vi.stubGlobal("navigator", { ...navigator, serviceWorker: { getRegistration: async () => ({ waiting: null, installing: broken, update: vi.fn() }) } });
+      await moveToNewVersion();
+      expect(broken.postMessage).not.toHaveBeenCalled();
+      expect(reload).toHaveBeenCalledTimes(2);
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: original });
+    }
+  });
+
   it("the PWA provider mounts it once the browser is idle", async () => {
     gate = "2026.10.07.1900";
     render(

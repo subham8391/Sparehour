@@ -13,17 +13,43 @@ import { fetchBootstrap, isUpdateRequired } from "./version";
 /** How often an open, visible app asks again. */
 export const GATE_EVERY_MS = 30 * 60_000;
 
+/** The new worker once it has installed and waits, or null when there is none, it fails, or it takes longer than `ms`. */
+export function whenInstalled(worker: ServiceWorker | null | undefined, ms: number): Promise<ServiceWorker | null> {
+  if (!worker) return Promise.resolve(null);
+  if (worker.state === "installed") return Promise.resolve(worker);
+  return new Promise((resolve) => {
+    const done = (w: ServiceWorker | null) => {
+      clearTimeout(timer);
+      worker.removeEventListener("statechange", onState);
+      resolve(w);
+    };
+    const onState = () => {
+      if (worker.state === "installed") done(worker);
+      else if (worker.state !== "installing") done(null);
+    };
+    const timer = setTimeout(() => done(null), ms);
+    worker.addEventListener("statechange", onState);
+  });
+}
+
 /**
- * Moves to the new version: a waiting service worker is told to take over (the PWA provider reloads on its
- * `controlling`), else a reload fetches the new pages, which are network-first. The fallback reload covers a worker
- * that never answers.
+ * Moves to the new version. The worker controlling this page precaches the app's pages, so a plain reload would open
+ * this version again: the worker is asked to look for the new one first, and a new worker that has installed is told
+ * to take over (the PWA provider reloads on its `controlling`). With no new worker (no worker at all, or nothing newer
+ * on the server yet) it reloads. The fallback reload covers a worker that never answers.
  */
-export async function moveToNewVersion(): Promise<void> {
+export async function moveToNewVersion({ waitMs = 15_000 }: { waitMs?: number } = {}): Promise<void> {
   const registration = await navigator.serviceWorker?.getRegistration?.().catch(() => undefined);
-  if (registration?.waiting) {
-    registration.waiting.postMessage({ type: "SKIP_WAITING" });
-    setTimeout(() => window.location.reload(), 4000);
-    return;
+  if (registration) {
+    if (!registration.waiting && !registration.installing && registration.update) {
+      await Promise.race([registration.update().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, waitMs))]);
+    }
+    const next = registration.waiting ?? (await whenInstalled(registration.installing, waitMs));
+    if (next) {
+      next.postMessage({ type: "SKIP_WAITING" });
+      setTimeout(() => window.location.reload(), 4000);
+      return;
+    }
   }
   window.location.reload();
 }

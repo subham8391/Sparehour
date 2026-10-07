@@ -98,5 +98,10 @@ describe("<UpdateRequired>", () => {
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
     await act(async () => {});
     expect(applyUpdate).not.toHaveBeenCalled();
+    // Reload goes through the update path (a waiting worker takes over), not a plain reload of this version.
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+    expect(applyUpdate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Updating…");
+    expect(screen.getByRole("heading", { name: "Update required" })).toHaveFocus();
   });
 });

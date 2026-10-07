@@ -4,23 +4,29 @@
 // nothing and every app page leads to /account/deleted, which names the day
 // and offers Restore; Restore brings the account back and opens Today.
 //
-// Never the dev account: the test makes a throwaway local account the way
+// The same through Settings › Account: Delete account's typed confirmation,
+// then this device clears itself and lands on the page that names the day.
+//
+// Never the dev account: each test makes a throwaway local account the way
 // supabase/seed.sql makes the dev user (the same password), signs in as it in
-// a context of its own, and afterAll removes it and every row it owns.
+// a context of its own, and afterAll removes them and every row they own.
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { waitForRow, withDb } from "./db";
-import { DEV_USER } from "./helpers";
+import { DEV_USER, openApp } from "./helpers";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const email = `e2e-delete-${Date.now().toString(36)}@sparehour.local`;
 let uid = "";
+/** Every throwaway account made here, for afterAll. */
+const made: string[] = [];
 
-test.beforeAll(async () => {
-  await withDb(async (c) => {
+/** A throwaway local account with an email identity, as the seed makes the dev user; its id. */
+async function makeAccount(address: string): Promise<string> {
+  return withDb(async (c) => {
     // GoTrue scans the token columns into non-null strings: none of them may be NULL (see the seed).
-    uid = (
+    const id = (
       await c.query<{ id: string }>(
         `insert into auth.users (
            id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -32,31 +38,37 @@ test.beforeAll(async () => {
            '{"provider":"email","providers":["email"]}', '{"full_name":"E2E Delete","timezone":"Europe/London"}', now(), now(),
            '', '', '', '', '', '', '', '')
          returning id`,
-        [email, DEV_USER.password],
+        [address, DEV_USER.password],
       )
     ).rows[0].id;
+    made.push(id);
     await c.query(
       `insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
        values (gen_random_uuid(), $1::uuid, $2::text, jsonb_build_object('sub', $2::text, 'email', $3::text), 'email', now(), now(), now())`,
-      [uid, uid, email],
+      [id, id, address],
     );
+    return id;
   });
+}
+
+test.beforeAll(async () => {
+  uid = await makeAccount(email);
 });
 
 test.afterAll(async () => {
-  if (!uid) return;
+  if (made.length === 0) return;
   await withDb(async (c) => {
     // The ledgers that name a user without a key first, as the nightly purge does; the auth user takes the rest with it.
-    await c.query("delete from private.mutations where user_id = $1", [uid]);
-    await c.query("delete from private.rollover_runs where user_id = $1", [uid]);
-    await c.query("delete from auth.users where id = $1", [uid]);
+    await c.query("delete from private.mutations where user_id = any($1::uuid[])", [made]);
+    await c.query("delete from private.rollover_runs where user_id = any($1::uuid[])", [made]);
+    await c.query("delete from auth.users where id = any($1::uuid[])", [made]);
   });
 });
 
-async function signIn(page: Page): Promise<void> {
+async function signIn(page: Page, address = email): Promise<void> {
   await page.goto("/login");
   await page.getByRole("button", { name: "Use a password" }).click();
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Email").fill(address);
   await page.getByLabel("Password").fill(DEV_USER.password);
   await page.getByRole("button", { name: "Sign in" }).click();
 }
@@ -101,4 +113,32 @@ test("a deleted account is held for thirty days behind a page that offers Restor
   expect(await waitForRow("select 1 from public.users where id = $1 and deleted_at is null", [uid])).not.toBeNull();
   expect(await waitForRow("select 1 from auth.users where id = $1 and not (raw_app_meta_data ? 'delete_after')", [uid])).not.toBeNull();
   expect((await page.request.get("/api/sync/token")).status()).toBe(200);
+});
+
+test("Delete account in Settings: the typed word, then this device leaves and lands on the page that names the day", async ({ page }) => {
+  test.setTimeout(180_000);
+  const address = `e2e-delete-ui-${Date.now().toString(36)}@sparehour.local`;
+  const id = await makeAccount(address);
+  await signIn(page, address);
+  await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
+  await openApp(page, "/settings#account");
+
+  await page.getByRole("button", { name: "Delete account", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Delete your account?" });
+  await expect(sheet.getByText(/^Every task, step, project, area and tag/)).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Export your data first" })).toBeVisible();
+  const go = sheet.getByRole("button", { name: "Delete account", exact: true });
+  await expect(go).toBeDisabled();
+  await sheet.getByLabel(/to confirm/).fill("delete");
+  await go.click();
+
+  await expect(page).toHaveURL(/\/account\/deleted\?on=/, { timeout: 30_000 });
+  const marked = await waitForRow<{ after: string }>("select raw_app_meta_data ->> 'delete_after' as after from auth.users where id = $1 and raw_app_meta_data ? 'delete_after'", [id]);
+  expect(marked).not.toBeNull();
+  expect(await waitForRow("select 1 from public.users where id = $1 and deleted_at is not null", [id])).not.toBeNull();
+  // Signed out here too, so the page names the day from its address and offers Sign in.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Your account will be deleted on ${longDay(marked!.after)}.`);
+  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await page.goto("/today");
+  await expect(page).toHaveURL(/\/login/);
 });

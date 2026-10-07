@@ -2,10 +2,10 @@
 // "Update required" (SYSTEM_DESIGN.md §10.2): the one forced update. When
 // GET /api/bootstrap says this build is below min_client_version, the app is
 // blocked by this screen, lets the changes still waiting on this device upload
-// first, then moves to the new version (skipWaiting when a new service worker
-// is waiting, else a reload, which fetches the new pages). Nothing is lost if
-// the upload cannot finish: the queue lives in the local database and the new
-// version sends it. A reload that lands on the old version again does not loop:
+// first, then moves to the new version (the service worker is asked for the
+// new one, which takes over; with none, a reload fetches the new pages).
+// Nothing is lost if the upload cannot finish: the queue lives in the local
+// database and the new version sends it. A reload that lands on the old version again does not loop:
 // the screen then says to close and reopen Sparehour, with a Reload button.
 // A lazy island: it loads only when the gate closes.
 import { useEffect, useRef, useState } from "react";
@@ -111,6 +111,15 @@ export default function UpdateRequired({ min, applyUpdate }: { min: string; appl
     };
   }, [phase, db, min, applyUpdate]);
 
+  // Reload asks for the new version the same way (a new service worker takes over when there is one), not a plain
+  // reload, which the worker controlling this page would answer with this version again.
+  const retry = () => {
+    setPhase("updating");
+    markTried(min, session());
+    heading.current?.focus();
+    applyUpdate();
+  };
+
   const line =
     phase === "stuck"
       ? "It opened the old version again. Close Sparehour completely, then open it again."
@@ -132,7 +141,7 @@ export default function UpdateRequired({ min, applyUpdate }: { min: string; appl
           {line}
         </p>
         {phase === "stuck" && (
-          <Button variant="primary" onClick={() => window.location.reload()} className="self-start">
+          <Button variant="primary" onClick={retry} className="self-start">
             Reload
           </Button>
         )}
