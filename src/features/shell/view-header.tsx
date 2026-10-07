@@ -41,7 +41,15 @@ export function ViewHeader({
   const palette = usePalette();
   const plain = typeof title === "string" || typeof title === "number";
   return (
-    <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 sm:gap-x-4">
+    <header
+      className={cx(
+        "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 sm:gap-x-4",
+        // From `sm` the arrows take a third column after the actions. Auto columns grow to their full width before the
+        // title's share is worked out, so a header of rituals and arrows could leave the title none at all and its words
+        // would spill over the actions and take their clicks. The title keeps its longest word; the actions wrap.
+        Boolean(beside) && "sm:grid-cols-[minmax(min-content,1fr)_auto_auto]",
+      )}
+    >
       {eyebrow ? <p className={cx(EYEBROW, "col-start-1 row-start-1 self-center sm:pb-2")}>{eyebrow}</p> : <span className="col-start-1 row-start-1" />}
       {/* Row 1 on a phone, the full height of the right column from `sm` up, where it settles on the baseline of the title. */}
       <div className="col-start-2 row-start-1 -mr-2 flex min-h-11 flex-wrap items-center justify-end gap-1 sm:row-span-3 sm:mr-0 sm:min-h-0 sm:self-end sm:pb-1 print:hidden">
