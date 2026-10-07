@@ -50,6 +50,7 @@ const META_RUN =
 export function TaskRow({
   task,
   today,
+  listDay,
   onDone,
   onOpen,
   selected = false,
@@ -67,6 +68,8 @@ export function TaskRow({
   task: Task;
   /** The user's today, for the deadline wording; the device's date when a view has none to give. */
   today?: LocalDate;
+  /** The day the list is for when it is not today (Today stepped to a later day): a task that has started by then is not dimmed. */
+  listDay?: LocalDate;
   onDone?: () => void;
   /** Opens the task's detail; the title is the target, and on a phone it covers the whole row. */
   onOpen?: () => void;
@@ -337,7 +340,7 @@ export function TaskRow({
   );
   // The struck title keeps the `line-through` class: tests read it. A task whose start date is still ahead shows in
   // its project dimmed (PRODUCT_SPEC.md §8.1), its day chip saying when it starts; it lights up on that day.
-  const later = task.startDate && Temporal.PlainDate.compare(task.startDate, day) > 0;
+  const later = task.startDate && Temporal.PlainDate.compare(task.startDate, listDay ?? day) > 0;
   const titleClass = cx("line-clamp-2 text-body-lg leading-snug [overflow-wrap:anywhere] transition-colors dur-fast sm:line-clamp-1 sm:leading-5", done ? "text-ink-3 line-through decoration-ink-3" : later ? "text-ink-3" : "text-ink");
   // The estimate (PRODUCT_SPEC.md §9.2): the account's default with a question mark, dashed, when there is none.
   const defaultMin = useContext(DefaultEstimate);

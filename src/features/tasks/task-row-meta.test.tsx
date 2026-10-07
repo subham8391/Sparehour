@@ -189,4 +189,12 @@ describe("a task not started yet", () => {
     expect(screen.getByText("Draft the proposal").className).toMatch(/\btext-ink\b/);
     expect(screen.queryByText(/^Starts/)).toBeNull();
   });
+
+  it("is not dimmed in a list for a day it has started by (Today stepped to a later day), though today it has not", () => {
+    const t = task({ startDate: localDate("2026-10-12"), doDate: localDate("2026-10-12") });
+    const { rerender } = render(row(t, { listDay: localDate("2026-10-12") }));
+    expect(screen.getByText("Draft the proposal").className).not.toMatch(/\btext-ink-3\b/);
+    rerender(row(t, { listDay: localDate("2026-10-09") }));
+    expect(screen.getByText("Draft the proposal").className).toMatch(/\btext-ink-3\b/);
+  });
 });

@@ -60,8 +60,9 @@ const TASKS: Row[] = [
   { id: "done-y", title: "Sent the invoice", state: "done", do_date: yesterday.toString(), completed_at: `${yesterday.toString()}T11:00:00Z` },
 ];
 
+let db: ReturnType<typeof localSqlite>;
 beforeEach(() => {
-  const db = localSqlite();
+  db = localSqlite();
   TASKS.forEach((t, i) => db.insert("tasks", { space_id: "s1", state: "active", deleted_at: null, sort_key: `a${i}`, day_sort_key: `a${i}`, start_date: null, evening: 0, ...t }));
   h.answer = (sql, params) => {
     if (sql === SETTINGS_SQL) return [{ id: "set1", timezone: "UTC", day_rollover_hour: 4, buffer_pct: 0, default_estimate_min: 30, carry_ask_after: 3 }];
@@ -191,5 +192,34 @@ describe("Today, stepped a day at a time", () => {
     expect(rows().some((r) => r.includes("Draft the plan") || r.includes("Reply to the landlord"))).toBe(false);
     expect(screen.queryByRole("region", { name: /Spare time/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Today options" })).not.toBeInTheDocument();
+  });
+});
+
+describe("what the merged units draw on a stepped day", () => {
+  it("a later day draws its tasks as started there, though a start date is still ahead of today (rows' dimming)", async () => {
+    db.insert("tasks", { id: "tom-start", title: "Pitch the deck", space_id: "s1", state: "active", deleted_at: null, sort_key: "z", day_sort_key: "z", start_date: tomorrow.toString(), do_date: tomorrow.toString(), evening: 0 });
+    window.history.pushState(null, "", `/today?day=${tomorrow}`);
+    view();
+    const name = await screen.findByText("Pitch the deck");
+    expect(name.className).toMatch(/\btext-ink\b/);
+    expect(name.className).not.toMatch(/\btext-ink-3\b/);
+  });
+
+  it("a pane that failed on one day draws again on the next (SCREENS.md §21 boundaries, §2.1 stepping)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const w = window as { __sparehourFail?: string };
+    w.__sparehourFail = "Today’s list";
+    try {
+      view();
+      await screen.findByRole("heading", { level: 1, name: title(today) });
+      await waitFor(() => expect(document.body.textContent).toMatch(/stopped before it finished drawing/));
+      expect(rows().some((r) => r.includes("Draft the plan"))).toBe(false);
+      delete w.__sparehourFail;
+      await userEvent.click(screen.getByRole("button", { name: "Next day" }));
+      await waitFor(() => expect(rows().some((r) => r.includes("Call the bank"))).toBe(true));
+      expect(document.body.textContent).not.toMatch(/stopped before it finished drawing/);
+    } finally {
+      delete w.__sparehourFail;
+    }
   });
 });

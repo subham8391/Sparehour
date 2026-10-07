@@ -12,6 +12,8 @@ interface Props {
   name: string;
   /** The build, for Copy details (passed in: src/ui reads no app modules). */
   build: string;
+  /** What the pane draws (Today's day shown): a failure is that day's, so another one draws the pane afresh. */
+  resetKey?: string;
   children: ReactNode;
 }
 
@@ -35,6 +37,10 @@ export class PaneBoundary extends Component<Props, State> {
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error(error, info.componentStack);
+  }
+
+  componentDidUpdate(prev: Props) {
+    if (this.state.failed && prev.resetKey !== this.props.resetKey) this.setState({ error: null, failed: false });
   }
 
   render() {

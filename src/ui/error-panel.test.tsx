@@ -60,6 +60,23 @@ describe("PaneBoundary: a pane that throws fails in place", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(screen.getByText("Drawn again")).toBeInTheDocument();
   });
+
+  it("draws the pane afresh when what it shows changes (Today stepped to another day), without Try again", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    broken = true;
+    const pane = (day: string) => (
+      <PaneBoundary name="Your day" build="b1" resetKey={day}>
+        <Flaky />
+      </PaneBoundary>
+    );
+    const { rerender } = render(pane("2026-10-07"));
+    expect(await screen.findByRole("heading", { name: "Your day stopped before it finished drawing." })).toBeInTheDocument();
+    broken = false;
+    rerender(pane("2026-10-07"));
+    expect(screen.queryByText("Drawn again")).toBeNull();
+    rerender(pane("2026-10-08"));
+    expect(await screen.findByText("Drawn again")).toBeInTheDocument();
+  });
 });
 
 describe("the root boundary (app/global-error.tsx)", () => {

@@ -457,6 +457,7 @@ export default function TodayPage() {
           key={t.id}
           task={t}
           today={model.today}
+          listDay={day}
           draggable
           onDropTask={manual ? (src, edge) => dropInEvening(src, t.id, edge) : undefined}
           timeChip={blockChip(t)}
@@ -626,8 +627,9 @@ export default function TodayPage() {
           <LazyPlanIsland mode={planning.mode} model={model} now={now} layout="dock" onDrawing={planning.setDrawing} onClose={planning.close} />
         )}
 
-        {/* Each pane fails in place (SCREENS.md §21): a list that throws leaves the day pane working, and the other way round. */}
-        <PaneBoundary name="Today’s list" build={BUILD_ID}>
+        {/* Each pane fails in place (SCREENS.md §21): a list that throws leaves the day pane working, and the other way round.
+            A failure is the day's: stepping to another day draws both panes afresh. */}
+        <PaneBoundary name="Today’s list" build={BUILD_ID} resetKey={dayIso}>
         <div className={cx("flex-col gap-6", previewing ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
           {/* A block dragged off the timeline onto the list is unblocked; its task stays where it is (SCREENS.md §2.6). */}
           {blockDrag && <BlockDrop />}
@@ -714,6 +716,8 @@ export default function TodayPage() {
                   key={t.id}
                   task={t}
                   today={model.today}
+                  // A later day lists what has started by then: a start date still ahead of today is not dimmed there.
+                  listDay={day}
                   draggable
                   // A sorted list is a view, not the hand order: reordering waits for Manual (it never rewrites day_sort_key).
                   onDropTask={manual ? (src, edge) => dropInToday(src, t.id, edge) : undefined}
@@ -798,7 +802,7 @@ export default function TodayPage() {
             previewing && "max-sm:pb-[min(62dvh,36rem)]",
           )}
         >
-          <PaneBoundary name="Your day" build={BUILD_ID}>
+          <PaneBoundary name="Your day" build={BUILD_ID} resetKey={dayIso}>
           <DayPane
             start={dayStart}
             end={dayEnd}
