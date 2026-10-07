@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import type { LocalDate } from "@/core/time";
 import { useLocalDatabase } from "@/data/powersync";
 import { BlockRepo, type ApprovedPlan, type NewBlock } from "@/data/repositories/block-repo";
 import type { UndoRecorder } from "@/data/repositories/undo";
@@ -14,6 +15,12 @@ import { schedulePush } from "./push-after-write";
 class PushingBlockRepo extends BlockRepo {
   override async create(block: NewBlock): Promise<string> {
     const id = await super.create(block);
+    schedulePush();
+    noteBlockCreated();
+    return id;
+  }
+  override async createOnTaskDay(block: NewBlock & { taskId: string }, day: LocalDate): Promise<string> {
+    const id = await super.createOnTaskDay(block, day);
     schedulePush();
     noteBlockCreated();
     return id;

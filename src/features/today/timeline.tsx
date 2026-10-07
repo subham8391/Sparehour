@@ -464,7 +464,8 @@ export function Timeline(p: TimelineProps) {
 
   return (
     <div className="flex flex-col">
-      {bar && <PlacingBar text={bar} onCancel={() => setArmed(null)} />}
+      {/* In a grid column the bar would push one day's hours out of line: the toolbar's fields and the label say it there. */}
+      {bar && !column && <PlacingBar text={bar} onCancel={() => setArmed(null)} />}
       {/* The zoom (SCREENS.md §2.6): + and - from the keyboard, this on every screen, the phone's tap path. */}
       {!column && <ZoomControl zoom={zoom} />}
       <div ref={boxRef} className={cx(!column && "max-h-[70dvh] overflow-y-auto overscroll-contain", p.paneScrolls && "lg:max-h-none lg:overflow-visible")}>

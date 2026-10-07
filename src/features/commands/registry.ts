@@ -19,6 +19,8 @@ interface Words {
   keywords?: string;
   /** Hidden from the palette (pure keyboard plumbing such as J/K). */
   hidden?: boolean;
+  /** Where the key works, beside it in the ? overlay ("installed app": a browser tab keeps Cmd+1–3 for itself). */
+  keyNote?: string;
 }
 
 export type Command = CommandRun & Words;
@@ -68,6 +70,9 @@ const WORDS: Record<string, Words> = {
   "go.inbox": { title: "Go to Inbox", group: "Go to" },
   "go.upcoming": { title: "Go to Upcoming", group: "Go to", keywords: "week" },
   "go.calendar": { title: "Go to Calendar", group: "Go to" },
+  "calendar.day": { title: "Calendar: Day", group: "View", keywords: "calendar day one mode", keyNote: "installed app" },
+  "calendar.workweek": { title: "Calendar: Work week", group: "View", keywords: "calendar five weekdays mode", keyNote: "installed app" },
+  "calendar.week": { title: "Calendar: Week", group: "View", keywords: "calendar seven days mode", keyNote: "installed app" },
   "go.someday": { title: "Go to Someday", group: "Go to" },
   "go.logbook": { title: "Go to Logbook", group: "Go to", keywords: "done completed" },
   "go.project": { title: "Go to project…", group: "Go to", keywords: "open project picker" },

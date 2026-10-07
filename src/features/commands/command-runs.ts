@@ -14,6 +14,7 @@ import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
 import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
+import { CALENDAR_MODES, installedApp, setCalendarMode } from "@/features/calendar-view/calendar-mode";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
@@ -297,6 +298,19 @@ export const RUNS: readonly CommandRun[] = [
   { id: "go.inbox", shortcut: "g i", run: (ctx) => ctx.go("/inbox") },
   { id: "go.upcoming", shortcut: "g u", run: (ctx) => ctx.go("/upcoming") },
   { id: "go.calendar", shortcut: "g c", run: (ctx) => ctx.go("/calendar") },
+  // Calendar: Day · Work week · Week (SCREENS.md §4, §24): the mode is remembered on the device, and the Calendar opens
+  // in it. The keys reach the page only in the installed app; in a browser tab they stay the browser's.
+  ...CALENDAR_MODES.map(
+    (mode, i): CommandRun => ({
+      id: `calendar.${mode}`,
+      shortcut: `mod+${i + 1}`,
+      passes: () => !installedApp(),
+      run: (ctx) => {
+        setCalendarMode(mode);
+        if (ctx.pathname !== "/calendar") ctx.go("/calendar");
+      },
+    }),
+  ),
   { id: "go.someday", shortcut: "g s", run: (ctx) => ctx.go("/someday") },
   { id: "go.logbook", shortcut: "g l", run: (ctx) => ctx.go("/logbook") },
   { id: "go.project", shortcut: "g p", run: (ctx) => ctx.openPalette("", "projects") },
