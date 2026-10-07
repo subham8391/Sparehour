@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { isTodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import { useUndoSink } from "@/features/undo/undo-provider";
-import { valueEntry } from "@/features/undo/undo-stack";
+import { valueEntry } from "@/features/undo/value-entry";
 import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/data/repositories/settings-repo";

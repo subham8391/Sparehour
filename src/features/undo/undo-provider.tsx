@@ -55,7 +55,8 @@ export function UndoProvider({ children }: { children: ReactNode }) {
   // Outside the database provider (tests, the sign-in pages) there is none: entries still undo, without a redo.
   const db = useLocalDatabase() as LocalDatabase | null | undefined;
   const [depth, setDepth] = useState({ canUndo: false, canRedo: false });
-  const [history] = useState(() => new UndoHistory((h) => setDepth({ canUndo: h.canUndo, canRedo: h.canRedo })));
+  // The context changes only when either answer flips, so the screens' repositories are not rebuilt on every write.
+  const [history] = useState(() => new UndoHistory((h) => setDepth((d) => (d.canUndo === h.canUndo && d.canRedo === h.canRedo ? d : { canUndo: h.canUndo, canRedo: h.canRedo }))));
   const [toast, setToast] = useState<ToastState | null>(null);
   /** The live region's words: the entry's announcement, else a toast's label. The same words again get a trailing space so they are read again. */
   const [said, setSaid] = useState("");

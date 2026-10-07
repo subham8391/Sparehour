@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { UndoHistory, pop, push, valueEntry, type Redo, type UndoEntry } from "./undo-stack";
+import { UndoHistory, pop, push, type Redo, type UndoEntry } from "./undo-stack";
+import { valueEntry } from "./value-entry";
 
 const entry = (label: string): UndoEntry => ({ label, toast: true, undo: async () => {} });
 

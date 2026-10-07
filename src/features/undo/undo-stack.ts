@@ -49,25 +49,6 @@ export function redone(item: RedoItem): UndoEntry {
 }
 
 /**
- * A screen's own change of a value (a setting, a day's working hours, this device's motion choice): undoing writes
- * the old value back over the new one, redoing writes the new one again. `write(to, from)` makes the change.
- */
-export function valueEntry<T>(label: string, write: (to: T, from: T) => unknown, before: T, after: T): UndoEntry {
-  const again: Redo = {
-    redo: async () => void (await write(after, before)),
-    undo: async () => void (await write(before, after)),
-  };
-  return {
-    label,
-    toast: false,
-    undo: async () => {
-      await again.undo();
-      return again;
-    },
-  };
-}
-
-/**
  * Both stacks, twenty deep each. A new write clears the redo stack; an undo whose entry cannot be redone clears it
  * too, since nothing older may be made again on top of a change that stays undone. Undo and redo run one at a time,
  * in order, so each reads its rows after the one before has written them; an undo overtaken by a write while it ran
