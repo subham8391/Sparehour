@@ -22,7 +22,7 @@ interface KeyRow {
 function keyRows(commands: readonly Command[], isMac: boolean): KeyRow[] {
   const rows: KeyRow[] = [];
   for (const c of commands) {
-    if (!c.shortcut) continue;
+    if (!c.shortcut || (isMac && c.notOnMac)) continue;
     const key = displayShortcut(c.shortcut, isMac);
     const row = rows.find((r) => r.title === c.title);
     if (row) row.keys.push(key);

@@ -68,6 +68,8 @@ export interface CommandRun {
   unselected?: (ctx: CommandContext) => void;
   /** True when nothing on screen takes the key, so it goes on as if unbound: an arrow scrolls, `[` types into quick add. */
   passes?: (ctx: CommandContext) => boolean;
+  /** A chord a Mac browser keeps for itself (⌘Y opens History): on a Mac it goes on unbound and the ? overlay leaves it out. */
+  notOnMac?: boolean;
   /** The one view the command belongs to (`/today`, or every `/project/…` page): listed elsewhere, but disabled with the reason. */
   onlyOn?: { path: string; reason: string };
   /** Why it cannot run right now (no timeline on screen, no block selected, nothing to redo), or null when it can. */
@@ -341,10 +343,10 @@ export const RUNS: readonly CommandRun[] = [
 
   // ---- app
   { id: "app.undo", shortcut: "mod+z", run: (ctx) => ctx.undo() },
-  // ⇧⌘Z everywhere, and Ctrl+Y as Windows has it (SCREENS.md §24). Inside a text field the browser keeps its own redo:
-  // the keyboard layer never takes keys from a typing target.
+  // ⇧⌘Z everywhere, and Ctrl+Y as Windows has it (SCREENS.md §24); on a Mac ⌘Y stays the browser's History. Inside a
+  // text field the browser keeps its own redo: the keyboard layer never takes keys from a typing target.
   { id: "app.redo", shortcut: "mod+shift+z", run: (ctx) => ctx.redo(), unavailable: (ctx) => (ctx.canRedo === false ? "after an undo" : null) },
-  { id: "app.redo-y", shortcut: "mod+y", run: (ctx) => ctx.redo(), unavailable: (ctx) => (ctx.canRedo === false ? "after an undo" : null) },
+  { id: "app.redo-y", shortcut: "mod+y", notOnMac: true, run: (ctx) => ctx.redo(), unavailable: (ctx) => (ctx.canRedo === false ? "after an undo" : null) },
   { id: "app.palette", shortcut: "mod+k", run: (ctx) => ctx.openPalette() },
   { id: "app.search", shortcut: "/", run: (ctx) => ctx.go("/search") },
   { id: "app.export", run: (ctx) => ctx.go("/settings") },

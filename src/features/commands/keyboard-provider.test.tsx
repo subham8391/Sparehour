@@ -371,4 +371,42 @@ describe("<KeyboardProvider> Redo (SCREENS.md §24 “Cmd+Z · Cmd+Shift+Z”)",
     await user.keyboard("{Control>}y{/Control}");
     expect(again.redo).toHaveBeenCalledTimes(2);
   });
+
+  it("on a Mac ⇧⌘Z redoes and ⌘Y stays the browser's (History), unclaimed", async () => {
+    const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    try {
+      const again = { redo: vi.fn().mockResolvedValue(undefined), undo: vi.fn().mockResolvedValue(undefined) };
+      function Change() {
+        const { record } = useUndo();
+        return (
+          <button type="button" onClick={() => record({ label: "Changed “Draft”", toast: false, undo: async () => again })}>
+            Change
+          </button>
+        );
+      }
+      render(
+        <UndoProvider>
+          <QuickAddProvider>
+            <TaskDetailProvider>
+              <SelectionProvider>
+                <KeyboardProvider>
+                  <Change />
+                </KeyboardProvider>
+              </SelectionProvider>
+            </TaskDetailProvider>
+          </QuickAddProvider>
+        </UndoProvider>,
+      );
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Change" }));
+      await user.keyboard("{Meta>}z{/Meta}");
+      const cmdY = new KeyboardEvent("keydown", { key: "y", metaKey: true, bubbles: true, cancelable: true });
+      window.dispatchEvent(cmdY);
+      expect(cmdY.defaultPrevented).toBe(false);
+      await user.keyboard("{Meta>}{Shift>}z{/Shift}{/Meta}");
+      await waitFor(() => expect(again.redo).toHaveBeenCalledTimes(1));
+    } finally {
+      platform.mockRestore();
+    }
+  });
 });

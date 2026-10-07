@@ -201,8 +201,9 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       const r = resolveKey(chord, pendingRef.current, BINDINGS);
       pendingRef.current = r.pending;
       if (r.match) {
-        // A key the view on screen does not take goes on as if unbound (an arrow scrolls, `[` types itself below).
-        if (!r.match.passes?.(contextRef.current())) {
+        // A key the view on screen does not take goes on as if unbound (an arrow scrolls, `[` types itself below), and so
+        // does a chord a Mac browser keeps for itself.
+        if (!(isMac && r.match.notOnMac) && !r.match.passes?.(contextRef.current())) {
           e.preventDefault();
           run(r.match);
           return;
