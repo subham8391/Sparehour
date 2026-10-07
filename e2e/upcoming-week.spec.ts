@@ -14,7 +14,7 @@
 import { expect, test } from "./fixtures";
 import { addAllDayHours, daysWithMeetings, devAccount, isoPlus, waitForRow, withDb, type DevAccount } from "./db";
 import { DEV_USER, openApp, uniqueTitle } from "./helpers";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 const keyed = uniqueTitle("week keys");
 const dragged = uniqueTitle("week drag");
@@ -55,6 +55,20 @@ async function openFolds(page: Page): Promise<void> {
   await expect(page.locator("[data-week]")).toBeVisible();
   const more = page.getByRole("button", { name: /^Show \d+ more on / });
   for (let i = 0; i < 20 && (await more.count()) > 0; i++) await more.first().click();
+}
+
+/**
+ * Waits for a row to show in a column, opening the column's fold whenever the row is behind it. A move lands a
+ * moment after the key or the undo, and a column that re-folded meanwhile hides it (CI's crowded week).
+ */
+async function reveal(col: Locator, row: Locator): Promise<void> {
+  await expect(async () => {
+    if (!(await row.isVisible())) {
+      const more = col.getByRole("button", { name: /^Show \d+ more on / });
+      if ((await more.count()) > 0) await more.first().click();
+    }
+    await expect(row).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
 }
 
 async function settled(page: Page, ...days: string[]): Promise<void> {
@@ -138,23 +152,21 @@ test("← and → move the selected task a day; both days' readouts follow, and 
   await expect(row(from)).toHaveAttribute("aria-current", "true");
 
   await page.keyboard.press("ArrowRight");
-  await openFolds(page);
-  await expect(row(to)).toBeVisible();
+  await reveal(column(page, to), row(to));
   await expect(row(from)).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [keyed, to])).not.toBeNull();
   await expect.poll(() => readValue(page, from)).toBe(before.from + 60);
   await expect.poll(() => readValue(page, to)).toBe(before.to - 60);
 
   await page.keyboard.press("ArrowLeft");
-  await expect(row(from)).toBeVisible();
+  await reveal(column(page, from), row(from));
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [keyed, from])).not.toBeNull();
   await expect.poll(() => readValue(page, from)).toBe(before.from);
   await expect.poll(() => readValue(page, to)).toBe(before.to);
 
   // Each move is one undo: ⌘Z takes back the last (←), so the task is on the later day again.
   await page.keyboard.press("ControlOrMeta+z");
-  await openFolds(page);
-  await expect(row(to)).toBeVisible();
+  await reveal(column(page, to), row(to));
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [keyed, to])).not.toBeNull();
   await expect.poll(() => readValue(page, to)).toBe(before.to - 60);
 });
@@ -170,8 +182,7 @@ test("a task dragged to another day's column lands there; both days' readouts fo
 
   // Onto the day's heading: the day itself takes the drop, not a row in it.
   await row(from).dragTo(column(page, to).locator("header"));
-  await openFolds(page);
-  await expect(row(to)).toBeVisible();
+  await reveal(column(page, to), row(to));
   await expect(row(from)).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [dragged, to])).not.toBeNull();
   await expect.poll(() => readValue(page, from)).toBe(before.from + 45);
@@ -192,8 +203,7 @@ test("a later day's row action brings the task into the week; the day it lands o
 
   await row.hover();
   await row.getByRole("button", { name: "Tomorrow", exact: true }).click();
-  await openFolds(page);
-  await expect(column(page, to).getByRole("listitem").filter({ hasText: later })).toBeVisible();
+  await reveal(column(page, to), column(page, to).getByRole("listitem").filter({ hasText: later }));
   await expect(laterDay.getByRole("listitem").filter({ hasText: later })).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2::date", [later, to])).not.toBeNull();
   await expect.poll(() => readValue(page, to)).toBe(before - 25);
