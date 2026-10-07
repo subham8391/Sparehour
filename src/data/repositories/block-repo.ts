@@ -6,7 +6,10 @@
 import { Temporal, formatTime, instant, timeOf } from "@/core/time";
 import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
+import { reviveBlocks, type BlockRow } from "./block-revive";
 import type { UndoRecorder } from "./undo";
+
+export { reviveBlocks, type BlockRow } from "./block-revive";
 
 export interface NewBlock {
   spaceId: string;
@@ -23,31 +26,6 @@ export interface ApprovedPlan {
   userId: string;
   blocks: { taskId: string; title: string; startAt: string; endAt: string }[];
   replaces: readonly string[];
-}
-
-type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0];
-export type BlockRow = Record<string, string | number | null> & { id: string };
-
-/**
- * Brings soft-deleted blocks back for an undo. Sync takes a deleted block off
- * the device a moment after the deletion uploads (the stream carries live
- * blocks only), so a block that is gone is re-inserted from its snapshot, and
- * the explicit write after it carries `deleted_at = null`, which the sync layer
- * leaves out of an insert. It runs in the caller's transaction, so sync cannot
- * take a block away between the presence check and the write.
- */
-export async function reviveBlocks(tx: Pick<Tx, "execute" | "getOptional">, rows: readonly BlockRow[], at: string): Promise<void> {
-  for (const before of rows) {
-    const present = await tx.getOptional<{ id: string }>(`select id from time_blocks where id = ?`, [before.id]);
-    if (!present) {
-      // Inserted still deleted and then undeleted: an update uploads only the columns it changes, so the clearing
-      // has to be a change to reach the server, where the block is deleted (see restoreRow in undo.ts).
-      const row: Record<string, string | number | null> = { ...before, deleted_at: at, updated_at: at };
-      const cols = Object.keys(row);
-      await tx.execute(`insert into time_blocks (${cols.join(", ")}) values (${cols.map(() => "?").join(", ")})`, cols.map((c) => row[c] ?? null));
-    }
-    await tx.execute(`update time_blocks set deleted_at = null, updated_at = ? where id = ?`, [at, before.id]);
-  }
 }
 
 /** Whether two stored timestamps ("2026-09-14 08:00:00+00", "2026-09-14T08:00:00Z") are the same moment. */

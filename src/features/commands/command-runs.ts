@@ -12,11 +12,13 @@ import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
 import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
-import { dayWords, openDay, parseDay } from "@/features/today/day-address";
 import { requestToday } from "@/features/today/today-request";
 import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
+
+// Today's day address (`?day=`) loads with Today, or when a Day command first runs: not with every shell.
+const loadDays = () => import("@/features/today/day-address");
 
 export type Theme = "light" | "dark" | "system";
 /** `G P` and `G A` open the palette on the open projects or the areas alone (SCREENS.md §24). */
@@ -168,7 +170,10 @@ const projectIn = (pathname: string): string | null => {
  * empty anywhere else.
  */
 export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName" | "today">): Promise<string | undefined> {
-  if (ctx.pathname === "/today") return dayWords(parseDay(new URLSearchParams(window.location.search).get("day")) ?? ctx.today, ctx.today);
+  if (ctx.pathname === "/today") {
+    const { dayWords, parseDay } = await loadDays();
+    return dayWords(parseDay(new URLSearchParams(window.location.search).get("day")) ?? ctx.today, ctx.today);
+  }
   const id = projectIn(ctx.pathname);
   if (!id) return undefined;
   const name = await ctx.projectName(id);
@@ -296,8 +301,8 @@ export const RUNS: readonly CommandRun[] = [
   { id: "day.replan", run: (ctx) => ctx.planDay("replan") },
   // Today on another day (SCREENS.md §12 Day, §2.1): tomorrow and yesterday by name, any day through Jump to date's
   // typed date, which Today opens at once or as soon as it is open.
-  { id: "day.tomorrow", run: (ctx) => openDay(ctx.today.add({ days: 1 }), ctx.today, ctx) },
-  { id: "day.yesterday", run: (ctx) => openDay(ctx.today.subtract({ days: 1 }), ctx.today, ctx) },
+  { id: "day.tomorrow", run: async (ctx) => (await loadDays()).openDay(ctx.today.add({ days: 1 }), ctx.today, ctx) },
+  { id: "day.yesterday", run: async (ctx) => (await loadDays()).openDay(ctx.today.subtract({ days: 1 }), ctx.today, ctx) },
   { id: "day.jump", run: (ctx) => void (requestToday({ kind: "jump" }) || ctx.go("/today")) },
   // Triage all (SCREENS.md §5): the Inbox's walk, at once or as soon as the Inbox is open.
   { id: "inbox.triage-all", run: (ctx) => void (requestTriageAll() || ctx.go("/inbox")) },

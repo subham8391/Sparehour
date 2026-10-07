@@ -16,8 +16,7 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockNudgePending } from "@/features/notifications/block-nudge-store";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useCarryReview } from "@/features/rituals/carry-review-host";
-import { easiestMove, plannedLabel } from "@/features/rituals/easiest-move";
-import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
+import { plannedLabel } from "@/features/rituals/easiest-move";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon";
@@ -80,6 +79,9 @@ const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: f
 const CalendarIssueLine = dynamic(() => loadDayStates().then((m) => m.CalendarIssueLine), { ssr: false });
 const OffDayEyebrow = dynamic(() => loadDayStates().then((m) => m.OffDayEyebrow), { ssr: false });
 const PastDay = dynamic(() => loadDayStates().then((m) => m.PastDay), { ssr: false });
+// The over day's one suggested move (it reads tomorrow), and the Done list.
+const OverMove = dynamic(() => loadDayStates().then((m) => m.OverMove), { ssr: false });
+const DoneSection = dynamic(() => loadDayStates().then((m) => m.DoneSection), { ssr: false });
 // Jump to date (SCREENS.md §12 Day): its typed date reads words the way quick-add does, so the parser stays out of the shell.
 const loadJump = () => import("@/features/today/jump-to-date");
 const JumpToDate = dynamic(loadJump, { ssr: false });
@@ -341,8 +343,8 @@ export default function TodayPage() {
   // and its suggestion are today's; a later day over its time says how much, and its rows move as rows do.
   const hero = model.capacity && model.capacity.state !== "no_work_day" ? heroState(model.capacity) : null;
   const overMin = hero?.over && onToday ? hero.min : 0;
-  const { spareMin: tomorrowSpare } = useTomorrowSpare(tomorrow, model.settings, overMin > 0);
-  const suggested = overMin > 0 ? easiestMove(model.todayTasks, overMin, tomorrowSpare, model.settings?.defaultEstimateMin ?? 30) : null;
+  // Found by the OverMove island, which reads tomorrow only while today is over.
+  const [overMove, setOverMove] = useState<string | null>(null);
   const shutdownReady = !model.capacity || model.capacity.state === "no_work_day" || nowMinute >= model.capacity.windows[model.capacity.windows.length - 1].end - 120;
 
   const move = (t: Task, dir: -1 | 1) => {
@@ -530,6 +532,7 @@ export default function TodayPage() {
           model.capacity && (
             <>
               {onToday && <CalendarIssueLine />}
+              {overMin > 0 && <OverMove tasks={model.todayTasks} overMin={overMin} tomorrow={tomorrow} settings={model.settings} onMove={setOverMove} />}
               <Ribbon
                 c={model.capacity}
                 // No now cursor and no elapsed hatch on another day.
@@ -539,7 +542,7 @@ export default function TodayPage() {
                 plannedCount={model.todayTasks.length + model.eveningTasks.length}
                 finished={doneToday.length > 0}
                 onTrim={onToday ? () => setTrimOpen(true) : undefined}
-                suggestion={suggested?.task.title ?? null}
+                suggestion={overMin > 0 ? overMove : null}
                 interactions={{
                   bufferPct: model.settings?.bufferPct ?? 15,
                   meetings: model.meetings,
@@ -715,27 +718,18 @@ export default function TodayPage() {
           )}
 
           {showDone && doneToday.length > 0 && (
-            // Show completed (SCREENS.md §2.4): the day's finished tasks under a Done divider at the bottom; Reopen (or U)
-            // brings one back. A day that has passed shows them always, and only to read.
-            <section className="flex flex-col gap-2" aria-label={onToday ? "Done today" : `Done on ${formatDay(day, { today: model.today })}`}>
-              <SectionLabel className="px-0.5" count={doneToday.length}>
-                Done
-              </SectionLabel>
-              <TaskList>
-                {doneToday.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    today={model.today}
-                    meta={meta(t)}
-                    onOpen={() => detail.open(t.id)}
-                    selected={sel.selectedId === t.id}
-                    onSelect={() => sel.select(t.id)}
-                    actions={!past && <RowAction label="Reopen" primary title="Reopen (U)" onClick={() => void model.repo.reopen(t.id)} />}
-                  />
-                ))}
-              </TaskList>
-            </section>
+            // Show completed (SCREENS.md §2.4): the day's finished tasks under a Done divider at the bottom. A day that
+            // has passed shows them always, and only to read.
+            <DoneSection
+              label={onToday ? "Done today" : `Done on ${formatDay(day, { today: model.today })}`}
+              tasks={doneToday}
+              today={model.today}
+              meta={meta}
+              selectedId={sel.selectedId}
+              onSelect={sel.select}
+              onOpen={detail.open}
+              onReopen={past ? null : (id) => void model.repo.reopen(id)}
+            />
           )}
         </div>
       </div>

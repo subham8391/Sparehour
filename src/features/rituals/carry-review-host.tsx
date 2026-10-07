@@ -21,7 +21,6 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useSyncChip } from "@/features/shell/use-sync-chip";
 import { convertedProjectHref } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
-import { parseDay } from "@/features/today/day-address";
 import { shouldReview } from "./carry-review";
 
 const loadSheet = () => import("./carry-review-sheet");
@@ -78,8 +77,8 @@ export function CarryReviewHost({ children }: { children: ReactNode }) {
   // Never before the shell has the person's settings and the rows have been read; the restore gate sits above the shell.
   const loaded = settings !== null && !loadingTasks && !loadingToday && !loadingYesterday;
   // Today stepped to another day keeps the review for today itself (DECISIONS.md "Today on another day").
-  const shown = parseDay(useSearchParams().get("day"));
-  const offDay = pathname === "/today" && shown !== null && !shown.equals(today);
+  const shown = useSearchParams().get("day");
+  const offDay = pathname === "/today" && shown !== null && /^\d{4}-\d{2}-\d{2}$/.test(shown) && shown !== todayIso;
   const auto = loaded && !offDay && handled !== todayIso && shouldReview({ enabled: settings.carryReview, carried: carried.length, syncState: sync.state, pathname, today: todayPlan, yesterday: yesterdayPlan });
   const show = auto || (manual && hasCarried);
 

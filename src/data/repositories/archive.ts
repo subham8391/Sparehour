@@ -11,7 +11,7 @@
 import type { SlateScope } from "@/core/rollover";
 import type { LocalDatabase } from "../powersync";
 import { slateWhere } from "../queries/archive";
-import { reviveBlocks } from "./block-repo";
+import { reviveBlocks } from "./block-revive";
 import { releaseFutureBlocks } from "./convert";
 import { placeholders, restoreRow, type RowSnapshot, type UndoRecorder } from "./undo";
 

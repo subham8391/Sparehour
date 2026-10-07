@@ -1,27 +1,29 @@
 "use client";
 // Today's parts that show only on some days (SCREENS.md §2.1, §2.3, §2.7, ONBOARDING.md §4): the closed day's
 // summary, all done, the empty day with its pull-in suggestions, a long carried pile's folded line and
-// whole-pile moves, the calendar's problem line, and the header and note of another day Today was stepped to. An island out of Today's first download (SYSTEM_DESIGN.md §11.6), fetched as the page mounts
-// so it is in memory before the day it describes is known. The page keeps the state (whether the pull-in list or
-// the pile is open), so the island only draws it.
+// whole-pile moves, the calendar's problem line, the over day's suggested move, the Done list, and the header
+// and note of another day Today was stepped to. An island out of Today's first download (SYSTEM_DESIGN.md
+// §11.6), fetched as the page mounts so it is in memory before the day it describes is known. The page keeps the
+// state (whether the pull-in list or the pile is open), so the island only draws it.
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
-import { toTask } from "@/data/mappers";
+import { toTask, type Settings } from "@/data/mappers";
 import { CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow } from "@/data/queries/calendar";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
-import { pullInSuggestions } from "@/features/rituals/morning-plan";
+import { easiestMove, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
-import { MoveActions } from "@/features/tasks/task-actions";
+import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
+import { MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { ListLine } from "@/ui/list-card";
-import { EYEBROW, SectionAction } from "@/ui/section-label";
+import { EYEBROW, SectionAction, SectionLabel } from "@/ui/section-label";
 
 const NOTHING_SQL = `select * from tasks where 0`;
 
@@ -175,6 +177,42 @@ export function OffDayEyebrow({ label, onBack }: { label: string; onBack: () => 
         back to today
       </button>
     </span>
+  );
+}
+
+/**
+ * Over (PRODUCT_SPEC.md §9.4): the one move the ribbon names, the largest task with no deadline that fits tomorrow's
+ * spare time. Mounted only while today is over: it reads tomorrow, and hands the task's title back to the ribbon.
+ */
+export function OverMove({ tasks, overMin, tomorrow, settings, onMove }: { tasks: readonly Task[]; overMin: number; tomorrow: LocalDate; settings: Settings | null; onMove: (title: string | null) => void }) {
+  const { spareMin } = useTomorrowSpare(tomorrow, settings);
+  const title = easiestMove(tasks, overMin, spareMin, settings?.defaultEstimateMin ?? 30)?.task.title ?? null;
+  useEffect(() => onMove(title), [title, onMove]);
+  return null;
+}
+
+/** What was finished on the day (SCREENS.md §2.4 Show completed): Reopen (or U) brings one back; a day that has passed only reads. */
+export function DoneSection({ label, tasks, today, meta, selectedId, onSelect, onOpen, onReopen }: { label: string; tasks: readonly Task[]; today: LocalDate; meta: (t: Task) => ReactNode; selectedId: string | null; onSelect: (id: string) => void; onOpen: (id: string) => void; onReopen: ((id: string) => void) | null }) {
+  return (
+    <section className="flex flex-col gap-2" aria-label={label}>
+      <SectionLabel className="px-0.5" count={tasks.length}>
+        Done
+      </SectionLabel>
+      <TaskList>
+        {tasks.map((t) => (
+          <TaskRow
+            key={t.id}
+            task={t}
+            today={today}
+            meta={meta(t)}
+            onOpen={() => onOpen(t.id)}
+            selected={selectedId === t.id}
+            onSelect={() => onSelect(t.id)}
+            actions={onReopen && <RowAction label="Reopen" primary title="Reopen (U)" onClick={() => onReopen(t.id)} />}
+          />
+        ))}
+      </TaskList>
+    </section>
   );
 }
 

@@ -14,7 +14,7 @@ import { keyBetween } from "@/core/ordering";
 import { Temporal } from "@/core/time";
 import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
-import { reviveBlocks, type BlockRow } from "./block-repo";
+import { reviveBlocks, type BlockRow } from "./block-revive";
 import { placeholders, quoted, restoreRow, type RowSnapshot, type Tx, type UndoRecorder } from "./undo";
 
 /** The columns the retirement writes on the task, and the undo puts back. */
