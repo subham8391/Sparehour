@@ -31,7 +31,7 @@ export type UploadBody = z.infer<typeof UploadBody>;
 export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
   tasks: ["carry_count", "last_carried_at", "last_touched_at", "assignee_id", "expired_at", "auto_filed_at", "created_at", "updated_at"],
   task_completions: ["carry_count_before", "last_carried_before"],
-  time_blocks: ["external_event_id", "external_etag", "push_state", "created_at", "updated_at"],
+  time_blocks: ["external_event_id", "external_etag", "push_state", "notice", "created_at", "updated_at"],
   calendars: ["sync_token", "last_synced_at", "calendar_account_id", "external_id", "access_role", "deleted_at", "created_at", "updated_at"],
   calendar_events: ["*"],
   calendar_connections: ["*"],
@@ -45,10 +45,13 @@ export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
 /**
  * Server-owned columns a person may clear but never set: a null passes, any other value is dropped.
  * `tasks.auto_filed_at` is the rollover job's stamp; "Keep in Someday" in the Review walk clears it
- * (tasks_guard, migration 20261006001100, enforces the same at the table).
+ * (tasks_guard, migration 20261006001100, enforces the same at the table). `time_blocks.notice` is the worker's
+ * "removed in Google Calendar"; the task row's dismiss clears it (time_blocks_guard, migration 20261007231500).
  */
 export const CLEARABLE_COLUMNS: Record<string, readonly string[]> = {
   tasks: ["auto_filed_at"],
+  // "Block removed in Google Calendar" is the calendar worker's note; seeing it clears it (migration 20261007231500).
+  time_blocks: ["notice"],
 };
 
 /** Returns the op with server-owned columns removed, or null when nothing is left to apply. */

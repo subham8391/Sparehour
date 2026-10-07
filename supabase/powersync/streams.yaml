@@ -20,6 +20,8 @@ streams:
       - SELECT * FROM work_hours    WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM calendars     WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM time_blocks   WHERE user_id = auth.user_id() AND deleted_at IS NULL
+      # a block Google removed, while its task row still owes the person one quiet note (time_blocks.notice)
+      - SELECT * FROM time_blocks   WHERE user_id = auth.user_id() AND deleted_at IS NOT NULL AND notice IS NOT NULL
       - SELECT * FROM calendar_connections WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM day_plans     WHERE user_id = auth.user_id() AND deleted_at IS NULL
 

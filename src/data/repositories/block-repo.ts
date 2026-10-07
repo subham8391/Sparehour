@@ -152,6 +152,15 @@ export class BlockRepo {
     return ids;
   }
 
+  /**
+   * Clears "Block removed in Google Calendar" once the person has seen it (PRODUCT_SPEC.md §10.3 rule 3). The note is
+   * the calendar worker's (time_blocks.notice): a person may clear it and never set it, so there is nothing to undo.
+   */
+  async dismissNotices(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db.execute(`update time_blocks set notice = null, updated_at = ? where id in (${ids.map(() => "?").join(", ")})`, [new Date().toISOString(), ...ids]);
+  }
+
   async setLocked(id: string, locked: boolean): Promise<void> {
     await this.db.execute(`update time_blocks set locked = ?, updated_at = ? where id = ?`, [locked ? 1 : 0, new Date().toISOString(), id]);
     this.history?.record({

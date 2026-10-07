@@ -210,6 +210,8 @@ export const calendar_connections = new Table({
   can_write: column.integer,
   last_synced_at: column.text,
   last_error: column.text,
+  /** When the calendar blocks were written to left Google; blocking pauses until another is chosen. */
+  write_lost_at: column.text,
 });
 
 export const calendar_events = new Table(
@@ -253,6 +255,8 @@ export const time_blocks = new Table(
     external_event_id: column.text,
     external_etag: column.text,
     push_state: column.text,
+    /** Server-owned: "removed_in_google" on a soft-deleted block whose event Google deleted; cleared once seen. */
+    notice: column.text,
   },
   { indexes: { window: ["user_id", "start_at"], task: ["task_id"] } },
 );
