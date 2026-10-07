@@ -135,58 +135,59 @@ export default function BrowsePage() {
             />
           </form>
         )}
+        {/* The tree the drag wiring takes up (nav-drag.ts): `contents`, so the cards still sit in the section's column. */}
         <div ref={treeRoot} className="contents">
-        {areas.length === 0 && !adding ? (
-          <EmptyCard
-            action={
-              <Button variant="link" onClick={() => setAdding("area")}>
-                {addAction}
-              </Button>
-            }
-          >
-            No areas yet.
-          </EmptyCard>
-        ) : (
-          areas.length > 0 && (
-            <ListCard className="overflow-clip">
-              {areas.map((a) => (
-                <li key={a.id} className="border-t border-line first:border-t-0">
-                  {a.loose ? (
-                    // Projects without an area: a heading for the rows under it, with no page of its own (a project dropped on it leaves its area).
-                    <p data-nav-area={a.id} className="flex min-h-11 items-center gap-3 px-4 text-body-lg font-medium text-ink">
-                      <span className="min-w-0 flex-1 truncate">{a.name}</span>
-                      <span className="text-body-sm text-ink-3 num">{a.projects.length}</span>
-                    </p>
-                  ) : (
-                    <div data-nav-area={a.id} className="flex items-center">
-                      <Link href={`/area/${a.id}`} draggable={false} className={cx(ROW, "min-w-0 flex-1 font-medium")}>
+          {areas.length === 0 && !adding ? (
+            <EmptyCard
+              action={
+                <Button variant="link" onClick={() => setAdding("area")}>
+                  {addAction}
+                </Button>
+              }
+            >
+              No areas yet.
+            </EmptyCard>
+          ) : (
+            areas.length > 0 && (
+              <ListCard className="overflow-clip">
+                {areas.map((a) => (
+                  <li key={a.id} className="border-t border-line first:border-t-0">
+                    {a.loose ? (
+                      // Projects without an area: a heading for the rows under it, with no page of its own (a project dropped on it leaves its area).
+                      <p data-nav-area={a.id} className="flex min-h-11 items-center gap-3 px-4 text-body-lg font-medium text-ink">
                         <span className="min-w-0 flex-1 truncate">{a.name}</span>
-                        {a.projects.length > 0 && <span className="text-body-sm text-ink-3 num">{a.projects.length}</span>}
-                        {CHEVRON}
-                      </Link>
-                      <MoreButton target={{ kind: "area", id: a.id, name: a.name }} onOpen={setOrganising} />
-                    </div>
-                  )}
-                  {a.projects.length > 0 && (
-                    <ul>
-                      {a.projects.map((p) => (
-                        <li key={p.id} data-nav-project={p.id} className="flex items-center">
-                          <Link href={`/project/${p.id}`} draggable={false} className={cx(ROW, "min-w-0 flex-1 pl-9 text-ink-2")}>
-                            {/* The same 6 px dot the sidebar gives a project, so the nesting reads the same everywhere. */}
-                            <span className="size-1.5 shrink-0 rounded-full bg-line-control" aria-hidden="true" />
-                            <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                            {CHEVRON}
-                          </Link>
-                          <MoreButton target={{ kind: "project", id: p.id, name: p.name }} onOpen={setOrganising} />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ListCard>
-          )
-        )}
+                        <span className="text-body-sm text-ink-3 num">{a.projects.length}</span>
+                      </p>
+                    ) : (
+                      <div data-nav-area={a.id} className="flex items-center">
+                        <Link href={`/area/${a.id}`} draggable={false} className={cx(ROW, "min-w-0 flex-1 font-medium")}>
+                          <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                          {a.projects.length > 0 && <span className="text-body-sm text-ink-3 num">{a.projects.length}</span>}
+                          {CHEVRON}
+                        </Link>
+                        <MoreButton target={{ kind: "area", id: a.id, name: a.name }} onOpen={setOrganising} />
+                      </div>
+                    )}
+                    {a.projects.length > 0 && (
+                      <ul>
+                        {a.projects.map((p) => (
+                          <li key={p.id} data-nav-project={p.id} className="flex items-center">
+                            <Link href={`/project/${p.id}`} draggable={false} className={cx(ROW, "min-w-0 flex-1 pl-9 text-ink-2")}>
+                              {/* The same 6 px dot the sidebar gives a project, so the nesting reads the same everywhere. */}
+                              <span className="size-1.5 shrink-0 rounded-full bg-line-control" aria-hidden="true" />
+                              <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                              {CHEVRON}
+                            </Link>
+                            <MoreButton target={{ kind: "project", id: p.id, name: p.name }} onOpen={setOrganising} />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ListCard>
+            )
+          )}
         </div>
         <FinishedProjects projects={finished ?? []} />
       </section>
