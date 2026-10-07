@@ -118,6 +118,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       quickAdd: (prefill) => quickAdd.open(prefill),
       openTask: (id, field) => detail.open(id, field),
       detailId: detail.selectedId,
+      toggleDetail: () => detail.toggle(selection.selectedId),
       editTicked: (field) => void requestBulkField(field),
       moveSelection: (delta) => selection.moveSelection(delta),
       openPalette: (query, scope) => onOpenPalette?.(query, scope),

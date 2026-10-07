@@ -1,24 +1,27 @@
 "use client";
 // Today's parts that show only on some days (SCREENS.md §2.1, §2.3, §2.7, ONBOARDING.md §4): the closed day's
 // summary, all done, the empty day with its pull-in suggestions, a long carried pile's folded line and
-// whole-pile moves, the over day's suggested move, the Done list, and the header
+// whole-pile moves, the over day's suggested move, the Done list, a blocked row's chip, and the header
 // and note of another day Today was stepped to. An island out of Today's first download (SYSTEM_DESIGN.md
 // §11.6), fetched as the page mounts so it is in memory before the day it describes is known. The page keeps the
 // state (whether the pull-in list or the pile is open), so the island only draws it.
 import Link from "next/link";
 import { useEffect, useMemo, type ReactNode } from "react";
 import { useQuery } from "@/data/powersync";
-import { formatMinutes, type LocalDate } from "@/core/time";
+import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
+import { formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { toTask, type Settings } from "@/data/mappers";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import type { TimelineBlock } from "./hooks/use-today";
 import { easiestMove, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { buttonClass } from "@/ui/button";
+import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { ListLine } from "@/ui/list-card";
@@ -195,5 +198,21 @@ export function PastDay({ daysAgo }: { daysAgo: number }) {
     <p className="text-body-sm text-pretty text-ink-2">
       {daysAgo > KEPT_DAYS ? "Finished tasks are kept for a week, so only this day’s blocks and meetings are left to show." : "A day that has passed, as it was: what you finished, and its blocks and meetings."}
     </p>
+  );
+}
+
+/**
+ * The chip a blocked task carries in the list (SCREENS.md §2.6 "a small block indicator"); it stands in for the
+ * do-time chip. Its first block's start, "+1" for each more (PRODUCT_SPEC.md §10.2: several are allowed), and in
+ * its title every range and, when they and the estimate disagree, by how much: a hint, never an error.
+ */
+export function BlockChip({ blocks, estimateMin }: { blocks: readonly TimelineBlock[]; estimateMin: number | null }) {
+  const at = (m: number) => formatTime(timeFromMinutes(m));
+  const off = estimateMismatch(coveredMinutes(blocks), estimateMin);
+  return (
+    <Chip tone="block" size="auto" title={`Blocked ${blocks.map((b) => `${at(b.start)}–${at(b.end)}`).join(", ")}${off ? ` · ${formatMinutes(off.min)} ${off.kind === "short" ? "short of" : "over"} the estimate` : ""}`}>
+      {at(blocks[0].start)}
+      {blocks.length > 1 && <span className="font-normal text-ink-2">+{blocks.length - 1}</span>}
+    </Chip>
   );
 }

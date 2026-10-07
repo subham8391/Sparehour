@@ -9,7 +9,11 @@ import { useEffect, useSyncExternalStore } from "react";
 import { PaneResizer } from "@/features/shell/pane-resizer";
 import { cx } from "@/ui/cx";
 import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet-parts";
-import { Opening, type FieldRequest } from "./task-detail";
+import type { FieldRequest } from "./task-detail";
+
+export function Opening() {
+  return <div className="p-5 text-body text-ink-3">Opening…</div>;
+}
 
 // The panel brings the recurrence engine with it, and its wiring the queries and repositories only an open task
 // needs: a second island, fetched in idle time with this one.

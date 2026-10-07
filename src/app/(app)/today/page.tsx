@@ -3,9 +3,8 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
 import { keyBetween } from "@/core/ordering";
-import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, type LocalDate } from "@/core/time";
+import { Temporal, formatMinutes, formatTime, instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { sortToday, type TodaySort } from "@/core/today/sort";
 import type { Task } from "@/core/types";
@@ -38,13 +37,12 @@ import { useListSelection } from "@/features/selection/selection-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
-import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
+import { useToday } from "@/features/today/hooks/use-today";
 import { dayWords, daysAway, openDay, parseDay } from "@/features/today/day-address";
 import { registerViewKeys } from "@/features/commands/view-keys";
 import { buttonClass, iconButtonClass } from "@/ui/button";
 import { Icon } from "@/ui/icons";
 import { relativeDay } from "@/ui/relative-day";
-import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
 import { ListLine } from "@/ui/list-card";
@@ -88,6 +86,8 @@ const PastDay = dynamic(() => loadDayStates().then((m) => m.PastDay), { ssr: fal
 // The over day's one suggested move (it reads tomorrow), and the Done list.
 const OverMove = dynamic(() => loadDayStates().then((m) => m.OverMove), { ssr: false });
 const DoneSection = dynamic(() => loadDayStates().then((m) => m.DoneSection), { ssr: false });
+// A blocked row's chip, which only some rows carry.
+const BlockChip = dynamic(() => loadDayStates().then((m) => m.BlockChip), { ssr: false });
 // Jump to date (SCREENS.md §12 Day): its typed date reads words the way quick-add does, so the parser stays out of the shell.
 const loadJump = () => import("@/features/today/jump-to-date");
 const JumpToDate = dynamic(loadJump, { ssr: false });
@@ -115,22 +115,6 @@ function readCarriedOpen(day: string): boolean {
 function partOfDay(minute: number, eveningAt: number): "Morning" | "Afternoon" | "Evening" {
   if (minute < 12 * 60) return "Morning";
   return minute < eveningAt ? "Afternoon" : "Evening";
-}
-
-/**
- * The chip a blocked task carries in the list (SCREENS.md §2.6 "a small block indicator"); it stands in for the
- * do-time chip. Its first block's start, "+1" for each more (PRODUCT_SPEC.md §10.2: several are allowed), and in
- * its title every range and, when they and the estimate disagree, by how much: a hint, never an error.
- */
-function BlockChip({ blocks, estimateMin }: { blocks: readonly TimelineBlock[]; estimateMin: number | null }) {
-  const at = (m: number) => formatTime(timeFromMinutes(m));
-  const off = estimateMismatch(coveredMinutes(blocks), estimateMin);
-  return (
-    <Chip tone="block" size="auto" title={`Blocked ${blocks.map((b) => `${at(b.start)}–${at(b.end)}`).join(", ")}${off ? ` · ${formatMinutes(off.min)} ${off.kind === "short" ? "short of" : "over"} the estimate` : ""}`}>
-      {at(blocks[0].start)}
-      {blocks.length > 1 && <span className="font-normal text-ink-2">+{blocks.length - 1}</span>}
-    </Chip>
-  );
 }
 
 /**

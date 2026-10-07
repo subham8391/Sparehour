@@ -3,7 +3,7 @@
 // (context pane, right sheet, full-screen sheet) is task-detail-surface.tsx,
 // and the detail itself, wired to the local database, task-detail-connected.tsx.
 import dynamic from "next/dynamic";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 
 // The surface, the panel (which brings the recurrence engine with it) and its
@@ -12,10 +12,6 @@ import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 // after the first paint, mounted when a task is opened.
 const loadSurface = () => import("./task-detail-surface");
 const DetailSurface = dynamic(() => loadSurface().then((m) => m.DetailSurface), { ssr: false });
-
-export function Opening() {
-  return <div className="p-5 text-body text-ink-3">Opening…</div>;
-}
 
 /** A field row whose picker can be opened directly (SCREENS.md §24: D, ⇧D, ⇧S, E, R). */
 /** `pause` opens Repeat with its pause picker (Pause repeats until… in the palette). */
@@ -48,21 +44,21 @@ export function useTaskDetail(): TaskDetailApi {
 export function TaskDetailProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [field, setField] = useState<FieldRequest | null>(null);
+  // The task last open, for Cmd+. to bring back.
+  const last = useRef<string | null>(null);
   const open = useCallback((id: string, name?: DetailField) => {
+    last.current = id;
     setSelectedId(id);
     setField((f) => (name ? { name, seq: (f?.seq ?? 0) + 1 } : null));
   }, []);
   const close = useCallback(() => setSelectedId(null), []);
-  // The task last open, for Cmd+. to bring back.
-  const [last, setLast] = useState<string | null>(null);
-  if (selectedId && selectedId !== last) setLast(selectedId);
   const toggle = useCallback(
     (fallback?: string | null) => {
-      const id = last ?? fallback;
+      const id = last.current ?? fallback;
       if (selectedId) close();
       else if (id) open(id);
     },
-    [selectedId, last, close, open],
+    [selectedId, close, open],
   );
   const api = useMemo(() => ({ selectedId, field, open, close, toggle }), [selectedId, field, open, close, toggle]);
   useEffect(() => preloadOnIdle(() => loadSurface().then((m) => m.preloadSurface())), []);
