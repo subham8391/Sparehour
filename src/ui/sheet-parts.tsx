@@ -53,10 +53,11 @@ export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(active = 
     const el = panel.current;
     if (!el || !active) return;
     if (!el.contains(document.activeElement)) el.focus({ preventScroll: true });
-    // Focus that lands behind the scrim (a click on the page, a script) comes back in; another dialog on top keeps it.
+    // Focus that lands behind the scrim (a click on the page, a script) comes back in; another dialog on top keeps
+    // it, and so does a menu a row inside the dialog opened (drawn at the end of the document, popover.tsx).
     const onFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement | null;
-      if (!target || el.contains(target) || target.closest?.("[role='dialog']")) return;
+      if (!target || el.contains(target) || target.closest?.("[role='dialog'], [role='menu']")) return;
       (focusables(el)[0] ?? el).focus({ preventScroll: true });
     };
     document.addEventListener("focusin", onFocusIn);
