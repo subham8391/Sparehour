@@ -40,8 +40,9 @@ async function smallTargets(page: Page): Promise<string[]> {
       "button, a[href], summary, select, [role='button'], [role='menuitem'], [role='switch'], input[type='checkbox'], input[type='radio']",
     );
     for (const el of controls) {
-      // R7 (segmented controls by width), anything hidden from people, and links inside a sentence.
-      if (el.closest("[data-segmented], [aria-hidden='true'], [inert], p")) continue;
+      // R7 (segmented controls by width), anything hidden from people, and links inside a sentence (a button in a
+      // paragraph is still a target of its own).
+      if (el.closest("[data-segmented], [aria-hidden='true'], [inert]") || (el.matches("a") && el.closest("p"))) continue;
       const style = getComputedStyle(el);
       if (style.visibility === "hidden" || style.pointerEvents === "none") continue;
       const r = el.getBoundingClientRect();
