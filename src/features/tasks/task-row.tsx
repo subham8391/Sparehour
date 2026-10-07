@@ -29,14 +29,13 @@ import { ListCard } from "@/ui/list-card";
 import { MenuButton, type MenuHandle } from "@/ui/popover";
 import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
-import { DefaultEstimate } from "./default-estimate";
-import { guessLabel } from "./estimate-presets";
 import { DayPickerIsland, EstimateIsland, RowMenuIsland, SwipeIsland, preloadRowIslands } from "./row-islands";
 import { listenForRowRequests } from "./row-request";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
 import { requestOrganize } from "./organize";
 import { useTaskRepo } from "./use-task-repo";
+import { DefaultEstimate } from "./default-estimate";
 
 const LONG_PRESS_MS = 500;
 /** Check-off (DESIGN_SYSTEM.md §7): the ring fills at once; the row leaves 400 ms later. */
@@ -338,7 +337,8 @@ export function TaskRow({
   // The estimate (PRODUCT_SPEC.md §9.2): the account's default with a question mark, dashed, when there is none.
   const defaultMin = useContext(DefaultEstimate);
   const estimate = formatMinutes(task.estimateMin || defaultMin);
-  const guess = task.estimateMin ? undefined : guessLabel(defaultMin);
+  // The words match guessLabel (estimate-presets.ts), kept inline so the shell does not carry that module.
+  const guess = task.estimateMin ? undefined : `No estimate — counted as ${estimate}`;
   const estimateChip = (
     <Chip tone={guess ? "guess" : "neutral"} size="auto" title={guess}>
       {estimate}
@@ -423,7 +423,7 @@ export function TaskRow({
           )}
           {task.priority > 1 && !done && (
             // !1 (stored 3) and !2 (stored 2) lead the row, the second a step quieter; never a warning colour (SCREENS.md §2.4).
-            <span role="img" aria-label={`priority ${4 - task.priority}`} className={cx("pointer-events-none absolute left-0.5 text-label font-semibold", task.priority > 2 ? "text-ink" : "text-ink-2")}>
+            <span role="img" aria-label={`priority ${4 - task.priority}`} className={cx("absolute left-0.5 text-label font-semibold", task.priority > 2 ? "text-ink" : "text-ink-2")}>
               {task.priority > 2 ? "!!" : "!"}
             </span>
           )}

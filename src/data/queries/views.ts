@@ -1,6 +1,6 @@
 // Named SQL for the list views. Each is the simplest true statement of what
 // the view shows; the engines do the thinking on the rows.
-import { TAG_NAMES } from "./tag-names";
+import { TAG_NAMES } from "./shell";
 
 // The few the shells read (the keyboard layer, the morning review, Today, Settings' export) live in shell.ts, so a
 // first download carries only them (SYSTEM_DESIGN.md §11.6).

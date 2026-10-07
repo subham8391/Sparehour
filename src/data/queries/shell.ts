@@ -1,8 +1,13 @@
 // The named SQL the shells read: the keyboard layer, the morning review, Today's day plan and done list,
 // tomorrow's spare time and the logbook stream Settings' export subscribes to. Kept apart from views.ts, which
 // re-exports them, so a first download carries these few rather than every list's query (SYSTEM_DESIGN.md §11.6).
-import { TAG_NAMES } from "./tag-names";
 import type { LocalDate } from "@/core/time";
+
+// A task list's rows carry their tags' names (SCREENS.md §2.4 row anatomy: "· tags ·"), read in the list's own
+// statement rather than one query per row: a correlated subquery on the task_tags index, its names joined by the
+// unit separator (a name may hold a space). The mapper splits them (toTask → Task.tags). Tables the subquery reads
+// are watched with the list's, so tagging a task redraws its row.
+export const TAG_NAMES = `(select group_concat(g.name,char(31))from task_tags x join tags g on g.id=x.tag_id and g.deleted_at is null where x.task_id=tasks.id and x.deleted_at is null)tag_names`;
 
 /**
  * Open tasks planned inside a day range (the rolling week), as of its first day: a task whose start date

@@ -360,45 +360,9 @@
     }
   }
 }
-/* A row of chips that scrolls sideways instead of wrapping (quick-add's suggestions and search's filters on a phone,
-   DESIGN_SYSTEM.md §4a: "horizontal scrolling only inside containers that show a scroll affordance"). The edge with
-   more beyond it fades, driven by the row's own scroll position; a row that fits has no fade, because its scroll
-   timeline is inactive. Where scroll timelines are missing the cut-off chip peeks instead. */
-@property --fade-start {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --fade-end {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-/* Unset ends of the keyframes take the declared 0px: no fade at the start of the scroll, none at its end. */
-@keyframes scroll-fade {
-  from {
-    --fade-end: 28px;
-  }
-  8% {
-    --fade-start: 28px;
-  }
-  92% {
-    --fade-end: 28px;
-  }
-  to {
-    --fade-start: 28px;
-  }
-}
-@utility scroll-fade {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-  --fade: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
-  mask-image: var(--fade);
-  animation: scroll-fade linear both;
-  animation-timeline: scroll(self inline);
-}
-/* A line that fades out at its right edge instead of wrapping (the phone row's meta line). */
+/* A line that fades out at its right edge instead of wrapping (the phone row's meta line), and the scroll affordance of a
+   sideways-scrolling chip row (quick-add's suggestions, search's filters): the chip cut off at the edge fades, while the
+   row's 28 px end padding keeps a row that fits clear of the fade. */
 @utility fade-end {
   mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
 }

@@ -1,6 +1,6 @@
 // Search (SCREENS.md §13): the query and its filter chips live in the URL so
 // a search is shareable; the SQL is built from them here. Pure.
-import { TAG_NAMES } from "@/data/queries/tag-names";
+import { TAG_NAMES } from "@/data/queries/shell";
 import { compareDates, type LocalDate } from "@/core/time";
 import type { Task, TaskState } from "@/core/types";
 import { notePlain } from "@/ui/markdown-plain";

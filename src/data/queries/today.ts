@@ -1,7 +1,7 @@
 // Named SQL for the Today screen. Date filters use the ISO date prefix of the
 // stored timestamp so they are robust to " " vs "T" formats; the capacity
 // engine clips to the day precisely.
-import { TAG_NAMES } from "./tag-names";
+import { TAG_NAMES } from "./shell";
 import type { LocalDate } from "@/core/time";
 
 export const SETTINGS_SQL = `select * from user_settings limit 1`;

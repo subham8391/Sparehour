@@ -156,7 +156,7 @@ export function SearchView(p: SearchViewProps) {
 
       {/* The chips scroll sideways on a phone; the menu sits outside that scroller so its panel is never clipped. */}
       <div className="-my-1 flex items-center gap-2">
-        <div className="flex min-w-0 items-center gap-2 py-1 scroll-fade">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto py-1 pr-7 fade-end">
           {active.map((key) => {
             const label = filterLabel(key, filters, names);
             if (!label) return null;

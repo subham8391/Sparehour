@@ -1,6 +1,6 @@
 // Named SQL behind the area view (SCREENS.md §9): its project cards with their
 // figures and progress, and the tasks filed in the area directly.
-import { TAG_NAMES } from "./tag-names";
+import { TAG_NAMES } from "./shell";
 
 /**
  * The area's active projects as cards: the open count, the summed estimate (`?1` stands in for a task without

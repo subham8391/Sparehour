@@ -69,7 +69,7 @@ export function toTask(r: TaskRow): Task {
     daySortKey: r.day_sort_key ?? null,
     routineRunId: r.routine_run_id ?? null,
     carryAskedAt: ts(r.carry_asked_at),
-    // The list statement's `tag_names`, unit-separated (data/queries/tag-names.ts); absent where it does not read them.
+    // The list statement's `tag_names`, unit-separated (TAG_NAMES in data/queries/shell.ts); absent where it does not read them.
     tags: (r as { tag_names?: string | null }).tag_names?.split("\x1f").sort(),
   };
 }

@@ -47,7 +47,7 @@ export interface Task {
   routineRunId: string | null;
   /** When the three-carry ask was last shown for it (PRODUCT_SPEC.md §8.3.4); absent where a view does not read it. */
   carryAskedAt?: Instant | null;
-  /** Its tags' names, where the list's statement reads them (data/queries/tag-names.ts); absent elsewhere. */
+  /** Its tags' names, where the list's statement reads them (TAG_NAMES in data/queries/shell.ts); absent elsewhere. */
   tags?: readonly string[];
 }
 
