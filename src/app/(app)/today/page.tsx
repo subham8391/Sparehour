@@ -23,7 +23,7 @@ import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon";
-import { SectionDrop, useTaskDrag } from "@/features/today/section-drop";
+import { useTaskDrag } from "@/features/today/task-drag";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
@@ -41,7 +41,6 @@ import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
 import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
-import { CollapsedGroup } from "@/ui/collapsed-group";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
 import { scrollMotion } from "@/ui/reduced-motion";
@@ -75,6 +74,10 @@ const CarriedPile = dynamic(() => loadDayStates().then((m) => m.CarriedPile), { 
 const ClosedDay = dynamic(() => loadDayStates().then((m) => m.ClosedDay), { ssr: false });
 const AllDone = dynamic(() => loadDayStates().then((m) => m.AllDone), { ssr: false });
 const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: false });
+// This Evening with its budget line and phone disclosure, and the place to drop a dragged row on an empty section.
+const loadEveningSection = () => import("@/features/today/evening-section");
+const EveningSection = dynamic(() => loadEveningSection().then((m) => m.EveningSection), { ssr: false });
+const SectionDrop = dynamic(() => loadEveningSection().then((m) => m.SectionDrop), { ssr: false });
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -147,7 +150,7 @@ export default function TodayPage() {
   const tomorrow: LocalDate = model.today.add({ days: 1 });
   const db = useLocalDatabase();
   useEffect(() => preloadOnIdle(preloadTodayIslands), []);
-  useEffect(() => void Promise.all([loadDayPane(), loadDayStates()]).catch(() => undefined), []);
+  useEffect(() => void Promise.all([loadDayPane(), loadDayStates(), loadEveningSection()]).catch(() => undefined), []);
   // Convert task → project ("Break it down", the row's menu): the project opens with the cursor in its add row.
   const breakDown = useConvertToProject(model.repo, detail.close);
 
@@ -451,9 +454,7 @@ export default function TodayPage() {
       ))}
     </TaskList>
   );
-  // More planned for the evening than it has time for (PRODUCT_SPEC.md §9.1): one quiet line, no over colour.
-  const fullEvening = model.evening?.full && model.eveningTasks.length > 0 && <p className="px-0.5 text-body-sm text-ink-2">That&rsquo;s a full evening.</p>;
-  const eveningDrop = canLand(model.eveningTasks) && <SectionDrop label="Drop here for this evening" onDrop={dropAtEnd(model.eveningTasks, true)} />;
+  const eveningDrop = canLand(model.eveningTasks);
   const eveningAt =model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
   // Past the working day: the ritual row says so even when there is no projected finish left to name.
   const dayOver = hasDay && nowMinute >= dayEnd;
@@ -694,27 +695,17 @@ export default function TodayPage() {
           </section>
 
           {(model.eveningTasks.length > 0 || eveningDrop) && (
-            // This Evening (SCREENS.md §2.5): its own readout and its own, quieter overload line. On a phone it starts
-            // collapsed to its label, count and minutes (SCREENS.md §2.8), and stays the way it was last left.
-            <section className="flex flex-col gap-2">
-              {phone && model.eveningTasks.length > 0 ? (
-                <>
-                  <CollapsedGroup className="px-0.5" label="This evening" count={model.eveningTasks.length} note={sectionMinutes(model.eveningTasks)} open={eveningOpen} onToggle={toggleEvening}>
-                    {eveningRows}
-                  </CollapsedGroup>
-                  {fullEvening}
-                </>
-              ) : (
-                <>
-                  <SectionLabel className="px-0.5" count={model.eveningTasks.length || undefined} detail={model.eveningTasks.length > 0 && sectionMinutes(model.eveningTasks)}>
-                    This evening
-                  </SectionLabel>
-                  {fullEvening}
-                  {model.eveningTasks.length > 0 && eveningRows}
-                  {eveningDrop}
-                </>
-              )}
-            </section>
+            // This Evening (SCREENS.md §2.5): its own readout and quieter overload line; collapsed on a phone (§2.8).
+            <EveningSection
+              count={model.eveningTasks.length}
+              minutes={sectionMinutes(model.eveningTasks)}
+              full={Boolean(model.evening?.full)}
+              collapsible={phone}
+              open={eveningOpen}
+              onToggle={toggleEvening}
+              rows={eveningRows}
+              onDrop={eveningDrop ? dropAtEnd(model.eveningTasks, true) : null}
+            />
           )}
 
           {showCompleted && doneToday.length > 0 && (
