@@ -328,7 +328,7 @@ describe("redo: the slate, converting, duplicating and series edits", () => {
     for (const id of ["t1", "t2", "t3"]) task(t.s, id, { do_date: "2026-10-01" });
     block(t.s, "b1", { task_id: "t1" });
     const refs = [...["t1", "t2", "t3"].map((id) => ["tasks", id] as const), ["time_blocks", "b1"] as const];
-    await roundTrip(t, refs, () => clearTheSlate(t.s.db, t.recorder, "all", "2026-10-06"));
+    await roundTrip(t, refs, () => clearTheSlate(t.s.db, t.recorder, "backlog", "2026-10-06"));
     const batch = t.s.row("tasks", "t1")?.archive_batch_id;
     expect(batch).toBeTruthy();
     await roundTrip(t, refs, () => restoreBatch(t.s.db, t.recorder, String(batch)));
