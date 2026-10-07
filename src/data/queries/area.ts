@@ -1,5 +1,6 @@
 // Named SQL behind the area view (SCREENS.md §9): its project cards with their
 // figures and progress, and the tasks filed in the area directly.
+import { TAG_NAMES } from "./tag-names";
 
 /**
  * The area's active projects as cards: the open count, the summed estimate (`?1` stands in for a task without
@@ -31,7 +32,7 @@ export interface AreaProjectCardRow {
 
 /** The area's loose tasks — filed in it directly, with no project — that are still open, in their list order. */
 export const AREA_TASKS_SQL = `
-  select * from tasks
+  select *, ${TAG_NAMES} from tasks
   where deleted_at is null and area_id = ? and project_id is null and state in ('inbox', 'active')
   order by sort_key, id`;
 

@@ -1,6 +1,7 @@
 // The named SQL the shells read: the keyboard layer, the morning review, Today's day plan and done list,
 // tomorrow's spare time and the logbook stream Settings' export subscribes to. Kept apart from views.ts, which
 // re-exports them, so a first download carries these few rather than every list's query (SYSTEM_DESIGN.md §11.6).
+import { TAG_NAMES } from "./tag-names";
 import type { LocalDate } from "@/core/time";
 
 /**
@@ -9,7 +10,7 @@ import type { LocalDate } from "@/core/time";
  * Two parameters, the range's first and last day; the first is also the day the start dates are read on.
  */
 export const PLANNED_BETWEEN_SQL = `
-  select * from tasks
+  select *, ${TAG_NAMES} from tasks
   where deleted_at is null and state = 'active'
     and do_date between ?1 and ?2
     and (start_date is null or start_date <= ?1)

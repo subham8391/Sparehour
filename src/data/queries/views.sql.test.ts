@@ -2,11 +2,14 @@
 // what Upcoming, the Logbook, search and the project lists actually select.
 import { describe, expect, it } from "vitest";
 import { localDate } from "@/core/time";
+import { toTask } from "@/data/mappers";
 import { localSqlite, type Row } from "@/test/local-sqlite";
 import { ALL_PROJECTS_SQL, FINISHED_PROJECTS_SQL, PROJECTS_SQL } from "./nav";
+import { TASKS_THROUGH_TODAY_SQL } from "./today";
 import {
   AREA_FINISHED_PROJECTS_SQL,
   DROPPED_SQL,
+  INBOX_SQL,
   PLANNED_AFTER_SQL,
   PLANNED_BETWEEN_SQL,
   PROJECT_DONE_SQL,
@@ -164,5 +167,46 @@ describe("logbookStream", () => {
   it("asks for this month and the last: done tasks are removed a week after they were finished", () => {
     expect(logbookStream(TODAY)).toEqual({ name: "logbook", parameters: { months: ["2026-10", "2026-09"] } });
     expect(logbookStream(localDate("2026-01-03")).parameters.months).toEqual(["2026-01", "2025-12"]);
+  });
+});
+
+describe("tags on list rows", () => {
+  const db = withTasks([
+    { id: "t1", title: "Call the bank", state: "inbox" },
+    { id: "t2", title: "Untagged", state: "inbox" },
+    { id: "t3", title: "Plan", state: "active", do_date: "2026-10-01" },
+  ]);
+  db.insert("tags", { id: "g1", space_id: "s1", name: "calls", deleted_at: null });
+  db.insert("tags", { id: "g2", space_id: "s1", name: "deep work", deleted_at: null });
+  db.insert("tags", { id: "g3", space_id: "s1", name: "removed", deleted_at: "2026-09-30T10:00:00Z" });
+  db.insert("task_tags", { id: "x1", space_id: "s1", task_id: "t1", tag_id: "g2", deleted_at: null });
+  db.insert("task_tags", { id: "x2", space_id: "s1", task_id: "t1", tag_id: "g1", deleted_at: null });
+  db.insert("task_tags", { id: "x3", space_id: "s1", task_id: "t1", tag_id: "g3", deleted_at: null });
+  db.insert("task_tags", { id: "x4", space_id: "s1", task_id: "t3", tag_id: "g1", deleted_at: "2026-09-30T10:00:00Z" });
+
+  it("each row carries its live tags' names in the list's own statement, a name with a space kept whole", () => {
+    const tags = new Map(db.rows(INBOX_SQL).map((r) => [r.title, toTask(r as never).tags]));
+    expect(tags.get("Call the bank")).toEqual(["calls", "deep work"]);
+    expect(tags.get("Untagged")).toBeUndefined();
+    // A removed link is not read.
+    expect(db.rows(PLANNED_BETWEEN_SQL, dayRangeParams(TODAY, 1)).map((r) => [r.title, r.tag_names])).toEqual([["Plan", null]]);
+  });
+
+  it("Today reads them in its one statement for the whole list, cheaply", () => {
+    const big = localSqlite();
+    big.insert("tags", { id: "g1", space_id: "s1", name: "errands", deleted_at: null });
+    big.insert("tags", { id: "g2", space_id: "s1", name: "calls", deleted_at: null });
+    for (let i = 0; i < 400; i++) {
+      big.insert("tasks", { id: `t${i}`, space_id: "s1", deleted_at: null, title: `T${i}`, state: "active", do_date: "2026-10-01", start_date: null, sort_key: `a${i}`, day_sort_key: `a${i}` });
+      big.insert("task_tags", { id: `x${i}a`, space_id: "s1", task_id: `t${i}`, tag_id: "g1", deleted_at: null });
+      big.insert("task_tags", { id: `x${i}b`, space_id: "s1", task_id: `t${i}`, tag_id: "g2", deleted_at: null });
+    }
+    const started = performance.now();
+    const rows = big.rows(TASKS_THROUGH_TODAY_SQL, ["2026-10-01", "2026-10-01"]);
+    const took = performance.now() - started;
+    expect(rows).toHaveLength(400);
+    expect(toTask(rows[0] as never).tags).toEqual(["calls", "errands"]);
+    // Measured at a few milliseconds for 400 rows (the harness has no index on task_tags; the device does).
+    expect(took).toBeLessThan(500);
   });
 });

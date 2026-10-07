@@ -1,5 +1,6 @@
 // Search (SCREENS.md §13): the query and its filter chips live in the URL so
 // a search is shareable; the SQL is built from them here. Pure.
+import { TAG_NAMES } from "@/data/queries/tag-names";
 import { compareDates, type LocalDate } from "@/core/time";
 import type { Task, TaskState } from "@/core/types";
 import { notePlain } from "@/ui/markdown-plain";
@@ -142,7 +143,7 @@ export function buildTaskSearch(query: string, filters: SearchFilters): SearchSt
     for (const w of [...words, ...words]) params.push(likePattern(w));
   }
   order.push(`${TOUCHED} desc`, "id");
-  const sql = `select * from tasks where ${where.join(" and ")} order by ${order.join(", ")} limit 200`;
+  const sql = `select *, ${TAG_NAMES} from tasks where ${where.join(" and ")} order by ${order.join(", ")} limit 200`;
   return { sql, params };
 }
 
