@@ -151,6 +151,22 @@ describe("<QuickAddProvider>", () => {
     expect(s.rows("select id, deleted_at from tasks where deleted_at is not null")).toEqual(stamped);
   });
 
+  it("a line naming a new project makes it through the sheet's island and files the task there", async () => {
+    const s = localSqlite();
+    local.db = s.db;
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: /Add a task Q/ }));
+    const input = await screen.findByRole("textbox", { name: "Task" });
+    await user.type(input, "Write post #blog");
+    await user.keyboard("{Tab}");
+    await user.click(input);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(s.rows("select title, project_id from tasks where deleted_at is null")).toHaveLength(1));
+    const [project] = s.rows("select id, name, space_id from projects");
+    expect(project).toMatchObject({ name: "blog", space_id: "s1" });
+    expect(s.rows("select title, project_id from tasks")).toEqual([{ title: "Write post", project_id: project.id }]);
+  });
+
   it("the toast alone takes a paste back too", async () => {
     const s = localSqlite();
     local.db = s.db;

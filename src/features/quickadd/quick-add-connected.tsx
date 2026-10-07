@@ -4,7 +4,8 @@
 // sheet's own island with the parser, never in the shell's first download
 // (SYSTEM_DESIGN.md §11.6); quick-add-provider.tsx fetches it in idle time.
 import { useMemo } from "react";
-import { useQuery } from "@/data/powersync";
+import { useQuery, type LocalDatabase } from "@/data/powersync";
+import { ProjectRepo } from "@/data/repositories/project-repo";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
 import { withAreaNames } from "@/data/queries/project-label";
 import { TAGS_SQL } from "@/data/queries/views";
@@ -17,4 +18,12 @@ export function QuickAddConnected(props: Omit<QuickAddProps, "projects" | "tags"
   const projects = useMemo(() => withAreaNames(projectRows ?? [], areaRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", area: p.area })), [projectRows, areaRows]);
   const tags = useMemo(() => (tagRows ?? []).filter((t) => t.name).map((t) => ({ id: t.id, name: t.name as string })), [tagRows]);
   return <QuickAdd {...props} projects={projects} tags={tags} />;
+}
+
+/**
+ * The project a line names with "+New project": made from the sheet's island, which is in memory whenever a line is
+ * sent, so the shell (quick-add-provider.tsx) carries no ProjectRepo (SYSTEM_DESIGN.md §11.6).
+ */
+export function createProject(db: LocalDatabase, name: string, spaceId: string): Promise<string> {
+  return new ProjectRepo(db).create(name, { spaceId });
 }

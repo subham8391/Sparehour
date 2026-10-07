@@ -5,7 +5,6 @@
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { ProjectRepo } from "@/data/repositories/project-repo";
 import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -56,7 +55,6 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 
   const db = useLocalDatabase();
   const tasks = useTaskRepo();
-  const projectRepo = useMemo(() => new ProjectRepo(db), [db]);
   const pwa = usePwaOptional();
   const undo = useUndoSink();
 
@@ -69,14 +67,15 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
       if (!projectId && s.createProjectName) {
         // Two quick lines can both name the same new project before the list catches up: the second one joins the first.
         const existing = await db.getOptional<{ id: string }>(`select id from projects where deleted_at is null and lower(name) = lower(?) limit 1`, [s.createProjectName]);
-        projectId = existing?.id ?? (await projectRepo.create(s.createProjectName, { spaceId: sid }));
+        // The sheet's own island makes it (quick-add-connected.tsx): it sent this line, so it is already in memory.
+        projectId = existing?.id ?? (await (await loadQuickAdd()).createProject(db, s.createProjectName, sid));
       }
       const id = await tasks.create(s.draft, { spaceId: sid, projectId });
       // The first meaningful action is the moment to ask the browser to keep our storage (§10.4).
       pwa?.requestPersist();
       return id;
     },
-    [spaceId, db, projectRepo, tasks, pwa],
+    [spaceId, db, tasks, pwa],
   );
 
   // A paste is one undo entry for all its tasks (PRODUCT_SPEC.md §5.1 rule 6: "12 tasks — Undo"). The sheet's own
