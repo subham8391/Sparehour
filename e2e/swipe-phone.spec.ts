@@ -5,7 +5,7 @@
 // and quick-add's suggestion chips in one sideways-scrolling row at 360 px.
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { devAccount, isoPlus, seedKey, waitForRow, withDb, type DevAccount } from "./db";
+import { devAccount, isoPlus, putBack, removeOwn, seedKey, standAside, waitForRow, withDb, type DevAccount, type StoodAside } from "./db";
 import { DEV_USER, E2E_PREFIX, openApp } from "./helpers";
 
 const n = `s${Date.now().toString(36)}`;
@@ -20,11 +20,15 @@ const T = {
   held: `${E2E_PREFIX}swipe held ${n}`,
 };
 let me: DevAccount;
+let stood: StoodAside[] = [];
 const TASK = "select id from public.tasks where title = $1";
 
 test.beforeAll(async () => {
   await withDb(async (c) => {
     me = await devAccount(c, DEV_USER.email);
+    // The account's own open tasks through today stand aside (they start tomorrow; afterAll puts them back exactly):
+    // above eight rows Carried over starts folded, and this spec's own carried row would be out of sight.
+    stood = await standAside(c, me);
     const add = (title: string, state: string, doDate: string | null, completed = false) =>
       c.query(
         `insert into public.tasks (id, space_id, title, state, priority, do_date, estimate_min, sort_key, day_sort_key, completed_at)
@@ -42,12 +46,20 @@ test.beforeAll(async () => {
   });
 });
 
+test.afterAll(async () => {
+  await withDb(async (c) => {
+    await removeOwn(c, Object.values(T));
+    await putBack(c, stood);
+  });
+});
+
 /**
  * A real one-finger drag across a row, `dx` sideways and `dy` down: from near the edge it moves away from (so a full
  * swipe fits on the screen), a first small move, a pause in which the row's swipe (lazy, brought in by the touch)
  * mounts, then the rest in small steps.
  */
 async function drag(page: Page, target: Locator, dx: number, dy = 0): Promise<void> {
+  await toMiddle(target);
   const box = (await target.boundingBox())!;
   const x = dx < 0 ? box.x + box.width - 12 : dx > 0 ? box.x + 12 : box.x + box.width / 2;
   const y = box.y + Math.min(box.height / 2, 28);
@@ -60,6 +72,14 @@ async function drag(page: Page, target: Locator, dx: number, dy = 0): Promise<vo
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await cdp.detach();
+}
+
+/**
+ * Touches land where the row is on screen, so it is brought to the middle of it first: a row merely "in view" can sit
+ * under the tab bar or the + button, which then take the touch (a long-press on the Week tab opens Upcoming).
+ */
+async function toMiddle(target: Locator): Promise<void> {
+  await target.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
 }
 
 const row = (page: Page, title: string) => page.getByRole("row").filter({ hasText: title });
@@ -116,6 +136,7 @@ test("a vertical drag scrolls and swipes nothing; a long-press still ticks the r
   await expect(page.locator("[data-swipe-actions]")).toHaveCount(0);
   expect(await waitForRow(`${TASK} and (state <> 'active' or do_date <> $2)`, [T.held, me.today], 1_000)).toBeNull();
 
+  await toMiddle(r);
   const box = (await r.boundingBox())!;
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 28) }] });
