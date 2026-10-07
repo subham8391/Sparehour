@@ -92,6 +92,17 @@ describe("<EveningSection>", () => {
     expect((again.container.querySelector("details") as HTMLDetailsElement).open).toBe(true);
   });
 
+  it("on a phone, opened, keeps the full line under the summary, above the rows", () => {
+    phone(true);
+    localStorage.setItem("sparehour:evening-open", "1");
+    const { container } = render(<EveningSection {...props({ plannedMin: 300 })} />);
+    const details = container.querySelector("details") as HTMLDetailsElement;
+    expect(details.open).toBe(true);
+    const line = screen.getByText("That’s a full evening.");
+    expect(details).toContainElement(line);
+    expect(line.compareDocumentPosition(screen.getByText("Call Mum")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("while a row is dragged over an empty evening, shows where to drop it", () => {
     render(<EveningSection {...props({ count: 0, plannedMin: 0, rows: null, onDrop: vi.fn() })} />);
     expect(screen.getByRole("heading", { name: "This evening" })).toBeInTheDocument();

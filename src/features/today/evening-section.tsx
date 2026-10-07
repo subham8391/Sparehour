@@ -100,10 +100,15 @@ export function EveningSection({ count, plannedMin, windows, eveningStartsAt, ev
     <section className="flex flex-col gap-2">
       {phone && count > 0 ? (
         <>
+          {/* Open, the full line sits under the summary as it does under the header; shut, it stays in view below it. */}
           <CollapsedGroup className="px-0.5" label="This evening" count={count} note={minutes} open={open} onToggle={toggle}>
-            {rows}
+            <div className="flex flex-col gap-2">
+              {open && fullLine}
+              {rows}
+            </div>
           </CollapsedGroup>
-          {fullLine}
+          {!open && fullLine}
+          {onDrop && <SectionDrop label="Drop here for this evening" onDrop={onDrop} />}
         </>
       ) : (
         <>

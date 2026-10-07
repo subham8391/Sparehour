@@ -64,6 +64,12 @@ describe("<Ribbon>", () => {
     expect(container).not.toHaveTextContent(/\dm planned/);
   });
 
+  it("once everything planned is finished, the day is all done rather than empty (SCREENS.md §2.7)", () => {
+    render(<Ribbon c={{ ...capacityFixture, committedMin: 0, unscheduledMin: 0, blocks: [], spareMin: 400, projectedFinish: null }} nowMin={900} finished />);
+    expect(screen.queryByText(/nothing planned yet/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Plan your day" })).not.toBeInTheDocument();
+  });
+
   it("is only a drawing unless Today hands it its interactions", () => {
     render(<Ribbon c={capacityFixture} nowMin={680} />);
     expect(screen.queryByRole("button", { name: "Spare time breakdown" })).not.toBeInTheDocument();

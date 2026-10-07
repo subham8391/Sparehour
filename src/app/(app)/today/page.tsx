@@ -521,6 +521,7 @@ export default function TodayPage() {
                 nowMin={nowMinute}
                 connected={model.calendarConnected}
                 plannedCount={model.todayTasks.length + model.eveningTasks.length}
+                finished={doneToday.length > 0}
                 onTrim={() => setTrimOpen(true)}
                 suggestion={suggested?.task.title ?? null}
                 interactions={{

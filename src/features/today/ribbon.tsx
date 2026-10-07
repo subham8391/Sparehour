@@ -45,6 +45,8 @@ export interface RibbonProps {
   suggestion?: string | null;
   /** Today's ribbon answers hover, taps and clicks (SCREENS.md §2.2); left out, the ribbon is only drawn. */
   interactions?: Omit<RibbonOverlayProps, "c" | "connected">;
+  /** Something was finished today: a day with nothing left is all done (SCREENS.md §2.7), not "nothing planned yet". */
+  finished?: boolean;
 }
 
 /** Over by more than this, the ribbon offers Trim today inline (PRODUCT_SPEC.md §9.4 "Well over"). */
@@ -211,11 +213,11 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   );
 }
 
-export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion, interactions }: RibbonProps) {
+export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion, interactions, finished = false }: RibbonProps) {
   if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount)}</p>;
   const h = heroState(c);
   // Nothing planned yet (PRODUCT_SPEC.md §9.4 "Empty"): the line says so and invites the morning plan.
-  const empty = c.committedMin + c.unscheduledMin === 0;
+  const empty = c.committedMin + c.unscheduledMin === 0 && !finished;
 
   return (
     <section aria-label="Spare time today" className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
