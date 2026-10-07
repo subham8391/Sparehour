@@ -3224,6 +3224,7 @@ Single-key shortcuts (Linear-style, active when no input is focused): `q` quick 
 
 - The **day timeline** is the hard part. It is a `role="grid"` of 15-minute rows with blocks as `gridcell`s; arrow keys move the cursor, `Enter` opens, `Shift+↑/↓` resizes, `m` opens "Move to…". Per Atlassian's own research, an **action menu beats directional keyboard dragging** for discoverability and reliability — so keyboard users get "Move to 2:30 pm" rather than arrow-dragging across a 2-D grid, and the pointer path and keyboard path produce identical mutations.
 - Live regions announce every drag outcome (`-live-region`), every completion, and every capacity change ("Today: 1 hour 20 minutes spare").
+  *As built (2026-10-07):* one polite region, the undo provider's, says each undo entry's `announce` (else a toasted entry's label): a block moved, resized or placed says its times on the person's clock ("Moved “Draft the proposal” to 14:30–15:15", `BlockRepo`), a reorder names the task now above it ("Moved “X” after “Y”", "to the top", `TaskRepo.placeWords`), a move to another day says the day in its toast. No new toast, and nothing read twice. Task lists are grids with a roving Tab stop (SCREENS.md §1 "As built").
 - Targets: WCAG 2.2 AA. Contrast is checked at the token level; `prefers-reduced-motion` disables the completion animation and view transitions; focus rings are never removed; every icon-only control has a label.
 - `axe-core` runs in Playwright against Today, Inbox, Project, quick-add and settings on every CI run.
 
