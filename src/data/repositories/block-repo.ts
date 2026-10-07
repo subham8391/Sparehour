@@ -3,6 +3,8 @@
 // written to Google once a write calendar exists (SYSTEM_DESIGN.md §6.5);
 // a moved or deleted block is re-queued by a trigger. Removing a block never
 // touches the task.
+import { Temporal, formatTime, instant, timeOf } from "@/core/time";
+import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
 import type { UndoRecorder } from "./undo";
 
@@ -48,6 +50,15 @@ export async function reviveBlocks(tx: Pick<Tx, "execute" | "getOptional">, rows
   }
 }
 
+/** Whether two stored timestamps ("2026-09-14 08:00:00+00", "2026-09-14T08:00:00Z") are the same moment. */
+function sameInstant(a: string, b: string): boolean {
+  try {
+    return Temporal.Instant.compare(instant(normaliseTimestamp(a)), instant(normaliseTimestamp(b))) === 0;
+  } catch {
+    return a === b;
+  }
+}
+
 export class BlockRepo {
   constructor(
     private readonly db: LocalDatabase,
@@ -65,6 +76,7 @@ export class BlockRepo {
     this.history?.record({
       label: block.title ? `Blocked “${block.title}”` : "Blocked time",
       toast: true,
+      announce: `${block.title ? `Blocked “${block.title}”` : "Blocked time"} ${await this.span(block.startAt, block.endAt)}`.trim(),
       undo: () => this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [new Date().toISOString(), new Date().toISOString(), id]).then(() => undefined),
     });
     return id;
@@ -74,11 +86,26 @@ export class BlockRepo {
     const before = this.history ? await this.db.getOptional<{ start_at: string; end_at: string; title: string | null }>(`select start_at, end_at, title from time_blocks where id = ?`, [id]) : null;
     await this.db.execute(`update time_blocks set start_at = ?, end_at = ?, updated_at = ? where id = ?`, [startAt, endAt, new Date().toISOString(), id]);
     if (before) {
+      const what = before.title ? `“${before.title}”` : "a block";
+      // A drag, a resize or a keyboard move is silent on screen and said in words (SYSTEM_DESIGN.md §11.5).
+      const resized = sameInstant(before.start_at, startAt);
       this.history?.record({
-        label: `Moved ${before.title ? `“${before.title}”` : "a block"}`,
+        label: `Moved ${what}`,
         toast: false,
+        announce: `${resized ? "Resized" : "Moved"} ${what} to ${(await this.span(startAt, endAt)) || "its new time"}`,
         undo: () => this.db.execute(`update time_blocks set start_at = ?, end_at = ?, updated_at = ? where id = ?`, [before.start_at, before.end_at, new Date().toISOString(), id]).then(() => undefined),
       });
+    }
+  }
+
+  /** "14:30–15:15" on the person's clock (their settings' zone), for the words a move is announced with. */
+  private async span(startAt: string, endAt: string): Promise<string> {
+    try {
+      const zone = (await this.db.getOptional<{ timezone: string | null }>(`select timezone from user_settings limit 1`))?.timezone || Temporal.Now.timeZoneId();
+      const at = (iso: string) => formatTime(timeOf(instant(normaliseTimestamp(iso)), zone));
+      return `${at(startAt)}–${at(endAt)}`;
+    } catch {
+      return "";
     }
   }
 

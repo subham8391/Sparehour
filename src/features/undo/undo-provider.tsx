@@ -40,6 +40,8 @@ const TOAST_MS = 10_000;
 export function UndoProvider({ children }: { children: ReactNode }) {
   const [stack, setStack] = useState<UndoEntry[]>([]);
   const [toast, setToast] = useState<UndoEntry | null>(null);
+  /** The live region's words: the entry's announcement, else a toast's label. The same words again get a trailing space so they are read again. */
+  const [said, setSaid] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((entry: UndoEntry | null) => {
@@ -61,6 +63,8 @@ export function UndoProvider({ children }: { children: ReactNode }) {
     (entry: UndoEntry) => {
       setStack((s) => push(s, entry));
       if (entry.toast) showToast(entry);
+      const words = entry.announce ?? (entry.toast ? entry.label : "");
+      if (words) setSaid((s) => (s === words ? `${words}\u00a0` : words));
     },
     [showToast],
   );
@@ -76,6 +80,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
     stackRef.current = rest;
     setStack(rest);
     showToast(null);
+    setSaid("");
     await entry.undo();
     return true;
   }, [showToast]);
@@ -93,7 +98,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
           inserted already filled is not read by many screen readers (VoiceOver on iOS among them). The visual toast
           below keeps its role but stays quiet, so nothing is read twice. */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
-        {toast?.label ?? ""}
+        {said}
       </div>
       {toast && (
         <Toast

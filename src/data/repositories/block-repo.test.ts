@@ -32,12 +32,28 @@ describe("BlockRepo", () => {
     const repo = new BlockRepo(db, history);
     await repo.move("b1", "2026-09-14T09:00:00Z", "2026-09-14T09:45:00Z");
     expect(history.record.mock.calls[0][0]).toMatchObject({ label: "Moved “Draft”", toast: false });
+    expect(history.record.mock.calls[0][0].announce).toMatch(/^Moved “Draft” to \d{2}:\d{2}–\d{2}:\d{2}$/);
     await history.record.mock.calls[0][0].undo();
     expect(execute.mock.calls[1][1].slice(0, 2)).toEqual(["2026-09-14T08:00:00Z", "2026-09-14T08:45:00Z"]);
     await repo.remove("b1");
     expect(history.record.mock.calls[1][0]).toMatchObject({ label: "Removed the block for “Draft”", toast: true });
     await history.record.mock.calls[1][0].undo();
     expect(String(execute.mock.calls.at(-1)?.[0])).toMatch(/set deleted_at = null/);
+  });
+
+  it("a move or a resize is announced in words on the person's clock", async () => {
+    const { db, getOptional } = fakeDb({ start_at: "2026-09-14 08:00:00+00", end_at: "2026-09-14 08:45:00+00", title: "Draft the proposal" });
+    getOptional.mockImplementation(async (sql: string) =>
+      String(sql).includes("user_settings") ? { timezone: "Europe/London" } : { start_at: "2026-09-14 08:00:00+00", end_at: "2026-09-14 08:45:00+00", title: "Draft the proposal" },
+    );
+    const history = { record: vi.fn() };
+    const repo = new BlockRepo(db, history);
+    await repo.move("b1", "2026-09-14T13:30:00Z", "2026-09-14T14:15:00Z");
+    expect(history.record.mock.calls[0][0]).toMatchObject({ toast: false, announce: "Moved “Draft the proposal” to 14:30–15:15" });
+    await repo.move("b1", "2026-09-14T08:00:00Z", "2026-09-14T09:00:00Z");
+    expect(history.record.mock.calls[1][0].announce).toBe("Resized “Draft the proposal” to 09:00–10:00");
+    await repo.create({ spaceId: "s", userId: "u", taskId: "t1", title: "Draft the proposal", startAt: "2026-09-14T13:30:00Z", endAt: "2026-09-14T14:15:00Z" });
+    expect(history.record.mock.calls[2][0]).toMatchObject({ label: "Blocked “Draft the proposal”", toast: true, announce: "Blocked “Draft the proposal” 14:30–15:15" });
   });
 
   it("undoing a removal after sync took the block off the device puts it back as it was, in one transaction", async () => {

@@ -6,6 +6,11 @@ export interface UndoEntry {
   label: string;
   /** Whether to surface a toast with an Undo button. Silent entries still answer ⌘Z. */
   toast: boolean;
+  /**
+   * What the polite live region says instead of the label, with or without a toast: a drag's outcome in words
+   * ("Moved “Draft the proposal” to 14:30–15:15", SYSTEM_DESIGN.md §11.5). A silent entry is announced only with one.
+   */
+  announce?: string;
   undo: () => Promise<void>;
 }
 
