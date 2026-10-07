@@ -28,7 +28,7 @@ import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
-import { copyTaskLink, requestOrganize } from "./organize";
+import { requestOrganize } from "./organize";
 import { useTaskRepo } from "./use-task-repo";
 
 const LONG_PRESS_MS = 500;
@@ -399,7 +399,7 @@ function OrganizeActions({ task }: { task: Task }) {
       {open && <RowAction label="Move to project…" onClick={() => requestOrganize({ kind: "move", ids: [task.id] })} />}
       {open && <RowAction label="Add a tag…" onClick={() => requestOrganize({ kind: "tag", ids: [task.id] })} />}
       <RowAction label="Duplicate" onClick={() => requestOrganize({ kind: "duplicate", id: task.id })} />
-      <RowAction label="Copy link" onClick={() => void copyTaskLink(task.id)} />
+      <RowAction label="Copy link" onClick={() => requestOrganize({ kind: "copy-link", id: task.id })} />
     </>
   );
 }

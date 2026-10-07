@@ -3,7 +3,7 @@
 import { fold, fuzzyScore } from "./fuzzy";
 import { GROUP_ORDER, type Command } from "./registry";
 
-export { fuzzyScore } from "./fuzzy";
+export { fuzzyScore, rankNamed } from "./fuzzy";
 
 export function rankCommands(query: string, commands: readonly Command[], recents: readonly string[] = []): Command[] {
   const visible = commands.filter((c) => !c.hidden);
@@ -19,18 +19,6 @@ export function rankCommands(query: string, commands: readonly Command[], recent
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.c.title.localeCompare(b.c.title))
     .map((x) => x.c);
-}
-
-/** Name matches for projects and areas: prefix first, then anywhere. */
-export function rankNamed<T extends { name: string }>(query: string, items: readonly T[], limit = 5): T[] {
-  const q = fold(query);
-  if (!q) return [];
-  return items
-    .map((item) => ({ item, score: fuzzyScore(q, item.name) }))
-    .filter((x) => x.score >= 40)
-    .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name))
-    .slice(0, limit)
-    .map((x) => x.item);
 }
 
 export const RECENT_LIMIT = 6;

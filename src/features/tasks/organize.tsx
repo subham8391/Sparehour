@@ -13,6 +13,8 @@ export type OrganizeRequest =
   | { kind: "tag"; ids: readonly string[] }
   | { kind: "duplicate"; id: string }
   | { kind: "duplicate-project"; id: string }
+  /** Copies `<origin>/today?task=<id>`: Today with that task's detail open (DECISIONS.md "Copy link"). */
+  | { kind: "copy-link"; id: string }
   /** A quiet line with no undo: "Link copied". */
   | { kind: "notice"; text: string };
 
@@ -36,20 +38,6 @@ export function requestOrganize(request: OrganizeRequest): void {
   if (handler) return handler(request);
   queue.push(request);
   listeners.forEach((l) => l());
-}
-
-/** `<origin>/today?task=<id>`: Today with the task's detail open, on any device signed in (DECISIONS.md "Copy link"). */
-export const taskLink = (id: string, origin = location.origin): string => `${origin}/today?task=${encodeURIComponent(id)}`;
-
-/** Written at once, inside the tap or key that asked: a browser only lets a page write the clipboard then. */
-export async function copyTaskLink(id: string): Promise<void> {
-  let text = "Link copied";
-  try {
-    await navigator.clipboard.writeText(taskLink(id));
-  } catch {
-    text = "Couldn’t copy — the browser didn’t allow it.";
-  }
-  requestOrganize({ kind: "notice", text });
 }
 
 const subscribe = (l: () => void) => {

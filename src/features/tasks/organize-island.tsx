@@ -26,6 +26,9 @@ const SPACE_SQL = `select personal_space_id from users limit 1`;
 const NO_ROWS = `select id, name from tags where 0`;
 const TASK_PROJECT_SQL = `select project_id from tasks where id = ?`;
 
+/** `<origin>/today?task=<id>`: Today with the task's detail open, on any device signed in (DECISIONS.md "Copy link"). */
+export const taskLink = (id: string, origin = location.origin): string => `${origin}/today?task=${encodeURIComponent(id)}`;
+
 export function OrganizeIsland() {
   const db = useLocalDatabase();
   const undo = useUndoSink();
@@ -54,6 +57,14 @@ export function OrganizeIsland() {
             return setPicking({ kind: "tag", ids: r.ids });
           case "notice":
             return setNotice((n) => ({ text: r.text, seq: (n?.seq ?? 0) + 1 }));
+          case "copy-link": {
+            // Called in the same tick as the tap or key that asked (the island is loaded by then), as browsers require.
+            const say = (text: string) => setNotice((n) => ({ text, seq: (n?.seq ?? 0) + 1 }));
+            return void navigator.clipboard.writeText(taskLink(r.id)).then(
+              () => say("Link copied"),
+              () => say("Couldn’t copy — the browser didn’t allow it."),
+            );
+          }
           case "duplicate":
             // The copy opens in the detail; undoing it takes the copy off the device and the detail closes itself.
             return void import("@/data/repositories/duplicate").then(async ({ duplicateTask }) => {

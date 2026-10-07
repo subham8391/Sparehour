@@ -121,12 +121,9 @@ describe("organising commands (SCREENS.md §24 #, @, M, G P, G A; §12 Duplicate
     ]);
   });
 
-  it("Copy link writes <origin>/today?task=<id> and says so", async () => {
-    const writeText = vi.fn(async () => undefined);
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  it("Copy link asks for the one task's link", async () => {
     await press("task.copy-link", ctxWith({ selectedTaskId: "t 9" }));
-    expect(writeText).toHaveBeenCalledWith(`${location.origin}/today?task=t%209`);
-    expect(requests).toEqual([{ kind: "notice", text: "Link copied" }]);
+    expect(requests).toEqual([{ kind: "copy-link", id: "t 9" }]);
   });
 
   it("G P and G A open the palette on projects, or areas", async () => {

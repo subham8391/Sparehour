@@ -1,4 +1,5 @@
-// The palette's fuzzy match, on its own so the lazy pickers (`#`, `@`) share it without the command words. Pure.
+// The palette's fuzzy match, on its own so the lazy pickers (`#`, `@`) and Search share it without the command
+// words (palette-rank.ts imports the registry). Pure.
 
 export const fold = (s: string): string => s.trim().toLocaleLowerCase();
 
@@ -24,4 +25,16 @@ export function fuzzyScore(query: string, text: string): number {
     }
   }
   return i === q.length ? Math.max(1, 30 - gaps * 4) : 0;
+}
+
+/** Name matches for projects and areas: prefix first, then anywhere. */
+export function rankNamed<T extends { name: string }>(query: string, items: readonly T[], limit = 5): T[] {
+  const q = fold(query);
+  if (!q) return [];
+  return items
+    .map((item) => ({ item, score: fuzzyScore(q, item.name) }))
+    .filter((x) => x.score >= 40)
+    .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name))
+    .slice(0, limit)
+    .map((x) => x.item);
 }

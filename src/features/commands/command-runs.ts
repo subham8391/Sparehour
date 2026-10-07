@@ -7,7 +7,7 @@ import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
-import { copyTaskLink, requestOrganize } from "@/features/tasks/organize";
+import { requestOrganize } from "@/features/tasks/organize";
 import { snoozePresets } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
@@ -138,15 +138,21 @@ const uncomplete = onTargets(async (ctx, ids) => {
   }
 });
 
+/** The project a `/project/<id>` path shows, else null. */
+const projectIn = (pathname: string): string | null => {
+  const id = /^\/project\/([^/?#]+)/.exec(pathname)?.[1];
+  return id ? decodeURIComponent(id) : null;
+};
+
 /**
  * N (SCREENS.md §24 "Add a task in the current list"): quick-add opened with the words that file the task where
  * the person is — the project's token on a project, "today" on Today — and empty anywhere else.
  */
 export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName">): Promise<string | undefined> {
   if (ctx.pathname === "/today") return "today ";
-  const id = /^\/project\/([^/?#]+)/.exec(ctx.pathname)?.[1];
+  const id = projectIn(ctx.pathname);
   if (!id) return undefined;
-  const name = await ctx.projectName(decodeURIComponent(id));
+  const name = await ctx.projectName(id);
   if (!name) return undefined;
   // The token rules live with the quick-add parser, which stays out of the shell (SYSTEM_DESIGN.md §11.6).
   const { projectToken } = await import("@/features/quickadd/interpret");
@@ -207,13 +213,13 @@ export const RUNS: readonly CommandRun[] = [
   // M lists projects and, once a task can sit loose in one, areas (DECISIONS.md "Loose tasks in an area").
   { id: "task.move", shortcut: "m", requiresSelection: true, run: pick("move", true), unselected: typesItself("m") },
   { id: "task.duplicate", requiresSelection: true, run: onOne((_, id) => requestOrganize({ kind: "duplicate", id })) },
-  { id: "task.copy-link", requiresSelection: true, run: onOne((_, id) => copyTaskLink(id)) },
+  { id: "task.copy-link", requiresSelection: true, run: onOne((_, id) => requestOrganize({ kind: "copy-link", id })) },
   {
     id: "project.duplicate",
     onlyOn: ON_PROJECT,
     run: (ctx) => {
-      const id = /^\/project\/([^/?#]+)/.exec(ctx.pathname)?.[1];
-      if (id) requestOrganize({ kind: "duplicate-project", id: decodeURIComponent(id) });
+      const id = projectIn(ctx.pathname);
+      if (id) requestOrganize({ kind: "duplicate-project", id });
     },
   },
   // A repeat's series edits (SYSTEM_DESIGN.md §5.2), one task at a time; they do nothing to a task that does not repeat.

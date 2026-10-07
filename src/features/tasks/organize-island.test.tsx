@@ -151,6 +151,16 @@ describe("<OrganizeIsland> duplicate and notices", () => {
     expect(await screen.findByText(`open: ${copy}`)).toBeInTheDocument();
   });
 
+  it("Copy link writes <origin>/today?task=<id> in the same tick and says Link copied", async () => {
+    // After setup: user-event puts a clipboard of its own on the navigator.
+    setup();
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    act(() => requestOrganize({ kind: "copy-link", id: "t 1" }));
+    expect(writeText).toHaveBeenCalledWith(`${location.origin}/today?task=t%201`);
+    expect(within(await toastWith("Link copied")).queryByRole("button")).toBeNull();
+  });
+
   it("a notice is a quiet toast with no Undo", async () => {
     setup();
     act(() => requestOrganize({ kind: "notice", text: "Link copied" }));
