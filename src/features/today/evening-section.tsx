@@ -20,7 +20,7 @@ import { cx } from "@/ui/cx";
 import { SectionLabel } from "@/ui/section-label";
 import { usePhone } from "@/ui/use-phone";
 
-export function SectionDrop({ label, onDrop }: { label: string; onDrop: (taskId: string) => void }) {
+export function SectionDrop({ label, onDrop, accepts = "task" }: { label: string; onDrop: (id: string) => void; accepts?: "task" | "block" }) {
   const ref = useRef<HTMLDivElement>(null);
   const [over, setOver] = useState(false);
   const dropRef = useRef(onDrop);
@@ -32,7 +32,7 @@ export function SectionDrop({ label, onDrop }: { label: string; onDrop: (taskId:
     if (!el) return;
     return dropTargetForElements({
       element: el,
-      canDrop: ({ source }) => source.data.type === "task",
+      canDrop: ({ source }) => source.data.type === accepts,
       onDragEnter: () => setOver(true),
       onDragLeave: () => setOver(false),
       onDrop: ({ source }) => {
@@ -40,7 +40,7 @@ export function SectionDrop({ label, onDrop }: { label: string; onDrop: (taskId:
         dropRef.current(String(source.data.id));
       },
     });
-  }, []);
+  }, [accepts]);
   return (
     <div
       ref={ref}

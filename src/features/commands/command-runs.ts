@@ -12,6 +12,7 @@ import { requestOrganize } from "@/features/tasks/organize";
 import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
+import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
@@ -64,6 +65,8 @@ export interface CommandRun {
   passes?: (ctx: CommandContext) => boolean;
   /** The one view the command belongs to (`/today`, or every `/project/…` page): listed elsewhere, but disabled with the reason. */
   onlyOn?: { path: string; reason: string };
+  /** Why it cannot run right now (no timeline on screen, no block selected), or null when it can. */
+  unavailable?: () => string | null;
 }
 
 /** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
@@ -306,6 +309,12 @@ export const RUNS: readonly CommandRun[] = [
     }),
   ),
   { id: "view.show-completed", onlyOn: ON_TODAY, run: () => void requestToday({ kind: "completed" }) },
+  // The timeline on screen (SCREENS.md §2.6, §24): + and - step its rows; with no timeline the keys type as unbound keys do.
+  ...(["zoom-in", "zoom-out"] as const).map(
+    (z): CommandRun => ({ id: `view.${z}`, shortcut: z === "zoom-in" ? "+" : "-", run: () => void requestTimeline(z), passes: () => timelineUnavailable(false) !== null, unavailable: () => timelineUnavailable(false) }),
+  ),
+  // The selected block's Move to…, Duplicate and Rename: no single key (DECISIONS.md "`M` on the timeline"), the toolbar and here.
+  ...(["move", "duplicate", "rename"] as const).map((b): CommandRun => ({ id: `block.${b}`, run: () => void requestTimeline(`${b}-block`), unavailable: () => timelineUnavailable(true) })),
   { id: "view.theme-light", run: (ctx) => ctx.setTheme("light") },
   { id: "view.theme-dark", run: (ctx) => ctx.setTheme("dark") },
   { id: "view.theme-system", run: (ctx) => ctx.setTheme("system") },
@@ -336,5 +345,6 @@ export function availability(command: CommandRun, ctx: Pick<CommandContext, "sel
   const only = command.onlyOn;
   if (only && ctx.pathname !== only.path && !(only.path.endsWith("/") && ctx.pathname?.startsWith(only.path))) return { enabled: false, reason: only.reason };
   if (command.requiresSelection && targets(ctx).length === 0) return { enabled: false, reason: "select a task first" };
-  return { enabled: true };
+  const why = command.unavailable?.();
+  return why ? { enabled: false, reason: why } : { enabled: true };
 }

@@ -2,42 +2,66 @@
 // "Your day" (SCREENS.md §2.6): the pane's heading, the tap-to-schedule bar, the timeline and its first-use hint.
 // An island out of Today's first download (SYSTEM_DESIGN.md §11.6): the page starts fetching it as it mounts,
 // while the local database opens, so it is in memory by the time there is a day to draw — and the timeline's
-// later growth (zoom, block editing) lands here rather than in the shell.
+// growth (zoom, block editing, the toolbar's Move… and Duplicate, blocks of your own) lands here rather than in
+// the shell. The wiring from the shared placing hook to the timeline lives here for the same reason.
 import { formatTime, timeFromMinutes } from "@/core/time";
-import { Timeline, type TimelineProps } from "./timeline";
+import type { Task } from "@/core/types";
+import type { PlacingApi } from "@/features/blocking/use-placing";
+import { PlacingBar, Timeline, type TimelineProps } from "./timeline";
+
+/** What the screen draws; the placing hook supplies everything a person can do on it. */
+export type DrawnDay = Pick<TimelineProps, "c" | "now" | "zone" | "blocks" | "proposed" | "meetings" | "shownMeeting" | "defaultEstimateMin" | "paneScrolls">;
+
+/** The timeline's handlers, from the placing hook: the same writes, and the same Google push, on every path. */
+export function placerTimeline(placer: PlacingApi, findTask: (id: string) => Task | undefined, onOpenTask: (taskId: string) => void): Omit<TimelineProps, keyof DrawnDay> {
+  return {
+    selectedBlockId: placer.selectedBlockId,
+    onSelectBlock: placer.setSelectedBlockId,
+    onDropTask: (taskId, startMin) => {
+      const task = findTask(taskId);
+      if (task) void placer.placeTask(task, startMin);
+    },
+    onMoveBlock: placer.moveBlock,
+    onResizeBlock: placer.resizeBlock,
+    onDuplicateBlock: (id, startMin) => void placer.duplicateBlock(id, startMin),
+    onRemoveBlock: placer.removeBlock,
+    onToggleLock: (id, locked) => void placer.repo.setLocked(id, locked),
+    onRenameBlock: (id, title) => void placer.repo.rename(id, title),
+    onCreateBlock: placer.createAdHoc,
+    onOpenTask,
+    placing: placer.placingTask ? { title: placer.placingTask.title } : null,
+    onTapSlot: placer.tapSlot,
+  };
+}
 
 export interface DayPaneProps {
   /** The working day the heading names, in minutes of the day. */
   start: number;
   end: number;
   bufferPct: number | undefined;
-  /** Tap-to-schedule (SCREENS.md §2.8): the task waiting for a time, and how to let go of it. */
-  placing: { title: string; onCancel: () => void } | null;
   /** Nothing on the timeline yet, nothing being placed and no preview open: say how blocks get there. */
   hint: boolean;
-  timeline: TimelineProps;
+  placer: PlacingApi;
+  findTask: (id: string) => Task | undefined;
+  onOpenTask: (taskId: string) => void;
+  timeline: DrawnDay;
 }
 
-export function DayPane({ start, end, bufferPct, placing, hint, timeline }: DayPaneProps) {
+export function DayPane({ start, end, bufferPct, hint, placer, findTask, onOpenTask, timeline }: DayPaneProps) {
+  const waiting = placer.placingTask;
   return (
     <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
       <h2 className="font-display text-pane font-medium text-ink">Your day</h2>
       <p className="mt-1 mb-4.5 text-body-sm text-ink-3 num">
         {formatTime(timeFromMinutes(start))} – {formatTime(timeFromMinutes(end))} · buffer {bufferPct}%
       </p>
-      {placing && (
-        <div role="status" className="mb-3 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-ink px-3 py-1.5 text-body-sm text-ink-inverse sm:min-h-9">
-          <span className="min-w-0 truncate">Tap a time for “{placing.title}”</span>
-          <button type="button" onClick={placing.onCancel} className="flex h-11 shrink-0 items-center rounded-sm px-2 font-medium underline decoration-ink-inverse/50 hover:decoration-ink-inverse sm:h-7">
-            Cancel
-          </button>
-        </div>
-      )}
-      <Timeline {...timeline} />
+      {/* Tap-to-schedule (SCREENS.md §2.8): the task waiting for a time, and how to let go of it. */}
+      {waiting && <PlacingBar text={`Tap a time for “${waiting.title}”`} onCancel={() => placer.setPlacing(null)} />}
+      <Timeline {...timeline} {...placerTimeline(placer, findTask, onOpenTask)} />
       {hint && (
         <p className="mt-4 text-body-sm text-pretty text-ink-3">
-          <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B.</span>
-          <span className="sm:hidden">Tap “Block” on a task, then a time here.</span>
+          <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B. Drag on an empty stretch for a block of your own.</span>
+          <span className="sm:hidden">Tap “Block” on a task, then a time here — or tap an empty time for a block of your own.</span>
         </p>
       )}
     </div>
