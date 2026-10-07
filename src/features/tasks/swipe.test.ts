@@ -12,6 +12,8 @@ describe("swipePlan", () => {
     // Rows elsewhere that are planned ahead or undated read the same way: right advances, left pushes away.
     expect(plan("active", "2026-10-09")).toEqual({ right: [COMPLETE], left: ["Tomorrow", "Someday"] });
     expect(plan("active")).toEqual({ right: [COMPLETE], left: ["Tomorrow", "Someday"] });
+    // Already planned for tomorrow: a left swipe has only Someday to push to.
+    expect(plan("active", "2026-10-08")).toEqual({ right: [COMPLETE], left: ["Someday"] });
   });
 
   it("a carried-over row goes to Today · Tomorrow, or Someday · Drop", () => {

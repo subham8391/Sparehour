@@ -9,8 +9,9 @@
 // rows are being ticked.
 //
 // Each action is the one the row's ⋯ holds: the row's actions and its menu's lead are rendered here in the `swipe`
-// layout, where every `RowAction` hands over its handler instead of drawing, so a swipe makes the same write, the
-// same undo entry and the same announced toast. Reduced motion keeps the finger's direct movement and drops the
+// layout, where every `RowAction` hands over its handler instead of drawing, and a label is looked up as the menu
+// lists it (row-menu.tsx): the lead first, then the menu's own Tomorrow preset and Someday on an open task, then the
+// row's own action. So a swipe makes the same write, the same undo entry and the same announced toast as the ⋯ item. Reduced motion keeps the finger's direct movement and drops the
 // slide back and forth (the global rule cuts transform transitions).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { LocalDate } from "@/core/time";
@@ -38,8 +39,10 @@ export interface SwipeLayerProps {
   today: LocalDate;
   /** The ring's check-off (with its 400 ms fold); absent where the row cannot be completed. */
   complete?: () => void;
-  /** The row's actions and its ⋯ menu's lead, as the row passes them to its menu. */
-  actions: ReactNode;
+  /** The row's own actions, as the row passes them to its menu. */
+  own: ReactNode;
+  /** The view's lead of the ⋯ menu, which wins over a menu item or row action of the same name. */
+  lead?: ReactNode;
 }
 
 /** What is showing: the side, the travel, whether it rests open, its buttons and whether letting go would run the first. */
@@ -59,11 +62,11 @@ function place(row: HTMLElement | null, dx: number, animate: boolean): void {
   content.style.zIndex = dx ? "1" : "";
 }
 
-export function SwipeLayer({ row, task, today, complete, actions }: SwipeLayerProps) {
-  const handlers = useRef(new Map<string, () => void>());
-  const register = useCallback((label: string, run: () => void) => {
-    handlers.current.set(label, run);
-  }, []);
+export function SwipeLayer({ row, task, today, complete, own, lead }: SwipeLayerProps) {
+  const owned = useRef(new Map<string, () => void>());
+  const led = useRef(new Map<string, () => void>());
+  const registerOwn = useCallback((label: string, run: () => void) => void owned.current.set(label, run), []);
+  const registerLead = useCallback((label: string, run: () => void) => void led.current.set(label, run), []);
   const [shown, setShown] = useState<Shown>(null);
   /** Where an open row's content rests (0 when shut). */
   const opened = useRef(0);
@@ -75,11 +78,13 @@ export function SwipeLayer({ row, task, today, complete, actions }: SwipeLayerPr
     Someday: () => void repo.setState(task.id, "someday"),
   };
   const open = task.state === "active" || task.state === "inbox";
+  /** What the ⋯ item of that name runs: the lead's, else the menu's own (an open task), else the row's own action. */
+  const handler = (label: string) => led.current.get(label) ?? (open ? menuOwn[label] : undefined) ?? owned.current.get(label);
   /** The labels a side offers that this row's ⋯ really holds (the ring's Complete where it can be completed). */
-  const offered = (side: SwipeSide) => swipePlan(task, today)[side].filter((l) => (l === COMPLETE ? Boolean(complete) : handlers.current.has(l) || (open && l in menuOwn)));
+  const offered = (side: SwipeSide) => swipePlan(task, today)[side].filter((l) => (l === COMPLETE ? Boolean(complete) : Boolean(handler(l))));
   const run = (label: string) => {
     if (label === COMPLETE) complete?.();
-    else (handlers.current.get(label) ?? menuOwn[label])?.();
+    else handler(label)?.();
   };
   // The listeners stay put for the row's life; what they read is always the latest render's.
   const latest = useRef({ offered, run });
@@ -194,8 +199,11 @@ export function SwipeLayer({ row, task, today, complete, actions }: SwipeLayerPr
   return (
     <>
       {/* The row's actions, drawn nowhere: each hands its handler over (task-actions.tsx, `swipe` layout). */}
-      <RowActionsLayoutProvider layout="swipe" register={register}>
-        {actions}
+      <RowActionsLayoutProvider layout="swipe" register={registerOwn}>
+        {own}
+      </RowActionsLayoutProvider>
+      <RowActionsLayoutProvider layout="swipe" register={registerLead}>
+        {lead}
       </RowActionsLayoutProvider>
       {shown && shown.labels.length > 0 && (
         <div

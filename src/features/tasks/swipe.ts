@@ -25,7 +25,7 @@ const NONE: SwipePlan = { right: [], left: [] };
 
 /**
  * The labels each side offers, by the row's state (search rows follow theirs): a Today row completes or moves to
- * Tomorrow · Someday, a carried-over one goes to Today · Tomorrow or Someday · Drop, an Inbox one to Today or
+ * Tomorrow · Someday (Someday alone once it is planned for tomorrow), a carried-over one goes to Today · Tomorrow or Someday · Drop, an Inbox one to Today or
  * Someday, a Someday one to Today or (by a tap) Drop, a finished one reopens, a dropped one is restored. A view
  * offers only those of them its row's ⋯ holds, so every swipe is also a tap away.
  */
@@ -40,7 +40,9 @@ export function swipePlan(task: Pick<Task, "state" | "doDate">, today: LocalDate
     case "dropped":
       return { right: ["Restore"], left: [] };
     case "active":
-      return task.doDate && compareDates(task.doDate, today) < 0 ? { right: ["Today", "Tomorrow"], left: ["Someday", "Drop"] } : { right: [COMPLETE], left: ["Tomorrow", "Someday"] };
+      if (task.doDate && compareDates(task.doDate, today) < 0) return { right: ["Today", "Tomorrow"], left: ["Someday", "Drop"] };
+      // A row already planned for tomorrow has nothing to push to there: only Someday.
+      return { right: [COMPLETE], left: task.doDate && compareDates(task.doDate, today.add({ days: 1 })) === 0 ? ["Someday"] : ["Tomorrow", "Someday"] };
     default:
       return NONE;
   }

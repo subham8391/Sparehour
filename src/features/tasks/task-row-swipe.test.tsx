@@ -97,13 +97,21 @@ function Today({ spies }: { spies: Record<string, () => void> }) {
 
 const spiesFor = () => ({ open: vi.fn(), done: vi.fn(), tomorrow: vi.fn(), someday: vi.fn(), today: vi.fn(), drop: vi.fn(), reopen: vi.fn() });
 
+// The ⋯ menu's own items write through the repository: count those writes.
+const writes = (match: (sql: string, args: unknown[]) => boolean) => db.execute.mock.calls.filter(([sql, args]) => match(String(sql), (args ?? []) as unknown[])).length;
+const movedToTomorrow = () => writes((sql, args) => sql.includes("do_date") && args.includes("2026-10-08"));
+const parked = () => writes((sql, args) => sql.startsWith("update tasks set state") && args.includes("someday"));
+
 describe("swiping a Today row", () => {
-  it("a full swipe left moves it to Tomorrow with the row's own action, and opens nothing", async () => {
+  it("a full swipe left moves it to Tomorrow with the ⋯ menu's preset (the item the ⋯ lists), and opens nothing", async () => {
+    db.execute.mockClear();
     const spies = spiesFor();
     render(<Today spies={spies} />);
     await swipe(-220);
-    expect(spies.tomorrow).toHaveBeenCalledTimes(1);
-    expect(spies.someday).not.toHaveBeenCalled();
+    await waitFor(() => expect(movedToTomorrow()).toBe(1));
+    // The row's own Tomorrow steps aside in the ⋯ for the preset, so the swipe does not run it either.
+    expect(spies.tomorrow).not.toHaveBeenCalled();
+    expect(parked()).toBe(0);
     fireEvent.click(screen.getByText("Draft the proposal"));
     expect(spies.open).not.toHaveBeenCalled();
   });
@@ -114,8 +122,11 @@ describe("swiping a Today row", () => {
     await swipe(-70);
     const strip = screen.getByRole("button", { name: "Someday" }).parentElement!;
     expect(within(strip).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tomorrow", "Someday"]);
+    db.execute.mockClear();
     fireEvent.click(within(strip).getByRole("button", { name: "Someday" }));
-    expect(spies.someday).toHaveBeenCalledTimes(1);
+    // The ⋯ menu's Someday, as the ⋯ lists it (a row action of that name steps aside there).
+    await waitFor(() => expect(parked()).toBe(1));
+    expect(spies.someday).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Someday" })).toBeNull();
 
     await swipe(-70);
@@ -133,6 +144,7 @@ describe("swiping a Today row", () => {
   });
 
   it("a vertical scroll, a diagonal and a mouse drag are not swipes", async () => {
+    db.execute.mockClear();
     const spies = spiesFor();
     render(<Today spies={spies} />);
     await swipe(6, 80);
@@ -140,6 +152,7 @@ describe("swiping a Today row", () => {
     await swipe(-220, 0, "mouse");
     expect(screen.queryByRole("button", { name: "Someday" })).toBeNull();
     for (const s of [spies.tomorrow, spies.someday, spies.done]) expect(s).not.toHaveBeenCalled();
+    expect(movedToTomorrow() + parked()).toBe(0);
   });
 
   it("the ⋯ holds every swipe action, Complete included", async () => {
@@ -198,9 +211,14 @@ describe("swiping elsewhere", () => {
     await swipe(80);
     expect(screen.getAllByRole("button", { name: /^(Today|Tomorrow)$/ }).filter((b) => b.closest("[data-swipe-actions]")).map((b) => b.textContent)).toEqual(["Today", "Tomorrow"]);
     fireEvent.pointerDown(document.body, { pointerType: "touch" });
+    db.execute.mockClear();
     await swipe(-240);
-    expect(spies.someday).toHaveBeenCalledTimes(1);
+    // A full left swipe is Someday (the ⋯ menu's), never Drop.
+    await waitFor(() => expect(parked()).toBe(1));
     expect(spies.drop).not.toHaveBeenCalled();
+    // A full right swipe is the view's own Today.
+    await swipe(240);
+    expect(spies.today).toHaveBeenCalledTimes(1);
   });
 
   it("a project row without its own moves offers the ⋯ menu's Tomorrow preset and Someday, the same writes", async () => {
@@ -276,7 +294,9 @@ describe("swiping elsewhere", () => {
     expect(screen.getByText("checked: t1")).toBeInTheDocument();
     fireEvent.pointerUp(rowOf(), { pointerType: "touch", clientX: 100, clientY: 100 });
     vi.useRealTimers();
+    db.execute.mockClear();
     await swipe(-220);
     expect(spies.tomorrow).not.toHaveBeenCalled();
+    expect(movedToTomorrow() + parked()).toBe(0);
   });
 });

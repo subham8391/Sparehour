@@ -545,15 +545,7 @@ export function TaskRow({
             onClose={() => setMoving(null)}
           />
         )}
-        {swipe && hasActions && (
-          <SwipeIsland row={ref} task={task} today={day} complete={onDone && complete} actions={
-              <>
-                {rowActions}
-                {menuLead}
-              </>
-            }
-          />
-        )}
+        {swipe && hasActions && <SwipeIsland row={ref} task={task} today={day} complete={onDone && complete} own={rowActions} lead={menuLead} />}
         {estimating && <EstimateIsland taskId={task.id} title={task.title} current={task.estimateMin} anchor={estimating} onClose={() => setEstimating(null)} />}
       </div>
     </div>
