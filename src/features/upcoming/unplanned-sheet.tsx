@@ -45,7 +45,7 @@ export function UnplannedSheet({ tasks, days, today, row, onClose }: UnplannedSh
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-4">
         {count === 0 ? <p className="px-2 pb-2 text-body text-ink-2">Every task has a day.</p> : <p className="px-2 pb-2 text-body-sm text-ink-2">Tap a day to give a task its place in the week.</p>}
-        {count > 0 && <TaskList>{tasks.map((t) => row(t, <PlaceTask key={t.id} task={t} days={days} today={today} />))}</TaskList>}
+        {count > 0 && <TaskList>{tasks.map((t) => row(t, <PlaceTask task={t} days={days} today={today} />))}</TaskList>}
       </div>
     </Sheet>
   );
