@@ -1,7 +1,8 @@
-// The write half of the generic redo (undo.ts `redoable`): it puts declared rows back into one of their two captured
-// states. Loaded once something has been undone, so no app shell carries it (SYSTEM_DESIGN.md §11.6).
+// The write half of the generic redo (redo-capture.ts `redoable`): it puts declared rows back into one of their two
+// captured states. Loaded once something has been undone, so no app shell carries it (SYSTEM_DESIGN.md §11.6).
 import type { LocalDatabase } from "../powersync";
-import { restoreRow, type RowSnapshot, type RowState, type UndoTable } from "./undo";
+import type { RowState } from "./redo-capture";
+import { restoreRow, type RowSnapshot, type UndoTable } from "./undo";
 
 /** A row's identity and bookkeeping: no redo writes these. */
 const IDENTITY = new Set(["id", "space_id", "user_id", "created_at", "updated_at"]);

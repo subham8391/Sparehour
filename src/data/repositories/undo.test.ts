@@ -5,7 +5,8 @@ import { CLEARABLE_COLUMNS, SERVER_OWNED_COLUMNS } from "@/server/sync/upload";
 import { localSqlite } from "@/test/local-sqlite";
 import type { LocalDatabase } from "../powersync";
 import { SERVER_KEEPS, applyRows } from "./redo-apply";
-import { captureRows, redoable, restoreRow, type UndoTable } from "./undo";
+import { captureRows, redoable } from "./redo-capture";
+import { restoreRow, type UndoTable } from "./undo";
 
 describe("restoreRow with what the server holds", () => {
   it("re-inserts a row that left the device with the server's values first, so the write after it changes each column", async () => {

@@ -18,7 +18,8 @@ import { ProjectRepo } from "./project-repo";
 import { SeriesRepo } from "./series-repo";
 import { TagRepo } from "./tag-repo";
 import { TaskRepo } from "./task-repo";
-import { redoable, type UndoRecorder } from "./undo";
+import { redoable } from "./redo-capture";
+import type { UndoRecorder } from "./undo";
 
 // Tuesday 6 October 2026, noon UTC: blocks later today have not started.
 beforeEach(() => vi.useFakeTimers({ now: new Date("2026-10-06T12:00:00Z"), toFake: ["Date"] }));

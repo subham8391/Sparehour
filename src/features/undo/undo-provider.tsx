@@ -5,7 +5,9 @@
 // toast that confirms the undo (DECISIONS.md "Redo"). A new write clears it.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
-import { redoable, type UndoRecord } from "@/data/repositories/undo";
+import type * as RedoCapture from "@/data/repositories/redo-capture";
+import type { UndoRecord } from "@/data/repositories/undo";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { Button } from "@/ui/button";
 import { Toast } from "@/ui/toast";
 import { UndoHistory, redoneWords, undoneWords, type UndoEntry } from "./undo-stack";
@@ -40,6 +42,32 @@ export function useUndo(): UndoApi {
   const api = useContext(UndoContext);
   if (!api) throw new Error("useUndo needs an UndoProvider above it");
   return api;
+}
+
+// The generic redo's capture (redo-capture.ts) is not needed to draw anything: fetched in idle time, out of every
+// shell's first download (SYSTEM_DESIGN.md §11.6). Once it is in, a write is made redoable as it is recorded; one
+// recorded sooner goes on the stack at once and is made redoable the moment the capture arrives (its undo waits for
+// that).
+let capture: typeof RedoCapture | null = null;
+const loadRedo = () => import("@/data/repositories/redo-capture").then((m) => (capture = m));
+
+/** A repository's record as a redoable entry. */
+function redoableEntry(db: LocalDatabase, raw: UndoRecord): UndoEntry {
+  if (capture) return capture.redoable(db, raw);
+  const made = loadRedo().then((m) => m.redoable(db, raw));
+  made.catch(() => undefined);
+  return {
+    label: raw.label,
+    toast: raw.toast,
+    ...(raw.announce ? { announce: raw.announce } : {}),
+    undo: async () => {
+      const entry = await made.catch(() => null);
+      if (entry) return entry.undo();
+      // No capture to be had (offline before it ever loaded): the write is still undone, just not redoable.
+      await raw.undo();
+      return undefined;
+    },
+  };
 }
 
 /** Ten seconds to change your mind (PRODUCT_SPEC.md §7 rule 3, SCREENS.md §19); hovering or focusing the toast holds it. */
@@ -80,7 +108,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
 
   const record = useCallback(
     (raw: UndoEntry | UndoRecord) => {
-      const entry: UndoEntry = "rows" in raw ? (db ? redoable(db, raw) : { label: raw.label, toast: raw.toast, announce: raw.announce, undo: raw.undo }) : raw;
+      const entry: UndoEntry = "rows" in raw ? (db ? redoableEntry(db, raw) : { label: raw.label, toast: raw.toast, announce: raw.announce, undo: raw.undo }) : raw;
       history.record(entry);
       if (entry.toast) showToast({ text: entry.label, action: "Undo" });
       const words = entry.announce ?? (entry.toast ? entry.label : "");
@@ -116,6 +144,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
+  useEffect(() => preloadOnIdle(loadRedo), []);
 
   const api = useMemo<UndoApi>(() => ({ record, undo, redo, canUndo: depth.canUndo, canRedo: depth.canRedo }), [record, undo, redo, depth]);
 
