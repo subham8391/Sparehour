@@ -26,6 +26,17 @@ export interface Strip {
   hours: Segment;
 }
 
+/** The saved work_hours rows as a week, Monday first, each day's stretches in start order. */
+export function weekFromRows(rows: readonly { weekday: number | null; start_time: string | null; end_time: string | null }[]): Segment[][] {
+  const week: Segment[][] = [[], [], [], [], [], [], []];
+  for (const r of rows) {
+    if (r.weekday == null || r.weekday < 0 || r.weekday > 6 || !r.start_time || !r.end_time) continue;
+    week[r.weekday].push({ start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) });
+  }
+  for (const day of week) day.sort((a, b) => a.start.localeCompare(b.start));
+  return week;
+}
+
 /** The week the strip stands for: the shared pair on every day that is on, nothing on the rest. */
 export function stripWeek(strip: Strip): Segment[][] {
   return strip.days.map((on) => (on ? [{ ...strip.hours }] : []));

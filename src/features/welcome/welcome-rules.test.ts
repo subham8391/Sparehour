@@ -11,6 +11,7 @@ import {
   settledWeek,
   startingHours,
   stripWeek,
+  weekFromRows,
   type Segment,
 } from "./welcome-rules";
 
@@ -43,6 +44,22 @@ describe("working hours (ONBOARDING.md 1b)", () => {
     const short = weekdays(nine);
     short[4] = [{ start: "09:00", end: "13:00" }];
     expect(startingHours(short).perDay).toBe(true);
+  });
+
+  it("reads the saved rows as a week, Monday first", () => {
+    const week = weekFromRows([
+      { weekday: 2, start_time: "13:30:00", end_time: "18:00:00" },
+      { weekday: 2, start_time: "09:00:00", end_time: "12:30:00" },
+      { weekday: 0, start_time: "09:00", end_time: "18:00" },
+      { weekday: 9, start_time: "09:00", end_time: "18:00" },
+      { weekday: 1, start_time: null, end_time: "18:00" },
+    ]);
+    expect(week[0]).toEqual([nine]);
+    expect(week[1]).toEqual([]);
+    expect(week[2]).toEqual([
+      { start: "09:00", end: "12:30" },
+      { start: "13:30", end: "18:00" },
+    ]);
   });
 
   it("blocks the save with the spec's words", () => {
