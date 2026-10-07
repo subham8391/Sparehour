@@ -97,6 +97,38 @@ describe("<PaneResizer>", () => {
     expect(readPaneWidths()).toEqual({ project: PANE_MIN });
   });
 
+  it("two quick taps are two steps, not a reset; a press the browser takes back steps nothing; a mouse double-click resets", () => {
+    setPaneWidth("inbox", 400);
+    const edge = setup("inbox");
+    edge.setPointerCapture = () => {};
+    pointer(edge, "pointerdown", 600, "touch");
+    pointer(edge, "pointerup", 600, "touch");
+    pointer(edge, "pointerdown", 600, "touch");
+    pointer(edge, "pointerup", 600, "touch");
+    // The browser reads two quick taps as a double-click too.
+    pointer(edge, "dblclick", 600, "touch");
+    expect(readPaneWidths()).toEqual({ inbox: PANE_MAX });
+    pointer(edge, "pointerdown", 600, "touch");
+    pointer(edge, "pointercancel", 600, "touch");
+    expect(readPaneWidths()).toEqual({ inbox: PANE_MAX });
+    pointer(edge, "pointerdown");
+    pointer(edge, "pointerup");
+    pointer(edge, "dblclick");
+    expect(readPaneWidths()).toEqual({});
+    expect(edge).toHaveAttribute("aria-valuenow", "384");
+  });
+
+  it("a drag that lands exactly its own width to the right is still a drag, saved at the narrowest", () => {
+    setPaneWidth("area", 400);
+    const edge = setup("area");
+    edge.setPointerCapture = () => {};
+    pointer(edge, "pointerdown", 600);
+    pointer(edge, "pointermove", 1000);
+    pointer(edge, "pointerup", 1000);
+    expect(readPaneWidths()).toEqual({ area: PANE_MIN });
+    expect(edge).toHaveAttribute("aria-valuenow", String(PANE_MIN));
+  });
+
   it("draws only views with plain names and widths inside the range", () => {
     expect(paneCss({ today: 9999, "x]{}": 400, inbox: 100 })).toBe('[data-view="today"]{--pane-w:560px}[data-view="inbox"]{--pane-w:320px}');
   });

@@ -439,12 +439,14 @@
 
 /* The shell's frame keeps the rail and the view clear of a landscape phone's notch and rounded corners (DESIGN_SYSTEM.md
    §4a "Safe areas"); in portrait the side insets are zero. A held finger on a rail icon shows its name (SCREENS.md §1),
-   so the link's iOS callout stays out of the way (the icons have no text to select). */
+   so the link's iOS callout stays out of the way (the icons have no text to select), and so does iPadOS lifting the
+   held link to drag it, which would cancel the press. */
 [data-view] {
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 nav[data-variant="rail"] a {
   -webkit-touch-callout: none;
+  -webkit-user-drag: none;
 }
 
 /* The per-device layout choices on <html>, stamped before the first paint (features/shell/panes.ts). Unlayered: they

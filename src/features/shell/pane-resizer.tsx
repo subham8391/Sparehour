@@ -7,7 +7,7 @@
 // The widths are remembered per view in one stored map, drawn as `[data-view="today"] { --pane-w: 420px }` rules
 // in one <style> (the shell's frame carries data-view): the theme bootstrap writes it before the first paint, and
 // this island rewrites it on every change, so a pane never opens at the wrong width.
-import { useState, type HTMLAttributes, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type HTMLAttributes, type KeyboardEvent, type PointerEvent } from "react";
 import { cx } from "@/ui/cx";
 
 /** The widths per view, and their range; the head script (commands/theme-bootstrap.ts) repeats these three. */
@@ -18,7 +18,10 @@ const TAPS = [PANE_MIN, 400, 480, PANE_MAX];
 
 // The edge's look rides with the island rather than in every shell's stylesheet: a 12 px strip over the pane's
 // border whose 2 px ink line shows on hover and on keyboard focus; on a touch screen a 44 px grip, always shown.
-const EDGE_CSS = `@media (min-width:900px){.pane-edge-md{display:block}}@media (min-width:1180px){.pane-edge-lg{display:block}}
+// Today's list column stops at its reading width, so on a screen with room to spare the day pane is pushed right by
+// an auto margin: the edge takes that margin over (and the pane right after it gives its own up), so it stays on the
+// pane's border instead of floating in the gap beside the list.
+const EDGE_CSS = `@media (min-width:900px){.pane-edge-md{display:block}}@media (min-width:1180px){.pane-edge-lg{display:block;margin-left:auto}.pane-edge-lg+*{margin-left:0}}
 .pane-edge{position:absolute;inset-block:0;left:-6px;z-index:10;width:12px;cursor:col-resize;touch-action:none;user-select:none;outline:none}
 .pane-edge>span{position:absolute;inset-block:0;left:5px;width:2px;background:var(--ink);opacity:0;transition:opacity var(--dur-fast)}
 .pane-edge:hover>span{opacity:.25}.pane-edge:focus-visible>span{opacity:1}
@@ -78,27 +81,33 @@ export function PaneResizer({ view, label, fallback, band, ...rest }: { view: st
     e.preventDefault();
     set(to);
   };
+  // The last pointer that pressed the edge: a double-click restores the default for a mouse only, since two quick
+  // taps on a touch screen are two steps, not a reset.
+  const pointer = useRef("mouse");
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const el = e.currentTarget;
-    const from = { x: e.clientX, w: stored(), last: 0 };
+    const type = (pointer.current = e.pointerType);
+    // `to` stays null until the pointer has moved 4 px: until then it is a press, not a drag.
+    const from = { x: e.clientX, w: stored(), to: null as number | null };
     el.setPointerCapture?.(e.pointerId);
     const move = (m: globalThis.PointerEvent) => {
-      if (!from.last && Math.abs(m.clientX - from.x) < 4) return;
-      from.last = from.w + from.x - m.clientX;
-      set(from.last, false);
+      if (from.to === null && Math.abs(m.clientX - from.x) < 4) return;
+      from.to = from.w + from.x - m.clientX;
+      set(from.to, false);
     };
-    const up = () => {
+    const end = (u: globalThis.PointerEvent) => {
       el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", up);
-      // A drag saves where it let go; a tap on a touch screen steps to the next width.
-      if (from.last) set(from.last);
-      else if (e.pointerType !== "mouse") set(TAPS.find((t) => t > from.w + 8) ?? PANE_MIN);
+      el.removeEventListener("pointerup", end);
+      el.removeEventListener("pointercancel", end);
+      // A drag saves where it let go; a tap on a touch screen steps to the next width (a press the browser took
+      // back, pointercancel, is neither).
+      if (from.to !== null) set(from.to);
+      else if (type !== "mouse" && u.type === "pointerup") set(TAPS.find((t) => t > from.w + 8) ?? PANE_MIN);
     };
     el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
   };
   return (
     <div {...rest} className={cx("relative hidden w-0 shrink-0 print:hidden!", band && `pane-edge-${band}`)}>
@@ -114,7 +123,7 @@ export function PaneResizer({ view, label, fallback, band, ...rest }: { view: st
         onFocus={() => setW(stored())}
         onKeyDown={keys}
         onPointerDown={down}
-        onDoubleClick={() => set(null)}
+        onDoubleClick={() => pointer.current === "mouse" && set(null)}
         className="pane-edge"
       >
         <span aria-hidden="true" />

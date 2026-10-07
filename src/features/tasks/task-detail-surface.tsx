@@ -23,7 +23,8 @@ const TaskDetail = dynamic(() => loadPanel().then((m) => m.TaskDetail), { ssr: f
 // The surface is itself fetched in idle time or on the first open, so it starts the panel's download at once.
 void loadPanel().catch(() => undefined);
 
-const OVERLAY_QUERY = "(max-width: 47.9375rem)";
+// Below `md` (900 px, globals.css): 899 px and down, the narrow band included, where the side sheet covers the list.
+const OVERLAY_QUERY = "(max-width: 56.1875rem)";
 const subscribeOverlay = (onChange: () => void) => {
   if (typeof window.matchMedia !== "function") return () => {};
   const query = window.matchMedia(OVERLAY_QUERY);
@@ -67,7 +68,9 @@ export function DetailSurface({ id, field, onClose }: { id: string; field: Field
           "max-md:transition-[translate,opacity] max-md:dur-slow max-md:ease-drawer max-sm:starting:translate-y-full sm:max-md:starting:translate-x-full",
           // The narrow band's sheet keeps its content clear of a landscape phone's notch and corner (DESIGN_SYSTEM.md §4a).
           "sm:left-auto sm:w-[420px] sm:border-l sm:border-line sm:pt-0 sm:shadow-sheet sm:max-md:pr-[env(safe-area-inset-right)]",
-          "md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-(--pane-w,24rem) md:shrink-0 md:shadow-none",
+          // Never so wide that the list beside it is squeezed out: at the medium band's narrow end the pane gives way and
+          // keeps the main column about 20 rem wide whatever width was chosen (it is 576 px short of the window).
+          "md:sticky md:top-0 md:inset-auto md:z-auto md:h-dvh md:w-(--pane-w,24rem) md:max-w-[calc(100vw-36rem)] md:shrink-0 md:shadow-none",
         )}
       >
         <Grabber />
