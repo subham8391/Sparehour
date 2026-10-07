@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The row's quiet facts (SCREENS.md §2.4 row anatomy): the priority mark, the tags, the estimate chip with the
 // account's default and its presets in place, and a task not started yet shown dimmed with the day it starts.
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
@@ -15,6 +15,7 @@ import { DefaultEstimate } from "./default-estimate";
 import { DayChipTag } from "./day-chip-tag";
 import { dayChip } from "./day-chip";
 import { requestRow } from "./row-request";
+import { RowAction } from "./task-actions";
 import { TaskList, TaskRow } from "./task-row";
 
 const TODAY = localDate("2026-10-07");
@@ -147,6 +148,31 @@ describe("the estimate chip", () => {
     expect(screen.queryByRole("dialog", { name: "Estimate" })).toBeNull();
     const update = db.execute.mock.calls.find(([sql]) => String(sql).startsWith("update tasks set estimate_min"));
     expect(update?.[1]).toEqual([45, expect.any(String), "t1"]);
+  });
+
+  it("keeps its place clear of the row's actions, which appear over the chips under a mouse", () => {
+    // Today's rows at 1280 px: the zone revealed by the hover covered the chip the pointer was heading for, so a mouse
+    // could never open the presets. From `sm` the chip comes last and is drawn above the zone, and the zone ends with an
+    // invisible copy of it, so the actions stop where the chip begins (jsdom lays nothing out: the rules are what is read).
+    render(<DefaultEstimate.Provider value={45}>{row(task({ estimateMin: 9 * 60 }), { actions: <RowAction label="Tomorrow" onClick={() => {}} /> })}</DefaultEstimate.Provider>);
+    const chip = screen.getByRole("button", { name: "Estimate 9h" });
+    expect(chip.className).toMatch(/(^| )sm:relative( |$)/);
+    expect(chip.className).toMatch(/(^| )sm:z-1( |$)/);
+    // After the long hint, which the zone may cover: its answer, Break it down, is one of the zone's actions.
+    expect(chip.className).toMatch(/(^| )sm:order-last( |$)/);
+    const place = document.querySelector("[data-estimate-place]");
+    expect(place).toHaveAttribute("aria-hidden", "true");
+    expect(place).toHaveClass("invisible");
+    expect(place).toHaveTextContent(/^9h$/);
+    // Last in the zone, after the ⋯: the actions end where the chip begins.
+    const zone = place!.parentElement!;
+    expect(zone).toContainElement(screen.getByRole("button", { name: "More actions" }));
+    expect(zone).toContainElement(screen.getByRole("button", { name: "Tomorrow" }));
+    expect(zone.lastElementChild).toBe(place);
+    // A finished row's estimate is no target: the zone covers its chips as before.
+    cleanup();
+    render(row(task({ estimateMin: 90, state: "done" }), { actions: <RowAction label="Reopen" onClick={() => {}} /> }));
+    expect(document.querySelector("[data-estimate-place]")).toBeNull();
   });
 
   it("E on the selected row opens the same presets (the row answers the request)", async () => {

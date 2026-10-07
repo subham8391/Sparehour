@@ -368,7 +368,16 @@ export function TaskRow({
       )}
       {editable ? (
         // From `sm` the chip opens the presets in place (SCREENS.md §2.4); on a phone the line is no target, the detail and E are.
-        <button ref={estimateRef} type="button" aria-label={guess ?? `Estimate ${estimate}`} title={guess} onClick={(e) => setEstimating(e.currentTarget)} className="hit-touch rounded-sm hover:bg-hover">
+        // The row's action zone appears over the chips under a mouse, so from `sm` the estimate comes last and is drawn
+        // above the zone, which keeps the chip's place clear (`data-estimate-place`): the chip a pointer heads for stays there.
+        <button
+          ref={estimateRef}
+          type="button"
+          aria-label={guess ?? `Estimate ${estimate}`}
+          title={guess}
+          onClick={(e) => setEstimating(e.currentTarget)}
+          className="hit-touch rounded-sm hover:bg-hover sm:relative sm:z-1 sm:order-last"
+        >
           {estimateChip}
         </button>
       ) : (
@@ -540,6 +549,14 @@ export function TaskRow({
                   );
                 }}
               </MenuButton>
+              {editable && (
+                // The estimate's place, kept clear: an invisible copy of the chip ends the zone where the
+                // chip begins (with the zone's own padding, the chip run's 16 px), so the actions sit over the other chips
+                // and the long hint, never over the estimate. Not on touch, where the zone is in the flow beside the chips.
+                <span aria-hidden="true" data-estimate-place className="invisible hidden pr-2 sm:flex touch:sm:hidden">
+                  {estimateChip}
+                </span>
+              )}
             </div>
           )}
         </div>
