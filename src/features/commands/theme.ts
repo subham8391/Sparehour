@@ -3,7 +3,7 @@
 // (globals.css handles all three states). The browser chrome follows through
 // the theme-color meta tags, and a pre-paint script in the root layout stamps
 // the stored choice before the first paint so dark never flashes light.
-import type { Theme } from "./registry";
+import type { Theme } from "./command-runs";
 
 export const THEME_KEY = "sparehour.theme";
 

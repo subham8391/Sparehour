@@ -105,28 +105,8 @@ export function readout(picked: readonly Task[], fitsMin: number, defaultEstimat
   return { fitsMin, pickedMin, count: daytime.length, overMin, line, coach };
 }
 
-export interface EasiestMove {
-  task: Task;
-  /** "No deadline, and tomorrow has 1h 05m spare. Moving it leaves 10 minutes over — close enough to keep." */
-  reason: string;
-  leavesOverMin: number;
-}
-
-/**
- * The largest picked task with no deadline that fits into tomorrow's spare
- * time, with the reason spelled out; null when nothing qualifies.
- */
-export function easiestMove(picked: readonly Task[], overMin: number, tomorrowSpareMin: number | null, defaultEstimateMin: number): EasiestMove | null {
-  if (overMin <= 0 || tomorrowSpareMin === null) return null;
-  const movable = picked
-    .filter((t) => !t.deadline && !t.evening && estimateOf(t, defaultEstimateMin) <= tomorrowSpareMin)
-    .sort((a, b) => estimateOf(b, defaultEstimateMin) - estimateOf(a, defaultEstimateMin));
-  const task = movable[0];
-  if (!task) return null;
-  const leavesOverMin = Math.max(0, overMin - estimateOf(task, defaultEstimateMin));
-  const tail = leavesOverMin === 0 ? "Moving it makes the day fit." : leavesOverMin <= 15 ? `Moving it leaves ${formatMinutes(leavesOverMin)} over — close enough to keep.` : `Moving it leaves ${formatMinutes(leavesOverMin)} over.`;
-  return { task, reason: `No deadline, and tomorrow has ${formatMinutes(tomorrowSpareMin)} spare. ${tail}`, leavesOverMin };
-}
+// The easiest move and the "Planned at" label live apart, so the Today shell carries only them (SYSTEM_DESIGN.md §11.6).
+export { easiestMove, plannedLabel, type EasiestMove } from "./easiest-move";
 
 /**
  * The frame step's one line of prose, in place of stat tiles (brief P5):
@@ -143,10 +123,6 @@ export function frameLine(c: Pick<Capacity, "state" | "windows" | "busy" | "busy
   return `Working ${hours} with ${meetings} and ${plan}. ${tail}`;
 }
 
-/** "Planned at 8:42" for the Today header. */
-export function plannedLabel(time: string): string {
-  return `Planned at ${time}`;
-}
 
 export interface PullIn {
   task: Task;

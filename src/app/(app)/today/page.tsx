@@ -10,24 +10,22 @@ import { formatDay } from "@/core/time/format-day";
 import { sortToday, type TodaySort } from "@/core/today/sort";
 import type { Task } from "@/core/types";
 import { normaliseTimestamp, toTask } from "@/data/mappers";
-import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, OPEN_TASKS_SQL, monthsBack } from "@/data/queries/views";
-import { SettingsRepo, type SettingsPatch } from "@/data/repositories/settings-repo";
+import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, monthsBack } from "@/data/queries/shell";
+import { SettingsRepo, type SettingsPatch } from "@/data/repositories/user-settings-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlocking } from "@/features/blocking/blocking-provider";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { useBlockNudgePending } from "@/features/notifications/block-nudge-store";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useCarryReview } from "@/features/rituals/carry-review-host";
-import { easiestMove, plannedLabel, pullInSuggestions } from "@/features/rituals/morning-plan";
+import { easiestMove, plannedLabel } from "@/features/rituals/easiest-move";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
-import { closedLine } from "@/features/rituals/shutdown";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon, heroState } from "@/features/today/ribbon";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
-import { Timeline } from "@/features/today/timeline";
 import { useHideQuickAddFab } from "@/features/shell/fab-visibility";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { ViewHeader } from "@/features/shell/view-header";
@@ -43,7 +41,7 @@ import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
-import { EYEBROW, SectionAction, SectionLabel } from "@/ui/section-label";
+import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
 import { Loading } from "../loading-view";
 
@@ -57,6 +55,18 @@ const loadTrimToday = () => import("@/features/today/trim-today");
 const TodayMenu = dynamic(loadTodayMenu, { ssr: false });
 const TrimToday = dynamic(loadTrimToday, { ssr: false });
 const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday()]);
+// "Your day" with its timeline (SCREENS.md §2.6): drawn as soon as the day is known, so it is fetched as the page
+// mounts, alongside the local database opening, rather than on idle.
+const loadDayPane = () => import("@/features/today/day-pane");
+const DayPane = dynamic(() => loadDayPane().then((m) => m.DayPane), { ssr: false });
+// The closed day's summary, All done and the empty day (one of them at most, and only on some days), and a long
+// carried pile's folded line and its whole-pile moves.
+const loadDayStates = () => import("@/features/today/day-states");
+const CarriedFolded = dynamic(() => loadDayStates().then((m) => m.CarriedFolded), { ssr: false });
+const CarriedPile = dynamic(() => loadDayStates().then((m) => m.CarriedPile), { ssr: false });
+const ClosedDay = dynamic(() => loadDayStates().then((m) => m.ClosedDay), { ssr: false });
+const AllDone = dynamic(() => loadDayStates().then((m) => m.AllDone), { ssr: false });
+const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: false });
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -67,7 +77,6 @@ function readCarriedOpen(day: string): boolean {
     return false;
   }
 }
-const NOTHING_SQL = `select * from tasks where 0`;
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
 /** The eyebrow's second word: morning until noon, evening from the hour the person set (DESIGN_SYSTEM.md §5). */
@@ -121,6 +130,7 @@ export default function TodayPage() {
   const tomorrow: LocalDate = model.today.add({ days: 1 });
   const db = useLocalDatabase();
   useEffect(() => preloadOnIdle(preloadTodayIslands), []);
+  useEffect(() => void Promise.all([loadDayPane(), loadDayStates()]).catch(() => undefined), []);
   // Convert task → project ("Break it down", the row's menu): the project opens with the cursor in its add row.
   const breakDown = useConvertToProject(model.repo, detail.close);
 
@@ -309,9 +319,6 @@ export default function TodayPage() {
   const allDone = model.ready && bodyState === "all-done";
   const emptyDay = model.ready && bodyState === "empty";
   const [pulling, setPulling] = useState(false);
-  const wantsSuggestions = emptyDay || (allDone && pulling);
-  const { data: openRows } = useQuery<TaskRowType>(wantsSuggestions ? OPEN_TASKS_SQL : NOTHING_SQL);
-  const suggestions = useMemo(() => (wantsSuggestions ? pullInSuggestions((openRows ?? []).map(toTask), model.today) : []), [wantsSuggestions, openRows, model.today]);
   // Over (PRODUCT_SPEC.md §9.4): the ribbon names one move, the largest task with no deadline that fits tomorrow.
   const hero = model.capacity && model.capacity.state !== "no_work_day" ? heroState(model.capacity) : null;
   const overMin = hero?.over ? hero.min : 0;
@@ -366,20 +373,13 @@ export default function TodayPage() {
       <RowAction label="Convert to project" onClick={() => void breakDown(id)} />
     </MenuOnly>
   );
-  const pullIn = (
-    <TaskList>
-      {suggestions.map(({ task: t, source }) => (
-        <TaskRow
-          key={t.id}
-          task={t}
-          today={model.today}
-          onOpen={() => detail.open(t.id)}
-          meta={source !== "deadline" && <span>{source}</span>}
-          actions={<MoveActions onToday={() => void time("reschedule", () => model.repo.reschedule(t.id, model.today))} />}
-        />
-      ))}
-    </TaskList>
-  );
+  // The pull-in suggestions under All done and the empty day: what they offer, and the two things a row does.
+  const pullInProps = {
+    today: model.today,
+    spareMin: model.capacity && model.capacity.state !== "no_work_day" ? model.capacity.spareMin : 0,
+    onOpen: (id: string) => detail.open(id),
+    onToday: (id: string) => void time("reschedule", () => model.repo.reschedule(id, model.today)),
+  };
   const sectionMinutes = (list: Task[]) => formatMinutes(list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0));
   // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
@@ -452,11 +452,7 @@ export default function TodayPage() {
         <ExpiredDigest />
         {blockNudge && <BlockNudge />}
         {closedAt ? (
-          <div className="rounded-xl border border-line bg-surface px-5 py-5">
-            <p className="font-display text-pane font-medium text-ink">That&rsquo;s the day.</p>
-            <p className="mt-1.5 text-body-sm text-ink-2 num">{closedLine(doneToday, defaultEstimate, closedAt, plan?.day_rating ?? null)}</p>
-            {plan?.highlights && <p className="mt-2 text-body text-pretty text-ink-2">Worth it: {plan.highlights}</p>}
-          </div>
+          <ClosedDay done={doneToday} defaultEstimateMin={defaultEstimate} closedAt={closedAt} rating={plan?.day_rating ?? null} highlights={plan?.highlights ?? null} />
         ) : (
           model.capacity && (
             <>
@@ -506,16 +502,7 @@ export default function TodayPage() {
           {model.carried.length > 0 &&
             (carriedFolded ? (
               // More than eight carried: one summary line until it is opened (SCREENS.md §2.3, PRODUCT_SPEC.md §8.2 rule 10).
-              <section className="flex flex-col gap-2">
-                <button type="button" aria-expanded={false} onClick={openCarried} className={cx(EYEBROW, "-mx-2 flex min-h-11 items-center gap-2 rounded-sm px-2 text-left hover:bg-hover sm:min-h-7")}>
-                  Carried over
-                  <span className="font-medium normal-case tracking-normal num">
-                    <b className="font-semibold text-ink-2">{model.carried.length}</b>
-                    <span className="text-ink-3"> — </span>
-                    <span className="text-ink-2 underline decoration-line-strong underline-offset-2">Expand</span>
-                  </span>
-                </button>
-              </section>
+              <CarriedFolded count={model.carried.length} onOpen={openCarried} />
             ) : (
               <section className="flex flex-col gap-2">
                 <SectionLabel
@@ -572,14 +559,10 @@ export default function TodayPage() {
                   ))}
                   {model.carried.length >= 3 && (
                     // The whole pile at once, each one statement and one undo (SCREENS.md §2.3).
-                    <li className="flex flex-wrap items-center gap-x-1 border-t border-line px-2 py-1 print:hidden sm:px-3">
-                      <SectionAction onClick={() => void time("reschedule", () => model.repo.updateMany(carriedIds, { doDate: tomorrow }, "Moved {title} to tomorrow"))} className="mr-0">
-                        Move all to tomorrow
-                      </SectionAction>
-                      <SectionAction onClick={() => void time("someday", () => model.repo.setStateMany(carriedIds, "someday"))} className="mr-0">
-                        All to Someday
-                      </SectionAction>
-                    </li>
+                    <CarriedPile
+                      onTomorrow={() => void time("reschedule", () => model.repo.updateMany(carriedIds, { doDate: tomorrow }, "Moved {title} to tomorrow"))}
+                      onSomeday={() => void time("someday", () => model.repo.setStateMany(carriedIds, "someday"))}
+                    />
                   )}
                 </TaskList>
               </section>
@@ -620,43 +603,9 @@ export default function TodayPage() {
                 />
               ))}
               {model.todayTasks.length === 0 && !emptyDay && !allDone && <li className="px-4 py-3 text-body-lg text-ink-3">Nothing planned yet.</li>}
-              {allDone && (
-                // All done (SCREENS.md §2.7): the facts and the two ways on, no celebration graphic.
-                <li className="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
-                  <p className="font-display text-pane font-medium text-pretty text-ink">
-                    That&rsquo;s everything you planned.
-                    {model.capacity && model.capacity.state !== "no_work_day" && model.capacity.spareMin > 0 && <> {formatMinutes(model.capacity.spareMin)} left.</>}
-                  </p>
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row print:hidden">
-                    <button type="button" aria-expanded={pulling} onClick={() => setPulling((v) => !v)} className={cx(buttonClass({ variant: "secondary" }), "w-full sm:w-auto")}>
-                      Pull something in
-                    </button>
-                    <Link href="/shutdown" className={cx(buttonClass({ variant: "quiet" }), "w-full sm:w-auto")}>
-                      Shutdown ›
-                    </Link>
-                  </div>
-                  {pulling && (suggestions.length > 0 ? pullIn : <p className="text-body-sm text-ink-2">Nothing waiting to pull in.</p>)}
-                </li>
-              )}
-              {emptyDay && (
-                // The returning-user empty day (ONBOARDING.md §4): a planning prompt, not an empty illustration.
-                <li className="flex flex-col items-start gap-4 px-4 py-5 sm:px-5">
-                  <p className="font-display text-pane font-medium text-pretty text-ink">
-                    Nothing planned for today.
-                    {model.capacity && model.capacity.state !== "no_work_day" && model.capacity.spareMin > 0 && <> You have {formatMinutes(model.capacity.spareMin)}.</>}
-                  </p>
-                  <Link href="/plan" className={cx(buttonClass({ variant: "primary" }), "w-full sm:w-auto")}>
-                    Plan my day · 2 min
-                  </Link>
-                  {suggestions.length > 0 && (
-                    <div className="flex w-full flex-col gap-2">
-                      <p className="text-body-sm text-ink-2">or pull something in:</p>
-                      {pullIn}
-                    </div>
-                  )}
-                  <p className="text-body-sm text-ink-3">Or just start typing.</p>
-                </li>
-              )}
+              {/* All done (SCREENS.md §2.7) and the returning person's empty day (ONBOARDING.md §4). */}
+              {allDone && <AllDone {...pullInProps} pulling={pulling} onPull={() => setPulling((v) => !v)} />}
+              {emptyDay && <EmptyDay {...pullInProps} />}
             </TaskList>
           </section>
 
@@ -729,61 +678,48 @@ export default function TodayPage() {
             planning.mode && "max-sm:pb-[min(62dvh,36rem)]",
           )}
         >
-          <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
-            <h2 className="font-display text-pane font-medium text-ink">Your day</h2>
-            <p className="mt-1 mb-4.5 text-body-sm text-ink-3 num">
-              {formatTime(timeFromMinutes(dayStart))} – {formatTime(timeFromMinutes(dayEnd))} · buffer {model.settings?.bufferPct}%
-            </p>
-            {placingTask && (
-              <div role="status" className="mb-3 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-ink px-3 py-1.5 text-body-sm text-ink-inverse sm:min-h-9">
-                <span className="min-w-0 truncate">Tap a time for “{placingTask.title}”</span>
-                <button type="button" onClick={() => setPlacingId(null)} className="flex h-11 shrink-0 items-center rounded-sm px-2 font-medium underline decoration-ink-inverse/50 hover:decoration-ink-inverse sm:h-7">
-                  Cancel
-                </button>
-              </div>
-            )}
-            <Timeline
+          <DayPane
+            start={dayStart}
+            end={dayEnd}
+            bufferPct={model.settings?.bufferPct}
+            placing={placingTask ? { title: placingTask.title, onCancel: () => setPlacingId(null) } : null}
+            hint={model.blocks.length === 0 && !placingTask && !planning.mode}
+            timeline={{
               // While previewing, the gaps are what the proposal leaves; the "done by" marker belongs to the day as it is, so it steps aside.
-              c={drawing ? { ...model.capacity, free: [...drawing.free], projectedFinish: null } : model.capacity}
-              now={now}
-              zone={zone}
-              blocks={drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks}
-              proposed={drawing?.ghosts}
-              meetings={model.meetings}
-              defaultEstimateMin={defaultEstimate}
-              selectedBlockId={selectedBlockId}
-              onSelectBlock={setSelectedBlockId}
-              onDropTask={(taskId, startMin) => {
+              c: drawing ? { ...model.capacity, free: [...drawing.free], projectedFinish: null } : model.capacity,
+              now,
+              zone,
+              blocks: drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks,
+              proposed: drawing?.ghosts,
+              meetings: model.meetings,
+              defaultEstimateMin: defaultEstimate,
+              selectedBlockId,
+              onSelectBlock: setSelectedBlockId,
+              onDropTask: (taskId, startMin) => {
                 const task = findTask(taskId);
                 if (task) void placeTask(task, startMin);
-              }}
-              onMoveBlock={(id, startMin) => {
+              },
+              onMoveBlock: (id, startMin) => {
                 const b = model.blocks.find((x) => x.id === id);
                 if (!b) return;
                 const at = placeAt(startMin, b.end - b.start);
                 void blocks.move(id, atMinute(at.start), atMinute(at.end));
-              }}
-              onResizeBlock={(id, endMin) => {
+              },
+              onResizeBlock: (id, endMin) => {
                 const b = model.blocks.find((x) => x.id === id);
                 if (b && endMin !== b.end) void blocks.move(id, atMinute(b.start), atMinute(endMin));
-              }}
-              onRemoveBlock={removeBlock}
-              onToggleLock={(id, locked) => void blocks.setLocked(id, locked)}
-              onOpenTask={(taskId) => detail.open(taskId)}
-              placing={placingTask ? { title: placingTask.title } : null}
-              onTapSlot={(min) => {
+              },
+              onRemoveBlock: removeBlock,
+              onToggleLock: (id, locked) => void blocks.setLocked(id, locked),
+              onOpenTask: (taskId) => detail.open(taskId),
+              placing: placingTask ? { title: placingTask.title } : null,
+              onTapSlot: (min) => {
                 if (!placingTask) return;
                 void placeTask(placingTask, min);
                 setPlacingId(null);
-              }}
-            />
-            {model.blocks.length === 0 && !placingTask && !planning.mode && (
-              <p className="mt-4 text-body-sm text-pretty text-ink-3">
-                <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B.</span>
-                <span className="sm:hidden">Tap “Block” on a task, then a time here.</span>
-              </p>
-            )}
-          </div>
+              },
+            }}
+          />
         </aside>
       )}
       {trimOpen && (

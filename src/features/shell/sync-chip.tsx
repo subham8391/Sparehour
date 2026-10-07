@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useId, useState } from "react";
 import { Icon, type IconName } from "@/ui/icons";
-import { RAISED } from "@/ui/sheet";
+import { RAISED } from "@/ui/sheet-parts";
 
 export type SyncChipState = "connecting" | "synced" | "syncing" | "offline" | "problem" | "unprotected" | "signed_out";
 

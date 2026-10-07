@@ -35,7 +35,8 @@ import { InlineTitle } from "@/ui/inline-title";
 import { EmptyCard, ListCard } from "@/ui/list-card";
 import { notePreview } from "@/ui/markdown-plain";
 import { NoteField } from "@/ui/note-field";
-import { FieldPopover, MENU_ITEM, MenuButton } from "@/ui/popover";
+import { FieldPopover } from "@/ui/field-popover";
+import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { relativeDay } from "@/ui/relative-day";
 import { EYEBROW } from "@/ui/section-label";
 

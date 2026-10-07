@@ -13,7 +13,7 @@ import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
 import { toTask } from "@/data/mappers";
 import { TASKS_THROUGH_TODAY_SQL } from "@/data/queries/today";
-import { DAY_PLAN_SQL } from "@/data/queries/views";
+import { DAY_PLAN_SQL } from "@/data/queries/shell";
 import { DayPlanRepo } from "@/data/repositories/day-plan-repo";
 import type { TaskRow } from "@/data/schema.client";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";

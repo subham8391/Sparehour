@@ -1,24 +1,15 @@
 // Named SQL for the list views. Each is the simplest true statement of what
 // the view shows; the engines do the thinking on the rows.
-import type { LocalDate } from "@/core/time";
+
+// The few the shells read (the keyboard layer, the morning review, Today, Settings' export) live in shell.ts, so a
+// first download carries only them (SYSTEM_DESIGN.md §11.6).
+export { DAY_PLAN_SQL, DONE_BETWEEN_SQL, LOGBOOK_MONTHS, PLANNED_BETWEEN_SQL, PROJECT_NAME_SQL, TASK_STATE_SQL, dayRangeParams, logbookStream, monthsBack } from "./shell";
 
 /** Untriaged, newest first — the inbox is a queue. */
 export const INBOX_SQL = `select * from tasks where deleted_at is null and state = 'inbox' order by created_at desc, id`;
 
 /** Someday (SCREENS.md §7): every parked task in its list order; the page groups them (auto-filed, by project, loose). */
 export const SOMEDAY_SQL = `select * from tasks where deleted_at is null and state = 'someday' order by sort_key, id`;
-
-/**
- * Open tasks planned inside a day range (the rolling week), as of its first day: a task whose start date
- * has not come by then is hidden (PRODUCT_SPEC.md §7) and waits in "Starting later" (STARTING_LATER_SQL).
- * Two parameters, the range's first and last day; the first is also the day the start dates are read on.
- */
-export const PLANNED_BETWEEN_SQL = `
-  select * from tasks
-  where deleted_at is null and state = 'active'
-    and do_date between ?1 and ?2
-    and (start_date is null or start_date <= ?1)
-  order by do_date, day_sort_key, sort_key, id`;
 
 /** Open tasks with no day yet that have started by `?` (today). */
 export const UNPLANNED_SQL = `
@@ -103,23 +94,8 @@ export const CALENDARS_COUNT_SQL = `select count(*) as n from calendars where de
 /** One task, for the detail panel. */
 export const TASK_SQL = `select * from tasks where id = ? and deleted_at is null`;
 
-/** One task's state, for a command that only applies in one (U un-completes a done task). */
-export const TASK_STATE_SQL = `select state from tasks where id = ? and deleted_at is null`;
-
-/** One project's name, for the quick-add token that files a task into it. */
-export const PROJECT_NAME_SQL = `select name from projects where id = ? and deleted_at is null`;
-
 /** Every open task in the space (inbox and active), for the morning plan's picker. */
 export const OPEN_TASKS_SQL = `select * from tasks where deleted_at is null and state in ('inbox', 'active', 'someday') order by sort_key, id`;
-
-/** The day's plan row (rituals, rating, highlight). */
-export const DAY_PLAN_SQL = `select * from day_plans where deleted_at is null and date = ? limit 1`;
-
-/** Tasks completed between two instants (ISO text bounds, inclusive/exclusive); present locally while the logbook stream is subscribed. */
-export const DONE_BETWEEN_SQL = `
-  select * from tasks
-  where deleted_at is null and state = 'done' and completed_at >= ? and completed_at < ?
-  order by completed_at desc, id`;
 
 /** A series' one-off changes still in force (just this once, skips), for the task detail's repeat line and questions. */
 export const SERIES_EXCEPTIONS_SQL = `select occurrence_date, kind, moved_to from recurrence_exceptions where deleted_at is null and series_id = ? order by occurrence_date`;
@@ -186,27 +162,4 @@ export interface AreaProjectStatsRow {
   open_count: number;
   open_min: number;
   next_deadline: string | null;
-}
-
-/** Inclusive ISO date bounds for `day` and the `days - 1` days after it. */
-export function dayRangeParams(day: LocalDate, days: number): [string, string] {
-  return [day.toString(), day.add({ days: Math.max(0, days - 1) }).toString()];
-}
-
-/** The calendar months covering `day` and the `n - 1` months before it — the logbook's stream keys. */
-export function monthsBack(day: LocalDate, n: number): string[] {
-  const month = day.toPlainYearMonth();
-  return Array.from({ length: Math.max(1, n) }, (_, i) => month.subtract({ months: i }).toString());
-}
-
-/**
- * How many months of the logbook stream hold every finished task there is: the server removes a done task a
- * week after it was completed (DECISIONS.md 2026-09-28), so this month and the last cover all of them. The
- * Logbook, search and the export ask for the same months, so they share one subscription.
- */
-export const LOGBOOK_MONTHS = 2;
-
-/** The logbook stream's subscription for "every finished task", as of `today`. */
-export function logbookStream(today: LocalDate): { name: "logbook"; parameters: { months: string[] } } {
-  return { name: "logbook", parameters: { months: monthsBack(today, LOGBOOK_MONTHS) } };
 }

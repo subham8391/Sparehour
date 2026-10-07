@@ -1,9 +1,9 @@
 "use client";
 // The palette wired to the app: projects, areas and a task search from the
-// local database, recents from this browser, and the keyboard layer's
-// commands. An island with the palette itself (palette-provider.tsx mounts
-// it in idle time, or at the first ⌘K), so none of it rides in the shell's
-// first download.
+// local database, recents from this browser, and the commands with the
+// registry's words, run through the keyboard layer. An island with the
+// palette itself (palette-provider.tsx mounts it in idle time, or at the
+// first ⌘K), so none of it rides in the shell's first download.
 import { useRouter } from "next/navigation";
 import { useCallback, useContext, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
@@ -18,7 +18,7 @@ import { useCommands } from "./keyboard-provider";
 import { Palette } from "./palette";
 import { PaletteStateContext, usePalette } from "./palette-provider";
 import { pushRecent } from "./palette-rank";
-import { availability, type Command } from "./registry";
+import { COMMANDS, availability, type Command } from "./registry";
 
 const RECENTS_KEY = "sparehour.recent-commands";
 
@@ -37,7 +37,7 @@ const NONE_SQL = `select * from tasks where 0`;
 export function PaletteHost() {
   const state = useContext(PaletteStateContext);
   const { close } = usePalette();
-  const { commands, run, context, isMac } = useCommands();
+  const { run, context, isMac } = useCommands();
   const router = useRouter();
   const quickAdd = useQuickAdd();
   const detail = useTaskDetail();
@@ -80,7 +80,7 @@ export function PaletteHost() {
       key={state.key}
       open={state.open}
       initialQuery={state.initialQuery}
-      commands={commands}
+      commands={COMMANDS}
       availability={avail}
       recents={recents}
       projects={projects}
