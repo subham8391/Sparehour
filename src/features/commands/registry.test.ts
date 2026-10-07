@@ -228,6 +228,23 @@ describe("command registry", () => {
     expect(ctx.openShortcuts).toHaveBeenCalled();
   });
 
+  it("Redo is ⇧⌘Z and ⌘Y, listed once in the palette's App group, off with the reason until something is undone", () => {
+    const bindings = keyBindings();
+    const chord = (key: string, shift = false) => ({ key, shift, mod: true, alt: false });
+    expect(resolveKey(chord("z"), null, bindings).match?.id).toBe("app.undo");
+    expect(resolveKey(chord("z", true), null, bindings).match?.id).toBe("app.redo");
+    expect(resolveKey(chord("y"), null, bindings).match?.id).toBe("app.redo-y");
+    const redo = byId("app.redo");
+    expect(redo).toMatchObject({ title: "Redo", group: "App" });
+    expect(COMMANDS.filter((c) => c.title === "Redo" && !c.hidden)).toHaveLength(1);
+    expect(availability(redo, { selectedTaskId: null, checkedTaskIds: [], canRedo: false })).toEqual({ enabled: false, reason: "after an undo" });
+    expect(availability(redo, { selectedTaskId: null, checkedTaskIds: [], canRedo: true })).toEqual({ enabled: true });
+    const ctx = ctxWith({ canRedo: true });
+    redo.run(ctx);
+    byId("app.redo-y").run(ctx);
+    expect(ctx.redo).toHaveBeenCalledTimes(2);
+  });
+
   it("U un-completes the selected task when it is done, and leaves anything else alone", async () => {
     expect(resolveKey({ key: "u", shift: false, mod: false, alt: false }, null, keyBindings()).match?.id).toBe("task.uncomplete");
     expect(byId("task.uncomplete")).toMatchObject({ title: "Un-complete", shortcut: "u", requiresSelection: true });

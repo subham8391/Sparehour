@@ -47,4 +47,25 @@ describe("the repositories a screen builds", () => {
     await user.click(screen.getByRole("button", { name: "Undo" }));
     expect(s.row("headings", "h1")?.deleted_at).toBeNull();
   });
+
+  it("an undone write is offered for redo in the toast, and Redo makes it again on the device", async () => {
+    const s = localSqlite();
+    s.insert("projects", { id: "p1", space_id: "s1", name: "Q4 launch", state: "active" });
+    s.insert("headings", { id: "h1", space_id: "s1", project_id: "p1", title: "Budget", sort_key: "a0" });
+    local.db = s.db;
+    const user = userEvent.setup();
+    render(
+      <UndoProvider>
+        <ProjectMenu />
+      </UndoProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Mark complete" }));
+    const completedAt = s.row("projects", "p1")?.completed_at;
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Undone: Completed project “Q4 launch”");
+    expect(s.row("projects", "p1")).toMatchObject({ state: "active", completed_at: null });
+    await user.click(screen.getByRole("button", { name: "Redo" }));
+    expect(await screen.findByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(s.row("projects", "p1")).toMatchObject({ state: "done", completed_at: completedAt });
+  });
 });
