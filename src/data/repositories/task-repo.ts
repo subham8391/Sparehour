@@ -535,6 +535,11 @@ function buildSets(patch: TaskPatch): { sets: string[]; args: (string | number |
   } else if ("projectId" in patch) {
     set("project_id", patch.projectId ?? null);
     set("area_id", null);
+    // A heading belongs to its project: a task moved to another project (a sidebar drop, the picker, the bulk
+    // bar) leaves its old heading behind, and one re-filed in the same project keeps it. SQLite reads the old
+    // project_id on the right-hand side.
+    sets.push(`heading_id = case when project_id is ? then heading_id else null end`);
+    args.push(patch.projectId ?? null);
   } else if ("areaId" in patch) {
     set("area_id", null);
   }
@@ -566,7 +571,7 @@ const PATCH_COLUMNS: Record<keyof TaskPatch, readonly string[]> = {
   estimateMin: ["estimate_min"],
   priority: ["priority"],
   missPolicy: ["miss_policy"],
-  projectId: ["project_id", "area_id"],
+  projectId: ["project_id", "area_id", "heading_id"],
   areaId: ["area_id", "project_id", "heading_id"],
   recurrenceRule: ["recurrence_rule", "recurrence_mode", "recurrence_series_id"],
   recurrenceMode: ["recurrence_mode"],

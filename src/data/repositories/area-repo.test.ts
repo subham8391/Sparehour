@@ -99,6 +99,16 @@ describe("tasks filed in an area (a project or an area, never both)", () => {
     expect(s.row("tasks", "t1")).toMatchObject({ area_id: null, project_id: null });
   });
 
+  it("moving a task to another project leaves its old heading behind; the same project keeps it; ⌘Z puts it back", async () => {
+    const { s, tasks, history } = setup();
+    await tasks.update("t2", { projectId: "p1" });
+    expect(s.row("tasks", "t2")).toMatchObject({ project_id: "p1", heading_id: "h1" });
+    await tasks.update("t2", { projectId: "p3" }, "Moved {title} to Kitchen");
+    expect(s.row("tasks", "t2")).toMatchObject({ project_id: "p3", heading_id: null, area_id: null });
+    await history.record.mock.calls[1][0].undo();
+    expect(s.row("tasks", "t2")).toMatchObject({ project_id: "p1", heading_id: "h1" });
+  });
+
   it("an area takes an inbox task out of the Inbox, like a project", async () => {
     const { s, tasks } = setup();
     s.insert("tasks", { id: "t3", space_id: "s1", title: "Call the plumber", state: "inbox", sort_key: "a1", carry_count: 0 });
