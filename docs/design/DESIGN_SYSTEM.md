@@ -185,6 +185,8 @@ Per-screen adaptation on the phone:
 
 Touch rules: every target ≥ 44 × 44 px; every hover-only action has a tap or long-press equivalent; every drag has a tap path; horizontal scrolling only inside containers that show a scroll affordance (the day strip, the 3-day week); text never depends on hover to be readable. Safe areas: `env(safe-area-inset-*)` on the tab bar and sheets; 54 px reserved at the top for the system status bar, which is never drawn.
 
+**As built (2026-10-07).** Today below 1180 px is one pane with the List · Day control (DECISIONS.md "Medium and narrow Today"): the narrow right-side sheet and the medium two panes above are superseded. The medium band's sidebar folds to the rail with `Cmd+\` or its button, remembered per device; the context pane's width is a separator on its left edge, 320–560 px, kept per view (SCREENS.md §1 as built). In landscape the side insets go on the app frame (so the rail and the view clear the notch) and on the narrow band's task sheet; centred dialogs stay far enough in at every landscape phone width that they need none.
+
 ## 5. Components
 
 ### Spare-time ribbon (the hero)

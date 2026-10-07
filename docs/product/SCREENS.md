@@ -81,6 +81,8 @@ Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action
 
 **Responsive.** Phone: no sidebar — the bottom tab bar (Today · Inbox · Week · **Browse**) replaces it and the FAB replaces the quick-add bar. **Browse** is the sidebar's phone form: a search field, then a Routines row (M2), Areas and projects, Someday, Logbook, Carried over, Settings. Calendar's day mode is Today's Day view and its week mode is the Week tab; the full Calendar view is reachable from the ⌘K sheet. The context pane becomes a sheet. Narrow: a 56 px icon rail (labels on long-press), single pane, context pane as a right-side sheet. Medium: full collapsible sidebar, two panes, timeline toggled from the header. Wide: as drawn. The focus model is unchanged; on touch, focus rings appear only after a hardware-keyboard keypress.
 
+**As built (2026-10-07), panes.** From 900 px `Cmd+\` (Ctrl+\), the full sidebar's **Collapse sidebar** button and the palette's Toggle sidebar fold it to the 56 px rail, whose **Expand sidebar** sits above Settings; the choice is this device's (`data-sidebar` on `<html>`, stamped before the first paint, so it never flashes) and focus moves to the other toggle. The rail names every view by tooltip and accessible name with Today's and the Inbox's counts ("Inbox, 3"); on touch a finger held half a second on a rail icon (Settings included) shows that name beside the rail, and letting go does not navigate. `Cmd+.` (the palette's Toggle timeline, from 640 px): on Today below 1180 px it switches List | Day in place (DECISIONS.md "Medium and narrow Today"), from 1180 px it puts the day pane away and back, closing an open task first, remembered on the device (also ⋯ › Show timeline there; Plan my day, Block… and a meeting on the ribbon bring it back); elsewhere it closes the open task and reopens the last one (else the selected row). Below their bands both commands are listed off "on a wider screen". The context pane's left edge is a separator — the task pane's from 900 px, Today's day pane's from 1180 px: a mouse drags it (a double-click restores the default), `←` / `→` step 16 px (64 with Shift), Home / End jump to 320 / 560 px, Enter restores, and on touch it is a 44 px grip a tap steps through 320 · 400 · 480 · 560; each view keeps its own width (`[data-view]` rules written before the first paint). In landscape the frame, the rail and the narrow band's task sheet keep clear of the notch and corners (`env(safe-area-inset-left/right)`); centred dialogs never reach them.
+
 ---
 
 ## 2. Today — the dashboard — M1
@@ -285,6 +287,8 @@ PRODUCT_SPEC.md §11; the engine is SYSTEM_DESIGN.md §5.5. Opened from the head
 | **Narrow** | Single pane; the timeline opens as a right-side sheet from the Day button or `Cmd+.` |
 | **Medium** | Two panes; the timeline is toggled from the header |
 | **Wide** | Three panes, as drawn |
+
+**As built (2026-10-07; DECISIONS.md "Medium and narrow Today").** The narrow sheet and the medium two panes are superseded: below 1180 px Today is one pane with the List · Day control, and `Cmd+.` switches it; three panes only from 1180 px, where `Cmd+.` puts the day pane away. On the phone the ribbon card and the ritual row (List · Day) stick under the top edge while the lists pass beneath them on paper; Plan my day and Review carried, on the line under it, scroll with the lists, and while Plan my day's preview is open nothing sticks, since its sheet needs the room.
 
 ---
 
