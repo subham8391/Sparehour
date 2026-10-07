@@ -7,11 +7,14 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { useQuery } from "@/data/powersync";
 import { blockLength, chooseSlot, coveredMinutes, placeAt, snapTo } from "@/core/blocking";
 import type { Interval } from "@/core/capacity";
-import { timeFromMinutes, toInstant, type LocalDate } from "@/core/time";
+import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TimelineBlock } from "@/features/today/hooks/use-today";
 import { useBlocking } from "./blocking-provider";
+import { instantAt } from "./minutes";
 import { useBlockRepo } from "./use-block-repo";
+
+export { instantAt } from "./minutes";
 
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
@@ -52,11 +55,6 @@ export function nextBlockLength(task: Pick<Task, "estimateMin">, existing: reado
   const whole = blockLength(task.estimateMin, defaultEstimateMin);
   const left = snapTo(whole - coveredMinutes(existing));
   return left >= 15 ? left : whole;
-}
-
-/** The ISO instant of a minute of `day` in `zone`; 24:00 is the next midnight. */
-export function instantAt(day: LocalDate, zone: string, minute: number): string {
-  return (minute >= 24 * 60 ? toInstant(day.add({ days: 1 }), timeFromMinutes(0), zone) : toInstant(day, timeFromMinutes(minute), zone)).toString();
 }
 
 export function usePlacing(d: PlacingDay) {

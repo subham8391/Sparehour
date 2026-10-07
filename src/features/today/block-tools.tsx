@@ -8,6 +8,7 @@ import { draggable } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-ada
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import type { BlockDragData } from "@/features/blocking/drag";
+import { minutesOfField } from "@/features/blocking/minutes";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
@@ -23,15 +24,6 @@ const TOOLBAR_ACTION = "flex h-11 shrink-0 items-center rounded-sm px-2 text-bod
 export const hhmm = (m: number) => formatTime(timeFromMinutes(m));
 /** "10:00–11:30 · 1h 30m" */
 export const rangeLine = (start: number, end: number) => `${hhmm(start)}–${hhmm(end)} · ${formatMinutes(end - start)}`;
-
-/** "09:30" → 570; null for anything else. */
-export function minutesOfField(value: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})/.exec(value);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  return h < 24 && min < 60 ? h * 60 + min : null;
-}
 
 /** A block's horizontal slot: the full row, or its share of a cluster of overlapping blocks. */
 export function laneStyle(lane: Lane | undefined): { left?: string; width?: string } {
