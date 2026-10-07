@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 // The context pane's edge (SCREENS.md §1 "width is draggable and remembered per view"): keyboard, drag and tap
 // paths, the range, and the widths kept per view as one <style> that the theme bootstrap also writes before paint.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { PANES_KEY, PANE_MAX, PANE_MIN } from "./panes";
-import { PaneResizer, paneCss, readPaneWidths, setPaneWidth } from "./pane-resizer";
+import { PANES_KEY, PANE_MAX, PANE_MIN, PaneResizer, paneCss, readPaneWidths, setPaneWidth } from "./pane-resizer";
 
 const rules = () => document.getElementById("pane-w")?.textContent ?? "";
+
+/** A pointer event as a browser sends it (jsdom has no PointerEvent with coordinates). */
+function pointer(el: Element, type: string, clientX = 600, pointerType = "mouse") {
+  const e = new MouseEvent(type, { bubbles: true, cancelable: true, clientX, button: 0 });
+  Object.defineProperty(e, "pointerType", { value: pointerType });
+  act(() => void el.dispatchEvent(e));
+}
 
 afterEach(() => {
   localStorage.clear();
@@ -67,22 +73,26 @@ describe("<PaneResizer>", () => {
   it("follows a mouse drag and saves where it lets go; a tap on a touch screen steps to the next width", () => {
     const edge = setup("project");
     edge.setPointerCapture = () => {};
-    fireEvent.pointerDown(edge, { button: 0, clientX: 600, pointerType: "mouse" });
-    fireEvent.pointerMove(edge, { clientX: 560 });
+    pointer(edge, "pointerdown");
+    pointer(edge, "pointermove", 560);
     expect(edge).toHaveAttribute("aria-valuenow", "424");
     // Live while dragging, saved only on letting go.
     expect(rules()).toBe('[data-view="project"]{--pane-w:424px}');
     expect(localStorage.getItem(PANES_KEY)).toBeNull();
-    fireEvent.pointerUp(edge);
+    pointer(edge, "pointerup");
+    expect(readPaneWidths()).toEqual({ project: 424 });
+    // A click with a mouse that does not move changes nothing.
+    pointer(edge, "pointerdown");
+    pointer(edge, "pointerup");
     expect(readPaneWidths()).toEqual({ project: 424 });
 
-    fireEvent.pointerDown(edge, { button: 0, clientX: 600, pointerType: "touch" });
-    fireEvent.pointerUp(edge);
+    pointer(edge, "pointerdown", 600, "touch");
+    pointer(edge, "pointerup", 600, "touch");
     expect(readPaneWidths()).toEqual({ project: 480 });
-    fireEvent.pointerDown(edge, { button: 0, clientX: 600, pointerType: "touch" });
-    fireEvent.pointerUp(edge);
-    fireEvent.pointerDown(edge, { button: 0, clientX: 600, pointerType: "touch" });
-    fireEvent.pointerUp(edge);
+    pointer(edge, "pointerdown", 600, "touch");
+    pointer(edge, "pointerup", 600, "touch");
+    pointer(edge, "pointerdown", 600, "touch");
+    pointer(edge, "pointerup", 600, "touch");
     // Past the widest it comes round to the narrowest.
     expect(readPaneWidths()).toEqual({ project: PANE_MIN });
   });

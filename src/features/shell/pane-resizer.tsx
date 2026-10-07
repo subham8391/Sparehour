@@ -9,7 +9,11 @@
 // this island rewrites it on every change, so a pane never opens at the wrong width.
 import { useState, type HTMLAttributes, type KeyboardEvent, type PointerEvent } from "react";
 import { cx } from "@/ui/cx";
-import { PANES_KEY, PANE_MAX, PANE_MIN } from "./panes";
+
+/** The widths per view, and their range; the head script (commands/theme-bootstrap.ts) repeats these three. */
+export const PANES_KEY = "sparehour.panes";
+export const PANE_MIN = 320;
+export const PANE_MAX = 560;
 const TAPS = [PANE_MIN, 400, 480, PANE_MAX];
 
 // The edge's look rides with the island rather than in every shell's stylesheet: a 12 px strip over the pane's

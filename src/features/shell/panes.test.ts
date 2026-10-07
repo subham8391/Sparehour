@@ -3,7 +3,8 @@
 // device, stamped again by the head script before the first paint so a folded sidebar never flashes open.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { THEME_BOOTSTRAP } from "@/features/commands/theme-bootstrap";
-import { PANES_KEY, atLeast, needsWidth, prefOn, setPref, toggleSidebar } from "./panes";
+import { PANES_KEY, PANE_MAX, PANE_MIN, paneCss } from "./pane-resizer";
+import { atLeast, needsWidth, prefOn, setPref, toggleSidebar } from "./panes";
 
 const root = document.documentElement;
 
@@ -69,6 +70,13 @@ describe("layout choices", () => {
     expect(root.dataset.sidebar).toBe("rail");
     expect(root.dataset.dayPane).toBe("hidden");
     expect(document.getElementById("pane-w")?.textContent).toBe('[data-view="today"]{--pane-w:400px}[data-view="inbox"]{--pane-w:560px}');
+    // The island draws the same rules from the same widths, inside the same range.
+    expect(paneCss({ today: 400, inbox: 9000, "bad]": 400 })).toBe(document.getElementById("pane-w")?.textContent);
+    localStorage.setItem(PANES_KEY, JSON.stringify({ today: 1 }));
+    document.getElementById("pane-w")?.remove();
+    new Function(THEME_BOOTSTRAP)();
+    expect(document.getElementById("pane-w")?.textContent).toContain(`--pane-w:${PANE_MIN}px`);
+    expect(PANE_MAX).toBe(560);
   });
 
   it("a broken widths entry leaves the rest of the head script working", () => {

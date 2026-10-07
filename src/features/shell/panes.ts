@@ -6,10 +6,6 @@
 
 /** Each choice and the value it stamps; stored as `sparehour.<name>`. */
 export const PREFS = { sidebar: "rail", dayPane: "hidden" } as const;
-/** The context pane's widths per view, and their range (pane-resizer.tsx; the theme bootstrap draws them first). */
-export const PANES_KEY = "sparehour.panes";
-export const PANE_MIN = 320;
-export const PANE_MAX = 560;
 
 /** Whether the viewport is at least `px` wide: false where it cannot be measured (tests, the server). */
 export const atLeast = (px: number): boolean => typeof matchMedia === "function" && matchMedia(`(min-width: ${px}px)`).matches;

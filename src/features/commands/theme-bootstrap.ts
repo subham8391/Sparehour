@@ -1,7 +1,13 @@
 // The pre-paint script (THEME_BOOTSTRAP), apart from theme.ts: only the root layout, a server component, imports it,
 // so neither the script nor the expressions that build it ride in a client bundle (theme.ts is in every shell).
-import { PANES_KEY, PANE_MAX, PANE_MIN, PREFS } from "@/features/shell/panes";
+import { PREFS } from "@/features/shell/panes";
 import { MOTION_KEY, PAPER, THEME_KEY } from "./theme";
+
+// The context pane's widths (features/shell/pane-resizer.tsx, a client island the server cannot read values from):
+// its storage key and range, kept equal by panes.test.ts.
+const PANES_KEY = "sparehour.panes";
+const PANE_MIN = 320;
+const PANE_MAX = 560;
 
 /**
  * Inline in `<head>`, before any paint: stamps `data-motion="reduce"` when this
