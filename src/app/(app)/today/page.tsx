@@ -43,6 +43,7 @@ import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
+import { ListLine } from "@/ui/list-card";
 import { scrollMotion } from "@/ui/reduced-motion";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
@@ -668,7 +669,7 @@ export default function TodayPage() {
                   }
                 />
               ))}
-              {model.todayTasks.length === 0 && !emptyDay && !allDone && <li className="px-4 py-3 text-body-lg text-ink-3">Nothing planned yet.</li>}
+              {model.todayTasks.length === 0 && !emptyDay && !allDone && <ListLine cellClassName="px-4 py-3 text-body-lg text-ink-3">Nothing planned yet.</ListLine>}
               {/* All done (SCREENS.md §2.7) and the returning person's empty day (ONBOARDING.md §4). */}
               {allDone && <AllDone {...pullInProps} pulling={pulling} onPull={() => setPulling((v) => !v)} />}
               {emptyDay && <EmptyDay {...pullInProps} />}

@@ -1,8 +1,9 @@
 // The keyboard's way into a row (SCREENS.md §24): `.` opens the selected
-// row's ⋯ menu and the palette's "Move to…" opens its day picker. The row the
+// row's ⋯ menu, Enter edits its title in place and the palette's "Move to…"
+// opens its day picker. The row the
 // J/K selection is on listens while it is selected; the command asks, and
 // learns whether a row answered, so it can fall back to the task's detail.
-export type RowRequest = "menu" | "move";
+export type RowRequest = "menu" | "move" | "rename";
 
 type Listener = (id: string, request: RowRequest) => boolean;
 

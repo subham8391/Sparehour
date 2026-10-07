@@ -146,16 +146,40 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
     else command.unselected?.(ctx);
   }, []);
 
+  // Esc unwinds one layer per press (SCREENS.md §1 rule 3): a popover and a dialog take it first (they stop it), an
+  // open panel closes itself (task-detail.tsx), a view's filter claims it with preventDefault (the Logbook); what is
+  // left is the ticked rows, then the selection, then focus. Decided once every other listener has had the key.
+  const unwindRef = useRef({ detailOpen: false, selection });
+  useEffect(() => {
+    unwindRef.current = { detailOpen: detail.selectedId !== null, selection };
+  });
+  const unwind = useCallback((e: KeyboardEvent) => {
+    const { detailOpen, selection: s } = unwindRef.current;
+    if (detailOpen) return;
+    setTimeout(() => {
+      if (e.defaultPrevented) return;
+      if (s.checkedIds.length > 0) s.clearChecks();
+      else if (s.selectedId) s.select(null);
+      else if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
+    }, 0);
+  }, []);
+
   const pendingRef = useRef<SequenceState>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.defaultPrevented) return;
+      if (e.key === "Escape") {
+        pendingRef.current = null;
+        if (!isTypingTarget(e.target) && !modalOpen()) unwind(e);
+        return;
+      }
       if (isTypingTarget(e.target) || modalOpen()) {
         pendingRef.current = null;
         return;
       }
       // A focused control keeps its own keys: Enter and Space press the button or follow the link
-      // (SCREENS.md §1 focus model). Only with nothing pressable focused do they open the selected task.
+      // (SCREENS.md §1 focus model). Only with nothing pressable focused (a row itself) do they reach the selected
+      // task: Space opens it, Enter edits its title in place.
       if ((e.key === "Enter" || e.key === " ") && isActivatable(e.target)) {
         pendingRef.current = null;
         return;
@@ -183,7 +207,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isMac, run]);
+  }, [isMac, run, unwind]);
 
   const api = useMemo<CommandsApi>(() => ({ commands: RUNS, run, context: () => contextRef.current(), isMac, openShortcuts: () => setShortcutsOpen(true) }), [run, isMac]);
 

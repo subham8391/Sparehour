@@ -234,6 +234,48 @@ describe("<KeyboardProvider>", () => {
     expect(screen.getByText("selected: none")).toBeInTheDocument();
   });
 
+  it("Esc unwinds one layer per press: the open task first, then the ticks, then the selection, then focus", async () => {
+    const { user } = setup();
+    await user.keyboard("jx");
+    await user.keyboard("j");
+    await user.keyboard("{Enter}"); // no row on screen to rename it: the task opens
+    expect(screen.getByText("open: t2")).toBeInTheDocument();
+    // The panel closes itself (task-detail.tsx); nothing else goes with it in the same press.
+    await user.keyboard("{Escape}");
+    await new Promise((r) => setTimeout(r, 5));
+    expect(screen.getByText("checked: t1")).toBeInTheDocument();
+    expect(screen.getByText("selected: t2")).toBeInTheDocument();
+    screen.getByText("open: t2"); // still open here: no pane is mounted in this harness to close it
+  });
+
+  it("with nothing open, Esc clears the ticks, then the selection, then blurs", async () => {
+    const { user } = setup();
+    await user.keyboard("jxj");
+    const plan = screen.getByRole("button", { name: "Plan my day" });
+    await user.keyboard("{Escape}");
+    expect(await screen.findByText("checked: none")).toBeInTheDocument();
+    expect(screen.getByText("selected: t2")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(await screen.findByText("selected: none")).toBeInTheDocument();
+    plan.focus();
+    await user.keyboard("{Escape}");
+    await new Promise((r) => setTimeout(r, 5));
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("Space opens the selected task; Enter asks its row to edit the title in place", async () => {
+    const { user } = setup();
+    await user.keyboard("j");
+    const asked = vi.fn((id: string, request: string) => id === "t1" && request === "rename");
+    const stop = listenForRowRequests(asked);
+    await user.keyboard("{Enter}");
+    expect(asked).toHaveBeenCalledWith("t1", "rename");
+    expect(screen.getByText("open: none")).toBeInTheDocument();
+    stop();
+    await user.keyboard(" ");
+    expect(screen.getByText("open: t1")).toBeInTheDocument();
+  });
+
   it("`.` opens the selected row's menu; with no row to answer it opens the task, and with nothing selected it types into quick add", async () => {
     const { user } = setup();
     await user.keyboard(".");

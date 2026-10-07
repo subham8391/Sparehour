@@ -249,6 +249,29 @@ describe("command registry", () => {
     expect(ctx.tasks.reopen.mock.calls.map((c) => c[0])).toEqual(["t2", "t4"]);
   });
 
+  it("Space opens the task and Enter edits its title in place, opening it only where no row can", async () => {
+    const bindings = keyBindings();
+    const chord = (key: string) => ({ key, shift: false, mod: false, alt: false });
+    expect(resolveKey(chord("space"), null, bindings).match?.id).toBe("task.open");
+    expect(resolveKey(chord("enter"), null, bindings).match?.id).toBe("task.rename");
+    expect(byId("task.open")).toMatchObject({ title: "Open", shortcut: "space" });
+    const ctx = ctxWith();
+    // No row on screen takes it (a week column's compact row): the detail opens instead.
+    await byId("task.rename").run(ctx);
+    expect(ctx.openTask).toHaveBeenCalledWith("t1");
+    const { listenForRowRequests } = await import("@/features/tasks/row-request");
+    const asked: string[] = [];
+    const stop = listenForRowRequests((id, request) => {
+      asked.push(`${id}:${request}`);
+      return true;
+    });
+    const taken = ctxWith();
+    await byId("task.rename").run(taken);
+    stop();
+    expect(asked).toEqual(["t1:rename"]);
+    expect(taken.openTask).not.toHaveBeenCalled();
+  });
+
   it("⌘Enter toggles: a done task reopens, an open one completes", async () => {
     const done = ctxWith({ taskState: vi.fn(async () => "done") });
     await byId("task.complete").run(done);

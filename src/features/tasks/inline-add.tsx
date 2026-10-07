@@ -1,12 +1,13 @@
 "use client";
 // The "+ add" row at the end of a list (SCREENS.md §9): one line, parsed
-// like quick-add, saved on Enter, ready for the next.
+// like quick-add, saved on Enter, ready for the next. A line of the list's grid.
 import { useState, type KeyboardEvent } from "react";
 // Straight from `parse`, never the package index, so the routes that carry an add row
 // do not also carry `format` and the rest of the index (CLAUDE.md, size).
 import { parse } from "@/core/quickadd/parse";
 import type { ParseContext, TaskDraft } from "@/core/quickadd/types";
 import { Icon } from "@/ui/icons";
+import { ListLine } from "@/ui/list-card";
 
 export function InlineAdd({
   ctx,
@@ -36,7 +37,7 @@ export function InlineAdd({
     }
   };
   return (
-    <li className="flex min-h-14 items-center border-t border-line first:border-t-0 sm:min-h-11">
+    <ListLine className="border-t border-line first:border-t-0" cellClassName="flex min-h-14 items-center sm:min-h-11">
       <span className="flex size-11 shrink-0 items-center justify-center text-ink-2" aria-hidden="true">
         <Icon name="plus" size={16} />
       </span>
@@ -51,6 +52,6 @@ export function InlineAdd({
         autoComplete="off"
         className="-ml-2 mr-4 h-11 min-w-0 flex-1 rounded-sm bg-transparent px-2 text-base text-ink placeholder:text-ink-4 focus-visible:-outline-offset-2 sm:text-body-lg"
       />
-    </li>
+    </ListLine>
   );
 }

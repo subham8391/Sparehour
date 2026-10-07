@@ -25,7 +25,7 @@ export type Command = CommandRun & Words;
 
 const WORDS: Record<string, Words> = {
   "task.open": { title: "Open", group: "Selected task" },
-  "task.peek": { title: "Peek", group: "Selected task", hidden: true },
+  "task.rename": { title: "Rename", group: "Selected task", keywords: "edit title inline" },
   "task.complete": { title: "Complete", group: "Selected task" },
   "task.uncomplete": { title: "Un-complete", group: "Selected task", keywords: "reopen restore done logbook" },
   "task.today": { title: "Move to Today", group: "Selected task" },

@@ -182,8 +182,9 @@ const pick = (kind: "move" | "tag", areas = false) => onTargets((_, ids) => requ
 /** In the registry's order: the palette lists its words over these, by id. */
 export const RUNS: readonly CommandRun[] = [
   // ---- selected task (or every ticked row)
-  { id: "task.open", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.peek", shortcut: "space", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
+  // Space peeks (opens the detail); Enter edits the title in place, or opens the task where no row can (SCREENS.md §24).
+  { id: "task.open", shortcut: "space", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
+  { id: "task.rename", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => void (requestRow(id, "rename") || ctx.openTask(id))) },
   { id: "task.complete", shortcut: "mod+enter", requiresSelection: true, run: toggleComplete },
   { id: "task.uncomplete", shortcut: "u", requiresSelection: true, run: uncomplete },
   {

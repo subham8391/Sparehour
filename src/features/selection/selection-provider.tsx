@@ -35,6 +35,8 @@ function reducer(state: SelectionState, action: Action): SelectionState {
 
 interface SelectionApi {
   selectedId: string | null;
+  /** The view's first row: the list's one Tab stop while nothing is selected (roving tabindex, SCREENS.md §1 rule 1). */
+  firstId: string | null;
   /** Rows ticked for a bulk edit, in display order; empty means single-row mode. */
   checkedIds: readonly string[];
   select: (id: string | null) => void;
@@ -60,8 +62,8 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => dispatch({ type: "clear" }), []);
   const register = useCallback((ids: readonly string[], groups?: readonly (readonly string[])[]) => dispatch({ type: "register", ids, groups }), []);
   const api = useMemo<SelectionApi>(
-    () => ({ selectedId: state.selectedId, checkedIds: state.checked, select, moveSelection, toggleCheck: toggle, checkRange: range, checkAll: all, clearChecks: clear, register }),
-    [state.selectedId, state.checked, select, moveSelection, toggle, range, all, clear, register],
+    () => ({ selectedId: state.selectedId, firstId: state.ids[0] ?? null, checkedIds: state.checked, select, moveSelection, toggleCheck: toggle, checkRange: range, checkAll: all, clearChecks: clear, register }),
+    [state.selectedId, state.ids, state.checked, select, moveSelection, toggle, range, all, clear, register],
   );
   return <SelectionContext.Provider value={api}>{children}</SelectionContext.Provider>;
 }
