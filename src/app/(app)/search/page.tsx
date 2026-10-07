@@ -79,10 +79,10 @@ function SearchScreen() {
     for (const r of itemRows ?? []) steps.set(r.task_id, [...(steps.get(r.task_id) ?? []), r.title]);
     const names = new Map(allProjects.map((p) => [p.id, p.name]));
     const tasks = (taskRows ?? []).map(toTask);
-    const split = splitResults(tasks, today);
+    const split = splitResults(tasks, today, filters.state);
     const hit = (t: (typeof tasks)[number]): SearchHit => ({ task: t, projectName: t.projectId ? (names.get(t.projectId) ?? null) : null, context: contextFor(t, steps.get(t.id) ?? [], query) });
     return { hits: split.found.map(hit), alsoFound: split.alsoFound.map(hit) };
-  }, [taskRows, itemRows, allProjects, today, query]);
+  }, [taskRows, itemRows, allProjects, today, query, filters.state]);
   const projectMatches = useMemo(() => rankNamed(query, allProjects, 5).map((p) => ({ id: p.id, name: p.name, href: `/project/${p.id}`, note: projectStateLabel(p.state) })), [query, allProjects]);
   const areaMatches = useMemo(() => rankNamed(query, areas, 5).map((a) => ({ ...a, href: `/area/${a.id}` })), [query, areas]);
 

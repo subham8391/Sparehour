@@ -85,6 +85,15 @@ describe("splitResults and chip words", () => {
     expect(alsoFound.map((r) => r.id)).toEqual(["b", "c", "e"]);
   });
 
+  it("a closed state chip (Archived, Done, Dropped) makes those tasks the results, not a folded group", () => {
+    const rows = [
+      { id: "a", state: "archived", startDate: null },
+      { id: "b", state: "archived", startDate: localDate("2026-09-20") },
+    ] as const;
+    expect(splitResults(rows, today, "archived")).toEqual({ found: [rows[0], rows[1]], alsoFound: [] });
+    expect(splitResults(rows, today, "active").alsoFound).toHaveLength(2);
+  });
+
   it("names the chips from the ids", () => {
     const names = { projects: new Map([["p1", "Acme"]]), areas: new Map([["a1", "Work"]]) };
     expect(filterLabel("project", { project: "p1" }, names)).toBe("#Acme");

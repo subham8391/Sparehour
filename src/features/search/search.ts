@@ -196,9 +196,12 @@ export function contextFor(task: Pick<Task, "title" | "notes">, checklistHits: r
 
 /**
  * Closed tasks and ones whose start date has not come go under "Also found",
- * collapsed, so a search reads as what you can act on.
+ * collapsed, so a search reads as what you can act on. When the state chip
+ * asks for a closed state (Done, Dropped, Archived), those tasks are what was
+ * asked for, so they are the results rather than a folded afterthought.
  */
-export function splitResults<T extends Pick<Task, "state" | "startDate">>(tasks: readonly T[], today: LocalDate): { found: T[]; alsoFound: T[] } {
+export function splitResults<T extends Pick<Task, "state" | "startDate">>(tasks: readonly T[], today: LocalDate, asked?: TaskState): { found: T[]; alsoFound: T[] } {
+  if (asked === "done" || asked === "dropped" || asked === "archived") return { found: [...tasks], alsoFound: [] };
   const found: T[] = [];
   const alsoFound: T[] = [];
   for (const t of tasks) {
