@@ -8,7 +8,7 @@ import { formatDay } from "@/core/time/format-day";
 import type { MissPolicy, Priority, RecurrenceMode } from "@/core/types";
 import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
-import { reviveBlocks, type BlockRow } from "./block-repo";
+import { reviveBlocks, type BlockRow } from "./block-revive";
 import type { RecurringRow } from "./recurring-completion";
 import { placeholders, quoted, restoreRow, type Tx, type UndoRecorder } from "./undo";
 

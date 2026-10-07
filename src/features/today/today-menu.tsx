@@ -16,11 +16,11 @@ export interface TodayMenuProps {
   onSort: (sort: TodaySort) => void;
   showCompleted: boolean;
   onShowCompleted: (show: boolean) => void;
-  /** Opens Clear the slate's confirmation, which offers its two scopes with their counts. */
-  onClearSlate: () => void;
-  onTrim: () => void;
+  /** Opens Clear the slate's confirmation, which offers its two scopes with their counts. Today only, like Trim and Copy. */
+  onClearSlate?: () => void;
+  onTrim?: () => void;
   /** What Copy today as text writes. */
-  text: TodayTextInput;
+  text?: TodayTextInput;
   /** A short confirmation for the page to show ("Copied today as text"). */
   onNotice: (message: string) => void;
 }
@@ -47,12 +47,13 @@ export function printToday(): void {
 export default function TodayMenu(p: TodayMenuProps) {
   const [sorting, setSorting] = useState(false);
   const current = TODAY_SORTS.find((s) => s.value === p.sort)?.label ?? "Manual";
+  const copyText = p.text;
   const run = (fn: () => void) => () => {
     p.close();
     fn();
   };
-  const copy = async () => {
-    const text = todayAsText(p.text);
+  const copy = async (input: TodayTextInput) => {
+    const text = todayAsText(input);
     try {
       await navigator.clipboard.writeText(text);
       p.onNotice("Copied today as text");
@@ -83,15 +84,21 @@ export default function TodayMenu(p: TodayMenuProps) {
         Show completed
         {p.showCompleted && <Icon name="check" size={16} className="text-ink" />}
       </button>
-      <button type="button" role="menuitem" aria-haspopup="dialog" className={MENU_ITEM} onClick={run(p.onClearSlate)}>
-        Clear the slate…
-      </button>
-      <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(p.onTrim)}>
-        Trim today
-      </button>
-      <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(() => void copy())}>
-        Copy today as text
-      </button>
+      {p.onClearSlate && (
+        <button type="button" role="menuitem" aria-haspopup="dialog" className={MENU_ITEM} onClick={run(p.onClearSlate)}>
+          Clear the slate…
+        </button>
+      )}
+      {p.onTrim && (
+        <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(p.onTrim)}>
+          Trim today
+        </button>
+      )}
+      {copyText && (
+        <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(() => void copy(copyText))}>
+          Copy today as text
+        </button>
+      )}
       {/* The menu closes first, so the dialog prints the day rather than an open menu. */}
       <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(() => setTimeout(printToday, 50))}>
         Print

@@ -18,6 +18,7 @@ import { ShutdownFlow } from "@/features/rituals/shutdown-flow";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useSyncChip } from "@/features/shell/use-sync-chip";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { dayHref } from "@/features/today/day-address";
 
 const USER_SQL = `select id, personal_space_id from users limit 1`;
 
@@ -100,7 +101,8 @@ export default function ShutdownPage() {
       onCarryAll={carried.carryAll}
       onRating={(r) => write({ dayRating: r })}
       onHighlight={(text) => write({ highlights: text || null })}
-      onPlanTomorrow={() => router.push(`/upcoming`)}
+      // Today stepped to tomorrow, where its ribbon and timeline can be planned (DECISIONS.md "Plan tomorrow now").
+      onPlanTomorrow={() => router.push(dayHref(tomorrow, today))}
       onClose={() => {
         write({ shutdownAt: new Date().toISOString() });
         router.push("/today");

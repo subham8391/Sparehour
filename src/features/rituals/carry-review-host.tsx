@@ -7,7 +7,7 @@
 // fetched once there is something to review, so the shell's first download
 // does not carry it.
 import dynamic from "next/dynamic";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
@@ -76,7 +76,10 @@ export function CarryReviewHost({ children }: { children: ReactNode }) {
   const yesterdayPlan = yesterdayRows?.[0] ? { shutdownAt: yesterdayRows[0].shutdown_at } : null;
   // Never before the shell has the person's settings and the rows have been read; the restore gate sits above the shell.
   const loaded = settings !== null && !loadingTasks && !loadingToday && !loadingYesterday;
-  const auto = loaded && handled !== todayIso && shouldReview({ enabled: settings.carryReview, carried: carried.length, syncState: sync.state, pathname, today: todayPlan, yesterday: yesterdayPlan });
+  // Today stepped to another day keeps the review for today itself (DECISIONS.md "Today on another day").
+  const shown = useSearchParams().get("day");
+  const offDay = pathname === "/today" && shown !== null && /^\d{4}-\d{2}-\d{2}$/.test(shown) && shown !== todayIso;
+  const auto = loaded && !offDay && handled !== todayIso && shouldReview({ enabled: settings.carryReview, carried: carried.length, syncState: sync.state, pathname, today: todayPlan, yesterday: yesterdayPlan });
   const show = auto || (manual && hasCarried);
 
   useEffect(() => {

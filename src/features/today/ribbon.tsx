@@ -47,6 +47,8 @@ export interface RibbonProps {
   interactions?: Omit<RibbonOverlayProps, "c" | "connected">;
   /** Something was finished today: a day with nothing left is all done (SCREENS.md §2.7), not "nothing planned yet". */
   finished?: boolean;
+  /** Today stepped to a later day (SCREENS.md §2.1): its words drop "today" and it offers no morning plan. */
+  otherDay?: boolean;
 }
 
 /** Over by more than this, the ribbon offers Trim today inline (PRODUCT_SPEC.md §9.4 "Well over"). */
@@ -66,9 +68,10 @@ export function spokenMinutes(min: number): string {
   return m === 0 ? part(h, "hour") : `${part(h, "hour")} ${part(m, "minute")}`;
 }
 
-/** SCREENS.md §2.2, non-working day: "No working hours today · 3 things planned". */
-export function noWorkDayLine(planned: number | undefined): string {
-  return planned ? `No working hours today · ${planned} ${planned === 1 ? "thing" : "things"} planned` : "No working hours today";
+/** SCREENS.md §2.2, non-working day: "No working hours today · 3 things planned" ("that day" on another day). */
+export function noWorkDayLine(planned: number | undefined, otherDay = false): string {
+  const line = `No working hours ${otherDay ? "that day" : "today"}`;
+  return planned ? `${line} · ${planned} ${planned === 1 ? "thing" : "things"} planned` : line;
 }
 
 export interface RibbonLabel {
@@ -213,14 +216,14 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   );
 }
 
-export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion, interactions, finished = false }: RibbonProps) {
-  if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount)}</p>;
+export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion, interactions, finished = false, otherDay = false }: RibbonProps) {
+  if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount, otherDay)}</p>;
   const h = heroState(c);
   // Nothing planned yet (PRODUCT_SPEC.md §9.4 "Empty"): the line says so and invites the morning plan.
   const empty = c.committedMin + c.unscheduledMin === 0 && !finished;
 
   return (
-    <section aria-label="Spare time today" className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
+    <section aria-label={otherDay ? "Spare time" : "Spare time today"} className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
       {/* Capacity changes are announced politely (DESIGN_SYSTEM.md §9): one region that stays and only changes its words. */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {`${spokenMinutes(h.min)} ${h.over ? "over" : "spare"}`}
@@ -256,7 +259,7 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
               <span className="font-semibold text-spare">{h.finish}</span>
             </>
           )}
-          {empty && (
+          {empty && !otherDay && (
             <>
               <span className="text-ink-4"> · </span>
               <Link href="/plan" className="font-medium text-ink underline decoration-line-strong underline-offset-2">

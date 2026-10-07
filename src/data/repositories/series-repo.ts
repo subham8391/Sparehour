@@ -14,7 +14,7 @@ import { exceptionId } from "@/core/recurrence/exception-id";
 import { currentOccurrence, exceptionsFrom, firstOnOrAfter, followingOccurrence, rebaseRule } from "@/core/recurrence/series";
 import { ruleWords } from "@/core/recurrence/words";
 import type { LocalDatabase } from "../powersync";
-import { reviveBlocks } from "./block-repo";
+import { reviveBlocks } from "./block-revive";
 import { localToday, releaseBlocks } from "./task-repo";
 import { placeholders, quoted, restoreRow, type RowSnapshot, type Tx, type UndoRecorder } from "./undo";
 

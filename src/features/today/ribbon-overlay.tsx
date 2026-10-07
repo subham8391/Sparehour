@@ -25,8 +25,10 @@ export interface RibbonOverlayProps {
   /** Titles for the drawn meetings and blocks; the capacity's intervals stay the geometry. */
   meetings: readonly TimelineMeeting[];
   blocks: readonly TimelineBlock[];
-  /** Free time clicked: quick add, prefilled with today. */
+  /** Free time clicked: quick add, prefilled with the day shown. */
   onAdd: () => void;
+  /** The day free time adds to, in its hint: "today", or the day Today was stepped to ("Thu 8 Oct"). */
+  addFor?: string;
   /** A meeting clicked: the timeline scrolls to it and marks it. */
   onMeeting: (m: Interval) => void;
 }
@@ -99,7 +101,7 @@ export function breakdownSentence(c: Capacity, bufferPct: number, connected: boo
   return `${terms.join(" − ")} = ${result}`;
 }
 
-export default function RibbonOverlay({ c, connected, bufferPct, meetings, blocks, onAdd, onMeeting }: RibbonOverlayProps) {
+export default function RibbonOverlay({ c, connected, bufferPct, meetings, blocks, onAdd, onMeeting, addFor = "today" }: RibbonOverlayProps) {
   const [open, setOpen] = useState<"hover" | "pinned" | null>(null);
   const [seg, setSeg] = useState<RibbonSegment | null>(null);
   const pointer = useRef<string>("mouse");
@@ -193,7 +195,7 @@ export default function RibbonOverlay({ c, connected, bufferPct, meetings, block
                 </p>
                 {action &&
                   (open === "hover" ? (
-                    <p className="text-label text-ink-3">{seg.kind === "free" ? "Click to add something for today" : "Click to show it on the timeline"}</p>
+                    <p className="text-label text-ink-3">{seg.kind === "free" ? `Click to add something for ${addFor}` : "Click to show it on the timeline"}</p>
                   ) : (
                     <button type="button" onClick={() => act(seg)} className={cx(buttonClass({ variant: "secondary" }), "self-start")}>
                       {action}
