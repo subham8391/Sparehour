@@ -192,8 +192,17 @@ export default function TodayPage() {
   // "back to today" come home, and the palette's Jump to date picks any day. Only the address changes (`?day=`), so
   // a reload keeps the day.
   const [jumping, setJumping] = useState(false);
-  const stepBy = (days: number) => openDay(day.add({ days }), model.today);
+  // A step counts from the address, not from the last render: the router follows a replaced entry in a transition,
+  // so a held or quickly repeated `]` would otherwise step from the same day twice.
+  const stepBy = (days: number) => openDay((parseDay(new URLSearchParams(window.location.search).get("day")) ?? model.today).add({ days }), model.today);
   const goHome = () => openDay(model.today, model.today);
+  // "← back to today" goes away once it has worked: focus moves to the next-day arrow, which stays, so a keyboard
+  // user is not dropped back at the top of the page.
+  const nextDayRef = useRef<HTMLButtonElement>(null);
+  const backHome = () => {
+    goHome();
+    nextDayRef.current?.focus();
+  };
   const keys = useRef({ stepBy, goHome, onToday });
   useEffect(() => {
     keys.current = { stepBy, goHome, onToday };
@@ -328,6 +337,15 @@ export default function TodayPage() {
   const showDone = showCompleted || past;
   // J/K walk the rows in the order they are drawn, Done last when it shows; a collapsed This Evening is stepped over.
   const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningShut ? [] : eveningList.map((t) => t.id), showDone ? doneToday.map((t) => t.id) : []]);
+  // A row chosen on one day is not chosen on the next: stepping lets go of it, so `T` then comes home rather than
+  // moving whichever of the new day's rows took the old row's place in the list.
+  const selectRow = sel.select;
+  const selectedOn = useRef(dayIso);
+  useEffect(() => {
+    if (selectedOn.current === dayIso) return;
+    selectedOn.current = dayIso;
+    selectRow(null);
+  }, [dayIso, selectRow]);
   // A row chosen after a block takes the keys back: Enter, L and Backspace act on the row, not the block.
   const [rowSeen, setRowSeen] = useState(sel.selectedId);
   if (sel.selectedId !== rowSeen) {
@@ -449,7 +467,7 @@ export default function TodayPage() {
   const replacedIds = new Set(drawing?.replacedIds ?? []);
   // The header's day arrows: `[` and `]` on screen, 44 px on a phone (SCREENS.md §2.1).
   const stepButton = (delta: -1 | 1) => (
-    <button type="button" aria-label={delta < 0 ? "Previous day" : "Next day"} title={delta < 0 ? "Previous day ([)" : "Next day (])"} onClick={() => stepBy(delta)} className={iconButtonClass()}>
+    <button type="button" ref={delta > 0 ? nextDayRef : undefined} aria-label={delta < 0 ? "Previous day" : "Next day"} title={delta < 0 ? "Previous day ([)" : "Next day (])"} onClick={() => stepBy(delta)} className={iconButtonClass()}>
       <Icon name={delta < 0 ? "arrow-left" : "arrow-right"} size={16} />
     </button>
   );
@@ -462,7 +480,7 @@ export default function TodayPage() {
       <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible", showDay ? "pb-0 lg:pb-7" : "flex-1")}>
         <ViewHeader
           // Off today the eyebrow names the day and the way back: "Tomorrow · ← back to today" (SCREENS.md §2.1).
-          eyebrow={onToday ? `Today · ${partOfDay(nowMinute, eveningAt)}` : <OffDayEyebrow label={daysAway(day, model.today)} onBack={goHome} />}
+          eyebrow={onToday ? `Today · ${partOfDay(nowMinute, eveningAt)}` : <OffDayEyebrow label={daysAway(day, model.today)} onBack={backHome} />}
           title={formatDay(day, { weekday: "long", month: "long", today: model.today })}
           beside={
             <>

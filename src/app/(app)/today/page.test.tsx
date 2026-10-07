@@ -5,13 +5,14 @@
 // the day, and a day that has passed shows what was finished on it, read-only.
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Temporal, todayFor } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { runViewKey } from "@/features/commands/view-keys";
-import { SelectionProvider } from "@/features/selection/selection-provider";
+import { SelectionProvider, useSelection } from "@/features/selection/selection-provider";
 import { localSqlite, type Row } from "@/test/local-sqlite";
 
 const h = vi.hoisted(() => ({
@@ -80,11 +81,21 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+// The selection as the keyboard layer sees it, read beside the page once each render has committed.
+const seen: { selection: ReturnType<typeof useSelection> | null } = { selection: null };
+function Peek() {
+  const selection = useSelection();
+  useEffect(() => {
+    seen.selection = selection;
+  });
+  return null;
+}
 const view = () =>
   render(
     <SelectionProvider>
       <BlockingProvider>
         <TodayPage />
+        <Peek />
       </BlockingProvider>
     </SelectionProvider>,
   );
@@ -121,6 +132,8 @@ describe("Today, stepped a day at a time", () => {
     await userEvent.click(back);
     expect(window.location.search).toBe("");
     expect(heading()).toHaveTextContent(title(today));
+    // The link has gone with the day; focus waits on the arrow beside the title rather than falling to the page.
+    expect(screen.getByRole("button", { name: "Next day" })).toHaveFocus();
   });
 
   it("[ and ] step the day, and T with nothing selected comes home (on today it has nothing to do)", async () => {
@@ -135,6 +148,28 @@ describe("Today, stepped a day at a time", () => {
     act(() => void runViewKey("home", null));
     expect(window.location.search).toBe("");
     expect(heading()).toHaveTextContent(title(today));
+  });
+
+  it("two steps before the page has drawn the first still land two days on", async () => {
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    act(() => {
+      runViewKey("next", null);
+      runViewKey("next", null);
+    });
+    expect(window.location.search).toBe(`?day=${today.add({ days: 2 })}`);
+    expect(heading()).toHaveTextContent(title(today.add({ days: 2 })));
+  });
+
+  it("stepping lets go of the selected row, so T then comes home instead of moving the new day's row", async () => {
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    await waitFor(() => expect(rows().some((r) => r.includes("Draft the plan"))).toBe(true));
+    act(() => seen.selection?.select("today-1"));
+    expect(seen.selection?.selectedId).toBe("today-1");
+    act(() => void runViewKey("next", null));
+    await waitFor(() => expect(rows().some((r) => r.includes("Call the bank"))).toBe(true));
+    expect(seen.selection?.selectedId).toBeNull();
   });
 
   it("a reload keeps the day: ?day= opens Today on it", async () => {
