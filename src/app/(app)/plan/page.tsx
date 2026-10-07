@@ -78,6 +78,7 @@ export default function PlanPage() {
       onToday={onToday}
       fitsMin={fitsMin}
       tomorrowSpareMin={tomorrowSpareMin}
+      eveningStartMin={model.evening?.startMin ?? null}
       defaultEstimateMin={settings.defaultEstimateMin}
       asks={asks}
       onAsksShown={() => setAsksSeen(true)}
