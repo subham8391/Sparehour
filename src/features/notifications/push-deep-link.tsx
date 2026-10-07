@@ -1,8 +1,9 @@
 "use client";
-// The shell's end of a notification tap (SYSTEM_DESIGN.md §7.1, §7.3). What
-// a tap does, and the action sheet, live in push-actions.tsx, an island
-// (the shells' 320 KB budget): fetched in idle time, or at once when the
-// page was opened from a notification, and kept mounted from then on so the
+// The shell's end of a notification tap (SYSTEM_DESIGN.md §7.1, §7.3) and of
+// a copied task link (`/today?task=<id>`, DECISIONS.md "Copy link"). What a
+// tap does, and the action sheet, live in push-actions.tsx, an island (the
+// shells' 320 KB budget): fetched in idle time, or at once when the page was
+// opened from a notification or a link, and kept mounted from then on so the
 // sheet outlives the URL being cleaned.
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
@@ -17,6 +18,11 @@ export function fromNotification(params: Pick<URLSearchParams, "get">): boolean 
   return params.get("src") === "push";
 }
 
+/** The task a copied link opens (`?task=<id>` without the notification marker), else null. */
+export function taskLinkId(params: Pick<URLSearchParams, "get">): string | null {
+  return fromNotification(params) ? null : params.get("task") || null;
+}
+
 export function PushDeepLink() {
   return (
     <Suspense>
@@ -27,5 +33,5 @@ export function PushDeepLink() {
 
 function DeepLinkIsland() {
   const params = useSearchParams();
-  return useIdleMount(loadHandler, fromNotification(params)) ? <DeepLinkHandler /> : null;
+  return useIdleMount(loadHandler, fromNotification(params) || taskLinkId(params) !== null) ? <DeepLinkHandler /> : null;
 }

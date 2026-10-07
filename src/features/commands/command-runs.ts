@@ -8,6 +8,7 @@ import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
 import { requestRow } from "@/features/tasks/row-request";
+import { requestOrganize } from "@/features/tasks/organize";
 import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
@@ -15,6 +16,8 @@ import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
 export type Theme = "light" | "dark" | "system";
+/** `G P` and `G A` open the palette on the open projects or the areas alone (SCREENS.md §24). */
+export type PaletteScope = "projects" | "areas";
 
 export interface CommandContext {
   selectedTaskId: string | null;
@@ -35,7 +38,7 @@ export interface CommandContext {
   /** One picker for every ticked row: the choice is one write and one undo; the ticks clear after. */
   editTicked: (field: DetailField) => void;
   moveSelection: (delta: 1 | -1) => void;
-  openPalette: (query?: string) => void;
+  openPalette: (query?: string, scope?: PaletteScope) => void;
   openShortcuts: () => void;
   setTheme: (theme: Theme) => void;
   undo: () => void;
@@ -59,7 +62,7 @@ export interface CommandRun {
   unselected?: (ctx: CommandContext) => void;
   /** True when nothing on screen takes the key, so it goes on as if unbound: an arrow scrolls, `[` types into quick add. */
   passes?: (ctx: CommandContext) => boolean;
-  /** The one view the command belongs to (`/today`): listed elsewhere, but disabled with the reason. */
+  /** The one view the command belongs to (`/today`, or every `/project/…` page): listed elsewhere, but disabled with the reason. */
   onlyOn?: { path: string; reason: string };
 }
 
@@ -136,15 +139,21 @@ const uncomplete = onTargets(async (ctx, ids) => {
   }
 });
 
+/** The project a `/project/<id>` path shows, else null. */
+const projectIn = (pathname: string): string | null => {
+  const id = /^\/project\/([^/?#]+)/.exec(pathname)?.[1];
+  return id ? decodeURIComponent(id) : null;
+};
+
 /**
  * N (SCREENS.md §24 "Add a task in the current list"): quick-add opened with the words that file the task where
  * the person is — the project's token on a project, "today" on Today — and empty anywhere else.
  */
 export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName">): Promise<string | undefined> {
   if (ctx.pathname === "/today") return "today ";
-  const id = /^\/project\/([^/?#]+)/.exec(ctx.pathname)?.[1];
+  const id = projectIn(ctx.pathname);
   if (!id) return undefined;
-  const name = await ctx.projectName(decodeURIComponent(id));
+  const name = await ctx.projectName(id);
   if (!name) return undefined;
   // The token rules live with the quick-add parser, which stays out of the shell (SYSTEM_DESIGN.md §11.6).
   const { projectToken } = await import("@/features/quickadd/interpret");
@@ -152,6 +161,11 @@ export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projec
 }
 
 const ON_TODAY = { path: "/today", reason: "on Today" };
+const ON_PROJECT = { path: "/project/", reason: "on a project" };
+
+/** `#`, `@` and `M` with nothing selected open quick-add and type themselves, as any unbound key does (§1 rule 4). */
+const typesItself = (key: string) => (ctx: CommandContext) => ctx.quickAdd(key);
+const pick = (kind: "move" | "tag", areas = false) => onTargets((_, ids) => requestOrganize(kind === "tag" ? { kind, ids } : { kind, ids, areas }));
 
 /** In the registry's order: the palette lists its words over these, by id. */
 export const RUNS: readonly CommandRun[] = [
@@ -184,7 +198,7 @@ export const RUNS: readonly CommandRun[] = [
   // Move to… (SCREENS.md §3): the row's day picker; several ticked rows share the bulk date picker, and a row with
   // no picker of its own opens its detail at the do-date.
   {
-    id: "task.move",
+    id: "task.move-day",
     requiresSelection: true,
     run: onTargets((ctx, ids) => {
       if (ids.length > 1) return ctx.editTicked("do");
@@ -213,6 +227,21 @@ export const RUNS: readonly CommandRun[] = [
       if (out) ctx.go(`/project/${encodeURIComponent(out.projectId)}?add=1`);
     }),
   },
+  // Organising (SCREENS.md §24, §12): the pickers, Duplicate and Copy link run in a lazy island (tasks/organize.tsx).
+  { id: "task.move-project", shortcut: "#", requiresSelection: true, run: pick("move"), unselected: typesItself("#") },
+  { id: "task.add-tag", shortcut: "@", requiresSelection: true, run: pick("tag"), unselected: typesItself("@") },
+  // M lists projects and, once a task can sit loose in one, areas (DECISIONS.md "Loose tasks in an area").
+  { id: "task.move", shortcut: "m", requiresSelection: true, run: pick("move", true), unselected: typesItself("m") },
+  { id: "task.duplicate", requiresSelection: true, run: onOne((_, id) => requestOrganize({ kind: "duplicate", id })) },
+  { id: "task.copy-link", requiresSelection: true, run: onOne((_, id) => requestOrganize({ kind: "copy-link", id })) },
+  {
+    id: "project.duplicate",
+    onlyOn: ON_PROJECT,
+    run: (ctx) => {
+      const id = projectIn(ctx.pathname);
+      if (id) requestOrganize({ kind: "duplicate-project", id });
+    },
+  },
   // A repeat's series edits (SYSTEM_DESIGN.md §5.2), one task at a time; they do nothing to a task that does not repeat.
   // The logic loads with the recurrence engine (TaskRepo.series()), never with the shell.
   { id: "task.skip-occurrence", requiresSelection: true, run: onOne(async (ctx, id) => (await ctx.tasks.series()).skip(id)) },
@@ -235,6 +264,8 @@ export const RUNS: readonly CommandRun[] = [
   { id: "go.calendar", shortcut: "g c", run: (ctx) => ctx.go("/calendar") },
   { id: "go.someday", shortcut: "g s", run: (ctx) => ctx.go("/someday") },
   { id: "go.logbook", shortcut: "g l", run: (ctx) => ctx.go("/logbook") },
+  { id: "go.project", shortcut: "g p", run: (ctx) => ctx.openPalette("", "projects") },
+  { id: "go.area", shortcut: "g a", run: (ctx) => ctx.openPalette("", "areas") },
   { id: "go.browse", run: (ctx) => ctx.go("/browse") },
   { id: "go.settings", shortcut: "mod+,", run: (ctx) => ctx.go("/settings") },
   { id: "day.plan", shortcut: "mod+shift+m", run: (ctx) => ctx.go("/plan") },
@@ -302,7 +333,8 @@ export interface Availability {
 
 /** Commands that need a selection are listed but disabled with the reason (§12 rules). */
 export function availability(command: CommandRun, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds"> & { pathname?: string }): Availability {
-  if (command.onlyOn && ctx.pathname !== command.onlyOn.path) return { enabled: false, reason: command.onlyOn.reason };
+  const only = command.onlyOn;
+  if (only && ctx.pathname !== only.path && !(only.path.endsWith("/") && ctx.pathname?.startsWith(only.path))) return { enabled: false, reason: only.reason };
   if (command.requiresSelection && targets(ctx).length === 0) return { enabled: false, reason: "select a task first" };
   return { enabled: true };
 }

@@ -49,7 +49,7 @@ describe("the row ⋯ menu", () => {
     // The ⋯ sits in the action zone with the inline actions (one element, revealed together).
     expect(trigger.closest("li")?.querySelector(".sm\\:absolute")?.contains(trigger)).toBe(true);
     await user.click(trigger);
-    await waitFor(() => expect(menuWords()).toEqual(["Today", "Someday", "This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week", "Move to…"]));
+    await waitFor(() => expect(menuWords()).toEqual(["Today", "Someday", "Move to project…", "Add a tag…", "Duplicate", "Copy link", "This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week", "Move to…"]));
     // The row's own "Tomorrow" stepped aside for the preset: it is listed once.
     expect(screen.getAllByRole("menuitem", { name: "Tomorrow" })).toHaveLength(1);
     expect(within(screen.getByRole("menu")).getByRole("separator")).toBeInTheDocument();
@@ -93,7 +93,8 @@ describe("the row ⋯ menu", () => {
       </TaskList>,
     );
     await user.click(screen.getByRole("button", { name: "More actions" }));
-    expect(menuWords()).toEqual(["Today"]);
+    // Organising stays: a finished task can still be duplicated or linked, not moved or tagged.
+    expect(menuWords()).toEqual(["Today", "Duplicate", "Copy link"]);
   });
 
   it("`.` on the selected row opens its menu with focus on the first item; Escape hands focus back to the row's ⋯", async () => {
@@ -113,7 +114,7 @@ describe("the row ⋯ menu", () => {
     const ctx = { selectedTaskId: "t1", checkedTaskIds: [], openTask } as unknown as CommandContext;
     RUNS.find((r) => r.id === "task.menu")!.run(ctx);
     expect(openTask).toHaveBeenCalledWith("t1");
-    RUNS.find((r) => r.id === "task.move")!.run(ctx);
+    RUNS.find((r) => r.id === "task.move-day")!.run(ctx);
     expect(openTask).toHaveBeenLastCalledWith("t1", "do");
     expect(screen.queryByRole("menu")).toBeNull();
   });

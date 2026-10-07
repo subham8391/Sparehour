@@ -5,9 +5,11 @@
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { useIdleMount } from "@/features/shell/preload-on-idle";
+import type { PaletteScope } from "./command-runs";
 
 interface PaletteApi {
-  open: (query?: string) => void;
+  /** With a scope (`G P`, `G A`) the palette lists only the open projects, or the areas. */
+  open: (query?: string, scope?: PaletteScope) => void;
   close: () => void;
   isOpen: boolean;
 }
@@ -29,6 +31,7 @@ export function usePalette(): PaletteApi {
 interface PaletteState {
   open: boolean;
   initialQuery: string;
+  scope?: PaletteScope;
   key: number;
 }
 
@@ -36,7 +39,7 @@ export const PaletteStateContext = createContext<PaletteState>({ open: false, in
 
 export function PaletteProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PaletteState>({ open: false, initialQuery: "", key: 0 });
-  const open = useCallback((query = "") => setState((s) => ({ open: true, initialQuery: query, key: s.key + 1 })), []);
+  const open = useCallback((query = "", scope?: PaletteScope) => setState((s) => ({ open: true, initialQuery: query, scope, key: s.key + 1 })), []);
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
   const api = useMemo(() => ({ open, close, isOpen: state.open }), [open, close, state.open]);
   return (

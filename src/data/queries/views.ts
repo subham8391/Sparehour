@@ -64,6 +64,18 @@ export const LOGBOOK_COMPLETIONS_SQL = `
   order by c.completed_at desc, c.id
   limit 1000`;
 
+/** The days a shutdown rated or gave a highlight to (the Logbook's day line; the shutdown's 14-day trend from `?`). */
+export const DAY_NOTES_SQL = `
+  select date, day_rating, highlights from day_plans
+  where deleted_at is null and date >= ? and (day_rating is not null or trim(coalesce(highlights, '')) <> '')
+  order by date`;
+
+/** Every task's tag names, lower-cased, for the Logbook's tag filter. */
+export const TAG_NAMES_SQL = `
+  select tt.task_id, lower(t.name) as name from task_tags tt
+  join tags t on t.id = tt.tag_id and t.deleted_at is null
+  where tt.deleted_at is null`;
+
 /** Everything still open in one project, in the project's own order. */
 export const PROJECT_TASKS_SQL = `
   select * from tasks

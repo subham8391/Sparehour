@@ -9,9 +9,10 @@ import { capacityFor } from "@/core/capacity";
 import { Temporal } from "@/core/time";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toTask, toWorkWindow } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, WORK_HOURS_SQL, dayWindowParams } from "@/data/queries/today";
-import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, PLANNED_BETWEEN_SQL, dayRangeParams, monthsBack } from "@/data/queries/views";
+import { DAY_NOTES_SQL, DAY_PLAN_SQL, DONE_BETWEEN_SQL, PLANNED_BETWEEN_SQL, dayRangeParams, monthsBack } from "@/data/queries/views";
 import { DayPlanRepo } from "@/data/repositories/day-plan-repo";
 import type { CalendarEventRow, TaskRow as TaskRowType, TimeBlockRow, WorkHoursRow } from "@/data/schema.client";
+import { TREND_DAYS, ratingTrend } from "@/features/rituals/rating-trend";
 import { useShutdownCarry } from "@/features/rituals/shutdown-carry";
 import { ShutdownFlow } from "@/features/rituals/shutdown-flow";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -51,6 +52,9 @@ export default function ShutdownPage() {
   const sync = useSyncChip();
   const carried = useShutdownCarry({ today, dayKnown: settings !== null, settled: sync.state !== "connecting" && sync.state !== "syncing", tasks });
   const { data: planRows } = useQuery<DayPlanRow>(DAY_PLAN_SQL, [todayIso]);
+  // The last fortnight's ratings, today's included, for step 3's line (local: day_plans sync whole).
+  const { data: noteRows } = useQuery<{ date: string; day_rating: number | null }>(DAY_NOTES_SQL, [today.subtract({ days: TREND_DAYS - 1 }).toString()]);
+  const trend = useMemo(() => ratingTrend(today, noteRows ?? []), [today, noteRows]);
   const { data: tomorrowRows } = useQuery<TaskRowType>(PLANNED_BETWEEN_SQL, dayRangeParams(tomorrow, 1));
   const { data: workRows } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
   const [tFrom, tTo] = dayWindowParams(tomorrow);
@@ -89,6 +93,7 @@ export default function ShutdownPage() {
       unfinished={carried.rows}
       defaultEstimateMin={settings.defaultEstimateMin}
       rating={plan?.day_rating ?? null}
+      trend={trend}
       highlight={plan?.highlights ?? ""}
       tomorrow={{ spareMin: tomorrowSpare, planned: (tomorrowRows ?? []).length }}
       onCarry={carried.carry}

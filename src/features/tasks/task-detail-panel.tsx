@@ -64,6 +64,13 @@ export interface TaskDetailPanelProps {
   onBlock?: () => void;
   /** Convert task → project (PRODUCT_SPEC.md §6): the footer's ⋯ and the checklist's ⋯ offer it. */
   onConvert?: () => void;
+  /** A copy right after the task, which then opens (SCREENS.md §10 footer ⋯ "Duplicate"). */
+  onDuplicate?: () => void;
+  /** The `#` and `@` pickers as sheets (SCREENS.md §12 "Move to project · Add tag"): the phone's tap path to them. */
+  onMovePicker?: () => void;
+  onTagPicker?: () => void;
+  /** Copies `<origin>/today?task=<id>` (SCREENS.md §10 footer ⋯ "Copy link"). */
+  onCopyLink?: () => void;
   onClose: () => void;
   /** A new step; with `sortKey`, at that place (Enter on a step adds the next one under it). */
   onChecklistAdd?: (title: string, sortKey?: string) => void;
@@ -355,6 +362,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   // An open or parked task can become a project; a finished, dropped or archived one cannot.
   const onConvert = p.onConvert && !done && task.state !== "dropped" && task.state !== "archived" ? p.onConvert : undefined;
   const seriesActions = repeating && Boolean(p.onSkipOccurrence || p.onPause || p.onResume);
+  /** Still open: it can be filed and tagged from the menu. */
+  const open = task.state === "inbox" || task.state === "active" || task.state === "someday";
 
   return (
     // flex-1, not h-full: on the phone the sheet's grabber sits above, and a full height pushed the footer off the screen.
@@ -635,10 +644,10 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
         )}
         <span className="flex-1 max-sm:hidden" />
         {quietActions}
-        {(hasQuiet || onConvert || seriesActions) && (
+        {(hasQuiet || onConvert || seriesActions || p.onDuplicate || p.onCopyLink) && (
           // On a phone every quiet action is here; from `sm` Someday and Drop are buttons, and the menu stays for a
-          // repeat's own actions and Convert to project, which lives here on every band (SCREENS.md §10 footer ⋯).
-          <div className={cx(!seriesActions && !onConvert && "sm:hidden")}>
+          // repeat's own actions, Duplicate, Convert to project and Copy link, which live here on every band (SCREENS.md §10 footer ⋯).
+          <div className={cx(!seriesActions && !onConvert && !p.onDuplicate && !p.onCopyLink && "sm:hidden")}>
             <MenuButton label="More actions" direction="up">
               {(close) => (
                 <>
@@ -667,9 +676,29 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                       Drop
                     </button>
                   )}
+                  {open && p.onMovePicker && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onMovePicker?.())}>
+                      Move to project…
+                    </button>
+                  )}
+                  {open && p.onTagPicker && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onTagPicker?.())}>
+                      Add a tag…
+                    </button>
+                  )}
+                  {p.onDuplicate && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onDuplicate?.())}>
+                      Duplicate
+                    </button>
+                  )}
                   {onConvert && (
                     <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), onConvert())}>
                       Convert to project
+                    </button>
+                  )}
+                  {p.onCopyLink && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onCopyLink?.())}>
+                      Copy link
                     </button>
                   )}
                 </>

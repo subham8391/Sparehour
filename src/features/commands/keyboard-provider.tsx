@@ -20,7 +20,7 @@ import { requestPlan } from "@/features/planning/plan-request";
 import { useUndoOptional } from "@/features/undo/undo-provider";
 import { chordOf, resolveKey, type SequenceState } from "./keys";
 // The registry's runs only: titles and keywords load with the palette and the ? overlay (registry.ts).
-import { RUNS, availability, keyBindings, type CommandContext, type CommandRun, type Theme } from "./command-runs";
+import { RUNS, availability, keyBindings, type CommandContext, type CommandRun, type PaletteScope, type Theme } from "./command-runs";
 import dynamic from "next/dynamic";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { applyTheme, readTheme } from "./theme";
@@ -71,7 +71,7 @@ function modalOpen(): boolean {
   return Boolean(document.querySelector("[role='dialog'][aria-modal='true']"));
 }
 
-export function KeyboardProvider({ children, onOpenPalette }: { children: ReactNode; onOpenPalette?: (query?: string) => void }) {
+export function KeyboardProvider({ children, onOpenPalette }: { children: ReactNode; onOpenPalette?: (query?: string, scope?: PaletteScope) => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const quickAdd = useQuickAdd();
@@ -117,7 +117,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       openTask: (id, field) => detail.open(id, field),
       editTicked: (field) => void requestBulkField(field),
       moveSelection: (delta) => selection.moveSelection(delta),
-      openPalette: (query) => onOpenPalette?.(query),
+      openPalette: (query, scope) => onOpenPalette?.(query, scope),
       openShortcuts: () => setShortcutsOpen(true),
       // The palette's theme commands save to the account like Settings does, so the two never disagree.
       setTheme: (theme: Theme) => {

@@ -10,7 +10,7 @@ import { toTask } from "@/data/mappers";
 import { ALL_PROJECTS_SQL, AREAS_SQL, isOpenProject, projectStateLabel, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
 import { TAGS_SQL, logbookStream } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
-import { rankNamed } from "@/features/commands/palette-rank";
+import { rankNamed } from "@/features/commands/fuzzy";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { buildChecklistMatch, buildTaskSearch, contextFor, parseSearchParams, splitResults, toSearchParams, type SearchFilters } from "@/features/search/search";
 import { SearchView, type SearchHit } from "@/features/search/search-view";

@@ -427,6 +427,7 @@ The Logbook shows the last week: a finished task is removed for good seven days 
 - Milestone: M1. Year heatmap and Year in Review: Later.
 - **Responsive.** Phone: reached from **Browse**; same rows; filters in a sheet behind a `Filter` button; swipe right = Reopen (the `U` action). Narrow and up: as drawn.
 - **As built (2026-10-06).** A task the rollover dropped under the expire policy says "Expired" in its row, and `/logbook?show=expired` (Review on Today's expired digest) lists only those, each with `Restore` (undo toast).
+- **As built, filters and the day line (2026-10-07).** Filters live in the URL in the order they were added (`/logbook?show=dropped&project=…&from=…&to=…`) and show as removable chips (`Clear all` with two or more); `Esc` takes off the newest once no task, tick or menu wants the key. From 640 px they sit inline: `All | Done | Dropped`, then a menu each for Project, Area, Tag and Dates (Today · Yesterday · Last 7 days · Last 30 days); on the phone a `Filter · N` button opens the same choices as a bottom sheet of 44 px rows (a lazy island), each tap applying at once and a second tap taking it off. The menus list only the projects, areas and tags the Logbook holds; a day's `N done · minutes` follows the filters, Dropped only lists the dropped rows open rather than folded, and nothing matching says so with `Clear the filters`. A day the shutdown rated or gave a highlight carries a quiet ink-2 line under its header: "Rated 4/5 · Highlight: shipped the deck".
 
 ---
 
@@ -827,7 +828,7 @@ Six steps in a settled order (ruled 2026-09-14, desktop and phone alike), target
 |---|---|---|---|
 | **1 · Done today** | Today's completed tasks with the total time | "You finished **7 things** — about **4h 20m**." | Read-only. `Next` |
 | **2 · Carried to tomorrow** | The unfinished tasks, each with an action | "5 things didn't happen. That's normal." | Each row: `Tomorrow` · `Someday` · `Drop` · `Keep for today`. `Move all to tomorrow` in the footer. `Next` works with rows unresolved — they carry by default. Undone routine items (M2) follow as one soft line — *Skipped · Lunch walk, Read industry news* — with no actions |
-| **3 · Day rating** | A 1–5 scale, one tap, unlabelled beyond the scale. A 14-day sparkline appears once 5 ratings exist | "How was the day?" | One tap, or `1`–`5`. Skippable |
+| **3 · Day rating** | A 1–5 scale, one tap, unlabelled beyond the scale. A 14-day sparkline appears once 5 ratings exist. **As built (2026-10-07):** today last, a dot per rated day and a line only between neighbouring ones (an unrated day is a gap), ink tones only, with the summary in words under it ("6 of the last 14 days rated, from 2 to 5, averaging 3.7.") | "How was the day?" | One tap, or `1`–`5`. Skippable |
 | **4 · One highlight** | A single free-text line, with today's completions offered as one-tap picks | "What was worth it today?" | Type, or tap a completion to use it. Skippable |
 | **5 · Tomorrow's first draft** | Tomorrow's current load and spare time, with what step 2 just moved there | "Tomorrow: **4h 10m** spare, 3 things already on it." | `Plan tomorrow now` · `Plan it in the morning` |
 | **6 · Close the day** | The closing line | "That's the day. Nothing is waiting for you." | `Close the day` ends the flow |
@@ -1129,6 +1130,8 @@ Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all s
 | `M` | Move (project / area picker) |
 
 As built (2026-10-06): `D`, `Shift+D`, `Shift+S`, `E` and `R` open the task's detail on that field's popover. With several rows ticked, `D`, `Shift+D`, `Shift+S` and `E` open one picker for all of them (one write, one undo; DECISIONS.md "Shortcuts with rows ticked"); `R` stays with one task, the selected one or else the only ticked row.
+
+As built (2026-10-07): `#` opens the project picker for the selected task, or for every ticked row: a search field over "No project" and the open projects under their areas (the area beside a name two projects share), one write and one undo with a toast ("Moved 2 tasks to Garden"), then the ticks clear. `@` opens the tag picker: the best match first and "Create tag “x”" below the matches when no tag has the name (alone, and taken, when nothing matches); `Tab` or `Enter` takes the highlighted row, one undo for every target. `M` opens the same move picker until a task can sit loose in an area (`tasks.area_id`, DECISIONS.md "Loose tasks in an area"), when it adds the areas. With nothing selected `#`, `@` and `M` open quick-add and type themselves. The palette lists Move to project, Add tag, Move…, Duplicate and Copy link (greyed with "select a task first" until one is), and Duplicate project on a project page. The pickers are sheets (bottom sheets with 44 px rows on the phone), reached on a phone from the palette sheet and a row's `⋯` (Move to project… · Add a tag… · Duplicate · Copy link); the detail's own Project and Tags fields are its tap path. Pickers and the duplicate module are a lazy island (`features/tasks/organize-island.tsx`).
 
 ### Scheduling and snooze
 
