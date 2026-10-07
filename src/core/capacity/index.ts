@@ -145,30 +145,6 @@ export function workWindowsFor(day: LocalDate, workHours: readonly WorkWindow[])
   );
 }
 
-/** This Evening's own budget (PRODUCT_SPEC.md §9.1): its window, its minutes, and what is planned in it. */
-export interface EveningBudget {
-  /** Minutes of the day the evening starts and ends. */
-  startMin: number;
-  endMin: number;
-  budgetMin: number;
-  plannedMin: number;
-  /** Planned past the budget: "That's a full evening." */
-  full: boolean;
-}
-
-/**
- * The evening runs from the end of the day's last work segment — the evening start on a day without working
- * hours — to the cut-off, with no buffer, and is zero when the cut-off is earlier (M1 gap rulings 2026-10-06).
- * A 00:00 cut-off is midnight, the end of the day.
- */
-export function eveningBudget(p: { day: LocalDate; workHours: readonly WorkWindow[]; eveningStartsAt: LocalTime; eveningEndsAt: LocalTime; plannedMin: number }): EveningBudget {
-  const windows = workWindowsFor(p.day, p.workHours);
-  const startMin = windows.length > 0 ? windows[windows.length - 1].end : minutesOfDay(p.eveningStartsAt);
-  const endMin = minutesOfDay(p.eveningEndsAt) || DAY;
-  const budgetMin = Math.max(0, endMin - startMin);
-  return { startMin, endMin, budgetMin, plannedMin: p.plannedMin, full: p.plannedMin > budgetMin };
-}
-
 export function classify(spareMin: number, workMin: number): CapacityState {
   if (workMin <= 0) return "no_work_day";
   if (spareMin >= 0.25 * workMin) return "comfortable";

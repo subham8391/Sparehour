@@ -3,7 +3,7 @@
 // today's list, all reactive to the local database.
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@/data/powersync";
-import { capacityFor, eveningBudget, type Capacity, type CapacityBlock, type EveningBudget } from "@/core/capacity";
+import { capacityFor, type Capacity, type CapacityBlock } from "@/core/capacity";
 import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
 import { Temporal, instant, localDate, todayFor, type Instant, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
@@ -111,8 +111,6 @@ export interface TodayModel {
   carried: (Task & { ask: boolean })[];
   todayTasks: Task[];
   eveningTasks: Task[];
-  /** This Evening's own budget, from the end of the working day to the cut-off (PRODUCT_SPEC.md §9.1); null before the settings. */
-  evening: EveningBudget | null;
   /** Today's blocks, in the user's zone, with the task's title when it has one. */
   blocks: TimelineBlock[];
   blockByTask: ReadonlyMap<string, TimelineBlock>;
@@ -167,12 +165,11 @@ export function useToday(now: Temporal.Instant): TodayModel {
     const blockTasks = new Map<string, BlockTask>(tasks.map((t) => [t.id, { title: t.title, state: t.state }]));
     for (const r of blockTaskRows ?? []) blockTasks.set(r.id, { title: r.title, state: r.state });
 
-    const workHours = (workRows ?? []).map(toWorkWindow).filter((w): w is NonNullable<typeof w> => w !== null);
     const capacity = settings
       ? capacityFor({
           day: today,
           settings: { timezone: settings.timezone, bufferPct: settings.bufferPct, defaultEstimateMin: settings.defaultEstimateMin },
-          workHours,
+          workHours: (workRows ?? []).map(toWorkWindow).filter((w): w is NonNullable<typeof w> => w !== null),
           events: (eventRows ?? []).map((e) => toCapacityEvent(e, readByCalendar.get(e.calendar_id ?? "") ?? true)),
           blocks: capacityBlocks(
             (blockRows ?? []).map(toCapacityBlock).filter((b): b is NonNullable<typeof b> => b !== null),
@@ -205,17 +202,6 @@ export function useToday(now: Temporal.Instant): TodayModel {
       })
       .filter((m): m is TimelineMeeting => m !== null);
 
-    const eveningTasks = onDay.filter((t) => t.evening);
-    const evening = settings
-      ? eveningBudget({
-          day: today,
-          workHours,
-          eveningStartsAt: settings.eveningStartsAt,
-          eveningEndsAt: settings.eveningEndsAt,
-          plannedMin: eveningTasks.reduce((sum, t) => sum + (t.estimateMin ?? settings.defaultEstimateMin), 0),
-        })
-      : null;
-
     return {
       ready: !isLoading && settings !== null,
       today,
@@ -226,8 +212,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
       capacity,
       carried,
       todayTasks: onDay.filter((t) => !t.evening),
-      eveningTasks,
-      evening,
+      eveningTasks: onDay.filter((t) => t.evening),
       blocks,
       blockByTask,
       meetings,

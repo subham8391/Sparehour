@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { formatTime, instant, localDate, localTime } from "../time";
-import { capacityFor, classify, eveningBudget, workWindowsFor, type CapacityInput } from "./index";
+import { capacityFor, classify, workWindowsFor, type CapacityInput } from "./index";
 import { clip, merge, round5, subtract, totalMinutes } from "./intervals";
 import { DAY, REFERENCE_DAY, SETTINGS, WORK_HOURS, block, event, task } from "./__fixtures__/reference-day";
 
@@ -303,43 +303,5 @@ describe("capacity properties", () => {
         expect(w.length).toBe(d.dayOfWeek <= 5 ? 1 : 0);
       }),
     );
-  });
-});
-
-describe("eveningBudget (PRODUCT_SPEC.md §9.1, M1 gap rulings 2026-10-06)", () => {
-  const base = { day: DAY, workHours: WORK_HOURS, eveningStartsAt: localTime("18:00"), eveningEndsAt: localTime("22:00") };
-
-  it("runs from the end of the last work segment to the cut-off, with no buffer", () => {
-    expect(eveningBudget({ ...base, plannedMin: 40 })).toEqual({ startMin: 1080, endMin: 1320, budgetMin: 240, plannedMin: 40, full: false });
-  });
-
-  it("starts where a split day's last segment ends, not at the evening start", () => {
-    const split = [
-      { weekday: 2, start: localTime("09:00"), end: localTime("12:30") },
-      { weekday: 2, start: localTime("13:30"), end: localTime("19:30") },
-    ];
-    const b = eveningBudget({ ...base, workHours: split, plannedMin: 0 });
-    expect(b.startMin).toBe(19 * 60 + 30);
-    expect(b.budgetMin).toBe(150);
-  });
-
-  it("starts at the evening start on a day without working hours", () => {
-    const saturday = DAY.add({ days: 4 });
-    const b = eveningBudget({ ...base, day: saturday, eveningStartsAt: localTime("17:00"), plannedMin: 0 });
-    expect(b.startMin).toBe(17 * 60);
-    expect(b.budgetMin).toBe(300);
-  });
-
-  it("is full only past its budget, and zero when the cut-off is earlier than the evening's start", () => {
-    expect(eveningBudget({ ...base, plannedMin: 240 }).full).toBe(false);
-    expect(eveningBudget({ ...base, plannedMin: 245 }).full).toBe(true);
-    const early = eveningBudget({ ...base, eveningEndsAt: localTime("17:00"), plannedMin: 15 });
-    expect(early.budgetMin).toBe(0);
-    expect(early.full).toBe(true);
-    expect(eveningBudget({ ...base, eveningEndsAt: localTime("17:00"), plannedMin: 0 }).full).toBe(false);
-  });
-
-  it("reads a 00:00 cut-off as midnight", () => {
-    expect(eveningBudget({ ...base, eveningEndsAt: localTime("00:00"), plannedMin: 0 })).toMatchObject({ endMin: 1440, budgetMin: 360 });
   });
 });

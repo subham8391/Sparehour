@@ -44,7 +44,6 @@ import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
 import { scrollMotion } from "@/ui/reduced-motion";
-import { usePhone } from "@/ui/use-phone";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
 import { Loading } from "../loading-view";
@@ -84,15 +83,6 @@ const CARRIED_OPEN_KEY = "sparehour:carried-open";
 function readCarriedOpen(day: string): boolean {
   try {
     return localStorage.getItem(CARRIED_OPEN_KEY) === day;
-  } catch {
-    return false;
-  }
-}
-// On a phone This Evening starts collapsed (SCREENS.md §2.8); opening or closing it is remembered on the device.
-const EVENING_OPEN_KEY = "sparehour:evening-open";
-function readEveningOpen(): boolean {
-  try {
-    return localStorage.getItem(EVENING_OPEN_KEY) === "1";
   } catch {
     return false;
   }
@@ -217,18 +207,8 @@ export default function TodayPage() {
     return () => clearTimeout(t);
   }, [shownMeeting]);
   const quickAdd = useQuickAdd();
-  // This Evening on a phone: collapsed until opened, and the choice is remembered (SCREENS.md §2.8).
-  const phone = usePhone();
-  const [eveningOpen, setEveningOpen] = useState(readEveningOpen);
-  const toggleEvening = (open: boolean) => {
-    setEveningOpen(open);
-    try {
-      localStorage.setItem(EVENING_OPEN_KEY, open ? "1" : "0");
-    } catch {
-      // storage unavailable: it holds for this visit only
-    }
-  };
-  const eveningShut = phone && !eveningOpen;
+  // This Evening collapsed on a phone (SCREENS.md §2.8): its island says so, and J/K step over its rows.
+  const [eveningShut, setEveningShut] = useState(false);
   // A row being dragged: an empty section shows where it can land (SCREENS.md §2.5).
   const dragId = useTaskDrag();
   const windows = model.capacity?.windows ?? [];
@@ -430,7 +410,8 @@ export default function TodayPage() {
     onOpen: (id: string) => detail.open(id),
     onToday: (id: string) => void time("reschedule", () => model.repo.reschedule(id, model.today)),
   };
-  const sectionMinutes = (list: Task[]) => formatMinutes(list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0));
+  const sectionTotal = (list: Task[]) => list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0);
+  const sectionMinutes = (list: Task[]) => formatMinutes(sectionTotal(list));
   // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
   const eveningRows = (
@@ -698,13 +679,13 @@ export default function TodayPage() {
             // This Evening (SCREENS.md §2.5): its own readout and quieter overload line; collapsed on a phone (§2.8).
             <EveningSection
               count={model.eveningTasks.length}
-              minutes={sectionMinutes(model.eveningTasks)}
-              full={Boolean(model.evening?.full)}
-              collapsible={phone}
-              open={eveningOpen}
-              onToggle={toggleEvening}
+              plannedMin={sectionTotal(model.eveningTasks)}
+              windows={model.capacity?.windows ?? []}
+              eveningStartsAt={model.settings!.eveningStartsAt}
+              eveningEndsAt={model.settings!.eveningEndsAt}
               rows={eveningRows}
               onDrop={eveningDrop ? dropAtEnd(model.eveningTasks, true) : null}
+              onShutChange={setEveningShut}
             />
           )}
 
