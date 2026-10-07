@@ -13,14 +13,8 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
   }, [error]);
   return (
     <main className="flex w-full flex-1 flex-col px-4 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7">
-      <LazyErrorPanel
-        layout="inline"
-        eyebrow="Unexpected error"
-        title="This screen stopped before it finished drawing."
-        body="Nothing you saved is lost: it is on this device and in your account. Try again, and if it happens again, Copy details helps us find it."
-        onRetry={reset}
-        details={{ what: "A Sparehour screen stopped drawing.", error, build: BUILD_ID }}
-      />
+      {/* "This screen stopped before it finished drawing.", inline (error-panel.tsx `boundaryWords`). */}
+      <LazyErrorPanel kind="screen" error={error} build={BUILD_ID} onRetry={reset} />
     </main>
   );
 }

@@ -45,6 +45,7 @@ describe.skipIf(admin === null)("calendar notices contract", () => {
       const { uid, sid, block } = await setup(c, "n-d@contract.test");
       const other = await setup(c, "n-e@contract.test");
       await c.query("select public.time_block_detached($1)", [block]);
+      await c.query("select public.time_block_detached($1)", [other.block]);
 
       await asUser(c, uid);
       // Setting it on a live block of one's own is ignored…
@@ -65,6 +66,7 @@ describe.skipIf(admin === null)("calendar notices contract", () => {
       await c.query("update public.time_blocks set notice = null where id = $1", [other.block]);
       await asAdmin(c);
       expect((await blockRow(c, block)).notice).toBeNull();
+      expect((await blockRow(c, other.block)).notice).toBe("removed_in_google");
     }));
 
   it("the write calendar leaving Google marks its account; choosing a write target again clears the mark", () =>

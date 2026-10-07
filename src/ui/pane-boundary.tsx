@@ -46,15 +46,7 @@ export class PaneBoundary extends Component<Props, State> {
         </>
       );
     const { name, build } = this.props;
-    return (
-      <LazyErrorPanel
-        layout="inline"
-        eyebrow={name}
-        title={`${name} stopped before it finished drawing.`}
-        body="Nothing you saved is lost, and the rest of the screen still works. Try again, and if it happens again, Copy details helps us find it."
-        onRetry={() => this.setState({ error: null, failed: false })}
-        details={{ what: `“${name}” stopped drawing.`, error: this.state.error, build }}
-      />
-    );
+    // "<name> stopped before it finished drawing.", inline, with Try again and Copy details (error-panel.tsx `boundaryWords`).
+    return <LazyErrorPanel kind="pane" name={name} error={this.state.error} build={build} onRetry={() => this.setState({ error: null, failed: false })} />;
   }
 }

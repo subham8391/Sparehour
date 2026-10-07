@@ -79,4 +79,37 @@ export function ErrorPanel({ eyebrow, title, body, onRetry, details, layout = "s
   );
 }
 
+/**
+ * Which boundary failed: `screen` is a view inside the app (app/(app)/error.tsx), `start` the root itself
+ * (app/global-error.tsx), `pane` one part of a screen (`PaneBoundary`, with the pane's `name`).
+ */
+export interface BoundaryPanelProps {
+  kind: "screen" | "start" | "pane";
+  name?: string;
+  error: unknown;
+  build: string;
+  onRetry: () => void;
+}
+
+const SAVED = "Nothing you saved is lost: it is on this device and in your account.";
+const AGAIN = "Try again, and if it happens again, Copy details helps us find it.";
+
+/**
+ * The boundaries' words live here, in the island, rather than in each boundary: the boundaries ride in every shell's
+ * first download (and the bundler copies a small shared module into each of their chunks), the words only matter once
+ * something has failed.
+ */
+export function boundaryWords({ kind, name = "This part" }: Pick<BoundaryPanelProps, "kind" | "name">): Omit<ErrorPanelProps, "onRetry" | "details"> & { what: string } {
+  if (kind === "pane")
+    return { eyebrow: name, title: `${name} stopped before it finished drawing.`, body: `Nothing you saved is lost, and the rest of the screen still works. ${AGAIN}`, layout: "inline", what: `“${name}” stopped drawing.` };
+  if (kind === "start") return { eyebrow: "Unexpected error", title: "Sparehour stopped before it finished starting.", body: `${SAVED} ${AGAIN}`, layout: "screen", what: "Sparehour stopped while starting." };
+  return { eyebrow: "Unexpected error", title: "This screen stopped before it finished drawing.", body: `${SAVED} ${AGAIN}`, layout: "inline", what: "A Sparehour screen stopped drawing." };
+}
+
+/** The panel a boundary shows, in that boundary's words. */
+export function BoundaryPanel({ kind, name, error, build, onRetry }: BoundaryPanelProps) {
+  const { what, ...words } = boundaryWords({ kind, name });
+  return <ErrorPanel {...words} onRetry={onRetry} details={{ what, error, build }} />;
+}
+
 export default ErrorPanel;

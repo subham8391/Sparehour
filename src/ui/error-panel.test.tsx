@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AppError from "@/app/(app)/error";
-import { errorDetails } from "./error-panel";
+import { BoundaryPanel, boundaryWords, errorDetails } from "./error-panel";
 import { PaneBoundary } from "./pane-boundary";
 
 afterEach(() => {
@@ -59,6 +59,19 @@ describe("PaneBoundary: a pane that throws fails in place", () => {
     broken = false;
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(screen.getByText("Drawn again")).toBeInTheDocument();
+  });
+});
+
+describe("the root boundary (app/global-error.tsx)", () => {
+  it("stands alone in the window with its own words, Try again and Copy details", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const reset = vi.fn();
+    render(<BoundaryPanel kind="start" error={new Error("root")} build="b2" onRetry={reset} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Sparehour stopped before it finished starting." })).toBeInTheDocument();
+    expect(screen.getByText(/^Nothing you saved is lost: it is on this device and in your account\./)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(reset).toHaveBeenCalled();
+    expect(boundaryWords({ kind: "start" }).what).toBe("Sparehour stopped while starting.");
   });
 });
 

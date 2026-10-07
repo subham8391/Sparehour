@@ -27,13 +27,8 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <body className="flex min-h-full flex-col">
         <title>Sparehour</title>
         <main className="flex w-full flex-col">
-          <LazyErrorPanel
-            eyebrow="Unexpected error"
-            title="Sparehour stopped before it finished starting."
-            body="Nothing you saved is lost: it is on this device and in your account. Try again, and if it happens again, Copy details helps us find it."
-            onRetry={reset}
-            details={{ what: "Sparehour stopped while starting.", error, build: BUILD_ID }}
-          />
+          {/* "Sparehour stopped before it finished starting.", on its own (error-panel.tsx `boundaryWords`). */}
+          <LazyErrorPanel kind="start" error={error} build={BUILD_ID} onRetry={reset} />
         </main>
       </body>
     </html>
