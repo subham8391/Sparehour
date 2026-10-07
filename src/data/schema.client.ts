@@ -59,6 +59,8 @@ export const user_settings = new Table({
   notify_shutdown: column.integer,
   theme: column.text,
   evening_starts_at: column.text,
+  /** Settings › Working hours: This Evening's budget ends here ("22:00"; "00:00" is midnight). */
+  evening_ends_at: column.text,
   ai_enabled: column.integer,
   carry_review: column.integer,
   /** The newest expired task Today's digest has announced; only later ones show. */

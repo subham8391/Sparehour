@@ -67,6 +67,18 @@ export function HoursSection(p: SettingsFormProps) {
         </label>
         <TimeField id="evening" value={values.eveningStartsAt} onChange={(e) => e.target.value && change({ eveningStartsAt: e.target.value })} />
       </div>
+      {/* The evening cut-off (PRODUCT_SPEC.md §9.1): This Evening's own budget runs from the end of the working day to here. */}
+      <div className={ROW}>
+        <span className="flex min-w-0 flex-col">
+          <label htmlFor="evening-ends" className={LABEL}>
+            Evening ends at
+          </label>
+          <span id="evening-ends-hint" className={HINT}>
+            This Evening&rsquo;s time runs from the end of your working hours until then.
+          </span>
+        </span>
+        <TimeField id="evening-ends" aria-describedby="evening-ends-hint" value={values.eveningEndsAt} onChange={(e) => e.target.value && change({ eveningEndsAt: e.target.value })} />
+      </div>
       <div className={ROW}>
         <label htmlFor="rollover" className={LABEL}>
           Day starts at

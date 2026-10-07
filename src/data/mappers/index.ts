@@ -123,6 +123,8 @@ export interface Settings {
   carryAskAfter: number;
   autoSomedayDays: number;
   eveningStartsAt: LocalTime;
+  /** The evening cut-off: This Evening's budget runs from the end of the working day to here (PRODUCT_SPEC.md §9.1). */
+  eveningEndsAt: LocalTime;
   /** Offer the morning review of carried-over tasks on the first open of a new day (on by default; null before the column has synced). */
   carryReview: boolean;
   /** Today's ⋯ Sort, also Settings › Planning's default (a view preference; nothing is rewritten). */
@@ -142,6 +144,7 @@ export function toSettings(r: UserSettingsRow): Settings {
     carryAskAfter: r.carry_ask_after ?? 3,
     autoSomedayDays: r.auto_someday_days ?? 30,
     eveningStartsAt: localTime((r.evening_starts_at ?? "18:00").slice(0, 5)),
+    eveningEndsAt: localTime((r.evening_ends_at ?? "22:00").slice(0, 5)),
     carryReview: r.carry_review == null ? true : bool(r.carry_review),
     todaySort: isTodaySort(r.today_sort) ? r.today_sort : "manual",
     showCompleted: bool(r.show_completed),

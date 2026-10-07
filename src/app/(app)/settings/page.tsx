@@ -66,6 +66,7 @@ export default function SettingsPage() {
         autoSomedayDays: s.auto_someday_days ?? 30,
         carryReview: (s.carry_review ?? 1) === 1,
         eveningStartsAt: (s.evening_starts_at ?? "18:00").slice(0, 5),
+        eveningEndsAt: (s.evening_ends_at ?? "22:00").slice(0, 5),
         theme: (s.theme === "light" || s.theme === "dark" ? s.theme : "system") as SettingsValues["theme"],
         notifyBlockStart: (s.notify_block_start ?? 1) === 1,
         notifyDeadline: (s.notify_deadline ?? 1) === 1,
