@@ -54,13 +54,20 @@ export function activeTab(pathname: string): ViewId | null {
   return null;
 }
 
+/** The first run stands alone: no sidebar, no tab bar, no add bar, on every width (ONBOARDING.md "one step per screen"). */
+const BARE = ["/welcome"];
 /** Full-screen routes: the rituals and search own the phone's bottom edge, so the tab bar steps aside. */
-const FULL_SCREEN = ["/plan", "/shutdown", "/search"];
+const FULL_SCREEN = ["/plan", "/shutdown", "/search", ...BARE];
 /** Views where adding a task is not the job: the add bar and the FAB stay away (brief P10). */
 const NO_ADD = [...FULL_SCREEN, "/settings", "/calendar", "/logbook"];
 
 export function showsTabBar(pathname: string): boolean {
   return !FULL_SCREEN.some((p) => isActive(pathname, p));
+}
+
+/** Whether the shell draws its navigation and panes around the view at all. */
+export function showsChrome(pathname: string): boolean {
+  return !BARE.some((p) => isActive(pathname, p));
 }
 
 /** The desktop add bar and the phone FAB show only on task-list views. */

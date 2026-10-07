@@ -12,6 +12,7 @@ import { PROJECT_NAME_SQL, TASK_STATE_SQL } from "@/data/queries/shell";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { showsChrome } from "@/features/shell/nav";
 import { requestBulkField } from "@/features/tasks/bulk-field-request";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
@@ -176,7 +177,8 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       }
       // Rule 4: an unbound printable key opens quick-add and types itself. No keystroke is lost.
       // Any modifier makes it a chord, not typing: Control+Z on a Mac (where ⌘ is the app's modifier) must not type a "z".
-      if (!chord.mod && !chord.alt && !e.ctrlKey && !e.metaKey && e.key.length === 1 && !/\s/.test(e.key)) {
+      // Not on the first run, whose brain dump is the way to add (ONBOARDING.md step 3).
+      if (!chord.mod && !chord.alt && !e.ctrlKey && !e.metaKey && e.key.length === 1 && !/\s/.test(e.key) && showsChrome(contextRef.current().pathname)) {
         e.preventDefault();
         contextRef.current().quickAdd(e.key);
       }

@@ -41,6 +41,8 @@ export interface SettingsPatch {
   todaySort?: TodaySort;
   /** Today's ⋯ Show completed. */
   showCompleted?: boolean;
+  /** The first run was finished or skipped (ISO instant); the shell stops sending the person to /welcome. */
+  onboardedAt?: string;
 }
 
 const COLUMNS: Record<keyof SettingsPatch, string> = {
@@ -69,6 +71,7 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   defaultView: "default_view",
   todaySort: "today_sort",
   showCompleted: "show_completed",
+  onboardedAt: "onboarded_at",
 };
 
 export class SettingsRepo {
