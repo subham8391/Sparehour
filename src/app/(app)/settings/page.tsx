@@ -14,7 +14,7 @@ import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { applyTheme } from "@/features/commands/theme";
 import { BUILD_ID } from "@/data/build-id";
 import { clearThisDevice } from "@/features/account/clear-device";
-import { loadSignInMethods } from "@/features/account/identity";
+import { loadSignInMethods } from "@/features/account/sign-in-methods";
 import { useCalendar } from "@/features/calendar/use-calendar";
 import { useExport } from "@/features/export/use-export";
 import { usePush } from "@/features/notifications/use-push";

@@ -8,17 +8,14 @@
 import { Serwist } from "@serwist/window";
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BUILD_ID } from "@/data/build-id";
 import { Button } from "@/ui/button";
 import { Toast } from "@/ui/toast";
 import { detectInstallSignals, installState, requestPersistence, type InstallState, type PersistenceState } from "./install";
-import { fetchBootstrap, isUpdateRequired } from "./version";
+import { useIdleMount } from "@/features/shell/preload-on-idle";
 
-// The blocking screen only ever shows when the gate closes, so it is an island of its own.
-const UpdateRequired = dynamic(() => import("./update-required"), { ssr: false });
-
-/** How often an open, visible app asks /api/bootstrap again. */
-const GATE_EVERY_MS = 30 * 60_000;
+// The forced update's check and its blocking screen are an island fetched once the browser is idle.
+const loadVersionGate = () => import("./version-gate");
+const VersionGate = dynamic(loadVersionGate, { ssr: false });
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -54,7 +51,6 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   const [standalone, setStandalone] = useState(false);
   const [persistence, setPersistence] = useState<PersistenceState>("unknown");
   const [updateReady, setUpdateReady] = useState(false);
-  const [gate, setGate] = useState<string | null>(null);
   const workerRef = useRef<Serwist | null>(null);
   const waitingRef = useRef(false);
 
@@ -101,28 +97,9 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // The forced update (§10.2): asked at start and whenever the app comes back into view, at most twice an hour. A
-  // development build ("dev") is never gated, so it does not ask.
-  useEffect(() => {
-    if (!/\d/.test(BUILD_ID)) return;
-    let live = true;
-    let last = 0;
-    const check = () => {
-      if (document.visibilityState === "hidden" || Date.now() - last < GATE_EVERY_MS) return;
-      last = Date.now();
-      void fetchBootstrap().then((b) => {
-        if (live && b && isUpdateRequired(BUILD_ID, b.min_client_version)) setGate(b.min_client_version);
-      });
-    };
-    check();
-    document.addEventListener("visibilitychange", check);
-    return () => {
-      live = false;
-      document.removeEventListener("visibilitychange", check);
-    };
-  }, []);
+  const gateMounted = useIdleMount(loadVersionGate, false);
 
-  // A waiting worker takes over (and `controlling` reloads); without one, a reload fetches the new pages, which are
+  // The forced update (§10.2) moves on this way: a waiting worker takes over (and `controlling` reloads); without one, a reload fetches the new pages, which are
   // network-first. The fallback reload covers a worker that never answers.
   const applyUpdate = useCallback(() => {
     if (workerRef.current && waitingRef.current) {
@@ -157,8 +134,8 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   return (
     <PwaContext.Provider value={api}>
       {children}
-      {gate && <UpdateRequired min={gate} applyUpdate={applyUpdate} />}
-      {updateReady && !gate && (
+      {gateMounted && <VersionGate applyUpdate={applyUpdate} />}
+      {updateReady && (
         // The one toast surface (DESIGN_SYSTEM.md §5): raised on surface-3 with one quiet action.
         <Toast
           action={

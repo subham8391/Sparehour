@@ -6,7 +6,8 @@ const auth = {
 };
 vi.mock("@/data/supabase-browser", () => ({ supabaseBrowser: () => ({ auth }) }));
 
-const { initials, loadSignInMethods, signInMethodLabels } = await import("./identity");
+const { initials } = await import("./identity");
+const { loadSignInMethods, signInMethodLabels } = await import("./sign-in-methods");
 
 afterEach(() => {
   auth.getUserIdentities.mockReset();
@@ -45,13 +46,13 @@ describe("loadSignInMethods", () => {
 describe("loadSignInMethods offline", () => {
   it("falls back to the session this device holds, and rejects (to ask again later) with neither", async () => {
     vi.resetModules();
-    const fresh = await import("./identity");
+    const fresh = await import("./sign-in-methods");
     auth.getUserIdentities.mockResolvedValue({ data: null, error: new Error("offline") });
     auth.getSession.mockResolvedValue({ data: { session: { user: { identities: [{ provider: "email" }] } } } });
     expect(await fresh.loadSignInMethods()).toEqual(["Email code"]);
 
     vi.resetModules();
-    const again = await import("./identity");
+    const again = await import("./sign-in-methods");
     auth.getSession.mockResolvedValue({ data: { session: null } });
     await expect(again.loadSignInMethods()).rejects.toThrow("offline");
     auth.getUserIdentities.mockResolvedValue({ data: { identities: [{ provider: "google" }] }, error: null });

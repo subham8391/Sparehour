@@ -15,6 +15,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "Clear the slate offers Today only or Today plus the backlog, and every batch can come back from Settings › Data.",
       "Archived and dropped tasks can be deleted for good from Settings › Data.",
       "Your account can be deleted from Settings › Account, with 30 days to change your mind.",
+      "Settings › Account shows your picture and how you sign in.",
+      "On iPhone and iPad, Settings shows the three taps that put Sparehour on your Home Screen.",
     ],
   },
   {
