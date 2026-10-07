@@ -761,6 +761,7 @@ create table public.user_settings (
   notify_shutdown     boolean not null default false,
   theme               text not null default 'system' check (theme in ('system','light','dark')),
   evening_starts_at   time not null default '18:00',
+  evening_ends_at     time not null default '22:00',     -- the evening cut-off (20261007153000); 00:00 = midnight
   ai_enabled          boolean not null default true,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
@@ -2042,6 +2043,8 @@ merge(intervals):
 | `overloaded` | `spare < −0.1 × work` | the same sentence with a bigger number. **Never a red count, never a guilt word.** |
 
 The copy rule matters as much as the arithmetic: the message always names a *quantity of time* and offers an *action*, never a count of failures.
+
+**The evening (as built 2026-10-07).** Evening tasks stay out of the daytime sum (`eveningMin` is reported, never subtracted). This Evening has its own budget, `src/core/capacity/evening.ts` (a module apart, so Today's first download does not carry it): `evening = cut-off − end of the day's last work window` (`Capacity.windows`; `evening_starts_at` only on a day without one), no buffer, zero when the cut-off is earlier, and a 00:00 cut-off is midnight. The cut-off is `user_settings.evening_ends_at` (default 22:00, Settings › Working hours "Evening ends at"). The evening's planned minutes are its tasks' estimates (the default for a missing one), the same figure as the section's header; past the budget This Evening says "That's a full evening." and nothing else changes. `evening_starts_at` keeps its other job: the hour from which a typed time counts as the evening in quick add.
 
 #### Projected finish time
 
