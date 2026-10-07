@@ -17,6 +17,20 @@ export interface LogbookFilters {
   to?: string;
 }
 
+/** Done | Dropped, and All for neither. */
+export const SHOW_OPTIONS: { value: "all" | LogbookShow; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "done", label: "Done" },
+  { value: "dropped", label: "Dropped" },
+];
+
+/** What the filters can choose from. */
+export interface FilterOptions {
+  projects: readonly { id: string; name: string }[];
+  areas: readonly { id: string; name: string }[];
+  tags: readonly { name: string }[];
+}
+
 /** A filter as a person adds and removes it: the date range is one, from and to together. */
 export type LogbookFilterKey = "show" | "project" | "area" | "tag" | "dates";
 
