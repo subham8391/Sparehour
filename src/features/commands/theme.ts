@@ -3,6 +3,7 @@
 // (globals.css handles all three states). The browser chrome follows through
 // the theme-color meta tags, and a pre-paint script in the root layout stamps
 // the stored choice before the first paint so dark never flashes light.
+import { SIDEBAR_KEY } from "@/features/shell/panes";
 import type { Theme } from "./command-runs";
 
 export const THEME_KEY = "sparehour.theme";
@@ -15,11 +16,12 @@ export const MOTION_KEY = "sparehour.motion";
 
 /**
  * Inline in `<head>`, before any paint: stamps `data-motion="reduce"` when this
- * device asked for less motion and `data-theme` from the stored choice, then
+ * device asked for less motion, `data-sidebar="rail"` when it folded the
+ * sidebar (shell/panes.ts) and `data-theme` from the stored choice, then
  * points the theme-color metas at that paper once the head has parsed (pages
  * without the app shell never run `applyTheme`). Kept tiny.
  */
-export const THEME_BOOTSTRAP = `(function(){try{var d=document.documentElement;if(localStorage.getItem("${MOTION_KEY}")==="reduce")d.dataset.motion="reduce";var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")return;d.dataset.theme=t;var c=t==="dark"?"${PAPER.dark}":"${PAPER.light}";document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.dataset.media=m.media;m.removeAttribute("media");m.content=c;});});}catch(e){}})();`;
+export const THEME_BOOTSTRAP = `(function(){try{var d=document.documentElement;if(localStorage.getItem("${MOTION_KEY}")==="reduce")d.dataset.motion="reduce";if(localStorage.getItem("${SIDEBAR_KEY}")==="rail")d.dataset.sidebar="rail";var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")return;d.dataset.theme=t;var c=t==="dark"?"${PAPER.dark}":"${PAPER.light}";document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.dataset.media=m.media;m.removeAttribute("media");m.content=c;});});}catch(e){}})();`;
 
 export function readTheme(): Theme {
   try {

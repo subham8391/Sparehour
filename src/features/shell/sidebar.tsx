@@ -3,15 +3,20 @@
 // its 56 px icon-rail form for the narrow band. Presentational: everything it
 // shows arrives as props, so it renders the same in a test as in the app.
 // It is viewport-high and sticky; the list scrolls inside it so the footer
-// with Settings and the sync state is always in reach.
+// with Settings and the sync state is always in reach. From the medium band
+// Cmd+\ or its button folds the full sidebar to the rail (panes.ts); the shell
+// draws both and `data-sidebar` on <html> picks one, so nothing flashes.
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Mark } from "@/ui/brand";
 import { Icon, type IconName } from "@/ui/icons";
 import { EYEBROW } from "@/ui/section-label";
 import { SIDEBAR_VIEWS, VIEWS, countLabel, isActive, type NavCounts, type NavView, type ViewId } from "./nav";
+import { toggleSidebar } from "./panes";
 import { SyncChip, type SyncChipModel } from "./sync-chip";
+import { RAISED } from "@/ui/sheet-parts";
 
 export const VIEW_ICONS: Record<ViewId, IconName> = {
   inbox: "inbox",
@@ -41,20 +46,58 @@ export interface NavArea {
 const ITEM = "flex h-9 touch:h-11 items-center gap-3 rounded-lg px-3 text-body text-ink transition-colors dur-fast hover:bg-hover active:bg-press";
 // The active pill: surface lifted by the 1 px ring shadow.
 const ACTIVE = "bg-surface shadow-nav";
-const RAIL_ITEM = "size-9 touch:size-11 justify-center px-0";
+// The rail on touch: no iOS link callout and no text selection under a held finger.
+const RAIL_ITEM = "size-9 touch:size-11 justify-center px-0 select-none [-webkit-touch-callout:none]";
+
+/**
+ * The rail's names on touch (SCREENS.md §1 "labels on long-press"): held for half a second, an icon shows its name
+ * and count beside the rail, and letting go then does not navigate; a tap still does. A mouse keeps the tooltip.
+ */
+function usePeek() {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const hold = useRef({ x: 0, y: 0, shown: false, timer: undefined as ReturnType<typeof setTimeout> | undefined });
+  const stop = () => clearTimeout(hold.current.timer);
+  const handlers = {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      if (e.pointerType === "mouse") return;
+      const r = e.currentTarget.getBoundingClientRect();
+      stop();
+      hold.current = { x: e.clientX, y: e.clientY, shown: false, timer: setTimeout(() => ((hold.current.shown = true), setAt({ x: r.right + 8, y: r.top + r.height / 2 })), 500) };
+    },
+    // A finger that moves is scrolling the rail, not holding an icon.
+    onPointerMove: (e: PointerEvent<HTMLElement>) => Math.hypot(e.clientX - hold.current.x, e.clientY - hold.current.y) > 10 && stop(),
+    onPointerUp: () => (stop(), hold.current.shown && (hold.current.timer = setTimeout(() => setAt(null), 1500))),
+    onPointerCancel: () => (stop(), setAt(null)),
+    onClick: (e: { preventDefault: () => void }) => {
+      if (hold.current.shown) e.preventDefault();
+      hold.current.shown = false;
+    },
+    // Android's long-press menu for a link (open in a new tab…) would cover the name.
+    onContextMenu: (e: { preventDefault: () => void }) => hold.current.shown && e.preventDefault(),
+  };
+  return { at, handlers };
+}
 
 function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathname: string; count?: number; rail: boolean; icon: IconName }) {
   const active = isActive(pathname, view.href);
   const label = countLabel(count);
+  const name = label ? `${view.label}, ${label}` : view.label;
+  const peek = usePeek();
   return (
     <Link
       href={view.href}
       aria-current={active ? "page" : undefined}
-      aria-label={rail ? (label ? `${view.label}, ${label}` : view.label) : undefined}
+      aria-label={rail ? name : undefined}
       title={rail ? view.label : undefined}
+      {...(rail ? peek.handlers : {})}
       className={cx(ITEM, "font-medium", active && ACTIVE, rail && RAIL_ITEM)}
     >
       <Icon name={icon} size={18} className={cx("shrink-0", active ? "text-ink" : "text-ink-2")} />
+      {peek.at && (
+        <span aria-hidden="true" className={cx(RAISED, "pointer-events-none fixed z-50 -translate-y-1/2 rounded-lg px-2.5 py-1.5 text-body-sm whitespace-nowrap text-ink")} style={{ left: peek.at.x, top: peek.at.y }}>
+          {name}
+        </span>
+      )}
       {!rail && <span className="truncate">{view.label}</span>}
       {!rail && label && (
         <span className={cx("ml-auto text-body-sm num", active ? "font-semibold text-ink-2" : "text-ink-3")} aria-label={`${label} ${view.id === "inbox" ? "to triage" : "remaining"}`}>
@@ -114,6 +157,16 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
   );
 }
 
+/** Collapse sidebar / Expand sidebar (Cmd+\): one in each nav, the shell shows one nav at a time. */
+function SidebarToggle({ rail }: { rail: boolean }) {
+  const name = rail ? "Expand sidebar" : "Collapse sidebar";
+  return (
+    <button type="button" data-sidebar-toggle aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "hidden md:flex" : "ml-auto")}>
+      <Icon name="sidebar" size={18} />
+    </button>
+  );
+}
+
 export function Sidebar({
   pathname,
   counts,
@@ -137,11 +190,12 @@ export function Sidebar({
       data-variant={rail ? "rail" : "full"}
       className={cx("sticky top-0 h-dvh shrink-0 flex-col border-r border-line bg-paper", rail ? "w-14 items-center" : "w-66", className)}
     >
-      <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "px-6")}>
+      <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "pr-3 pl-6")}>
         <Link href="/today" aria-label="Sparehour — Today" className="flex items-center gap-2.5 rounded-lg touch:min-h-11 touch:min-w-11 touch:justify-center">
           <Mark size={22} />
           {!rail && <span className="font-display text-pane font-medium leading-none text-ink">Sparehour</span>}
         </Link>
+        {!rail && <SidebarToggle rail={false} />}
       </div>
 
       <div className={cx("min-h-0 flex-1 overflow-y-auto pb-4", rail ? "px-2.5" : "px-3")}>
@@ -186,6 +240,8 @@ export function Sidebar({
 
       <div className={cx("flex shrink-0 flex-col gap-0.5 border-t border-line pt-2.5 pb-4", rail ? "items-center px-2.5" : "px-3")}>
         {footer}
+        {/* The rail stands in for the folded sidebar from the medium band; in the narrow band it is all there is. */}
+        {rail && <SidebarToggle rail />}
         <NavItem view={VIEWS.settings} pathname={pathname} rail={rail} icon={VIEW_ICONS.settings} />
         <SyncChip model={sync} compact={rail} />
       </div>

@@ -427,6 +427,18 @@
   }
 }
 
+/* The folded sidebar (SCREENS.md §1, Cmd+\): from the medium band the rail stands in for the full sidebar while
+   <html> carries data-sidebar="rail", stamped before the first paint (features/shell/panes.ts). Unlayered: it must
+   beat the navs' own band utilities. */
+@media (min-width: 900px) {
+  [data-sidebar="rail"] nav[data-variant="full"] {
+    display: none;
+  }
+  [data-sidebar="rail"] nav[data-variant="rail"] {
+    display: flex;
+  }
+}
+
 /* Motion is feedback only. People who asked for less keep the 120 ms fades and lose every movement. */
 @media (prefers-reduced-motion: reduce) {
   *,
