@@ -16,9 +16,9 @@ import { snoozePresets } from "./snooze";
 import { MoveActions, MoveToAction } from "./task-actions";
 import { TaskList, TaskRow } from "./task-row";
 
-const repo = { update: vi.fn(async () => {}), updateMany: vi.fn(async () => {}), placeInDay: vi.fn(async () => {}), series: async () => ({ skip: vi.fn() }) };
+const repo = { update: vi.fn(async () => {}), updateMany: vi.fn(async () => {}), placeInDay: vi.fn<(id: string, day: unknown, key: string, evening: boolean) => Promise<void>>(async () => {}), series: async () => ({ skip: vi.fn() }) };
 vi.mock("./use-task-repo", () => ({ useTaskRepo: () => repo }));
-const db = { getOptional: vi.fn(async (_sql: string, _args: unknown[]): Promise<unknown> => null) };
+const db = { getOptional: vi.fn<(sql: string, args?: unknown[]) => Promise<unknown>>(async () => null) };
 vi.mock("@/data/powersync", () => ({ useLocalDatabase: () => db, useQuery: () => ({ data: undefined }) }));
 
 beforeEach(() => {
@@ -136,7 +136,7 @@ describe("Move to…", () => {
     expect(screen.queryByRole("dialog", { name: "Move to…" })).toBeNull();
     const tomorrow = Temporal.Now.plainDateISO("UTC").add({ days: 1 });
     await waitFor(() => expect(repo.placeInDay).toHaveBeenCalledWith("t1", tomorrow, expect.any(String), false));
-    expect(String(repo.placeInDay.mock.calls[0][2] as unknown) > "a3").toBe(true);
+    expect(repo.placeInDay.mock.calls[0][2] > "a3").toBe(true);
     // Focus goes back to the row's ⋯.
     await waitFor(() => expect(screen.getByRole("button", { name: "More actions" })).toHaveFocus());
   });
