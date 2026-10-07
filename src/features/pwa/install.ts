@@ -7,6 +7,8 @@ export interface InstallSignals {
   /** A captured `beforeinstallprompt` event is available (Android/desktop Chromium). */
   canPrompt: boolean;
   isIOS: boolean;
+  /** An iPad, whose Safari keeps Share at the top rather than the bottom. */
+  isIPad: boolean;
   isSafari: boolean;
 }
 
@@ -17,20 +19,37 @@ export type InstallState =
   | { kind: "coach-safari"; steps: string[] }
   | { kind: "browser-menu" };
 
+/**
+ * The Apple rule, said once wherever the coaching shows (ONBOARDING.md §After the reveal): on iPhone and iPad,
+ * reminders and offline need the Home Screen app.
+ */
+export const APPLE_RULE = "Notifications and offline only work from the Home Screen — that’s an Apple rule, not ours.";
+
+/**
+ * ONBOARDING.md's three steps for Safari on iPhone and iPad. iOS 26's compact tab bar can tuck Share behind `···`,
+ * so the first step names both (DECISIONS.md "iOS 26 install coaching"; to be checked on a real iPhone with A4).
+ * iPad Safari keeps its toolbar at the top.
+ */
+export function iosInstallSteps(iPad = false): string[] {
+  return [`Tap Share, or ··· then Share, at the ${iPad ? "top" : "bottom"} of Safari.`, "Scroll down and tap Add to Home Screen.", "Tap Add."];
+}
+
 /** What to show under "Install": nothing to do, a button, or the gesture for this platform. */
 export function installState(s: InstallSignals): InstallState {
   if (s.standalone) return { kind: "installed" };
   if (s.canPrompt) return { kind: "prompt" };
-  if (s.isIOS) return { kind: "coach-ios", steps: ["Tap Share in Safari", "Choose “Add to Home Screen”", "Open Sparehour from your Home Screen"] };
+  if (s.isIOS) return { kind: "coach-ios", steps: iosInstallSteps(s.isIPad) };
   if (s.isSafari) return { kind: "coach-safari", steps: ["Choose File → Add to Dock", "Open Sparehour from the Dock"] };
   return { kind: "browser-menu" };
 }
 
 export function detectInstallSignals(nav: Pick<Navigator, "userAgent"> & { standalone?: boolean }, standaloneMedia: boolean, canPrompt: boolean): InstallSignals {
   const ua = nav.userAgent;
-  const isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && "standalone" in nav);
+  // iPadOS asks for the desktop site and says "Macintosh"; only a touch iPad has navigator.standalone there.
+  const isIPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && "standalone" in nav);
+  const isIOS = /iPhone|iPod/.test(ua) || isIPad;
   const isSafari = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox/.test(ua);
-  return { standalone: standaloneMedia || nav.standalone === true, canPrompt, isIOS, isSafari };
+  return { standalone: standaloneMedia || nav.standalone === true, canPrompt, isIOS, isIPad, isSafari };
 }
 
 export type PersistenceState = "protected" | "unprotected" | "unknown";

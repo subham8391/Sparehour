@@ -2,9 +2,13 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { detectPushPlatform, permissionCopy } from "@/features/notifications/push";
+import { iosInstallSteps } from "@/features/pwa/install";
 import { AllSections, SETTINGS_VALUES, WORK_WEEK } from "@/test/settings";
 import { WorkDayRow } from "./sections/hours-section";
 import type { SettingsFormProps } from "./types";
+
+const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
 
 function setup(over: Partial<SettingsFormProps> = {}) {
   const onChange = vi.fn();
@@ -143,6 +147,14 @@ describe("Settings sections", () => {
     setup({ notifications: { ...base, copy: { headline: "Blocked in your browser.", detail: null, steps: ["Click the icon left of the address bar", "Notifications → Allow"], action: null } } });
     expect(screen.queryByRole("button", { name: "Turn on reminders" })).not.toBeInTheDocument();
     expect(screen.getByText("Notifications → Allow")).toBeInTheDocument();
+    cleanup();
+
+    // Safari on an iPhone: where reminders are turned on, the same install card as Settings › App, said once.
+    setup({ notifications: { ...base, copy: permissionCopy("unsupported", detectPushPlatform({ userAgent: IPHONE_UA }, false), false, false) } });
+    const card = screen.getByRole("region", { name: "Add Sparehour to your Home Screen" });
+    expect(within(card).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getAllByText("Notifications and offline only work from the Home Screen — that’s an Apple rule, not ours.")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Turn on reminders" })).not.toBeInTheDocument();
   });
 
   it("the Data section exports in three formats and reports the file it saved", async () => {
@@ -219,11 +231,21 @@ describe("Settings sections", () => {
 
   it("the App section shows install coaching, the storage state and the version", async () => {
     const onInstall = vi.fn();
-    const { user } = setup({ app: { install: { kind: "coach-ios", steps: ["Tap Share in Safari", "Choose “Add to Home Screen”"] }, persistence: "unprotected", version: "dev", onInstall } });
-    expect(screen.getByText("Tap Share in Safari")).toBeInTheDocument();
+    const { user } = setup({ app: { install: { kind: "coach-ios", steps: iosInstallSteps() }, persistence: "unprotected", version: "dev", onInstall } });
+    // ONBOARDING.md's card: the share glyph, the three steps and the Apple rule.
+    const card = screen.getByRole("region", { name: "Add Sparehour to your Home Screen" });
+    expect(within(card).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Tap Share, or ··· then Share, at the bottom of Safari.", "Scroll down and tap Add to Home Screen.", "Tap Add."]);
+    expect(within(card).getAllByRole("listitem")[0].querySelector("svg path")?.getAttribute("d")).toMatch(/^M7\.5 8H6/);
+    expect(within(card).getByText("Notifications and offline only work from the Home Screen — that’s an Apple rule, not ours.")).toBeInTheDocument();
     expect(screen.getByText(/Not protected — install the app/)).toBeInTheDocument();
     expect(screen.getByText("dev")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Install Sparehour" })).not.toBeInTheDocument();
+    cleanup();
+    // Once installed there is nothing to coach.
+    setup({ app: { install: { kind: "installed" }, persistence: "protected", version: "dev", onInstall } });
+    expect(screen.queryByRole("region", { name: "Add Sparehour to your Home Screen" })).not.toBeInTheDocument();
+    expect(screen.getByText("Installed")).toBeInTheDocument();
+    cleanup();
     // where the browser can prompt, a button
     setup({ app: { install: { kind: "prompt" }, persistence: "protected", version: "dev", onInstall } });
     await user.click(screen.getByRole("button", { name: "Install Sparehour" }));

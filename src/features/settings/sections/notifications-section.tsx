@@ -4,6 +4,7 @@
 // category switches; how early a block reminder comes; when the morning and
 // shutdown nudges come (from working hours unless a time is chosen); quiet
 // hours, which drop what falls inside them; and the app-icon badge.
+import { InstallCoaching } from "@/features/pwa/install-coaching";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Select } from "@/ui/select";
@@ -47,8 +48,10 @@ export function NotificationsSection(p: SettingsFormProps) {
               </span>
             )}
           </div>
-          {n.copy.detail && <p className={NOTE}>{n.copy.detail}</p>}
-          {n.copy.steps.length > 0 && (
+          {/* Safari on iPhone and iPad: the install coaching, which carries the Apple rule itself. */}
+          {n.copy.action === "install" && <InstallCoaching steps={n.copy.steps} />}
+          {n.copy.detail && n.copy.action !== "install" && <p className={NOTE}>{n.copy.detail}</p>}
+          {n.copy.steps.length > 0 && n.copy.action !== "install" && (
             <ol className="list-decimal pl-5 text-body-sm text-ink-2">
               {n.copy.steps.map((s) => (
                 <li key={s}>{s}</li>
