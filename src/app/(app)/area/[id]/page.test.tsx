@@ -55,7 +55,7 @@ async function show() {
     render(
       <SelectionProvider>
         <Suspense>
-          <AreaPage params={params} />
+          <AreaPage params={params} searchParams={Promise.resolve({})} />
         </Suspense>
       </SelectionProvider>,
     );
