@@ -43,9 +43,15 @@ jobs:
   # End-to-end (SYSTEM_DESIGN.md §12.2): the production build against the real
   # local stack — Supabase, self-hosted PowerSync — signed in as the seeded
   # dev account. Playwright drives Chromium on desktop and a phone profile.
+  # Three shards, each on its own runner with its own stack, keep every job
+  # well inside its time limit as the suite grows.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,7 +74,7 @@ jobs:
           for i in $(seq 1 40); do curl -fs http://localhost:8080/probes/liveness >/dev/null && exit 0; sleep 3; done
           docker compose -f powersync/docker-compose.yml logs; exit 1
       - run: npm run build
-      - run: npx playwright test
+      - run: npx playwright test --shard=${{ matrix.shard }}/3
         env:
           CI: "1"
           E2E_SKIP_BUILD: "1"
@@ -76,7 +82,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report
             test-results
