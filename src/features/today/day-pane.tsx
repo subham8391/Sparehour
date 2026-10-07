@@ -4,14 +4,13 @@
 // while the local database opens, so it is in memory by the time there is a day to draw — and the timeline's
 // growth (zoom, block editing, the toolbar's Move… and Duplicate, blocks of your own) lands here rather than in
 // the shell. The wiring from the shared placing hook to the timeline lives here for the same reason.
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatTime, timeFromMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
 import { usePlacing, type PlacingApi, type PlacingDay } from "@/features/blocking/use-placing";
 import { PENDING_BLOCKS_SQL, blockSync } from "./block-sync";
-import { pausedLine } from "./calendar-words";
-import type { CalendarWrites } from "./hooks/use-today";
+import { pausedLine, useCalendarState } from "./calendar-state";
 import { PlacingBar, Timeline, type TimelineProps } from "./timeline";
 
 /** What the screen draws; the placing hook supplies everything a person can do on it. */
@@ -56,15 +55,20 @@ export interface DayPaneProps {
   placing: PlacingDay;
   onOpenTask: (taskId: string) => void;
   timeline: DrawnDay;
-  /** Whether blocks reach Google, and why blocking is paused when it is (use-today `calendarWrites`). */
-  writes?: CalendarWrites;
 }
 
-export function DayPane({ start, end, bufferPct, hint, placing, onOpenTask, timeline, writes }: DayPaneProps) {
-  const off = pausedLine(writes?.off ?? null);
+export function DayPane({ start, end, bufferPct, hint, placing, onOpenTask, timeline }: DayPaneProps) {
+  // Whether blocks reach Google, and whether blocking is paused (access revoked, write calendar gone).
+  const { writes } = useCalendarState();
+  const off = pausedLine(writes.off);
   // B, drops, moves, copies and blocks of your own: here, so none of it rides in Today's first download.
   const placer = usePlacing({ ...placing, off });
   const waiting = off ? undefined : placer.placingTask;
+  // A row's "Block" while blocking is paused lands here, where the line says why; nothing stays armed.
+  const armed = Boolean(off && placer.placingTask);
+  useEffect(() => {
+    if (armed) placer.setPlacing(null);
+  }, [armed, placer]);
   // The "will sync" and "not synced" marks (SCREENS.md §2.7, §21): a block change still in the upload queue, or one
   // Google has not had yet, or every block while blocking is paused.
   const { data: pendingRows } = useQuery<{ id: string | null }>(PENDING_BLOCKS_SQL);

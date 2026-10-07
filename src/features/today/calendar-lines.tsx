@@ -17,8 +17,7 @@ import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { Radio } from "@/ui/radio";
-import { issueMessage } from "./calendar-words";
-import type { CalendarIssue } from "./hooks/use-today";
+import { issueMessage, useCalendarState } from "./calendar-state";
 
 const DISMISSED_KEY = "sparehour:calendar-line-dismissed";
 /** "Keep blocks in Sparehour only" after the write calendar left: a choice for this device, kept with the issue it answered. */
@@ -46,11 +45,14 @@ const BANNER = "flex flex-col gap-2 rounded-xl border border-line bg-surface px-
 /** Reconnect starts Google's consent again and comes back to Today (the same route Settings › Calendar uses). */
 export const RECONNECT_HREF = `/api/calendar/google/start?next=${encodeURIComponent("/today")}`;
 
-export function CalendarBanner({ issue }: { issue: CalendarIssue }) {
-  const [hidden, setHidden] = useState<string | null>(() => (issue.kind === "error" ? read(session, DISMISSED_KEY) : issue.kind === "write_gone" ? read(local, KEEP_LOCAL_KEY) : null));
+export function CalendarBanner() {
+  const { issue } = useCalendarState();
+  // What was put away: the unreachable line for this session, "Keep blocks in Sparehour only" on this device.
+  const [dismissed, setDismissed] = useState<string | null>(() => read(session, DISMISSED_KEY));
+  const [keptLocal, setKeptLocal] = useState<string | null>(() => read(local, KEEP_LOCAL_KEY));
   const [said, setSaid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (hidden === issue.key) return null;
+  if (!issue || issue.key === dismissed || issue.key === keptLocal) return null;
 
   if (issue.kind === "reauth") {
     return (
@@ -73,7 +75,7 @@ export function CalendarBanner({ issue }: { issue: CalendarIssue }) {
         <WritePicker
           onKeepLocal={() => {
             write(local, KEEP_LOCAL_KEY, issue.key);
-            setHidden(issue.key);
+            setKeptLocal(issue.key);
           }}
         />
       </section>
@@ -101,7 +103,7 @@ export function CalendarBanner({ issue }: { issue: CalendarIssue }) {
           title="Dismiss for now"
           onClick={() => {
             write(session, DISMISSED_KEY, issue.key);
-            setHidden(issue.key);
+            setDismissed(issue.key);
           }}
         >
           <Icon name="close" size={16} />

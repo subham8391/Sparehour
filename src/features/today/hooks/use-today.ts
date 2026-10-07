@@ -10,7 +10,7 @@ import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
 import { monthsBack } from "@/data/queries/shell";
-import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
+import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { useCarryAsks } from "@/features/rollover/use-carry-asks";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
@@ -111,13 +111,6 @@ export interface TimelineMeeting {
  */
 export const REMOVED_BLOCKS_SQL = `select id, task_id from time_blocks where deleted_at is not null and notice = 'removed_in_google' and task_id is not null`;
 
-/** Whether new blocks can reach Google, and why blocking is paused when it cannot (PRODUCT_SPEC.md §10.3 rule 5). */
-export interface CalendarWrites {
-  /** A write calendar is set and its account may write: a block's pending push_state means it will sync. */
-  on: boolean;
-  /** Blocking is paused, and why (calendar-words.ts says it); null while blocking works. */
-  off: "reauth" | "write_gone" | null;
-}
 
 export interface TodayModel {
   ready: boolean;
@@ -141,10 +134,6 @@ export interface TodayModel {
   repo: TaskRepo;
   /** False until a calendar is connected: the ribbon offers to connect one (PRODUCT_SPEC.md §9.4). */
   calendarConnected: boolean;
-  /** The one line above the ribbon when an account needs attention (SCREENS.md §2.7). */
-  calendarIssue: CalendarIssue | null;
-  /** Whether blocks reach Google, and whether blocking is paused (access revoked, write calendar gone). */
-  writes: CalendarWrites;
   /** Today's all-day events, by title, for the line under the date (SYSTEM_DESIGN.md §5.4: flagged, never busy). */
   allDay: string[];
   /** Each task's blocks that Google removed, for the row's one quiet note (PRODUCT_SPEC.md §10.3 rule 3). */
@@ -172,7 +161,6 @@ export function useToday(now: Temporal.Instant): TodayModel {
     streams: [{ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24 }],
   });
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
-  const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
   const { data: removedRows } = useQuery<{ id: string; task_id: string }>(REMOVED_BLOCKS_SQL);
   // Has this window of the calendar arrived at least once? The same subscription, held until it has synced.
   const { isLoading: calendarWaiting } = useQuery<{ n: number }>(CALENDAR_ARRIVED_SQL, [], {
@@ -257,64 +245,18 @@ export function useToday(now: Temporal.Instant): TodayModel {
       blocksByTask,
       meetings,
       repo,
-      // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: one line when the calendar has a problem.
+      // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: the calendar's lines
+      // (an issue, blocking paused) are the banner island's own reading (calendar-state.ts).
       calendarConnected: connected,
-      calendarIssue: calendarIssueFrom(connectionRows ?? [], calendarRows ?? []),
-      writes: calendarWrites(connectionRows ?? [], calendarRows ?? []),
       allDay: allDayTitles(eventRows ?? [], today, readByCalendar, privateIds),
       removedBlocks,
       calendarLoading: connected && calendarWaiting,
     };
-  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, removedRows, calendarWaiting, workRows, settings, today, now, isLoading, repo]);
+  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, removedRows, calendarWaiting, workRows, settings, today, now, isLoading, repo]);
 }
 
 /** A cheap row for the calendar window's subscription to wait on; its loading state is "not arrived yet". */
 const CALENDAR_ARRIVED_SQL = `select 1 as n`;
-
-export interface CalendarIssue {
-  /** reauth: access lapsed or revoked; write_gone: the calendar blocks went to left Google; error: a sync failed. */
-  kind: "reauth" | "write_gone" | "error";
-  /** The account's address, and its last good sync, for the banner's words (calendar-words.ts). */
-  email: string | null;
-  lastSyncedAt: string | null;
-  /** The account, and the moment the issue began, so a dismissal for the session is of this issue only. */
-  key: string;
-  /** Blocking is paused until it is fixed (PRODUCT_SPEC.md §10.3 rule 5); an unreachable calendar never pauses it. */
-  blocking: boolean;
-}
-
-type CalendarLink = Pick<CalendarFullRow, "calendar_account_id" | "write_target">;
-
-/** The account behind the write calendar, when there is one. */
-const writeAccount = (calendars: readonly CalendarLink[]) => calendars.find((c) => c.write_target === 1)?.calendar_account_id ?? null;
-const lapsed = (r: CalendarConnectionRow) => r.status === "needs_reauth" || r.status === "revoked";
-
-/**
- * The first thing about the calendar that needs attention (SCREENS.md §2.7, §21): lapsed access first, then a write
- * calendar that left Google, then a sync that failed (its events are still the last good ones). Lapsed access
- * pauses blocking when it is the write calendar's account; a lost write calendar always does.
- */
-export function calendarIssueFrom(rows: readonly CalendarConnectionRow[], calendars: readonly CalendarLink[] = []): CalendarIssue | null {
-  const writer = writeAccount(calendars);
-  const issue = (kind: CalendarIssue["kind"], r: CalendarConnectionRow, key: string, blocking: boolean): CalendarIssue => ({ kind, email: r.email, lastSyncedAt: r.last_synced_at, key: `${kind}:${r.id}:${key}`, blocking });
-  const reauth = rows.find((r) => lapsed(r) && r.id === writer) ?? rows.find(lapsed);
-  if (reauth) return issue("reauth", reauth, "", reauth.id === writer);
-  const gone = writer === null ? rows.find((r) => r.write_lost_at) : undefined;
-  if (gone) return issue("write_gone", gone, gone.write_lost_at ?? "", true);
-  const failed = rows.find((r) => r.last_error);
-  return failed ? issue("error", failed, failed.last_synced_at ?? "", false) : null;
-}
-
-/** Whether blocks reach Google now, and the plain-words reason blocking is paused when the issue pauses it. */
-export function calendarWrites(rows: readonly CalendarConnectionRow[], calendars: readonly CalendarLink[]): CalendarWrites {
-  const issue = calendarIssueFrom(rows, calendars);
-  const writer = writeAccount(calendars);
-  const account = writer ? rows.find((r) => r.id === writer) : undefined;
-  return {
-    on: Boolean(account && account.can_write === 1 && !lapsed(account)),
-    off: issue?.blocking ? (issue.kind as "reauth" | "write_gone") : null,
-  };
-}
 
 /** Today's all-day events by title (private calendars say "Busy"); out-of-office days have their own line on the ribbon. */
 export function allDayTitles(rows: readonly CalendarEventRow[], today: LocalDate, readByCalendar: ReadonlyMap<string, boolean>, privateIds: ReadonlySet<string>): string[] {

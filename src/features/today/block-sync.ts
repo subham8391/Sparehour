@@ -1,6 +1,7 @@
 // Whether a block on the timeline is in step (SCREENS.md §2.7 Offline, §20 "Blocks created offline carry a small
 // 'will sync' dot", §21 "Existing blocks stay, marked unsynced"; PRODUCT_SPEC.md §19.2.3, §10.3 rule 5).
-import type { CalendarWrites, TimelineBlock } from "./hooks/use-today";
+import type { CalendarWrites } from "./calendar-state";
+import type { TimelineBlock } from "./hooks/use-today";
 
 /** The upload queue's block changes: PowerSync keeps each waiting change as JSON with its table and row id. */
 export const PENDING_BLOCKS_SQL = `select json_extract(data, '$.id') as id from ps_crud where json_extract(data, '$.type') = 'time_blocks'`;

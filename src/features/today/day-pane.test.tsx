@@ -8,7 +8,8 @@ import type { TaskId } from "@/core/types";
 import { capacityFixture } from "@/test/fixtures";
 import type { TimelineBlock } from "./hooks/use-today";
 
-const h = vi.hoisted(() => ({ pending: [] as { id: string | null }[], create: vi.fn(() => Promise.resolve("new")) }));
+const h = vi.hoisted(() => ({ pending: [] as { id: string | null }[], create: vi.fn(() => Promise.resolve("new")), writes: { on: false, off: null as "reauth" | "write_gone" | null } }));
+vi.mock("./calendar-state", async (original) => ({ ...(await original<typeof import("./calendar-state")>()), useCalendarState: () => ({ issue: null, writes: h.writes }) }));
 vi.mock("@/data/powersync", () => ({
   useQuery: (sql: string) => ({ data: sql.includes("ps_crud") ? h.pending : [{ id: "u1", personal_space_id: "s1" }] }),
 }));
@@ -22,14 +23,14 @@ const blocks: TimelineBlock[] = [
   { id: "b2", taskId: null, title: "Deep work", start: 780, end: 870, locked: false, pushState: "pending" },
 ];
 
-function pane(writes?: { on: boolean; off: "reauth" | "write_gone" | null }) {
+function pane(writes: { on: boolean; off: "reauth" | "write_gone" | null }) {
+  h.writes = writes;
   return (
     <DayPane
       start={540}
       end={1080}
       bufferPct={15}
       hint={false}
-      writes={writes}
       onOpenTask={() => undefined}
       placing={{ day: localDate("2026-09-14"), zone: "UTC", blocks, free: capacityFixture.free, dayStart: 540, dayEnd: 1080, nowMinute: 570, defaultEstimateMin: 30, findTask: () => undefined }}
       timeline={{ c: capacityFixture, now: instant("2026-09-14T09:30:00Z"), zone: "UTC", blocks }}

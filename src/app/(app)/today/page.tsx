@@ -468,7 +468,7 @@ export default function TodayPage() {
         ) : (
           model.capacity && (
             <>
-              {model.calendarIssue && <CalendarBanner issue={model.calendarIssue} />}
+              {model.calendarConnected && <CalendarBanner />}
               <Ribbon
                 c={model.capacity}
                 nowMin={nowMinute}
@@ -621,7 +621,7 @@ export default function TodayPage() {
                       {/* The whole word, in the row and in the phone's menu: what is seen is what is named (WCAG 2.5.3). */}
                       <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />
                       {/* Still there once blocked: a task may take a second block (PRODUCT_SPEC.md §10.2). */}
-                      {hasDay && !model.writes.off && (
+                      {hasDay && (
                         <RowAction label={`Block ${t.title}`} text="Block" glyph={BLOCK_GLYPH} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} />
                       )}
                       {convertItem(t.id)}
@@ -715,7 +715,6 @@ export default function TodayPage() {
               state: { selectedBlockId, setSelectedBlockId, placing: placingId, setPlacing: setPlacingId },
             }}
             onOpenTask={detail.open}
-            writes={model.writes}
             timeline={{
               // While previewing, the gaps are what the proposal leaves; the "done by" marker belongs to the day as it is, so it steps aside.
               c: drawing ? { ...model.capacity, free: [...drawing.free], projectedFinish: null } : model.capacity,
