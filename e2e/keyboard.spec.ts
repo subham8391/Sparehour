@@ -33,9 +33,10 @@ test("Enter renames the selected row in place, Space opens it, and Esc lets go o
   await openApp(page, "/inbox");
   const title = uniqueTitle("rename");
   await quickAdd(page, title);
-  // The newest capture is the Inbox's first row: J selects it and focus follows it, so it is read out.
-  await page.keyboard.press("j");
+  // The newest capture is the Inbox's first row (once it is drawn): J selects it and focus follows it, so it is read out.
   const row = page.getByRole("row").filter({ hasText: title });
+  await expect(page.getByRole("row").first()).toContainText(title);
+  await page.keyboard.press("j");
   await expect(row).toHaveAttribute("aria-current", "true");
   await expect(row).toBeFocused();
 

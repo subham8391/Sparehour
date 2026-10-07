@@ -166,7 +166,7 @@ test("Not yet planned · N opens a sheet where a day's cell places a task at the
   await open.click();
   const sheet = page.getByRole("dialog", { name: "Not yet planned" });
   await expect(sheet.getByRole("heading", { name: /^Not yet planned/ })).toHaveText(`Not yet planned · ${count}`);
-  const task = sheet.getByRole("listitem").filter({ hasText: unplanned });
+  const task = sheet.getByRole("row").filter({ hasText: unplanned });
   const cells = task.getByRole("group", { name: `Move “${unplanned}” to` }).getByRole("button");
   await expect(cells).toHaveCount(7);
   // Nothing scrolls sideways with the sheet open.
@@ -179,6 +179,6 @@ test("Not yet planned · N opens a sheet where a day's cell places a task at the
 
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
-  await expect(day(page, to).getByRole("listitem").filter({ hasText: unplanned })).toBeVisible();
+  await expect(day(page, to).getByRole("row").filter({ hasText: unplanned })).toBeVisible();
   await expect.poll(() => readValue(page, to)).toBe(before - 40);
 });

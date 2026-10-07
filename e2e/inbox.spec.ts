@@ -24,7 +24,8 @@ test("the selected row expands: an estimate alone keeps it, This week files it u
   const title = uniqueTitle("triage row");
   await quickAdd(page, title);
   const row = page.getByRole("row").filter({ hasText: title });
-  // The newest capture is first: J selects it, and only the selected row expands.
+  // The newest capture is first (once it is drawn): J selects it, and only the selected row expands.
+  await expect(page.getByRole("row").first()).toContainText(title);
   await page.keyboard.press("j");
   const triage = page.getByRole("group", { name: `Triage ${title}` });
   await expect(triage).toBeVisible();
@@ -55,6 +56,9 @@ test("Triage all walks the newest captures one at a time; each key decides and m
   const [older, newer] = [uniqueTitle("walk one"), uniqueTitle("walk two")];
   await quickAdd(page, older);
   await quickAdd(page, newer);
+  // The walk takes the Inbox as drawn when it opens: wait for both captures at its head.
+  await expect(page.getByRole("row").first()).toContainText(newer);
+  await expect(page.getByRole("row").nth(1)).toContainText(older);
   await page.getByRole("button", { name: "Triage all" }).click();
   const walk = page.getByRole("dialog", { name: "Triage" });
   await expect(walk.getByRole("heading", { level: 2 })).toHaveText(newer);
