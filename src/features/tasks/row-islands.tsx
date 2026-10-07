@@ -12,11 +12,11 @@ const loadDayPicker = () => import("./day-picker");
 
 const RowMenuLazy = lazy(() => loadRowMenu().then((m) => ({ default: m.RowMenu })));
 
-/** The row's actions, then the snooze presets and Move to… once they have loaded. */
-export function RowMenuIsland({ taskId, children }: { taskId: string; children: ReactNode }) {
+/** The row's actions (after the view's `lead`), then the snooze presets and Move to… once they have loaded. */
+export function RowMenuIsland({ taskId, lead, children }: { taskId: string; lead?: ReactNode; children: ReactNode }) {
   return (
-    <Suspense fallback={children}>
-      <RowMenuLazy taskId={taskId}>{children}</RowMenuLazy>
+    <Suspense fallback={<>{lead}{children}</>}>
+      <RowMenuLazy taskId={taskId} lead={lead}>{children}</RowMenuLazy>
     </Suspense>
   );
 }

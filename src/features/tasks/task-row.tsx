@@ -61,6 +61,7 @@ export function TaskRow({
   draggable: canDrag = false,
   onDropTask,
   onBreakDown,
+  menuLead,
 }: {
   task: Task;
   /** The user's today, for the deadline wording; the device's date when a view has none to give. */
@@ -86,6 +87,8 @@ export function TaskRow({
   onDropTask?: (sourceId: string, edge: Edge) => void;
   /** Converts the task to a project: the long-estimate hint ("Long — break it down?") offers it. */
   onBreakDown?: () => void;
+  /** `RowAction`s that head the ⋯ menu (the Inbox's triage on a phone, SCREENS.md §5); one of the same name below steps aside. */
+  menuLead?: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -135,7 +138,7 @@ export function TaskRow({
   // checkbox once any row is ticked, and a long-press on touch.
   const sel = useSelectionOptional();
   const ticked = sel?.checkedIds.includes(task.id) ?? false;
-  const multi = (sel?.checkedIds.length ?? 0) > 0;
+  const multi = (sel?.checkedIds.length ?? 0) > 0 || Boolean(sel?.selecting);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** A long-press just ticked the row: the click the finger's release sends is part of it, not a tap that opens. */
   const longPressed = useRef(false);
@@ -465,7 +468,13 @@ export function TaskRow({
                   );
                   return (
                     <RowActionsLayoutProvider layout="menu" close={close} move={movable ? move : undefined}>
-                      {movable ? <RowMenuIsland taskId={task.id}>{own}</RowMenuIsland> : own}
+                      {movable ? (
+                        <RowMenuIsland taskId={task.id} lead={menuLead}>
+                          {own}
+                        </RowMenuIsland>
+                      ) : (
+                        own
+                      )}
                     </RowActionsLayoutProvider>
                   );
                 }}
