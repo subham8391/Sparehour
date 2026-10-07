@@ -42,9 +42,10 @@ function focusables(root: HTMLElement): HTMLElement[] {
 }
 
 /**
- * The dialog's focus: in on open, kept in while open, back to the opener on
- * close. The opener is read while rendering, before a child's effect (quick-add
- * focuses its input) has moved focus into the sheet.
+ * The dialog's focus: in on open, kept in while open (back to the panel when
+ * the focused control is taken out of it), back to the opener on close. The
+ * opener is read while rendering, before a child's effect (quick-add focuses
+ * its input) has moved focus into the sheet.
  */
 export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(active = true) {
   const panel = useRef<T>(null);
@@ -62,7 +63,12 @@ export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(active = 
       (focusables(el)[0] ?? el).focus({ preventScroll: true });
     };
     document.addEventListener("focusin", onFocusIn);
+    // Focus whose control is taken out of the dialog (a task placed from a list inside it leaves that list) falls to
+    // the page, where Escape and Tab no longer reach the dialog: it comes back to the panel.
+    const dropped = typeof MutationObserver === "function" ? new MutationObserver(() => (!document.activeElement || document.activeElement === document.body) && el.focus({ preventScroll: true })) : null;
+    dropped?.observe(el, { childList: true, subtree: true });
     return () => {
+      dropped?.disconnect();
       document.removeEventListener("focusin", onFocusIn);
       const lost = !document.activeElement || document.activeElement === document.body || el.contains(document.activeElement);
       if (lost && opener?.isConnected && !el.contains(opener)) opener.focus({ preventScroll: true });

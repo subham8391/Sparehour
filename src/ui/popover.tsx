@@ -64,7 +64,8 @@ const GAP = 4;
  * `up`, or when there is more room above), its right or left edge on the
  * anchor's, kept 8 px inside the viewport. Fixed, so no card, mask or
  * scroller around the trigger clips it; it follows the anchor while the page
- * scrolls. With no anchor it does nothing.
+ * scrolls, and is placed again when it changes size. With no anchor it does
+ * nothing.
  */
 export function useAnchoredPlacement(anchor: HTMLElement | null, align: "left" | "right" = "right", direction: "up" | "down" = "down") {
   return useCallback(
@@ -87,7 +88,12 @@ export function useAnchoredPlacement(anchor: HTMLElement | null, align: "left" |
       place();
       window.addEventListener("scroll", place, true);
       window.addEventListener("resize", place);
+      // A panel that grows once it is open (a row menu's lazy group arriving after the first paint) is placed again,
+      // so its last items never hang below the window where neither a scroll nor a pointer can reach them.
+      const grows = typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
+      grows?.observe(el);
       return () => {
+        grows?.disconnect();
         window.removeEventListener("scroll", place, true);
         window.removeEventListener("resize", place);
       };

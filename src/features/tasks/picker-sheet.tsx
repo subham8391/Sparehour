@@ -9,6 +9,7 @@ import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
 import { EYEBROW } from "@/ui/section-label";
 import { Sheet } from "@/ui/sheet";
+import { usePointerHighlight } from "@/ui/use-pointer-highlight";
 
 export interface PickerOption {
   key: string;
@@ -47,6 +48,8 @@ export function PickerSheet(p: PickerSheetProps) {
   }
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  // The highlight follows the pointer only while it moves, so Enter takes the best match under a resting pointer.
+  const pointTo = usePointerHighlight(setHighlight);
   const active = p.options[Math.min(highlight, p.options.length - 1)];
   const take = (o: PickerOption | undefined) => {
     if (!o) return;
@@ -108,7 +111,7 @@ export function PickerSheet(p: PickerSheetProps) {
                 role="option"
                 aria-selected={o === active}
                 aria-checked={o.current ?? undefined}
-                onMouseEnter={() => setHighlight(i)}
+                onMouseMove={(e) => pointTo(e, i)}
                 onClick={() => take(o)}
                 className={cx("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 text-body text-ink", o === active && "bg-surface-2")}
               >

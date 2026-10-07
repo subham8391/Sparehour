@@ -1,7 +1,7 @@
 "use client";
-// The organising island (organize.tsx asks, this answers): the `#` / `M` move picker and the `@` tag picker for
-// the selected task or every ticked row — one write and one undo for the lot, then the ticks clear — Duplicate for
-// a task (the copy opens) and a project (the copy opens), and the quiet notices ("Link copied", "That task isn't on
+// The organising island (organize.tsx asks, this answers): the `#` / `M` move picker (`M` lists the areas too) and
+// the `@` tag picker for the selected task or every ticked row — one write and one undo for the lot, then the ticks
+// clear — Duplicate for a task (the copy opens) and a project (the copy opens), and the quiet notices ("Link copied", "That task isn't on
 // this device."). Fetched in idle time and kept mounted, so none of it rides in a shell's first download.
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -109,13 +109,11 @@ export function OrganizeIsland() {
   };
 
   const move = (ids: readonly string[], target: MoveTarget) => {
-    if (target.kind === "area") {
-      // tasks.area_id hook (DECISIONS.md "Loose tasks in an area"): an area target sets area_id and clears the
-      // project and heading. Not offered until that column exists, so the picker never lists areas as targets.
-      return;
-    }
+    // `M`'s area target files the tasks loose in the area (tasks.area_id, DECISIONS.md "Loose tasks in an area"):
+    // the area is set and the project and heading cleared, one write and one undo, as the detail's picker does.
+    const patch = target.kind === "area" ? { areaId: target.id } : { projectId: target.id };
     const note = target.id ? `Moved {title} to ${target.name ?? "the project"}` : "Moved {title} out of its project";
-    const write = ids.length === 1 ? repo.update(ids[0], { projectId: target.id }, note) : repo.updateMany(ids, { projectId: target.id }, note);
+    const write = ids.length === 1 ? repo.update(ids[0], patch, note) : repo.updateMany(ids, patch, note);
     void write.then(finish(ids));
   };
   const tag = (ids: readonly string[], name: string) => {
@@ -138,6 +136,7 @@ export function OrganizeIsland() {
           projects={projects}
           areaOrder={areaOrder}
           currentProjectId={one && current?.[0] ? current[0].project_id : undefined}
+          areaTargets={picking.areas ? areaOrder : undefined}
           onPick={(target) => move(picking.ids, target)}
           onClose={() => setPicking(null)}
         />

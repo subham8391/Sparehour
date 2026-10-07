@@ -133,6 +133,48 @@ describe("MenuButton", () => {
     await waitFor(() => expect(after).toHaveFocus());
   });
 
+  it("a portalled menu whose items grow after it opened is placed again, inside the window (a lazy group arriving)", async () => {
+    const user = userEvent.setup();
+    phone(false);
+    const resized: (() => void)[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: () => void) {
+          resized.push(cb);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    let height = 80;
+    const offset = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.getAttribute("role") === "menu" ? height : 0;
+      },
+    });
+    try {
+      render(<Menu portal />);
+      const trigger = screen.getByRole("button", { name: "More actions" });
+      // Low in a 768 px window: 120 px of room below the trigger, 588 above.
+      vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({ top: 600, bottom: 636, left: 900, right: 936, width: 36, height: 36, x: 900, y: 600, toJSON: () => ({}) });
+      await user.click(trigger);
+      const menu = screen.getByRole("menu");
+      // The fallback fits below the trigger.
+      expect(menu.style.top).toBe("640px");
+      // The lazy group arrives and the menu is 500 px tall: it goes above, all of it in the window.
+      height = 500;
+      act(() => resized.forEach((cb) => cb()));
+      expect(menu.style.top).toBe("96px");
+    } finally {
+      if (offset) Object.defineProperty(HTMLElement.prototype, "offsetHeight", offset);
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("opens from outside through its handle (the row's `.` key)", async () => {
     const handle = createRef<MenuHandle>();
     render(<Menu handle={handle} portal />);

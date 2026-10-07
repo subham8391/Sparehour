@@ -1,9 +1,8 @@
 "use client";
 // `#` Move to project and `M` Move (SCREENS.md §24; §12 "Move to project"): a filterable list of the open
 // projects grouped under their areas, with "No project" first; two projects of one name carry their area
-// (PRODUCT_SPEC.md §5.4). `M` adds the areas themselves once a task can live loose in an area (tasks.area_id,
-// DECISIONS.md "Loose tasks in an area"): pass `areas` with `onArea` and they are listed as targets. Until then
-// `M` is the same list as `#`. Presentational.
+// (PRODUCT_SPEC.md §5.4). `M` adds the areas themselves, where a task can sit loose (tasks.area_id, DECISIONS.md
+// "Loose tasks in an area"): given `areaTargets`, they are listed after the projects. Presentational.
 import { useMemo, useState } from "react";
 import { fuzzyScore } from "@/features/commands/fuzzy";
 import { projectOptionLabel, type LabelledProject } from "@/data/queries/project-label";

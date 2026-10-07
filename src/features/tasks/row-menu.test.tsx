@@ -20,9 +20,12 @@ import { CompactRow } from "@/features/upcoming/compact-row";
 const repo = { update: vi.fn(async () => {}), updateMany: vi.fn(async () => {}), placeInDay: vi.fn<(id: string, day: unknown, key: string, evening: boolean) => Promise<void>>(async () => {}), series: async () => ({ skip: vi.fn() }) };
 vi.mock("./use-task-repo", () => ({ useTaskRepo: () => repo }));
 const db = { getOptional: vi.fn<(sql: string, args?: unknown[]) => Promise<unknown>>(async () => null) };
-vi.mock("@/data/powersync", () => ({ useLocalDatabase: () => db, useQuery: () => ({ data: undefined }) }));
+/** What the settings query answers: read (no row here, so the device's zone), or still loading as a menu opens. */
+let settingsQuery: { data: undefined | []; isLoading?: boolean } = { data: undefined };
+vi.mock("@/data/powersync", () => ({ useLocalDatabase: () => db, useQuery: () => settingsQuery }));
 
 beforeEach(() => {
+  settingsQuery = { data: undefined };
   repo.update.mockClear();
   repo.updateMany.mockClear();
   repo.placeInDay.mockClear();
@@ -53,6 +56,18 @@ describe("the row ⋯ menu", () => {
     // The row's own "Tomorrow" stepped aside for the preset: it is listed once.
     expect(screen.getAllByRole("menuitem", { name: "Tomorrow" })).toHaveLength(1);
     expect(within(screen.getByRole("menu")).getByRole("separator")).toBeInTheDocument();
+  });
+
+  it("the presets wait for the account's settings row, so a quick choice is never made in UTC", async () => {
+    const user = userEvent.setup();
+    settingsQuery = { data: [], isLoading: true };
+    const { rerender } = render(<Row />);
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => expect(menuWords()).toContain("Move to…"));
+    expect(screen.queryByRole("menuitem", { name: "In 4 hours" })).not.toBeInTheDocument();
+    settingsQuery = { data: [], isLoading: false };
+    rerender(<Row />);
+    expect(await screen.findByRole("menuitem", { name: "In 4 hours" })).toBeInTheDocument();
   });
 
   it("each preset writes the palette's patch for the same preset, with its undo note", async () => {

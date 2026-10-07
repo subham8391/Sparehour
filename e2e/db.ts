@@ -214,3 +214,118 @@ export async function backOnSlate(c: Client, rows: readonly OffSlate[]): Promise
   ]);
   await c.query("update public.tasks t set last_touched_at = v.lt from unnest($1::uuid[], $2::timestamptz[]) as v(id, lt) where t.id = v.id", [ids, rows.map((r) => r.last_touched_at)]);
 }
+
+/**
+ * Runs `fn` in one transaction with the triggers off (a superuser's raw write), so a restore puts a row back exactly,
+ * updated_at included, instead of stamping it with now().
+ */
+export async function rawWrite(c: Client, fn: () => Promise<unknown>): Promise<void> {
+  await c.query("begin");
+  try {
+    await c.query("set local session_replication_role = replica");
+    await fn();
+    await c.query("commit");
+  } catch (e) {
+    await c.query("rollback");
+    throw e;
+  }
+}
+
+/** Some user_settings columns as found (as text), with updated_at, so `restoreSettings` puts them back exactly. */
+export type SavedSettings = Record<string, string | null>;
+
+export async function saveSettings(c: Client, me: DevAccount, columns: readonly string[]): Promise<SavedSettings> {
+  const list = [...columns, "updated_at"].map((col) => `${col}::text as ${col}`).join(", ");
+  return (await c.query<SavedSettings>(`select ${list} from public.user_settings where user_id = $1`, [me.uid])).rows[0];
+}
+
+export async function restoreSettings(c: Client, me: DevAccount, saved: SavedSettings | null): Promise<void> {
+  if (!saved) return;
+  const cols = Object.keys(saved);
+  await rawWrite(c, () => c.query(`update public.user_settings set ${cols.map((col, i) => `${col} = $${i + 2}`).join(", ")} where user_id = $1`, [me.uid, ...cols.map((col) => saved[col])]));
+}
+
+/** A working-hours row a spec took off for a while, as it was. */
+export interface HoursOff {
+  id: string;
+  deleted_at: string | null;
+  updated_at: string;
+}
+
+/**
+ * Takes the account's own working hours for one weekday off (a soft delete), so that day has none whatever the
+ * account's week looks like. 0 is Monday, as in work_hours. Returns what `hoursBack` needs.
+ */
+export async function hoursOff(c: Client, me: DevAccount, weekday: number): Promise<HoursOff[]> {
+  const { rows } = await c.query<HoursOff>(
+    "select id, deleted_at::text, updated_at::text from public.work_hours where user_id = $1 and weekday = $2 and deleted_at is null",
+    [me.uid, weekday],
+  );
+  if (rows.length > 0) await c.query("update public.work_hours set deleted_at = now() where id = any($1::uuid[])", [rows.map((r) => r.id)]);
+  return rows;
+}
+
+export async function hoursBack(c: Client, rows: readonly HoursOff[]): Promise<void> {
+  if (rows.length === 0) return;
+  await rawWrite(c, () =>
+    c.query("update public.work_hours w set deleted_at = v.da, updated_at = v.ua from unnest($1::uuid[], $2::timestamptz[], $3::timestamptz[]) as v(id, da, ua) where w.id = v.id", [
+      rows.map((r) => r.id),
+      rows.map((r) => r.deleted_at),
+      rows.map((r) => r.updated_at),
+    ]),
+  );
+}
+
+/** The work_hours weekday of an ISO date: 0 is Monday. */
+export function workWeekday(iso: string): number {
+  return (new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7;
+}
+
+/** The account's day plans over a stretch of days, as found, so `restoreDayPlans` puts them back exactly. */
+export interface SavedDayPlan {
+  id: string;
+  date: string;
+  day_rating: number | null;
+  highlights: string | null;
+  updated_at: string;
+}
+
+export async function saveDayPlans(c: Client, me: DevAccount, from: string, to: string): Promise<SavedDayPlan[]> {
+  return (
+    await c.query<SavedDayPlan>(
+      "select id, date::text as date, day_rating, highlights, updated_at::text from public.day_plans where user_id = $1 and date between $2::date and $3::date and deleted_at is null",
+      [me.uid, from, to],
+    )
+  ).rows;
+}
+
+/**
+ * Gives a day a rating and a highlight: the account's own plan for that day if it has one, else a new row. Returns
+ * the id of a row it made, for `restoreDayPlans` to delete.
+ */
+export async function rateDay(c: Client, me: DevAccount, date: string, rating: number | null, highlights: string | null = null): Promise<string | null> {
+  const found = await c.query<{ id: string }>("update public.day_plans set day_rating = $3, highlights = $4 where user_id = $1 and date = $2::date and deleted_at is null returning id", [
+    me.uid,
+    date,
+    rating,
+    highlights,
+  ]);
+  if (found.rows.length > 0) return null;
+  const made = await c.query<{ id: string }>(
+    "insert into public.day_plans (id, space_id, user_id, date, day_rating, highlights) values (gen_random_uuid(), $1, $2, $3::date, $4, $5) returning id",
+    [me.sid, me.uid, date, rating, highlights],
+  );
+  return made.rows[0].id;
+}
+
+/** Deletes the plans a spec made and puts the ratings and highlights of the account's own back as they were. */
+export async function restoreDayPlans(c: Client, saved: readonly SavedDayPlan[], made: readonly string[]): Promise<void> {
+  if (made.length > 0) await c.query("delete from public.day_plans where id = any($1::uuid[])", [made]);
+  if (saved.length === 0) return;
+  await rawWrite(c, () =>
+    c.query(
+      "update public.day_plans p set day_rating = v.r, highlights = v.h, updated_at = v.ua from unnest($1::uuid[], $2::smallint[], $3::text[], $4::timestamptz[]) as v(id, r, h, ua) where p.id = v.id",
+      [saved.map((r) => r.id), saved.map((r) => r.day_rating), saved.map((r) => r.highlights), saved.map((r) => r.updated_at)],
+    ),
+  );
+}

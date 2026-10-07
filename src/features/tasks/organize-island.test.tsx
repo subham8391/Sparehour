@@ -120,9 +120,32 @@ describe("<OrganizeIsland> move picker (# and M)", () => {
   it("a tap on No project takes a task out of its project", async () => {
     const user = setup();
     act(() => requestOrganize({ kind: "move", ids: ["t3"], areas: true }));
-    const sheet = await screen.findByRole("dialog", { name: "Move this task to a project" });
+    const sheet = await screen.findByRole("dialog", { name: "Move this task" });
     await user.click(within(sheet).getByRole("option", { name: "No project" }));
     expect(s.row("tasks", "t3")?.project_id).toBeNull();
+  });
+});
+
+describe("<OrganizeIsland> M with areas", () => {
+  it("lists the areas after the projects; one files the tasks loose in it, out of their project, with one undo", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: "tick two" }));
+    act(() => requestOrganize({ kind: "move", ids: ["t1", "t3"], areas: true }));
+    const sheet = await screen.findByRole("dialog", { name: "Move 2 tasks" });
+    await user.type(within(sheet).getByRole("combobox"), "home");
+    const area = within(sheet).getByRole("option", { name: "Home Area" });
+    await user.click(area);
+    for (const id of ["t1", "t3"]) expect(s.row("tasks", id)).toMatchObject({ area_id: "a2", project_id: null });
+    await user.click(within(await toastWith("Moved 2 tasks to Home")).getByRole("button", { name: "Undo" }));
+    expect(s.row("tasks", "t1")).toMatchObject({ area_id: null, project_id: null });
+    expect(s.row("tasks", "t3")).toMatchObject({ area_id: null, project_id: "p2" });
+  });
+
+  it("# lists no areas", async () => {
+    setup();
+    act(() => requestOrganize({ kind: "move", ids: ["t1"] }));
+    const sheet = await screen.findByRole("dialog", { name: "Move this task to a project" });
+    expect(within(sheet).queryByRole("option", { name: / Area$/ })).not.toBeInTheDocument();
   });
 });
 

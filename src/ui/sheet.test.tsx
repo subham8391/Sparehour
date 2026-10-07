@@ -2,7 +2,7 @@
 // The sheet owns the dialog's focus (SCREENS.md §1 rules 5 and 6). Seen in the
 // walkthrough: Tab walked out of the palette into the page behind the scrim,
 // and once focus had left the input, Escape no longer closed it.
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -60,6 +60,29 @@ describe("<Sheet>", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
+  });
+
+  it("when the focused control is taken out of the sheet, focus comes back to it and Escape still closes it", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    function Placing() {
+      const [left, setLeft] = useState(["Draft", "Send"]);
+      return (
+        <Sheet label="Not yet planned" onClose={onClose}>
+          {left.map((t) => (
+            <button key={t} type="button" onClick={() => setLeft((l) => l.filter((x) => x !== t))}>
+              Place {t}
+            </button>
+          ))}
+        </Sheet>
+      );
+    }
+    render(<Placing />);
+    await user.click(screen.getByRole("button", { name: "Place Draft" }));
+    expect(screen.queryByRole("button", { name: "Place Draft" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Not yet planned" })).toHaveFocus());
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("focus that lands behind the scrim is brought back in", async () => {

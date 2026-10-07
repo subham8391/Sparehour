@@ -16,16 +16,16 @@ import { useTaskRepo } from "./use-task-repo";
 export function RowMenu({ taskId, children }: { taskId: string; children: ReactNode }) {
   const repo = useTaskRepo();
   const now = useNow();
-  const { today, zone } = useLocalDay(now);
+  // The presets are the account's day and zone: they wait for its settings row, read as the menu opens, so a quick
+  // choice never lands in UTC ("In 4 hours" an hour out in London's summer).
+  const { today, zone, ready } = useLocalDay(now);
   const { move } = useRowActions();
   return (
     <>
       <OwnedLabels labels={PRESET_LABELS}>{children}</OwnedLabels>
       {/* No line above the group when the row's own actions all stepped aside. */}
       <div role="separator" className={`${MENU_SEPARATOR} first:hidden`} />
-      {snoozePresets(now, zone, today).map((p) => (
-        <RowAction key={p.id} label={p.label} onClick={() => void applySnooze(repo, [taskId], p)} />
-      ))}
+      {ready && snoozePresets(now, zone, today).map((p) => <RowAction key={p.id} label={p.label} onClick={() => void applySnooze(repo, [taskId], p)} />)}
       {move && <RowAction label="Move to…" onClick={() => move(null)} />}
     </>
   );

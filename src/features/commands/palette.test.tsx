@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
@@ -94,6 +94,34 @@ describe("<Palette>", () => {
     await user.type(input, "inb{Enter}");
     expect(onRun).toHaveBeenCalledWith(expect.objectContaining({ id: "go.inbox" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("a resting pointer never takes the highlight from the best match; one that moves does", async () => {
+    const { user, input, onRun, onAddTask } = setup();
+    await user.type(input, "inb");
+    const best = screen.getByRole("option", { name: /Go to Inbox/ });
+    const add = screen.getByRole("option", { name: /Add task “inb”/ });
+    // The pointer rests over the results; as they re-rank under it the browser sends enter and over events to
+    // whatever row arrives there, and may send a move that goes nowhere.
+    fireEvent.mouseMove(best, { clientX: 40, clientY: 100 });
+    fireEvent.mouseEnter(add);
+    fireEvent.mouseOver(add);
+    fireEvent.mouseMove(add, { clientX: 40, clientY: 100 });
+    expect(best).toHaveAttribute("aria-selected", "true");
+    expect(add).toHaveAttribute("aria-selected", "false");
+    await user.keyboard("{Enter}");
+    expect(onRun).toHaveBeenCalledWith(expect.objectContaining({ id: "go.inbox" }));
+    expect(onAddTask).not.toHaveBeenCalled();
+    cleanup();
+
+    const again = setup();
+    await again.user.type(again.input, "inb");
+    const addAgain = screen.getByRole("option", { name: /Add task “inb”/ });
+    fireEvent.mouseMove(addAgain, { clientX: 40, clientY: 100 });
+    fireEvent.mouseMove(addAgain, { clientX: 44, clientY: 130 });
+    expect(addAgain).toHaveAttribute("aria-selected", "true");
+    await again.user.keyboard("{Enter}");
+    expect(again.onAddTask).toHaveBeenCalledWith("inb");
   });
 
   it("a disabled command does not run", async () => {

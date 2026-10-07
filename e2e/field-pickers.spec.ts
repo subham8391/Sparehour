@@ -133,6 +133,9 @@ test("D, ⇧D, ⇧S, E and R open their pickers focused; 'fri 3pm' sets the day 
   await page.keyboard.press("ControlOrMeta+k");
   const palette = page.getByRole("dialog", { name: "Command palette" });
   await palette.getByRole("combobox", { name: "Search or run a command" }).fill("Set start date");
+  // Enter takes the highlighted result: the best match, never a row that came to sit under the resting pointer
+  // (the pointer is still where the row's title was clicked, over the palette's results).
+  await expect(palette.getByRole("option", { selected: true })).toHaveText(/^Set start date/);
   await page.keyboard.press("Enter");
   await expect(palette).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: "Starts" }).getByRole("textbox", { name: "In words" })).toBeFocused();

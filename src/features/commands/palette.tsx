@@ -13,6 +13,7 @@ import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
 import { EYEBROW } from "@/ui/section-label";
 import { Sheet } from "@/ui/sheet";
+import { usePointerHighlight } from "@/ui/use-pointer-highlight";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import type { LocalDate } from "@/core/time";
@@ -100,6 +101,8 @@ export function Palette(p: PaletteProps) {
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
+  // The highlight follows the pointer only while it moves (a resting pointer never takes it from the best match).
+  const pointTo = usePointerHighlight(setHighlight);
 
   useEffect(() => {
     if (p.open) inputRef.current?.focus();
@@ -223,7 +226,7 @@ export function Palette(p: PaletteProps) {
                     role="option"
                     aria-selected={active}
                     aria-disabled={disabled || undefined}
-                    onMouseEnter={() => setHighlight(index)}
+                    onMouseMove={(e) => pointTo(e, index)}
                     onClick={() => activate(row)}
                     className={cx("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 text-body", active && "bg-surface-2", disabled ? "text-ink-3" : "text-ink")}
                   >
