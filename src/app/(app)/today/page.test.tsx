@@ -237,7 +237,7 @@ describe("Today's panes (SCREENS.md §1 Context pane, §2.8; DECISIONS.md “Med
     wide(false);
     view();
     await screen.findByRole("heading", { level: 1, name: title(today) });
-    const day = await screen.findByRole("button", { name: "Day", exact: true });
+    const day = await screen.findByRole("button", { name: "Day" });
     expect(day).toHaveAttribute("aria-pressed", "false");
     act(() => void requestToday({ kind: "pane" }));
     expect(day).toHaveAttribute("aria-pressed", "true");

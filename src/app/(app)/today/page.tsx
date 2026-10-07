@@ -227,7 +227,7 @@ export default function TodayPage() {
         if (!atLeast(1180)) setView((v) => (v === "day" ? "list" : "day"));
         else {
           if (detail.selectedId) detail.close();
-          setPref("dayPane", !detail.selectedId && !prefOn("dayPane"));
+          setPref("dayPane", Boolean(detail.selectedId) || !prefOn("dayPane"));
         }
       } else if (r.kind === "trim") {
         // Trimming is today's: from another day it comes home first.
