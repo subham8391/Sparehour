@@ -21,6 +21,7 @@ import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon";
 import { useTaskDrag } from "@/features/today/task-drag";
+import { loadDragAdapter } from "@/features/tasks/drag-adapter";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
@@ -168,7 +169,8 @@ export default function TodayPage() {
   const tomorrow: LocalDate = model.today.add({ days: 1 });
   const db = useLocalDatabase();
   useEffect(() => preloadOnIdle(preloadTodayIslands), []);
-  useEffect(() => void Promise.all([loadDayPane(), loadDayStates(), loadEveningSection()]).catch(() => undefined), []);
+  // The rows' drag adapter (features/tasks/drag-adapter.ts) comes with them, so a row is draggable as soon as it is drawn.
+  useEffect(() => void Promise.all([loadDayPane(), loadDayStates(), loadEveningSection(), loadDragAdapter()]).catch(() => undefined), []);
   // Convert task → project ("Break it down", the row's menu): the project opens with the cursor in its add row.
   const breakDown = useConvertToProject(model.repo, detail.close);
 

@@ -15,7 +15,6 @@
 // adds the snooze presets and Move to…, the day picker (row-menu.tsx,
 // day-picker.tsx, both lazy). A footer can sit under the row (the
 // carried-over ask).
-import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Temporal, formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
@@ -28,6 +27,7 @@ import { Icon } from "@/ui/icons";
 import { ListCard } from "@/ui/list-card";
 import { MenuButton, type MenuHandle } from "@/ui/popover";
 import { prefersReducedMotion } from "@/ui/reduced-motion";
+import { withDragAdapter } from "./drag-adapter";
 import { edgeFor, type Edge } from "./reorder";
 import { DayPickerIsland, EstimateIsland, RowMenuIsland, SwipeIsland, preloadRowIslands } from "./row-islands";
 import { listenForRowRequests } from "./row-request";
@@ -104,12 +104,15 @@ export function TaskRow({
   useEffect(() => {
     const el = ref.current;
     if (!el || !canDrag) return;
-    return draggable({
-      element: el,
-      getInitialData: () => dataRef.current,
-      onDragStart: () => setDragging(true),
-      onDrop: () => setDragging(false),
-    });
+    // The adapter is an island (drag-adapter.ts): the row is wired up as soon as it is in.
+    return withDragAdapter(({ draggable }) =>
+      draggable({
+        element: el,
+        getInitialData: () => dataRef.current,
+        onDragStart: () => setDragging(true),
+        onDrop: () => setDragging(false),
+      }),
+    );
   }, [canDrag]);
 
   // A drop target for other rows: the edge under the pointer is drawn as a line.
@@ -123,16 +126,18 @@ export function TaskRow({
     const el = ref.current;
     if (!el || !accepts) return;
     const edgeAt = (clientY: number) => edgeFor(clientY, el.getBoundingClientRect());
-    return dropTargetForElements({
-      element: el,
-      canDrop: ({ source }) => source.data.type === "task" && source.data.id !== task.id,
-      onDrag: ({ location }) => setEdge(edgeAt(location.current.input.clientY)),
-      onDragLeave: () => setEdge(null),
-      onDrop: ({ source, location }) => {
-        setEdge(null);
-        dropRef.current?.(String(source.data.id), edgeAt(location.current.input.clientY));
-      },
-    });
+    return withDragAdapter(({ dropTargetForElements }) =>
+      dropTargetForElements({
+        element: el,
+        canDrop: ({ source }) => source.data.type === "task" && source.data.id !== task.id,
+        onDrag: ({ location }) => setEdge(edgeAt(location.current.input.clientY)),
+        onDragLeave: () => setEdge(null),
+        onDrop: ({ source, location }) => {
+          setEdge(null);
+          dropRef.current?.(String(source.data.id), edgeAt(location.current.input.clientY));
+        },
+      }),
+    );
   }, [accepts, task.id]);
 
   // Multi-select (SCREENS.md §24): X on the keyboard, Shift-click, the row's
