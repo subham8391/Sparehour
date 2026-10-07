@@ -5,7 +5,7 @@
 // and the ? overlay says so.
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CALENDAR_MODE_KEY, readCalendarMode } from "@/features/calendar-view/calendar-mode";
+import { CALENDAR_MODE_KEY, readCalendarMode, subscribeCalendarMode } from "@/features/calendar-view/calendar-mode";
 import { chordMatches, chordOf, parseChord } from "./keys";
 import { COMMANDS, availability } from "./registry";
 import { ShortcutsDialog } from "./shortcuts-dialog";
@@ -37,9 +37,13 @@ describe("Calendar: Day · Work week · Week", () => {
     expect(chordMatches(chordOf({ key: "2", shiftKey: false, metaKey: false, ctrlKey: true, altKey: false }, false), parseChord("mod+2"))).toBe(true);
   });
 
-  it("set the remembered mode and open the Calendar; on the Calendar only the mode changes", async () => {
+  it("set the remembered mode and open the Calendar; on the Calendar only the mode changes, and it hears", async () => {
     const go = vi.fn();
+    const heard = vi.fn();
+    const stop = subscribeCalendarMode(heard);
     await byId("calendar.day").run({ pathname: "/today", go } as never);
+    expect(heard).toHaveBeenCalled();
+    stop();
     expect(readCalendarMode()).toBe("day");
     expect(localStorage.getItem(CALENDAR_MODE_KEY)).toBe("day");
     expect(go).toHaveBeenCalledWith("/calendar");

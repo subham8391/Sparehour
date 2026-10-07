@@ -19,8 +19,6 @@ import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
 // Today's day address (`?day=`) loads with Today, or when a Day command first runs: not with every shell.
 const loadDays = () => import("@/features/today/day-address");
-// The Calendar's remembered mode, likewise, loads when a Calendar mode command first runs.
-const loadCalendarMode = () => import("@/features/calendar-view/calendar-mode");
 
 export type Theme = "light" | "dark" | "system";
 /** `G P` and `G A` open the palette on the open projects or the areas alone (SCREENS.md §24). */
@@ -299,15 +297,20 @@ export const RUNS: readonly CommandRun[] = [
   { id: "go.inbox", shortcut: "g i", run: (ctx) => ctx.go("/inbox") },
   { id: "go.upcoming", shortcut: "g u", run: (ctx) => ctx.go("/upcoming") },
   { id: "go.calendar", shortcut: "g c", run: (ctx) => ctx.go("/calendar") },
-  // Calendar: Day · Work week · Week (SCREENS.md §4, §24): the mode is remembered on the device, and the Calendar opens
-  // in it. The keys reach the page only in the installed app; in a browser tab they stay the browser's.
-  ...(["day", "workweek", "week"] as const).map(
+  // Calendar: Day · Work week · Week (SCREENS.md §4, §24): the mode is remembered on the device (the key is
+  // calendar-view/calendar-mode.ts's CALENDAR_MODE_KEY, written here so no shell carries that module; the storage
+  // event tells an open Calendar), and the Calendar opens in it. The keys reach the page only in the installed app;
+  // in a browser tab they stay the browser's.
+  ...["day", "workweek", "week"].map(
     (mode, i): CommandRun => ({
       id: `calendar.${mode}`,
       shortcut: `mod+${i + 1}`,
       passes: () => !window.matchMedia?.("(display-mode: standalone)").matches,
-      run: async (ctx) => {
-        (await loadCalendarMode()).setCalendarMode(mode);
+      run: (ctx) => {
+        try {
+          localStorage.setItem("sparehour.calendar.mode", mode);
+        } catch {}
+        dispatchEvent(new StorageEvent("storage"));
         if (ctx.pathname !== "/calendar") ctx.go("/calendar");
       },
     }),
