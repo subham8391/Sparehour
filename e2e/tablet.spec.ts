@@ -1,8 +1,8 @@
 // Touch targets on a tablet (SCREENS.md §0 "every target ≥ 44 × 44 px" on every band; DECISIONS.md, M1 gap rulings
 // "Touch targets"): a pointer that cannot hover gets 44 px hit areas at any width, the sidebar and its rail included,
-// while a mouse keeps the 36 / 28 px desktop scale. Segmented controls alone follow R7 (36 px from `sm`), and a link
-// inside a sentence is an inline target (WCAG 2.5.8), so both are left out. Runs in the `tablet` project: Chromium
-// emulating an 820 px touch screen with no hover.
+// while a mouse keeps the 36 / 28 px desktop scale. Segmented controls alone follow R7 (36 px from `sm`), and a control
+// that is words inside a sentence (a link, or the ribbon's "… — move X to tomorrow") is an inline target (WCAG 2.5.8
+// "Inline"), so both are left out. Runs in the `tablet` project: Chromium emulating an 820 px touch screen with no hover.
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, seedKey, withDb } from "./db";
@@ -40,10 +40,14 @@ async function smallTargets(page: Page): Promise<string[]> {
       "button, a[href], summary, select, [role='button'], [role='menuitem'], [role='switch'], input[type='checkbox'], input[type='radio']",
     );
     for (const el of controls) {
-      // R7 (segmented controls by width), anything hidden from people, and links inside a sentence (a button in a
-      // paragraph is still a target of its own).
-      if (el.closest("[data-segmented], [aria-hidden='true'], [inert]") || (el.matches("a") && el.closest("p"))) continue;
+      // R7 (segmented controls by width) and anything hidden from people.
+      if (el.closest("[data-segmented], [aria-hidden='true'], [inert]")) continue;
       const style = getComputedStyle(el);
+      // A control inside a sentence: a link in a paragraph, or a button set as the paragraph's own words (inline, among
+      // other words). A button drawn as a box of its own in a paragraph (flex, inline-flex: "Trim today") is still a target.
+      const p = el.closest("p");
+      const words = (p?.textContent ?? "").trim().length > (el.textContent ?? "").trim().length;
+      if (p && (el.matches("a") || (words && (style.display === "inline" || style.display === "inline-block")))) continue;
       if (style.visibility === "hidden" || style.pointerEvents === "none") continue;
       const r = el.getBoundingClientRect();
       if (r.width <= 1 || r.height <= 1) continue;
