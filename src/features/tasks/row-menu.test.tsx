@@ -15,6 +15,7 @@ import { requestRow } from "./row-request";
 import { snoozePresets } from "./snooze";
 import { MoveActions, MoveToAction } from "./task-actions";
 import { TaskList, TaskRow } from "./task-row";
+import { CompactRow } from "@/features/upcoming/compact-row";
 
 const repo = { update: vi.fn(async () => {}), updateMany: vi.fn(async () => {}), placeInDay: vi.fn<(id: string, day: unknown, key: string, evening: boolean) => Promise<void>>(async () => {}), series: async () => ({ skip: vi.fn() }) };
 vi.mock("./use-task-repo", () => ({ useTaskRepo: () => repo }));
@@ -160,6 +161,37 @@ describe("Move to…", () => {
     fireEvent.change(within(picker).getByLabelText("Pick a date for Draft the proposal"), { target: { value: "2030-01-15" } });
     await waitFor(() => expect(repo.placeInDay).toHaveBeenCalledWith("t1", localDate("2030-01-15"), expect.any(String), false));
     expect(screen.queryByRole("dialog", { name: "Pick a date" })).toBeNull();
+  });
+});
+
+describe("a week column's compact row (no ⋯ of its own)", () => {
+  it("answers the palette's Move to… with the day picker beside its title; `.` is left to open the task", async () => {
+    render(
+      <ul>
+        <CompactRow task={open} today={localDate("2026-09-14")} selected onOpen={() => {}} />
+      </ul>,
+    );
+    expect(requestRow("t1", "menu")).toBe(false);
+    let answered = false;
+    act(() => {
+      answered = requestRow("t1", "move");
+    });
+    expect(answered).toBe(true);
+    const picker = await screen.findByRole("dialog", { name: "Move to…" });
+    expect(within(picker).getAllByRole("listitem")).toHaveLength(7);
+    db.getOptional.mockImplementation(async (sql: string) => (sql.includes("max(day_sort_key)") ? { k: null } : { do_date: "2026-09-14", evening: 0 }));
+    await userEvent.setup().click(within(picker).getAllByRole("button")[1]);
+    await waitFor(() => expect(repo.placeInDay).toHaveBeenCalledWith("t1", expect.anything(), expect.any(String), false));
+    expect(screen.queryByRole("dialog", { name: "Move to…" })).toBeNull();
+  });
+
+  it("a done task in a column does not answer", () => {
+    render(
+      <ul>
+        <CompactRow task={{ ...open, state: "done" }} today={localDate("2026-09-14")} selected onOpen={() => {}} />
+      </ul>,
+    );
+    expect(requestRow("t1", "move")).toBe(false);
   });
 });
 

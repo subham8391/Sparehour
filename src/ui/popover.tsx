@@ -136,6 +136,11 @@ function menuKeys(e: KeyboardEvent<HTMLElement>, onTab: () => void): void {
     onTab();
     return;
   }
+  // Backspace and Delete are the app's Drop: never sent to the selected task from inside its menu.
+  if (e.key === "Backspace" || e.key === "Delete") {
+    e.preventDefault();
+    return;
+  }
   // A letter never reaches the app's own single-key commands while a menu is open.
   if (e.key.length === 1 && /\S/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
     e.preventDefault();
@@ -207,11 +212,19 @@ export function MenuButton({
 
   const place = useAnchoredPlacement(open === "popover" && portal ? trigger : null, align, direction);
   // Focus moves in, to the first item (or the panel while the items are on their way); a portalled popover is placed.
+  // Items that are swapped while it is open (a lazy group replacing its fallback) never drop focus on the page.
   const panelRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
-      (menuItems(el)[0] ?? el).focus({ preventScroll: true });
-      return place(el);
+      const first = () => (menuItems(el)[0] ?? el).focus({ preventScroll: true });
+      first();
+      const watch = typeof MutationObserver === "function" ? new MutationObserver(() => (!document.activeElement || document.activeElement === document.body) && first()) : null;
+      watch?.observe(el, { childList: true, subtree: true });
+      const unplace = place(el);
+      return () => {
+        watch?.disconnect();
+        unplace?.();
+      };
     },
     [place],
   );

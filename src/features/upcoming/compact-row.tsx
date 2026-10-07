@@ -5,7 +5,9 @@
 // the title opens the detail (the tap path for a new day), a click selects,
 // Shift- and ⌘-click and a long press tick it for a bulk edit, a drag moves
 // it to another day or another place in its own — in a column a seventh of
-// the width. The check is 28 px on a pointer and 44 px on touch.
+// the width. The check is 28 px on a pointer and 44 px on touch. It has no ⋯
+// of its own: the palette's "Move to…" on the selected row opens the shared
+// day picker beside it (day-picker.tsx, lazy), and `.` opens the task.
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { formatMinutes, type LocalDate } from "@/core/time";
@@ -13,6 +15,8 @@ import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
 import { useSelectionOptional } from "@/features/selection/selection-provider";
 import { edgeFor, type Edge } from "@/features/tasks/reorder";
+import { DayPickerIsland } from "@/features/tasks/row-islands";
+import { listenForRowRequests } from "@/features/tasks/row-request";
 import { Chip, DeadlineChip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -58,6 +62,17 @@ export function CompactRow({
   useEffect(() => {
     if (selected) ref.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [selected]);
+  // The palette's Move to… on the selected row (row-request.ts): the day picker beside its title, which takes focus back.
+  const [moving, setMoving] = useState<HTMLElement | null>(null);
+  const open = task.state === "active" || task.state === "inbox";
+  useEffect(() => {
+    if (!selected || !open) return;
+    return listenForRowRequests((id, request) => {
+      if (id !== task.id || request !== "move") return false;
+      setMoving(ref.current?.querySelector<HTMLElement>("[data-title]") ?? ref.current);
+      return true;
+    });
+  }, [selected, open, task.id]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -172,6 +187,7 @@ export function CompactRow({
         {task.deadline && <DeadlineChip deadline={task.deadline} today={today} size="sm" />}
         {project && <span className="min-w-0 truncate">{project}</span>}
       </div>
+      {moving && <DayPickerIsland taskId={task.id} title={task.title} current={task.doDate} anchor={moving} onClose={() => setMoving(null)} />}
     </li>
   );
 }

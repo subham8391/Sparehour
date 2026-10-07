@@ -82,6 +82,57 @@ describe("MenuButton", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("Backspace and Delete stay in the menu: the app's Drop never sees them", async () => {
+    const user = userEvent.setup();
+    const seen = vi.fn();
+    const onKey = (e: KeyboardEvent) => seen(e.key, e.defaultPrevented);
+    window.addEventListener("keydown", onKey);
+    try {
+      render(<Menu />);
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.keyboard("{Backspace}{Delete}");
+      expect(seen).toHaveBeenCalledWith("Backspace", true);
+      expect(seen).toHaveBeenCalledWith("Delete", true);
+      expect(screen.getByRole("menuitem", { name: "Today" })).toHaveFocus();
+    } finally {
+      window.removeEventListener("keydown", onKey);
+    }
+  });
+
+  it("keeps focus inside when its items are swapped while it is open (a lazy group arriving)", async () => {
+    const user = userEvent.setup();
+    function Swapping({ late }: { late: boolean }) {
+      return (
+        <MenuButton label="More actions">
+          {() =>
+            late ? (
+              <div>
+                <button type="button" role="menuitem" className={MENU_ITEM}>
+                  Today
+                </button>
+                <button type="button" role="menuitem" className={MENU_ITEM}>
+                  This evening
+                </button>
+              </div>
+            ) : (
+              <button type="button" role="menuitem" className={MENU_ITEM}>
+                Today
+              </button>
+            )
+          }
+        </MenuButton>
+      );
+    }
+    const { rerender } = render(<Swapping late={false} />);
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    const before = screen.getByRole("menuitem", { name: "Today" });
+    expect(before).toHaveFocus();
+    rerender(<Swapping late />);
+    const after = screen.getByRole("menuitem", { name: "Today" });
+    expect(after).not.toBe(before);
+    await waitFor(() => expect(after).toHaveFocus());
+  });
+
   it("opens from outside through its handle (the row's `.` key)", async () => {
     const handle = createRef<MenuHandle>();
     render(<Menu handle={handle} portal />);
