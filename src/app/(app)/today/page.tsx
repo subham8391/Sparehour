@@ -1,6 +1,5 @@
 "use client";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
@@ -79,6 +78,11 @@ const loadEveningSection = () => import("@/features/today/evening-section");
 const EveningSection = dynamic(() => loadEveningSection().then((m) => m.EveningSection), { ssr: false });
 const SectionDrop = dynamic(() => loadEveningSection().then((m) => m.SectionDrop), { ssr: false });
 const BlockDrop = dynamic(() => loadEveningSection().then((m) => m.BlockDrop), { ssr: false });
+// The calendar's lines (SCREENS.md §2.7, §21): reconnect, the write-calendar picker, the retry line and a row's
+// "Block removed in Google Calendar" — shown only when the calendar has something to say.
+const loadCalendarLines = () => import("@/features/today/calendar-lines");
+const CalendarBanner = dynamic(() => loadCalendarLines().then((m) => m.CalendarBanner), { ssr: false });
+const RemovedNote = dynamic(() => loadCalendarLines().then((m) => m.RemovedNote), { ssr: false });
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -358,6 +362,11 @@ export default function TodayPage() {
   const sectionMinutes = (list: Task[]) => formatMinutes(sectionTotal(list));
   // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
+  // Google removed this task's block (PRODUCT_SPEC.md §10.3 rule 3): one quiet line under the row, once.
+  const removedNote = (t: Task) => {
+    const ids = model.removedBlocks.get(t.id);
+    return ids && !model.blocksByTask.has(t.id) ? <RemovedNote blockIds={ids} /> : undefined;
+  };
   const blockChip = (t: Task) => {
     const bs = model.blocksByTask.get(t.id);
     return bs ? <BlockChip blocks={bs} estimateMin={t.estimateMin} /> : undefined;
@@ -379,6 +388,7 @@ export default function TodayPage() {
           onDone={() => void time("complete", () => model.repo.complete(t.id))}
           onBreakDown={() => void breakDown(t.id)}
           actions={convertItem(t.id)}
+          footer={removedNote(t)}
         />
       ))}
     </TaskList>
@@ -401,6 +411,8 @@ export default function TodayPage() {
         <ViewHeader
           eyebrow={`Today · ${partOfDay(nowMinute, eveningAt)}`}
           title={formatDay(model.today, { weekday: "long", month: "long" })}
+          // All-day events sit under the date, never in the busy time (SYSTEM_DESIGN.md §5.4; ruled A12: no switch at M1).
+          subtitle={model.allDay.length > 0 ? `All day: ${model.allDay.join(" · ")}` : undefined}
           actions={
             !closedAt && (
               // From the narrow band up the rituals live here; the phone has its own row under the hero.
@@ -456,20 +468,14 @@ export default function TodayPage() {
         ) : (
           model.capacity && (
             <>
-              {model.calendarIssue && (
-                <p role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-body-sm text-ink-2">
-                  <span>{model.calendarIssue.message}</span>
-                  <Link href="/settings#calendar" className="text-ink underline decoration-line-strong underline-offset-2">
-                    {model.calendarIssue.kind === "reauth" ? "Reconnect" : "Retry"}
-                  </Link>
-                </p>
-              )}
+              {model.calendarIssue && <CalendarBanner issue={model.calendarIssue} />}
               <Ribbon
                 c={model.capacity}
                 nowMin={nowMinute}
                 connected={model.calendarConnected}
                 plannedCount={model.todayTasks.length + model.eveningTasks.length}
                 finished={doneToday.length > 0}
+                calendarLoading={model.calendarLoading}
                 onTrim={() => setTrimOpen(true)}
                 suggestion={suggested?.task.title ?? null}
                 interactions={{
@@ -563,7 +569,7 @@ export default function TodayPage() {
                         )
                       }
                       footer={
-                        t.ask && (
+                        t.ask ? (
                           <CarryAsk
                             count={t.carryCount}
                             onKeep={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}
@@ -571,6 +577,8 @@ export default function TodayPage() {
                             onBreakDown={() => void breakDown(t.id)}
                             onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
                           />
+                        ) : (
+                          removedNote(t)
                         )
                       }
                     />
@@ -613,12 +621,13 @@ export default function TodayPage() {
                       {/* The whole word, in the row and in the phone's menu: what is seen is what is named (WCAG 2.5.3). */}
                       <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />
                       {/* Still there once blocked: a task may take a second block (PRODUCT_SPEC.md §10.2). */}
-                      {hasDay && (
+                      {hasDay && !model.writes.off && (
                         <RowAction label={`Block ${t.title}`} text="Block" glyph={BLOCK_GLYPH} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} />
                       )}
                       {convertItem(t.id)}
                     </>
                   }
+                  footer={removedNote(t)}
                 />
               ))}
               {model.todayTasks.length === 0 && !emptyDay && !allDone && <ListLine cellClassName="px-4 py-3 text-body-lg text-ink-3">Nothing planned yet.</ListLine>}
@@ -706,6 +715,7 @@ export default function TodayPage() {
               state: { selectedBlockId, setSelectedBlockId, placing: placingId, setPlacing: setPlacingId },
             }}
             onOpenTask={detail.open}
+            writes={model.writes}
             timeline={{
               // While previewing, the gaps are what the proposal leaves; the "done by" marker belongs to the day as it is, so it steps aside.
               c: drawing ? { ...model.capacity, free: [...drawing.free], projectedFinish: null } : model.capacity,

@@ -87,6 +87,8 @@ export default function PlanPage() {
     nowMinute: nowMin,
     defaultEstimateMin: model.settings?.defaultEstimateMin ?? 30,
     findTask,
+    // Calendar access revoked or the write calendar gone: blocking pauses here as on Today (PRODUCT_SPEC.md §10.3 rule 5).
+    off: model.writes.off,
   });
 
   if (!model.ready || !model.settings) return <Loading />;
@@ -130,7 +132,7 @@ export default function PlanPage() {
       onEstimate={(id, minutes) => void model.repo.update(id, { estimateMin: minutes })}
       onAddTask={() => quickAdd.open("today ")}
       blocking={{
-        timeline: placerTimeline(placer, findTask, detail.open),
+        timeline: placerTimeline(placer, findTask, detail.open, model.writes.off),
         placing: placer.placingTask ? { title: placer.placingTask.title, onCancel: () => placer.setPlacing(null) } : null,
         onPlace: placer.setPlacing,
       }}
