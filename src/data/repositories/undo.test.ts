@@ -58,6 +58,22 @@ describe("redoable", () => {
     expect(undo).toHaveBeenCalledTimes(1);
   });
 
+  it("a field another device changed between the write and the undo stays through the redo and the undo after it", async () => {
+    const s = localSqlite();
+    s.insert("tasks", { id: "t1", title: "Draft", state: "active", priority: 0 });
+    const write = () => void s.rows("update tasks set priority = 2 where id = 't1'");
+    write();
+    const entry = redoable(s.db, { label: "Changed “Draft”", toast: false, rows: { tasks: ["t1"] }, undo: async () => void s.rows("update tasks set priority = 0 where id = 't1'") });
+    await Promise.resolve();
+    // Sync brings another device's rename after the write was recorded.
+    s.rows("update tasks set title = 'Draft the proposal' where id = 't1'");
+    const again = await entry.undo();
+    await again!.redo();
+    expect(s.row("tasks", "t1")).toMatchObject({ priority: 2, title: "Draft the proposal" });
+    await again!.undo();
+    expect(s.row("tasks", "t1")).toMatchObject({ priority: 0, title: "Draft the proposal" });
+  });
+
   it("tells the screen when a redo made the change again and when an undo after it took it back", async () => {
     const s = localSqlite();
     s.insert("tasks", { id: "t1", title: "Draft", state: "active", priority: 2 });

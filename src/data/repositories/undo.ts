@@ -146,10 +146,10 @@ export async function captureRows(db: Pick<LocalDatabase, "getAll">, rows: UndoR
 
 /**
  * Makes a recorded write redoable. Its rows are read as the write left them the moment it is recorded (the write
- * has just run, and sync leaves a row with changes still to upload where it is), and read again once its undo has
- * run; the redo writes back the columns the undo changed, and an undo after the redo writes them back again
- * (redo-apply.ts). A new action clears the redo stack (the undo provider), so a redo never lands on top of a later
- * change.
+ * has just run, and sync leaves a row with changes still to upload where it is), again just before its undo runs
+ * (so a field another device changed meanwhile is what the redo keeps), and once more after it; the redo writes
+ * back the columns the undo changed, and an undo after the redo writes them back again (redo-apply.ts). A new action
+ * clears the redo stack (the undo provider), so a redo never lands on top of a later change.
  */
 export function redoable(db: Pick<LocalDatabase, "getAll" | "writeTransaction">, entry: UndoRecord): RedoableEntry {
   const done = captureRows(db, entry.rows);
@@ -159,6 +159,7 @@ export function redoable(db: Pick<LocalDatabase, "getAll" | "writeTransaction">,
     toast: entry.toast,
     ...(entry.announce ? { announce: entry.announce } : {}),
     undo: async () => {
+      const pre = await captureRows(db, entry.rows).catch(() => null);
       await entry.undo();
       let after: RowState[];
       let undone: RowState[];
@@ -173,11 +174,13 @@ export function redoable(db: Pick<LocalDatabase, "getAll" | "writeTransaction">,
       apply.catch(() => undefined);
       return {
         redo: async () => {
-          await (await apply).applyRows(db, after, undone);
+          const { applyRows, beforeUndo } = await apply;
+          await applyRows(db, beforeUndo(pre, after), undone);
           entry.settled?.("redone");
         },
         undo: async () => {
-          await (await apply).applyRows(db, undone, after);
+          const { applyRows, beforeUndo } = await apply;
+          await applyRows(db, undone, beforeUndo(pre, after));
           entry.settled?.("undone");
         },
       };

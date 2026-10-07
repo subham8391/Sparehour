@@ -26,6 +26,19 @@ function changedColumns(table: UndoTable, row: RowSnapshot, other: RowSnapshot |
 const keyOf = (table: string, id: string) => `${table}\u0000${id}`;
 
 /**
+ * Each declared row as it was just before the undo (`pre`), which holds what another device changed since the write;
+ * a row that was not on the device then (sync had taken it away) as the write left it (`after`).
+ */
+export function beforeUndo(pre: readonly RowState[] | null, after: readonly RowState[]): RowState[] {
+  if (!pre) return [...after];
+  const there = new Map(pre.filter((s) => s.row).map((s) => [keyOf(s.table, s.id), s]));
+  const out = after.map((s) => there.get(keyOf(s.table, s.id)) ?? s);
+  const seen = new Set(after.map((s) => keyOf(s.table, s.id)));
+  for (const s of there.values()) if (!seen.has(keyOf(s.table, s.id))) out.push(s);
+  return out;
+}
+
+/**
  * Writes each row back to its state in `to`, in the columns where it differs from `from`: the columns one undo (or
  * redo) changed and nothing else, so a field another device edited since stays as it is. A row that has left the
  * device is re-inserted (restoreRow). A row with no state in `to` was not on the device then and is left alone.
