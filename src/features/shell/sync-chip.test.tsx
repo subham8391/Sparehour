@@ -4,6 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/inbox" }));
+// The expanded panel is an island (sync-panel.tsx); its data and Sync now are not under test here.
+vi.mock("@/data/powersync", () => ({ useQuery: () => ({ data: [] }) }));
+vi.mock("@/data/powersync/provider", () => ({ syncNow: vi.fn() }));
 import { SyncChip, relativeTime, syncChipModel, type SyncChipInput } from "./sync-chip";
 import { describeChange, errorKind } from "./use-sync-chip";
 
@@ -89,7 +92,7 @@ describe("<SyncChip>", () => {
     expect(chip).toHaveAttribute("data-state", "offline");
     expect(chip).toHaveAttribute("aria-expanded", "false");
     await user.click(chip);
-    expect(screen.getByRole("region", { name: "Sync status" })).toHaveTextContent(/saved on this device/);
+    await vi.waitFor(() => expect(screen.getByRole("region", { name: "Sync status" })).toHaveTextContent(/saved on this device/));
   });
 
   it("compact keeps the label for assistive tech", () => {
@@ -106,7 +109,7 @@ describe("sync chip: a session the server turned away, and failures by kind (fou
     const user = userEvent.setup();
     render(<SyncChip model={model} />);
     await user.click(screen.getByRole("button"));
-    expect(screen.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/login?next=%2Finbox");
+    expect(await screen.findByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/login?next=%2Finbox");
   });
 
   it("a server that cannot be reached is the offline state, verbatim; a 5xx says the server could not save", () => {
@@ -129,7 +132,7 @@ describe("the offline chip lists what is waiting (SCREENS.md §20)", () => {
     expect(model).toMatchObject({ state: "offline", waiting: ["Added “Order new desk lamp”", "Changed a task"], more: 5 });
     render(<SyncChip model={model} />);
     await userEvent.setup().click(screen.getByRole("button"));
-    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(await screen.findAllByRole("listitem")).toHaveLength(3);
     expect(screen.getByText("Added “Order new desk lamp”")).toBeInTheDocument();
     expect(screen.getByText("+5 more")).toBeInTheDocument();
   });

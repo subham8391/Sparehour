@@ -2,7 +2,8 @@
 // The sync chip's expanded state as a phone sheet (SCREENS.md §20 "Responsive"), opened from Browse's sync row.
 import { Button } from "@/ui/button";
 import { Sheet } from "@/ui/sheet";
-import { SyncDetail, type SyncChipModel } from "./sync-chip";
+import type { SyncChipModel } from "./sync-chip";
+import { SyncDetail } from "./sync-panel";
 
 export default function SyncSheet({ model, onClose }: { model: SyncChipModel; onClose: () => void }) {
   return (

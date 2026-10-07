@@ -4,6 +4,8 @@
 // sync and the calendar's (the same path as Settings › Calendar). Storage not protected shows how to install on
 // this platform — iPhone's three steps, Safari's Add to Dock, or an Install button where the browser offers one —
 // and the persistence line, which follows the browser's answer as it changes.
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { syncNow } from "@/data/powersync/provider";
@@ -49,6 +51,38 @@ export function InstallSteps({ install, onInstall }: { install: InstallState; on
     default:
       return null;
   }
+}
+
+/** What the chip expands to, in the sidebar's popover or the phone's sheet: the words, what waits, the one action. */
+export function SyncDetail({ model }: { model: SyncChipModel }) {
+  const pathname = usePathname();
+  return (
+    <>
+      <p className="mb-1 font-medium text-ink">{model.label}</p>
+      <p>{model.detail}</p>
+      {model.waiting && model.waiting.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-0.5 text-ink">
+          {model.waiting.map((w, n) => (
+            <li key={n} className="truncate">
+              {w}
+            </li>
+          ))}
+          {(model.more ?? 0) > 0 && <li className="text-ink-3 num">+{model.more} more</li>}
+        </ul>
+      )}
+      {model.action === "sign_in" && (
+        <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
+          Sign in again
+        </Link>
+      )}
+      {model.action === "export" && (
+        <Link href="/settings#data" className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
+          Export your data
+        </Link>
+      )}
+      {(model.state === "synced" || model.state === "unprotected" || (model.state === "problem" && model.action !== "export")) && <SyncExtras model={model} />}
+    </>
+  );
 }
 
 export default function SyncExtras({ model }: { model: SyncChipModel }) {

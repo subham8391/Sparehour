@@ -163,6 +163,32 @@ describe("<Timeline>", () => {
   });
 });
 
+describe("<Timeline> calendar states (SCREENS.md §2.7, §21; SYSTEM_DESIGN.md §5.4)", () => {
+  it("a block still to sync carries the will-sync dot and says so; a block that cannot sync says not synced", () => {
+    const marked: TimelineBlock[] = [
+      { ...blocks[0], sync: "will" },
+      { ...blocks[1], sync: "off" },
+    ];
+    const { container } = render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" blocks={marked} />);
+    expect(screen.getByRole("button", { name: "Block: Draft the proposal, 09:45 to 10:30, will sync" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Block: Deep work, 13:00 to 14:30, locked, not synced" })).toBeInTheDocument();
+    expect(container.querySelector('[data-sync="will"]')).toHaveClass("bg-ink-3");
+    expect(container.querySelector('[data-sync="off"]')).toHaveClass("border");
+  });
+
+  it("an unanswered invitation is hatched and named for screen readers; an answered one is not", () => {
+    const { container } = render(
+      <Timeline c={{ ...capacity, unanswered: [{ start: 600, end: 660 }], unansweredMin: 60 }} now={instant("2026-09-14T09:30:00Z")} zone="UTC" meetings={[{ start: 600, end: 660, title: "Design review", unanswered: true }]} />,
+    );
+    const meeting = container.querySelector('[data-meeting="600"]');
+    expect(meeting).toHaveAttribute("data-unanswered", "true");
+    expect(meeting).toHaveClass("meet-hatch");
+    expect(meeting).toHaveTextContent("Design review, not answered yet");
+    render(<Timeline c={capacity} now={instant("2026-09-14T09:30:00Z")} zone="UTC" />);
+    expect(document.querySelectorAll("[data-unanswered]")).toHaveLength(1);
+  });
+});
+
 describe("drawnRange", () => {
   const day = [{ start: 540, end: 1080 }];
   it("is the working day plus an hour either side", () => {

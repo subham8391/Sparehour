@@ -3,8 +3,6 @@
 // reassuring. The model is pure so every state is unit-tested; the hook that
 // feeds it from PowerSync lives in use-sync-chip.ts.
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { createContext, useContext, useId, useState } from "react";
 import { Icon, type IconName } from "@/ui/icons";
 import { RAISED } from "@/ui/sheet-parts";
@@ -153,43 +151,12 @@ export function useSyncModel(): SyncChipModel | null {
   return useContext(SyncModelContext);
 }
 
-// The expanded state's second half — the Synced times and Sync now, the install steps when storage is not
-// protected (SCREENS.md §20) — is an island: the chip rides in every shell, and none of that is needed until it opens.
-const loadSyncExtras = () => import("./sync-panel");
-export const preloadSyncExtras = () => loadSyncExtras();
-const SyncExtras = dynamic(loadSyncExtras, { ssr: false });
-
-/** What the chip expands to, in the sidebar's popover or the phone's sheet: the words, what waits, the one action. */
-export function SyncDetail({ model }: { model: SyncChipModel }) {
-  const pathname = usePathname();
-  return (
-    <>
-      <p className="mb-1 font-medium text-ink">{model.label}</p>
-      <p>{model.detail}</p>
-      {model.waiting && model.waiting.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-0.5 text-ink">
-          {model.waiting.map((w, n) => (
-            <li key={n} className="truncate">
-              {w}
-            </li>
-          ))}
-          {(model.more ?? 0) > 0 && <li className="text-ink-3 num">+{model.more} more</li>}
-        </ul>
-      )}
-      {model.action === "sign_in" && (
-        <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
-          Sign in again
-        </Link>
-      )}
-      {model.action === "export" && (
-        <Link href="/settings#data" className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
-          Export your data
-        </Link>
-      )}
-      {(model.state === "synced" || model.state === "unprotected" || (model.state === "problem" && model.action !== "export")) && <SyncExtras model={model} />}
-    </>
-  );
-}
+// What the chip expands to — the detail, what waits, the one action, the Synced times and Sync now, the install
+// steps when storage is not protected (SCREENS.md §20) — is an island: the chip rides in every shell, and none of
+// that is needed until it opens. Pointing at the chip fetches it.
+const loadSyncPanel = () => import("./sync-panel");
+export const preloadSyncPanel = () => loadSyncPanel();
+const SyncDetail = dynamic(() => loadSyncPanel().then((m) => m.SyncDetail), { ssr: false });
 
 // Six states, three tones: quiet neutrals for the ordinary ones, amber for the
 // two that want a look. Never green; that colour means spare time (§1).
@@ -266,7 +233,7 @@ export function SyncChip({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        onPointerEnter={() => void preloadSyncExtras().catch(() => undefined)}
+        onPointerEnter={() => void preloadSyncPanel().catch(() => undefined)}
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={compact ? model.label : undefined}

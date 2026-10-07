@@ -1,8 +1,10 @@
 "use client";
 // The error panel as an island: the boundaries are in every shell's first download, the panel only arrives when
 // something has failed. While it loads — or if it cannot load at all — the place still says what happened in plain
-// words with a way out, so a failure is never a blank screen (SCREENS.md §21).
-import dynamic from "next/dynamic";
+// words with a way out, so a failure is never a blank screen (SCREENS.md §21). React's own `lazy` rather than
+// next/dynamic: the root's global-error sits in a chunk of its own, where next/dynamic's runtime would ride again.
+import { Suspense, lazy, type ComponentType } from "react";
+import type { ErrorPanelProps } from "./error-panel";
 
 function Interim() {
   return (
@@ -15,4 +17,12 @@ function Interim() {
   );
 }
 
-export const LazyErrorPanel = dynamic(() => import("./error-panel"), { ssr: false, loading: Interim });
+const Panel = lazy<ComponentType<ErrorPanelProps>>(() => import("./error-panel").then((m) => ({ default: m.ErrorPanel }), () => ({ default: Interim })));
+
+export function LazyErrorPanel(props: ErrorPanelProps) {
+  return (
+    <Suspense fallback={<Interim />}>
+      <Panel {...props} />
+    </Suspense>
+  );
+}

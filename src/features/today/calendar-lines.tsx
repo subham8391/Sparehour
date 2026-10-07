@@ -145,7 +145,16 @@ export function RemovedNote({ blockIds }: { blockIds: readonly string[] }) {
   useEffect(() => {
     ids.current = blockIds;
   });
-  useEffect(() => () => void new BlockRepo(db).dismissNotices(ids.current).catch(() => undefined), [db]);
+  // Cleared a tick after the row goes, so React's development double mount (which unmounts and mounts again at once)
+  // does not clear it before it was ever seen.
+  const leaving = useRef<number | null>(null);
+  useEffect(() => {
+    if (leaving.current !== null) window.clearTimeout(leaving.current);
+    leaving.current = null;
+    return () => {
+      leaving.current = window.setTimeout(() => void new BlockRepo(db).dismissNotices(ids.current).catch(() => undefined), 0);
+    };
+  }, [db]);
   return (
     <p className="mr-3 mb-1 ml-14 flex items-center gap-1 text-body-sm text-ink-3 sm:ml-11">
       <span className="min-w-0 flex-1 text-pretty">Block removed in Google Calendar</span>
