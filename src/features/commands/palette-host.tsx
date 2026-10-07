@@ -4,8 +4,8 @@
 // registry's words, run through the keyboard layer. An island with the
 // palette itself (palette-provider.tsx mounts it in idle time, or at the
 // first ⌘K), so none of it rides in the shell's first download.
-import { useRouter } from "next/navigation";
-import { useCallback, useContext, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { toTask } from "@/data/mappers";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
@@ -21,10 +21,13 @@ import { pushRecent } from "./palette-rank";
 import { COMMANDS, availability, type Command } from "./registry";
 
 const RECENTS_KEY = "sparehour.recent-commands";
+/** The projects and areas opened lately, newest first: `G P` and `G A` list them first. */
+const PLACES_KEY = "sparehour.recent-places";
+const PLACES_LIMIT = 12;
 
-function readRecents(): string[] {
+function readRecents(key = RECENTS_KEY): string[] {
   try {
-    const v = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? "[]");
+    const v = JSON.parse(localStorage.getItem(key) ?? "[]");
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
   } catch {
     return [];
@@ -45,18 +48,32 @@ export function PaletteHost() {
   const { today } = useLocalDay(now);
   const [query, setQuery] = useState("");
   const [recents, setRecents] = useState<string[]>(() => (typeof window === "undefined" ? [] : readRecents()));
-  // Each opening re-reads what other tabs may have run since.
+  const [places, setPlaces] = useState<string[]>(() => (typeof window === "undefined" ? [] : readRecents(PLACES_KEY)));
+  // Each opening re-reads what other tabs may have run (and opened) since.
   const [seenKey, setSeenKey] = useState(state.key);
   if (seenKey !== state.key) {
     setSeenKey(state.key);
     setRecents(readRecents());
+    setPlaces(readRecents(PLACES_KEY));
   }
+  // Every project or area page opened while the palette is loaded counts as recent, however it was reached.
+  const pathname = usePathname();
+  useEffect(() => {
+    const m = /^\/(?:project|area)\/([^/?#]+)/.exec(pathname);
+    if (!m) return;
+    try {
+      localStorage.setItem(PLACES_KEY, JSON.stringify(pushRecent(readRecents(PLACES_KEY), decodeURIComponent(m[1]), PLACES_LIMIT)));
+    } catch {
+      // storage unavailable: the scoped palette keeps its plain order
+    }
+  }, [pathname]);
 
   const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const q = query.trim();
   const like = `%${q.replace(/[%_]/g, (c) => `\\${c}`)}%`;
-  const { data: taskRows } = useQuery<TaskRowType>(state.open && q ? TASK_SEARCH_SQL : NONE_SQL, state.open && q ? [like, like] : []);
+  const searching = state.open && q && !state.scope;
+  const { data: taskRows } = useQuery<TaskRowType>(searching ? TASK_SEARCH_SQL : NONE_SQL, searching ? [like, like] : []);
 
   const projects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", href: `/project/${p.id}` })), [projectRows]);
   const areas = useMemo(() => (areaRows ?? []).map((a) => ({ id: a.id, name: a.name ?? "Untitled area", href: `/area/${a.id}` })), [areaRows]);
@@ -80,6 +97,8 @@ export function PaletteHost() {
       key={state.key}
       open={state.open}
       initialQuery={state.initialQuery}
+      scope={state.scope}
+      places={places}
       commands={COMMANDS}
       availability={avail}
       recents={recents}

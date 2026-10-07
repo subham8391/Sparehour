@@ -17,6 +17,7 @@ import { PwaProvider } from "@/features/pwa/pwa-provider";
 import { QuickAddBar, QuickAddFab, QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { CarryReviewHost } from "@/features/rituals/carry-review-host";
 import { SelectionProvider, useSelection } from "@/features/selection/selection-provider";
+import { OrganizeHost } from "@/features/tasks/organize";
 import { TaskDetailPane, TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { UndoProvider } from "@/features/undo/undo-provider";
 import { cx } from "@/ui/cx";
@@ -59,6 +60,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </CarryReviewHost>
                     <PaletteHost />
                     <PushDeepLink />
+                    <OrganizeHost />
                     <OpenTo />
                   </Keyboard>
                 </BlockingProvider>

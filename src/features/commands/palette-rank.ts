@@ -1,32 +1,9 @@
 // Ranking for the command palette (SCREENS.md §12): fuzzy over commands,
 // recents first on an empty query, then projects and tasks by name. Pure.
+import { fold, fuzzyScore } from "./fuzzy";
 import { GROUP_ORDER, type Command } from "./registry";
 
-const fold = (s: string) => s.trim().toLocaleLowerCase();
-
-/**
- * 0 = no match. Exact prefix beats a word prefix beats a substring beats a
- * subsequence; shorter texts win ties so "Today" outranks "Go to Today".
- */
-export function fuzzyScore(query: string, text: string): number {
-  const q = fold(query);
-  const t = fold(text);
-  if (!q) return 1;
-  if (t.startsWith(q)) return 100 - Math.min(20, t.length - q.length);
-  if (t.split(/\s+/).some((w) => w.startsWith(q))) return 80 - Math.min(20, t.length - q.length);
-  if (t.includes(q)) return 60 - Math.min(20, t.length - q.length);
-  let i = 0;
-  let gaps = 0;
-  let last = -1;
-  for (let j = 0; j < t.length && i < q.length; j++) {
-    if (t[j] === q[i]) {
-      if (last >= 0 && j > last + 1) gaps += 1;
-      last = j;
-      i += 1;
-    }
-  }
-  return i === q.length ? Math.max(1, 30 - gaps * 4) : 0;
-}
+export { fuzzyScore } from "./fuzzy";
 
 export function rankCommands(query: string, commands: readonly Command[], recents: readonly string[] = []): Command[] {
   const visible = commands.filter((c) => !c.hidden);
@@ -61,4 +38,21 @@ export const RECENT_LIMIT = 6;
 /** Most recent first, no duplicates, capped. */
 export function pushRecent(recents: readonly string[], id: string, limit = RECENT_LIMIT): string[] {
   return [id, ...recents.filter((r) => r !== id)].slice(0, limit);
+}
+
+/**
+ * The scoped palette (`G P`, `G A`, SCREENS.md §24): every item, the recently opened ones first on an empty query;
+ * with a query, the fuzzy matches best first, recency breaking ties.
+ */
+export function rankScoped<T extends { id: string; name: string }>(query: string, items: readonly T[], recents: readonly string[] = []): T[] {
+  const rank = (id: string) => {
+    const i = recents.indexOf(id);
+    return i < 0 ? recents.length : i;
+  };
+  if (!fold(query)) return [...items].sort((a, b) => rank(a.id) - rank(b.id));
+  return items
+    .map((item) => ({ item, score: fuzzyScore(query, item.name) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || rank(a.item.id) - rank(b.item.id))
+    .map((x) => x.item);
 }

@@ -50,7 +50,7 @@ const text = (v: string | number | null | undefined): string | null => (v == nul
  * The state a copy starts in: an open original's own; a finished one's copy is open again, in the Inbox when
  * nothing files or dates it (PRODUCT_SPEC.md §5.1 rule 5), else active.
  */
-export function copyState(row: Pick<RowSnapshot, "state" | "project_id" | "do_date" | "deadline" | "start_date">): string {
+export function copyState(row: Record<string, string | number | null | undefined>): string {
   const state = text(row.state) ?? "";
   if (OPEN_STATES.includes(state)) return state;
   return row.project_id || row.do_date || row.deadline || row.start_date ? "active" : "inbox";

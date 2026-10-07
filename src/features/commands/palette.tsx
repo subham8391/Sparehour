@@ -17,8 +17,8 @@ import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/task-actions";
 import type { LocalDate } from "@/core/time";
 import { displayShortcut } from "./keys";
-import { rankCommands, rankNamed } from "./palette-rank";
-import type { Availability, Command, CommandGroup } from "./registry";
+import { rankCommands, rankNamed, rankScoped } from "./palette-rank";
+import type { Availability, Command, CommandGroup, PaletteScope } from "./registry";
 
 export interface PaletteNamed {
   id: string;
@@ -29,6 +29,10 @@ export interface PaletteNamed {
 export interface PaletteProps {
   open: boolean;
   initialQuery?: string;
+  /** `G P` / `G A`: only the open projects, or the areas, the recently opened first (SCREENS.md §24). */
+  scope?: PaletteScope;
+  /** Project and area ids opened lately, newest first. */
+  places?: readonly string[];
   commands: readonly Command[];
   availability: (command: Command) => Availability;
   recents: readonly string[];
@@ -101,8 +105,13 @@ export function Palette(p: PaletteProps) {
     if (p.open) inputRef.current?.focus();
   }, [p.open]);
 
+  const { scope, places } = p;
   const rows = useMemo<Row[]>(() => {
     const trimmed = query.trim();
+    if (scope) {
+      const items = scope === "projects" ? projects : areas;
+      return rankScoped(query, items, places).map((item): Row => ({ kind: "named", key: `${scope[0]}:${item.id}`, item, icon: "grid", label: scope === "projects" ? "Project" : "Area" }));
+    }
     const out: Row[] = rankCommands(query, commands, recents)
       .map((c): Row => ({ kind: "command", key: `c:${c.id}`, command: c, availability: avail(c) }))
       // With nothing selected the task actions would open the palette as ten grey rows; they wait to be searched for.
@@ -113,7 +122,7 @@ export function Palette(p: PaletteProps) {
     for (const task of tasks.slice(0, 8)) out.push({ kind: "task", key: `t:${task.id}`, task });
     if (trimmed) out.push({ kind: "add", key: "add", title: trimmed });
     return out;
-  }, [query, commands, recents, projects, areas, tasks, avail]);
+  }, [query, commands, recents, projects, areas, tasks, avail, scope, places]);
 
   const setQ = (q: string) => {
     setQuery(q);
@@ -161,15 +170,16 @@ export function Palette(p: PaletteProps) {
 
   const sections: { label: string; rows: Row[] }[] = [
     { label: "Actions", rows: rows.filter((r) => r.kind === "command") },
-    { label: "Go to", rows: rows.filter((r) => r.kind === "named") },
+    { label: scope === "projects" ? "Projects" : scope === "areas" ? "Areas" : "Go to", rows: rows.filter((r) => r.kind === "named") },
     { label: "Tasks", rows: rows.filter((r) => r.kind === "task") },
     { label: "Add", rows: rows.filter((r) => r.kind === "add") },
   ].filter((s) => s.rows.length > 0);
   const highlighted = rows[highlight];
+  const prompt = scope === "projects" ? "Go to project…" : scope === "areas" ? "Go to area…" : "Search or run a command…";
 
   return (
     // A fixed height on the phone so the sheet does not grow and shrink as the results change under the keyboard.
-    <Sheet label="Command palette" onClose={p.onClose} width="lg" className="max-sm:h-[80dvh] sm:max-h-[70vh]">
+    <Sheet label={scope ? prompt.slice(0, -1) : "Command palette"} onClose={p.onClose} width="lg" className="max-sm:h-[80dvh] sm:max-h-[70vh]">
       {/* The search box has no border of its own, so the header row is its edge: it switches to ink while the field has focus, and there is no ring (DESIGN_SYSTEM.md §5 "Buttons"). */}
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 transition-colors dur-fast has-[input:focus]:border-ink">
         <Icon name="search" size={18} className="shrink-0 text-ink-3" />
@@ -180,8 +190,8 @@ export function Palette(p: PaletteProps) {
           aria-controls={listId}
           aria-activedescendant={highlighted ? `${listId}-${highlighted.key}` : undefined}
           aria-autocomplete="list"
-          aria-label="Search or run a command"
-          placeholder="Search or run a command…"
+          aria-label={prompt.slice(0, -1)}
+          placeholder={prompt}
           value={query}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}
@@ -195,7 +205,7 @@ export function Palette(p: PaletteProps) {
         <Kbd>esc</Kbd>
       </div>
       <div id={listId} role="listbox" aria-label="Results" className="min-h-0 flex-1 overflow-y-auto p-2">
-        {rows.length === 0 && <p className="px-3 py-6 text-body text-ink-3">Nothing matched.</p>}
+        {rows.length === 0 && <p className="px-3 py-6 text-body text-ink-3">{scope && !query.trim() ? (scope === "projects" ? "No open projects yet." : "No areas yet.") : "Nothing matched."}</p>}
         {sections.map((s) => (
           <section key={s.label} role="group" aria-label={s.label} className="mb-2">
             <h3 aria-hidden="true" className={cx(EYEBROW, "px-3 pt-2 pb-1")}>

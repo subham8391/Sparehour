@@ -7,7 +7,7 @@
 import { TODAY_SORTS } from "@/core/today/sort-options";
 import { RUNS, type CommandRun } from "./command-runs";
 
-export { availability, keyBindings, prefillHere, targets, type Availability, type CommandContext, type Theme } from "./command-runs";
+export { availability, keyBindings, prefillHere, targets, type Availability, type CommandContext, type PaletteScope, type Theme } from "./command-runs";
 
 export type CommandGroup = "Create" | "Go to" | "Selected task" | "List" | "View" | "App";
 export const GROUP_ORDER: readonly CommandGroup[] = ["Selected task", "Create", "Go to", "List", "View", "App"];
@@ -47,6 +47,12 @@ const WORDS: Record<string, Words> = {
   "task.estimate": { title: "Set estimate", group: "Selected task", keywords: "time minutes" },
   "task.repeat": { title: "Repeat", group: "Selected task", keywords: "recurring every" },
   "task.convert": { title: "Convert to project", group: "Selected task", keywords: "break it down steps checklist project" },
+  "task.move-project": { title: "Move to project", group: "Selected task", keywords: "file project list #" },
+  "task.add-tag": { title: "Add tag", group: "Selected task", keywords: "label tag @" },
+  "task.move": { title: "Move…", group: "Selected task", keywords: "project area file" },
+  "task.duplicate": { title: "Duplicate", group: "Selected task", keywords: "copy again clone" },
+  "task.copy-link": { title: "Copy link", group: "Selected task", keywords: "share url address" },
+  "project.duplicate": { title: "Duplicate project", group: "Create", keywords: "copy clone project" },
   "task.skip-occurrence": { title: "Skip this occurrence", group: "Selected task", keywords: "repeat recurring once next" },
   "task.pause-repeats": { title: "Pause repeats until…", group: "Selected task", keywords: "repeat recurring hold break" },
   "task.resume-repeats": { title: "Resume repeats", group: "Selected task", keywords: "repeat recurring pause unpause" },
@@ -62,6 +68,8 @@ const WORDS: Record<string, Words> = {
   "go.calendar": { title: "Go to Calendar", group: "Go to" },
   "go.someday": { title: "Go to Someday", group: "Go to" },
   "go.logbook": { title: "Go to Logbook", group: "Go to", keywords: "done completed" },
+  "go.project": { title: "Go to project…", group: "Go to", keywords: "open project picker" },
+  "go.area": { title: "Go to area…", group: "Go to", keywords: "open area picker" },
   "go.browse": { title: "Go to Browse", group: "Go to", keywords: "areas projects" },
   "go.settings": { title: "Settings", group: "Go to" },
   "day.plan": { title: "Start morning plan", group: "Go to", keywords: "plan the day ritual pick" },
