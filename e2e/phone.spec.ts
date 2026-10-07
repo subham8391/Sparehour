@@ -25,7 +25,36 @@ test("Today on a phone: tab bar, List · Day toggle, and the FAB adds a task", a
   await page.getByRole("button", { name: "Add", exact: true }).click();
   // The sheet's own Close (the scrim is a second, unnamed-in-the-UI way out).
   await page.getByRole("dialog", { name: "Add a task" }).getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
+});
+
+test("an Inbox row's ⋯ sheet starts with Today · Tomorrow · Someday · Project…, and Select shows the checkboxes", async ({ page }) => {
+  await openApp(page, "/inbox");
+  const title = uniqueTitle("phone triage");
+  const add = page.getByRole("textbox", { name: "Add to Inbox" });
+  await add.fill(title);
+  await add.press("Enter");
+  const row = page.getByRole("row").filter({ hasText: title });
+  await expect(row).toBeVisible();
+
+  await row.getByRole("button", { name: "More actions" }).click();
+  const menu = page.getByRole("menu", { name: "More actions" });
+  await expect(menu.getByRole("separator")).toBeAttached();
+  const items = menu.getByRole("menuitem");
+  for (const [i, name] of ["Today", "Tomorrow", "Someday", "Project…"].entries()) await expect(items.nth(i)).toHaveText(name);
+  // Project…: the project picker, then the estimate and the deadline behind it. No project keeps it in the Inbox.
+  await items.nth(3).click();
+  const picker = page.getByRole("dialog", { name: "Move this task to a project" });
+  await picker.getByRole("option", { name: "No project" }).click();
+  const details = page.getByRole("dialog", { name: "Estimate and deadline" });
+  await details.getByRole("button", { name: "15m", exact: true }).click();
+  await details.getByRole("button", { name: "Done" }).click();
+  expect(await waitForRow("select id from public.tasks where title = $1 and estimate_min = 15 and state = 'inbox'", [title])).not.toBeNull();
+
+  await page.getByRole("button", { name: "Select" }).click();
+  await expect(row.getByRole("checkbox", { name: `Select ${title}` })).toBeVisible();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(row.getByRole("checkbox")).toHaveCount(0);
 });
 
 test.describe("morning review", () => {

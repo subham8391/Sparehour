@@ -20,7 +20,7 @@ test.describe("Today", () => {
     await openApp(page, "/today");
     const title = uniqueTitle("quick add");
     await quickAdd(page, `${title} today ~15m`);
-    const row = page.getByRole("listitem").filter({ hasText: title });
+    const row = page.getByRole("row").filter({ hasText: title });
     await expect(row).toBeVisible();
     await expect(row.getByText("15m")).toBeVisible();
     const stored = await waitForRow<{ state: string; estimate_min: number }>("select state, estimate_min from public.tasks where title = $1", [title]);
@@ -34,7 +34,7 @@ test.describe("Today", () => {
 
     const title = uniqueTitle("block me");
     await quickAdd(page, `${title} today ~30m`);
-    const row = page.getByRole("listitem").filter({ hasText: title });
+    const row = page.getByRole("row").filter({ hasText: title });
     // The title selects the row and opens the detail (which hides the timeline); Escape closes the detail and keeps the selection.
     // The chips are not a place to click: the hover actions sit over them.
     await row.getByRole("button", { name: title, exact: true }).click();

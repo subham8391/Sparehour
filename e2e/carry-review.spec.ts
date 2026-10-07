@@ -75,8 +75,8 @@ test("the first open of the day asks about the carried pile; Done writes each an
   expect(await waitForRow<{ do_date: string }>(`select do_date from public.tasks where title = $1 and state = 'active' and do_date = ${LOCAL_TODAY}`, [first])).not.toBeNull();
   expect(await waitForRow<{ carry_reviewed_at: string }>(PLAN, [DEV_USER.email])).not.toBeNull();
   // The kept task now sits in today's list, the parked one has left it.
-  await expect(page.getByRole("listitem").filter({ hasText: first })).toBeVisible();
-  await expect(page.getByRole("listitem").filter({ hasText: second })).toHaveCount(0);
+  await expect(page.getByRole("row").filter({ hasText: first })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: second })).toHaveCount(0);
 
   // Something new carries over before the next open, so there is a pile to see and still nothing to ask about.
   const third = uniqueTitle("carried three");

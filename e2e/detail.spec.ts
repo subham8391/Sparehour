@@ -11,7 +11,7 @@ test("the detail panel edits every field, and each write lands in Postgres", asy
   await openApp(page, "/inbox");
   const title = uniqueTitle("detail");
   await quickAdd(page, title);
-  const row = page.getByRole("listitem").filter({ hasText: title });
+  const row = page.getByRole("row").filter({ hasText: title });
   await row.getByRole("button", { name: title, exact: true }).click();
   const panel = page.getByRole("complementary", { name: "Task" });
   await expect(panel.getByRole("textbox", { name: "Title" })).toHaveValue(title);

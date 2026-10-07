@@ -7,6 +7,7 @@ import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
+import { requestTriageAll } from "@/features/inbox/triage-request";
 import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
 import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
@@ -142,6 +143,18 @@ const uncomplete = onTargets(async (ctx, ids) => {
   }
 });
 
+/**
+ * ⌘Enter (SCREENS.md §24 "Complete / un-complete"): a done task reopens (as U does, its own undo entry), anything
+ * else completes, the open ones in one write and one undo (a repeat still rolls on). Mixed ticked rows each toggle.
+ */
+const toggleComplete = onTargets(async (ctx, ids) => {
+  const states = await Promise.all(ids.map((id) => ctx.taskState(id)));
+  const open = ids.filter((_, i) => states[i] !== "done");
+  for (const id of ids.filter((_, i) => states[i] === "done")) await ctx.tasks.reopen(id);
+  if (open.length === 1) await ctx.tasks.complete(open[0]);
+  else if (open.length > 1) await ctx.tasks.completeMany(open);
+});
+
 /** The project a `/project/<id>` path shows, else null. */
 const projectIn = (pathname: string): string | null => {
   const id = /^\/project\/([^/?#]+)/.exec(pathname)?.[1];
@@ -173,9 +186,10 @@ const pick = (kind: "move" | "tag", areas = false) => onTargets((_, ids) => requ
 /** In the registry's order: the palette lists its words over these, by id. */
 export const RUNS: readonly CommandRun[] = [
   // ---- selected task (or every ticked row)
-  { id: "task.open", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.peek", shortcut: "space", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.complete", shortcut: "mod+enter", requiresSelection: true, run: onTargets((ctx, ids) => (ids.length === 1 ? ctx.tasks.complete(ids[0]) : ctx.tasks.completeMany(ids))) },
+  // Space peeks (opens the detail); Enter edits the title in place, or opens the task where no row can (SCREENS.md §24).
+  { id: "task.open", shortcut: "space", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
+  { id: "task.rename", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => void (requestRow(id, "rename") || ctx.openTask(id))) },
+  { id: "task.complete", shortcut: "mod+enter", requiresSelection: true, run: toggleComplete },
   { id: "task.uncomplete", shortcut: "u", requiresSelection: true, run: uncomplete },
   {
     id: "task.today",
@@ -278,6 +292,8 @@ export const RUNS: readonly CommandRun[] = [
   // panel opens (and keeps "today" finding Go to Today first).
   { id: "day.trim", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
   { id: "day.replan", run: (ctx) => ctx.planDay("replan") },
+  // Triage all (SCREENS.md §5): the Inbox's walk, at once or as soon as the Inbox is open.
+  { id: "inbox.triage-all", run: (ctx) => void (requestTriageAll() || ctx.go("/inbox")) },
 
   // ---- list plumbing
   { id: "list.down", shortcut: "j", run: (ctx) => selectNext(ctx, 1) },

@@ -8,13 +8,13 @@ test("complete from the list, then ⌘Z: the task is back, active in Postgres", 
   await openApp(page, "/inbox");
   const title = uniqueTitle("undo");
   await quickAdd(page, title);
-  const row = page.getByRole("listitem").filter({ hasText: title });
+  const row = page.getByRole("row").filter({ hasText: title });
   await row.getByRole("button", { name: `Complete ${title}` }).click();
   await expect(row).toHaveCount(0);
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'done'", [title])).not.toBeNull();
 
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(page.getByRole("listitem").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
   // An Inbox task is `inbox` again, not `active`: the undo restores exactly what was there.
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'inbox' and completed_at is null", [title])).not.toBeNull();
 });

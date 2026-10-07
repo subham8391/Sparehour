@@ -44,7 +44,7 @@ let off: OffSlate[] = [];
 let stood: StoodAside[] = [];
 
 const section = (page: Page, name: RegExp) => page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name }) });
-const row = (list: Locator, title: string) => list.getByRole("listitem").filter({ hasText: title });
+const row = (list: Locator, title: string) => list.getByRole("row").filter({ hasText: title });
 const sheet = (page: Page) => page.getByRole("dialog", { name: "Clear the slate" });
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
 

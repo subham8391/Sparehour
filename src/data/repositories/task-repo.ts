@@ -181,12 +181,13 @@ export class TaskRepo {
     return restoreRow(tx, "tasks", { ...before, id }, columns, at);
   }
 
-  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = []): void {
+  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = [], announce?: string): void {
     if (!this.history || !before) return;
     const title = quoted(before.title);
     this.history.record({
       label: label.includes("{title}") ? label.replace("{title}", title) : `${label} ${title}`,
       toast,
+      ...(announce ? { announce: announce.replace("{title}", title) } : {}),
       // One transaction: sync takes a done or deleted row off the device a moment after it uploads, and
       // that must not land between restore's presence check and its write (the write would hit nothing).
       undo: () =>
@@ -350,7 +351,7 @@ export class TaskRepo {
     const cols = ["day_sort_key"];
     const before = await this.snapshot(id, cols);
     await this.db.execute(`update tasks set day_sort_key = ?, updated_at = ? where id = ?`, [daySortKey, new Date().toISOString(), id]);
-    this.remember(id, before, cols, "Reordered", false);
+    this.remember(id, before, cols, "Reordered", false, [], before ? await this.placeWords(id, "day") : undefined);
   }
 
   /** Position in the project list; with `headingId`, also the section it moved into. */
@@ -359,8 +360,25 @@ export class TaskRepo {
     const before = await this.snapshot(id, cols);
     if (headingId === undefined) await this.db.execute(`update tasks set sort_key = ?, updated_at = ? where id = ?`, [sortKey, new Date().toISOString(), id]);
     else await this.db.execute(`update tasks set sort_key = ?, heading_id = ?, updated_at = ? where id = ?`, [sortKey, headingId, new Date().toISOString(), id]);
-    if (headingId === undefined) this.remember(id, before, cols, "Reordered", false);
+    if (headingId === undefined) this.remember(id, before, cols, "Reordered", false, [], before ? await this.placeWords(id, "list") : undefined);
     else await this.rememberHeadingMove(id, before, cols, headingId);
+  }
+
+  /**
+   * A reorder said in words for the live region (SYSTEM_DESIGN.md §11.5): "Moved {title} after “Call Dana”", or "to
+   * the top", by the open task now just above it in the same list — its day (and evening or not) or its project,
+   * heading and area.
+   */
+  private async placeWords(id: string, list: "day" | "list"): Promise<string> {
+    const same =
+      list === "day"
+        ? `t.do_date is me.do_date and t.evening is me.evening and t.day_sort_key < me.day_sort_key order by t.day_sort_key desc`
+        : `t.project_id is me.project_id and t.heading_id is me.heading_id and t.area_id is me.area_id and t.state = me.state and t.sort_key < me.sort_key order by t.sort_key desc`;
+    const above = await this.db.getOptional<{ title: string | null }>(
+      `select t.title from tasks t, tasks me where me.id = ? and t.id <> me.id and t.deleted_at is null and t.state in ('inbox', 'active', 'someday') and ${same} limit 1`,
+      [id],
+    );
+    return above ? `Moved {title} after ${quoted(above.title)}` : "Moved {title} to the top";
   }
 
   /**
@@ -382,14 +400,14 @@ export class TaskRepo {
     if (!before) return;
     if (text(before.do_date) !== day.toString()) this.remember(id, before, cols, `Moved {title} to ${await this.dayWords(day)}`, true, released);
     else if (Boolean(before.evening) !== evening) this.remember(id, before, cols, evening ? "Moved {title} to the evening" : "Moved {title} out of the evening", true, released);
-    else this.remember(id, before, cols, "Reordered", false, released);
+    else this.remember(id, before, cols, "Reordered", false, released, await this.placeWords(id, "day"));
   }
 
   /** A drag into another section reads "Moved “X” to Budget" with a toast; within the same one it is a silent reorder. */
   private async rememberHeadingMove(id: string, before: Snapshot | null, columns: readonly string[], headingId: string | null): Promise<void> {
     if (!before) return;
     const from = text(before.heading_id);
-    if (from === headingId) return this.remember(id, before, columns, "Reordered", false);
+    if (from === headingId) return this.remember(id, before, columns, "Reordered", false, [], await this.placeWords(id, "list"));
     const titleOf = async (hid: string | null) => (hid ? ((await this.db.getOptional<{ title: string | null }>(`select title from headings where id = ?`, [hid]))?.title ?? null) : null);
     const label = headingId ? `Moved {title} to ${(await titleOf(headingId)) ?? "another heading"}` : `Moved {title} out of ${(await titleOf(from)) ?? "its heading"}`;
     this.remember(id, before, columns, label, true);

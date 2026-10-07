@@ -148,7 +148,7 @@ describe("<TaskRow> multi-select", () => {
           <List />
         </SelectionProvider>,
       );
-      const row = screen.getByText("Call Mum").closest("li")!;
+      const row = screen.getByText("Call Mum").closest("[role=row]")!;
       fireEvent.pointerDown(row, { pointerType: "touch" });
       act(() => vi.advanceTimersByTime(200));
       fireEvent.pointerUp(row, { pointerType: "touch" });
@@ -158,7 +158,7 @@ describe("<TaskRow> multi-select", () => {
       act(() => vi.advanceTimersByTime(600));
       expect(screen.getByText("checked: t2")).toBeInTheDocument();
       // A mouse never long-presses.
-      fireEvent.pointerDown(screen.getByText("Draft the proposal").closest("li")!, { pointerType: "mouse" });
+      fireEvent.pointerDown(screen.getByText("Draft the proposal").closest("[role=row]")!, { pointerType: "mouse" });
       act(() => vi.advanceTimersByTime(600));
       expect(screen.getByText("checked: t2")).toBeInTheDocument();
     });
@@ -172,7 +172,7 @@ describe("<TaskRow> multi-select", () => {
         </SelectionProvider>,
       );
       const title = screen.getByText("Call Mum");
-      const row = title.closest("li")!;
+      const row = title.closest("[role=row]")!;
       fireEvent.pointerDown(row, { pointerType: "touch" });
       act(() => vi.advanceTimersByTime(600));
       fireEvent.pointerUp(row, { pointerType: "touch" });
@@ -194,7 +194,7 @@ describe("<TaskRow> multi-select", () => {
         </SelectionProvider>,
       );
       const title = screen.getByText("Water the plants");
-      const row = title.closest("li")!;
+      const row = title.closest("[role=row]")!;
       fireEvent.pointerDown(row, { pointerType: "touch" });
       act(() => vi.advanceTimersByTime(600));
       fireEvent.pointerCancel(row, { pointerType: "touch" }); // the finger slid away: no click follows
@@ -226,9 +226,9 @@ describe("<TaskRow> estimate", () => {
     );
     const long = screen.getByText("Long — break it down?");
     expect(long).toHaveClass("text-ink-2");
-    expect(long.closest("li")).toHaveTextContent("9h");
+    expect(long.closest("[role=row]")).toHaveTextContent("9h");
     // Exactly 8 hours is within the limit.
-    expect(screen.getByText("Call Mum").closest("li")).not.toHaveTextContent("break it down");
+    expect(screen.getByText("Call Mum").closest("[role=row]")).not.toHaveTextContent("break it down");
   });
 });
 
@@ -250,7 +250,7 @@ describe("<TaskRow> completion feedback (DESIGN_SYSTEM.md §7)", () => {
     );
     const button = screen.getByRole("button", { name: "Complete Draft the proposal" });
     fireEvent.click(button);
-    expect(button.closest("li")).toHaveAttribute("data-completing", "true");
+    expect(button.closest("[role=row]")).toHaveAttribute("data-completing", "true");
     expect(screen.getByText("Draft the proposal")).toHaveClass("line-through");
     expect(onDone).not.toHaveBeenCalled();
     fireEvent.click(button); // pressing again while it settles does nothing
@@ -284,7 +284,7 @@ describe("<TaskRow> completion feedback (DESIGN_SYSTEM.md §7)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Complete Water the plants" }));
     expect(onDone).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Complete Water the plants" }).closest("li")).not.toHaveAttribute("data-completing");
+    expect(screen.getByRole("button", { name: "Complete Water the plants" }).closest("[role=row]")).not.toHaveAttribute("data-completing");
   });
 
   it("with Reduce motion chosen on this device (Settings › Appearance) the write is immediate too", () => {
@@ -311,7 +311,7 @@ describe("<TaskRow> completion feedback (DESIGN_SYSTEM.md §7)", () => {
         <TaskRow task={{ ...tasks[0], state: "done" }} />
       </TaskList>,
     );
-    const row = screen.getByText("Draft the proposal").closest("li")!;
+    const row = screen.getByText("Draft the proposal").closest("[role=row]")!;
     expect(row.querySelector("svg")).not.toBeNull();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });

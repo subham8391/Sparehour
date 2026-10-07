@@ -45,7 +45,7 @@ let projectId = "";
 
 const panel = (page: Page) => page.getByRole("complementary", { name: "Task" });
 /** The page's own rows: the sidebar lists a converted task's project by the same name. */
-const rows = (page: Page) => page.getByRole("main").getByRole("listitem");
+const rows = (page: Page) => page.getByRole("main").getByRole("row");
 async function openTask(page: Page, title: string): Promise<Locator> {
   await rows(page).filter({ hasText: title }).getByRole("button", { name: title, exact: true }).click();
   const p = panel(page);

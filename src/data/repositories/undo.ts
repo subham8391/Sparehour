@@ -5,7 +5,7 @@ import type { LocalDatabase } from "../powersync";
 
 /** Where the inverse of each write goes (the undo stack); optional so scripts and tests can skip it. */
 export interface UndoRecorder {
-  record: (entry: { label: string; toast: boolean; undo: () => Promise<void> }) => void;
+  record: (entry: { label: string; toast: boolean; announce?: string; undo: () => Promise<void> }) => void;
 }
 
 export type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0];

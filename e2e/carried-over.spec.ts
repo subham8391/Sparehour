@@ -37,11 +37,11 @@ let stood: StoodAside[] = [];
 let asked: AskedAt[] = [];
 
 const carried = (page: Page) => page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: /^Carried over/ }) });
-const row = (page: Page, title: string) => carried(page).getByRole("listitem").filter({ hasText: title });
+const row = (page: Page, title: string) => carried(page).getByRole("row").filter({ hasText: title });
 const ask = (page: Page, title: string) => row(page, title).getByRole("group", { name: "Still want this?" });
 /** This spec's rows in the order the section draws them. */
 async function order(section: Locator): Promise<string[]> {
-  const texts = await section.getByRole("listitem").allTextContents();
+  const texts = await section.getByRole("row").allTextContents();
   return texts.map((t) => own.find((title) => t.includes(title))).filter((t): t is string => Boolean(t));
 }
 
@@ -125,7 +125,7 @@ test("Break it down makes the task a project, opens it in its add row, and one U
 
   await expect(page).toHaveURL(/\/project\/[^/?]+\?add=1$/);
   await expect(page.getByRole("textbox", { name: "Add a task" })).toBeFocused();
-  for (const step of steps) await expect(page.getByRole("listitem").filter({ hasText: step })).toBeVisible();
+  for (const step of steps) await expect(page.getByRole("row").filter({ hasText: step })).toBeVisible();
 
   // The project takes the task's name and note; its steps become open tasks in step order; the task is retired, and the server resets its count.
   const project = await waitForRow<{ id: string; notes_md: string | null }>("select id, notes_md from public.projects where name = $1 and deleted_at is null", [second]);
@@ -185,7 +185,7 @@ test("above eight rows the section starts folded to one line, and opening it hol
   const fold = page.getByRole("button", { name: /^Carried over/ });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await expect(fold).toContainText(/10\s*—\s*Expand/);
-  await expect(page.getByRole("listitem").filter({ hasText: recent })).toHaveCount(0);
+  await expect(page.getByRole("row").filter({ hasText: recent })).toHaveCount(0);
 
   await fold.click();
   await expect(fold).toHaveCount(0);

@@ -38,9 +38,9 @@ let trimSkip: string | null = null;
 
 const section = (page: Page, name: RegExp) => page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name }) });
 const todayList = (page: Page) => section(page, /^Today/);
-const row = (list: Locator, title: string) => list.getByRole("listitem").filter({ hasText: title });
+const row = (list: Locator, title: string) => list.getByRole("row").filter({ hasText: title });
 async function order(list: Locator): Promise<string[]> {
-  const texts = await list.getByRole("listitem").allTextContents();
+  const texts = await list.getByRole("row").allTextContents();
   return texts.map((t) => own.find((title) => t.includes(title))).filter((t): t is string => Boolean(t));
 }
 async function openMenu(page: Page): Promise<Locator> {
