@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useQuery } from "@/data/powersync";
 import type { NavTree } from "@/features/shell/nav-drag";
 import { useNavData } from "@/features/shell/use-nav-data";
-import { useAreaRepo, useProjectRepo } from "@/features/tasks/use-repos";
+import { useAreaRepo, useProjectOrderRepo } from "@/features/tasks/use-repos";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -50,7 +50,7 @@ function placeOf(tree: readonly NavTree[], target: OrganiseTarget): { list: read
 export function OrganiseSheet({ target, step: initial = "menu", onClose, onDeleted }: { target: OrganiseTarget; step?: OrganiseStep; onClose: () => void; onDeleted?: () => void }) {
   const { areas: tree } = useNavData();
   const areaRepo = useAreaRepo();
-  const projectRepo = useProjectRepo();
+  const projectOrder = useProjectOrderRepo();
   const [step, setStep] = useState<OrganiseStep>(initial);
   const place = placeOf(tree, target);
   const realAreas = tree.filter((g) => !g.loose);
@@ -61,14 +61,14 @@ export function OrganiseSheet({ target, step: initial = "menu", onClose, onDelet
     const index = place.index + dir;
     if (index < 0 || index >= place.list.length) return;
     if (target.kind === "area") void areaRepo.move(target.id, index);
-    else void projectRepo.move(target.id, { areaId: place.areaId, index });
+    else void projectOrder.move(target.id, { areaId: place.areaId, index });
     onClose();
   };
   const moveTo = (areaId: string | null) => {
     if (target.kind !== "project") return;
     if (place && place.areaId === areaId) return onClose();
     const dest = tree.find((g) => (areaId ? g.id === areaId : g.loose));
-    void projectRepo.move(target.id, { areaId, index: dest?.projects.length ?? 0 }, dest && !dest.loose ? dest.name : null);
+    void projectOrder.move(target.id, { areaId, index: dest?.projects.length ?? 0 }, dest && !dest.loose ? dest.name : null);
     onClose();
   };
   const remove = () => {

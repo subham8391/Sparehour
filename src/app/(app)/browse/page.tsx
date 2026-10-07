@@ -16,7 +16,6 @@ import { FinishedProjects } from "@/features/projects/finished-projects";
 import type { OrganiseTarget } from "@/features/projects/organise-sheet";
 import { wireNavDrag } from "@/features/shell/nav-drag";
 import { useNavDragActions } from "@/features/shell/nav-drag-island";
-import { DROP_MARK } from "@/features/shell/sidebar";
 import { useNavData } from "@/features/shell/use-nav-data";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { useAreaRepo, useProjectRepo } from "@/features/tasks/use-repos";
@@ -154,12 +153,12 @@ export default function BrowsePage() {
                 <li key={a.id} className="border-t border-line first:border-t-0">
                   {a.loose ? (
                     // Projects without an area: a heading for the rows under it, with no page of its own (a project dropped on it leaves its area).
-                    <p data-nav-area={a.id} className={cx(DROP_MARK, "flex min-h-11 items-center gap-3 px-4 text-body-lg font-medium text-ink")}>
+                    <p data-nav-area={a.id} className="flex min-h-11 items-center gap-3 px-4 text-body-lg font-medium text-ink">
                       <span className="min-w-0 flex-1 truncate">{a.name}</span>
                       <span className="text-body-sm text-ink-3 num">{a.projects.length}</span>
                     </p>
                   ) : (
-                    <div data-nav-area={a.id} className={cx(DROP_MARK, "flex items-center")}>
+                    <div data-nav-area={a.id} className="flex items-center">
                       <Link href={`/area/${a.id}`} draggable={false} className={cx(ROW, "min-w-0 flex-1 font-medium")}>
                         <span className="min-w-0 flex-1 truncate">{a.name}</span>
                         {a.projects.length > 0 && <span className="text-body-sm text-ink-3 num">{a.projects.length}</span>}
@@ -171,7 +170,7 @@ export default function BrowsePage() {
                   {a.projects.length > 0 && (
                     <ul>
                       {a.projects.map((p) => (
-                        <li key={p.id} data-nav-project={p.id} className={cx(DROP_MARK, "flex items-center")}>
+                        <li key={p.id} data-nav-project={p.id} className="flex items-center">
                           <Link href={`/project/${p.id}`} draggable={false} className={cx(ROW, "min-w-0 flex-1 pl-9 text-ink-2")}>
                             {/* The same 6 px dot the sidebar gives a project, so the nesting reads the same everywhere. */}
                             <span className="size-1.5 shrink-0 rounded-full bg-line-control" aria-hidden="true" />

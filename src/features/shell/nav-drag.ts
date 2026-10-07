@@ -4,7 +4,9 @@
 // (or out of every area), and a task row dropped on a project is filed there.
 // The tree's markup only carries `data-nav-area` / `data-nav-project`; this
 // module wires those rows up with the Pragmatic element adapter and marks the
-// row under the pointer with `data-drop` (DROP_MARK in sidebar.tsx draws it).
+// row under the pointer (`data-drop`, drawn as an inset line above or below the
+// row, or a ring round it when the drop goes inside), so not a byte of it, its
+// styles included, rides in a shell's first download.
 // It lives outside the shells' first download (nav-drag-island.tsx loads it in
 // idle time); Browse uses it directly. The tap path is Browse's ⋯ menus.
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
@@ -64,10 +66,22 @@ type Mark = Edge | "inside" | null;
 const AREA = "nav-area";
 const PROJECT = "nav-project";
 
+/** Where the drop would land: a 2 px ink line along the row's top or bottom edge, or a ring round it. */
+const MARK_SHADOW: Record<Exclude<Mark, null>, string> = {
+  top: "inset 0 2px 0 0 var(--ink)",
+  bottom: "inset 0 -2px 0 0 var(--ink)",
+  inside: "inset 0 0 0 2px var(--ink)",
+};
+
 function setMark(el: HTMLElement, mark: Mark) {
   if ((el.dataset.drop ?? null) === mark) return;
-  if (mark) el.dataset.drop = mark;
-  else delete el.dataset.drop;
+  if (mark) {
+    el.dataset.drop = mark;
+    el.style.boxShadow = MARK_SHADOW[mark];
+  } else {
+    delete el.dataset.drop;
+    el.style.boxShadow = "";
+  }
 }
 
 /**

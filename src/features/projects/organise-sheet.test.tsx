@@ -7,11 +7,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   areaRepo: { move: vi.fn(), remove: vi.fn() },
-  projectRepo: { move: vi.fn() },
+  projectOrder: { move: vi.fn() },
   contents: [{ projects: 2, tasks: 1 }] as { projects: number; tasks: number }[],
 }));
 vi.mock("@/data/powersync", () => ({ useQuery: (sql: string) => ({ data: sql.includes("where 0") ? [] : h.contents }) }));
-vi.mock("@/features/tasks/use-repos", () => ({ useAreaRepo: () => h.areaRepo, useProjectRepo: () => h.projectRepo }));
+vi.mock("@/features/tasks/use-repos", () => ({ useAreaRepo: () => h.areaRepo, useProjectOrderRepo: () => h.projectOrder }));
 vi.mock("@/features/shell/use-nav-data", () => ({
   useNavData: () => ({
     counts: { inbox: 0, today: 0 },
@@ -69,7 +69,7 @@ describe("<OrganiseSheet> for a project", () => {
     render(<OrganiseSheet target={{ kind: "project", id: "hiring", name: "Hiring" }} onClose={vi.fn()} />);
     expect(screen.getByRole("menuitem", { name: /Move down/ })).toBeDisabled();
     await user.click(screen.getByRole("menuitem", { name: /Move up/ }));
-    expect(h.projectRepo.move).toHaveBeenCalledWith("hiring", { areaId: "work", index: 0 });
+    expect(h.projectOrder.move).toHaveBeenCalledWith("hiring", { areaId: "work", index: 0 });
   });
 
   it("Move to area… lists the areas with its own checked, and files it last in the one chosen", async () => {
@@ -80,18 +80,18 @@ describe("<OrganiseSheet> for a project", () => {
     expect(within(list).getAllByRole("menuitemradio").map((b) => b.textContent)).toEqual(["Work", "Home", "No area"]);
     expect(within(list).getByRole("menuitemradio", { name: "Work" })).toHaveAttribute("aria-checked", "true");
     await user.click(within(list).getByRole("menuitemradio", { name: "Home" }));
-    expect(h.projectRepo.move).toHaveBeenCalledWith("q4", { areaId: "home", index: 1 }, "Home");
+    expect(h.projectOrder.move).toHaveBeenCalledWith("q4", { areaId: "home", index: 1 }, "Home");
   });
 
   it("No area takes it out of every area; its own area changes nothing", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<OrganiseSheet target={{ kind: "project", id: "q4", name: "Q4 launch" }} step="move" onClose={vi.fn()} />);
     await user.click(screen.getByRole("menuitemradio", { name: "Work" }));
-    expect(h.projectRepo.move).not.toHaveBeenCalled();
+    expect(h.projectOrder.move).not.toHaveBeenCalled();
     unmount();
     render(<OrganiseSheet target={{ kind: "project", id: "q4", name: "Q4 launch" }} step="move" onClose={vi.fn()} />);
     await user.click(screen.getByRole("menuitemradio", { name: "No area" }));
-    expect(h.projectRepo.move).toHaveBeenCalledWith("q4", { areaId: null, index: 1 }, null);
+    expect(h.projectOrder.move).toHaveBeenCalledWith("q4", { areaId: null, index: 1 }, null);
   });
 });
 

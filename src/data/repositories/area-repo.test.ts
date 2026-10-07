@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { sorted } from "@/core/ordering";
 import { localSqlite } from "@/test/local-sqlite";
 import { AreaRepo } from "./area-repo";
-import { ProjectRepo } from "./project-repo";
+import { ProjectOrderRepo } from "./project-order-repo";
 import { TaskRepo } from "./task-repo";
 
 
@@ -22,7 +22,7 @@ function setup() {
   s.insert("tasks", { id: "t1", space_id: "s1", area_id: "a1", project_id: null, title: "Expenses", state: "active", sort_key: "a0", carry_count: 0 });
   s.insert("tasks", { id: "t2", space_id: "s1", area_id: null, project_id: "p1", heading_id: "h1", title: "Draft the Acme proposal", state: "active", sort_key: "a0", carry_count: 0 });
   const history = { record: vi.fn() };
-  return { s, history, areas: new AreaRepo(s.db, history), projects: new ProjectRepo(s.db, history), tasks: new TaskRepo(s.db, history), entry: (i = 0) => history.record.mock.calls[i][0] };
+  return { s, history, areas: new AreaRepo(s.db, history), projects: new ProjectOrderRepo(s.db, history), tasks: new TaskRepo(s.db, history), entry: (i = 0) => history.record.mock.calls[i][0] };
 }
 
 const order = (s: ReturnType<typeof localSqlite>, sql: string) => sorted(s.rows(sql).map((r) => ({ id: String(r.id), sortKey: String(r.sort_key) }))).map((r) => r.id);
@@ -48,7 +48,7 @@ describe("AreaRepo.move", () => {
   });
 });
 
-describe("ProjectRepo.move", () => {
+describe("ProjectOrderRepo.move", () => {
   it("reorders inside its area with one key and a silent entry", async () => {
     const { s, projects, entry } = setup();
     await projects.move("p2", { areaId: "a1", index: 0 });
