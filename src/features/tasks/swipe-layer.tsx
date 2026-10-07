@@ -124,10 +124,11 @@ export function SwipeLayer({ row, task, today, complete, actions }: SwipeLayerPr
       if (!blocked) g = begin(e);
     };
     const move = (e: PointerEvent) => {
-      if (e.pointerType !== "touch" || !e.isPrimary || blocked) return;
+      // A press held long enough to tick the row is a selection now, not a swipe.
+      if (e.pointerType !== "touch" || !e.isPrimary || blocked || el.hasAttribute("aria-selected")) return;
       if (!g) {
         // Mounted by this very touch, after its pointerdown: its first move is the start.
-        if (e.buttons === 0 || opened.current || el.hasAttribute("aria-selected")) return;
+        if (e.buttons === 0 || opened.current) return;
         g = begin(e);
         return;
       }
