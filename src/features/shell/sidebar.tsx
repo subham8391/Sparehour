@@ -87,7 +87,7 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
           <span className="min-w-0 flex-1 truncate">{area.name}</span>
         ) : (
           // The row is what drags, so the link inside it does not start a link drag of its own.
-          <Link href={`/area/${area.id}`} draggable={false} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate touch:self-stretch touch:content-center">
+          <Link href={`/area/${area.id}`} draggable={false} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate touch:leading-11">
             {area.name}
           </Link>
         )}

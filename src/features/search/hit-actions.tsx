@@ -3,29 +3,24 @@
 // own list offers, so the hover zone, the ⋯ and the swipes (swipe.ts) match that list. Each is one undoable write.
 import { compareDates, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
-import { MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
+import { MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
 export function HitActions({ task, today }: { task: Pick<Task, "id" | "state" | "doDate">; today: LocalDate }) {
   const repo = useTaskRepo();
   const id = task.id;
   const to = (day: LocalDate) => () => void repo.reschedule(id, day);
-  const set = (state: Task["state"], note?: string) => () => void repo.setState(id, state, note);
+  const set = (state: "someday" | "dropped" | "active", note?: string) => () => void repo.setState(id, state, note);
   const tomorrow = today.add({ days: 1 });
   switch (task.state) {
     case "inbox":
       return <MoveActions onToday={to(today)} onTomorrow={to(tomorrow)} onSomeday={set("someday")} onDrop={set("dropped")} />;
     case "active":
-      // Carried over: the four moves; otherwise Tomorrow, with Someday in the ⋯ (the Today row's push-away).
+      // Carried over: the four moves; otherwise Tomorrow (the ⋯ adds Someday, as on every open row).
       return task.doDate && compareDates(task.doDate, today) < 0 ? (
         <MoveActions onToday={to(today)} onTomorrow={to(tomorrow)} onSomeday={set("someday")} onDrop={set("dropped")} />
       ) : (
-        <>
-          <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={to(tomorrow)} />
-          <MenuOnly>
-            <RowAction label="Someday" onClick={set("someday")} />
-          </MenuOnly>
-        </>
+        <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={to(tomorrow)} />
       );
     case "someday":
       return (

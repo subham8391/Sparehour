@@ -17,7 +17,9 @@ import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { cx } from "@/ui/cx";
 import { BUTTON_W, COMPLETE, TAP_ONLY, classify, commitAt, release, swipePlan, type Axis, type SwipeSide } from "./swipe";
+import { applySnooze } from "./snooze";
 import { RowActionsLayoutProvider } from "./task-actions";
+import { useTaskRepo } from "./use-task-repo";
 
 interface Gesture {
   id: number;
@@ -32,7 +34,7 @@ interface Gesture {
 export interface SwipeLayerProps {
   /** The row (`role="row"`); its cell's first child is the content that slides. */
   row: { current: HTMLElement | null };
-  task: Pick<Task, "state" | "doDate">;
+  task: Pick<Task, "id" | "state" | "doDate">;
   today: LocalDate;
   /** The ring's check-off (with its 400 ms fold); absent where the row cannot be completed. */
   complete?: () => void;
@@ -66,11 +68,18 @@ export function SwipeLayer({ row, task, today, complete, actions }: SwipeLayerPr
   /** Where an open row's content rests (0 when shut). */
   const opened = useRef(0);
 
-  /** The labels a side offers that this row really has (the ring's Complete where it can be completed). */
-  const offered = (side: SwipeSide) => swipePlan(task, today)[side].filter((l) => (l === COMPLETE ? Boolean(complete) : handlers.current.has(l)));
+  const repo = useTaskRepo();
+  // What the ⋯ menu adds to an open row's own actions (row-menu.tsx): the Tomorrow preset and Someday, the same writes.
+  const menuOwn: Record<string, () => void> = {
+    Tomorrow: () => void applySnooze(repo, [task.id], { id: "tomorrow", label: "Tomorrow", patch: { doDate: today.add({ days: 1 }), doTime: null, evening: false } }),
+    Someday: () => void repo.setState(task.id, "someday"),
+  };
+  const open = task.state === "active" || task.state === "inbox";
+  /** The labels a side offers that this row's ⋯ really holds (the ring's Complete where it can be completed). */
+  const offered = (side: SwipeSide) => swipePlan(task, today)[side].filter((l) => (l === COMPLETE ? Boolean(complete) : handlers.current.has(l) || (open && l in menuOwn)));
   const run = (label: string) => {
     if (label === COMPLETE) complete?.();
-    else handlers.current.get(label)?.();
+    else (handlers.current.get(label) ?? menuOwn[label])?.();
   };
   // The listeners stay put for the row's life; what they read is always the latest render's.
   const latest = useRef({ offered, run });
@@ -190,8 +199,9 @@ export function SwipeLayer({ row, task, today, complete, actions }: SwipeLayerPr
       {shown && shown.labels.length > 0 && (
         <div
           data-swipe-actions
-          className={cx("absolute inset-y-0 z-0 flex overflow-hidden", shown.side === "right" ? "left-0" : "right-0 flex-row-reverse")}
-          style={{ width: Math.abs(shown.dx) }}
+          // The first action sits at the outer edge, where the finger is heading.
+          className={cx("absolute inset-y-0 flex overflow-hidden", shown.side === "right" ? "left-0" : "right-0")}
+          style={{ width: Math.abs(shown.dx), zIndex: 0, flexDirection: shown.side === "right" ? "row" : "row-reverse" }}
         >
           {shown.labels.map((label, i) => (
             <button
@@ -206,12 +216,12 @@ export function SwipeLayer({ row, task, today, complete, actions }: SwipeLayerPr
                 run(label);
               }}
               className={cx(
-                "flex h-full min-w-0 shrink items-center justify-center px-2 text-body-sm font-medium whitespace-nowrap transition-[flex-grow] dur-fast",
+                "flex h-full min-w-0 shrink items-center justify-center px-2 text-body-sm font-medium whitespace-nowrap",
                 // The side's first action (what a full swipe runs) in ink; Drop stays ink text, never a warning (ruling R2).
                 i === 0 && !TAP_ONLY.has(label) ? "bg-ink text-ink-inverse" : "bg-surface-2 text-ink",
-                i === 0 && shown.full ? "grow-[6]" : "grow",
               )}
-              style={{ flexBasis: BUTTON_W }}
+              // Past the commit point the first action takes the row: letting go runs it.
+              style={{ flexBasis: BUTTON_W, flexGrow: i === 0 && shown.full ? 6 : 1 }}
             >
               {label}
             </button>

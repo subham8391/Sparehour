@@ -178,7 +178,7 @@ const SUGGESTIONS: { label: string; insert: string }[] = [
 /** A suggestion or a project match: the chip that is a button (DESIGN_SYSTEM.md §5 "Chips"). */
 const SUGGEST = chipButtonClass();
 // One row that scrolls sideways under a fade on a phone, so the Add button stays put above the keyboard; wrapped from `sm`.
-const CHIP_ROW = "-m-1 flex items-center gap-1.5 p-1 max-sm:scroll-fade sm:flex-wrap";
+const CHIP_ROW = "-mx-1 -my-1 flex items-center gap-1.5 px-1 py-1 scroll-fade sm:flex-wrap";
 
 /** The line itself: the field look at 48 px and 16 px type on every width, so iOS never zooms. The border turns ink on focus, so no ring. */
 const LINE = "h-12 w-full rounded-lg border border-line-control px-3.5 text-base outline-none placeholder:text-ink-4 focus:border-ink focus-visible:outline-none";

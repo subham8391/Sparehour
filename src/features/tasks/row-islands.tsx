@@ -16,10 +16,10 @@ const loadSwipe = () => import("./swipe-layer");
 const RowMenuLazy = lazy(() => loadRowMenu().then((m) => ({ default: m.RowMenu })));
 
 /** The row's actions (after the view's `lead`), then the snooze presets and Move to… once they have loaded. */
-export function RowMenuIsland({ taskId, lead, children }: { taskId: string; lead?: ReactNode; children: ReactNode }) {
+export function RowMenuIsland({ taskId, lead, parked, children }: { taskId: string; lead?: ReactNode; parked?: boolean; children: ReactNode }) {
   return (
     <Suspense fallback={<>{lead}{children}</>}>
-      <RowMenuLazy taskId={taskId} lead={lead}>{children}</RowMenuLazy>
+      <RowMenuLazy taskId={taskId} lead={lead} parked={parked}>{children}</RowMenuLazy>
     </Suspense>
   );
 }

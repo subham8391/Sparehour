@@ -203,6 +203,33 @@ describe("swiping elsewhere", () => {
     expect(spies.drop).not.toHaveBeenCalled();
   });
 
+  it("a project row without its own moves offers the ⋯ menu's Tomorrow preset and Someday, the same writes", async () => {
+    db.execute.mockClear();
+    const spies = spiesFor();
+    render(
+      <TaskList>
+        <TaskRow
+          task={task("active")}
+          today={TODAY}
+          onOpen={spies.open}
+          actions={
+            <>
+              <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => {}} />
+              <span data-testid="swipe-ready" hidden />
+            </>
+          }
+        />
+      </TaskList>,
+    );
+    await swipe(-100);
+    const strip = document.querySelector<HTMLElement>("[data-swipe-actions]")!;
+    expect(within(strip).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tomorrow", "Someday"]);
+    fireEvent.click(within(strip).getByRole("button", { name: "Someday" }));
+    await waitFor(() => expect(db.execute.mock.calls.some(([sql, args]) => String(sql).startsWith("update tasks set state") && (args as unknown[]).includes("someday"))).toBe(true));
+    await swipe(-240);
+    await waitFor(() => expect(db.execute.mock.calls.some(([sql, args]) => String(sql).includes("do_date") && (args as unknown[]).includes("2026-10-08"))).toBe(true));
+  });
+
   it("a Logbook row reopens on a right swipe and has nothing on the left", async () => {
     const spies = spiesFor();
     render(

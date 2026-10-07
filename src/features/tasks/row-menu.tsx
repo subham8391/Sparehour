@@ -7,7 +7,9 @@
 // menu, so nothing is listed twice; the hover zone keeps it. A view's `lead`
 // (the Inbox's Today · Tomorrow · Someday · Project…, SCREENS.md §5) heads the
 // menu instead, and a preset or row action of the same name steps aside for
-// it. Lazy: loaded in idle time and drawn when a menu opens (row-islands.tsx).
+// it. Someday follows the presets for a task not parked yet, and a row action
+// of that name steps aside for it too. Lazy: loaded in idle time and drawn when
+// a menu opens (row-islands.tsx).
 import { Children, isValidElement, type ReactNode } from "react";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { MENU_SEPARATOR } from "@/ui/popover";
@@ -24,7 +26,7 @@ export function leadLabels(lead: ReactNode): Set<string> {
   return out;
 }
 
-export function RowMenu({ taskId, lead, children }: { taskId: string; lead?: ReactNode; children: ReactNode }) {
+export function RowMenu({ taskId, lead, parked = false, children }: { taskId: string; lead?: ReactNode; parked?: boolean; children: ReactNode }) {
   const repo = useTaskRepo();
   const now = useNow();
   // The presets are the account's day and zone: they wait for its settings row, read as the menu opens, so a quick
@@ -35,13 +37,15 @@ export function RowMenu({ taskId, lead, children }: { taskId: string; lead?: Rea
   return (
     <>
       {lead}
-      <OwnedLabels labels={led.size > 0 ? new Set([...PRESET_LABELS, ...led]) : PRESET_LABELS}>{children}</OwnedLabels>
+      <OwnedLabels labels={new Set([...PRESET_LABELS, ...led, ...(parked ? [] : ["Someday"])])}>{children}</OwnedLabels>
       {/* No line above the group when the row's own actions all stepped aside. */}
       <div role="separator" className={`${MENU_SEPARATOR} first:hidden`} />
       {ready &&
         snoozePresets(now, zone, today)
           .filter((p) => !led.has(p.label))
           .map((p) => <RowAction key={p.id} label={p.label} onClick={() => void applySnooze(repo, [taskId], p)} />)}
+      {/* Someday for every open task not there yet (the S key's tap path, and a Today row's left swipe). */}
+      {!parked && !led.has("Someday") && <RowAction label="Someday" onClick={() => void repo.setState(taskId, "someday")} />}
       {move && <RowAction label="Move to…" onClick={() => move(null)} />}
     </>
   );

@@ -360,7 +360,7 @@ export function TaskRow({
       )}
       {editable ? (
         // From `sm` the chip opens the presets in place (SCREENS.md §2.4); on a phone the line is no target, the detail and E are.
-        <button ref={estimateRef} type="button" aria-label={guess ?? `Estimate ${estimate}`} title={guess} onClick={(e) => setEstimating(e.currentTarget)} className="hit-touch rounded-sm hover:[&>span]:border-line-strong">
+        <button ref={estimateRef} type="button" aria-label={guess ?? `Estimate ${estimate}`} title={guess} onClick={(e) => setEstimating(e.currentTarget)} className="hit-touch rounded-sm hover:bg-hover">
           {estimateChip}
         </button>
       ) : (
@@ -521,7 +521,7 @@ export function TaskRow({
                   return (
                     <RowActionsLayoutProvider layout="menu" close={close} move={movable ? move : undefined}>
                       {movable ? (
-                        <RowMenuIsland taskId={task.id} lead={menuLead}>
+                        <RowMenuIsland taskId={task.id} lead={menuLead} parked={task.state === "someday"}>
                           {own}
                         </RowMenuIsland>
                       ) : (

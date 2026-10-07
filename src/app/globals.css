@@ -374,9 +374,9 @@
   inherits: false;
   initial-value: 0px;
 }
+/* Unset ends of the keyframes take the declared 0px: no fade at the start of the scroll, none at its end. */
 @keyframes scroll-fade {
   from {
-    --fade-start: 0px;
     --fade-end: 28px;
   }
   8% {
@@ -387,20 +387,16 @@
   }
   to {
     --fade-start: 28px;
-    --fade-end: 0px;
   }
 }
 @utility scroll-fade {
   flex-wrap: nowrap;
   overflow-x: auto;
-  overscroll-behavior-x: contain;
   scrollbar-width: none;
-  mask-image: linear-gradient(to right, transparent, black var(--fade-start), black calc(100% - var(--fade-end)), transparent);
+  --fade: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+  mask-image: var(--fade);
   animation: scroll-fade linear both;
   animation-timeline: scroll(self inline);
-  &::-webkit-scrollbar {
-    display: none;
-  }
 }
 /* A line that fades out at its right edge instead of wrapping (the phone row's meta line). */
 @utility fade-end {

@@ -85,7 +85,7 @@ function Popover({ anchor, onClose, children }: { anchor: HTMLElement | null; on
         aria-label={LABEL}
         tabIndex={-1}
         onKeyDown={trapTab}
-        className={cx(RAISED, "fixed z-50 flex max-h-[calc(100dvh-1rem)] w-72 flex-col gap-3 overflow-y-auto rounded-xl p-3 outline-none")}
+        className={cx(RAISED, "fixed z-50 flex max-h-[calc(100dvh-1rem)] w-80 flex-col gap-3 overflow-y-auto rounded-xl p-3 outline-none")}
       >
         {children}
       </div>

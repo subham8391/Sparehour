@@ -69,13 +69,9 @@ export function toTask(r: TaskRow): Task {
     daySortKey: r.day_sort_key ?? null,
     routineRunId: r.routine_run_id ?? null,
     carryAskedAt: ts(r.carry_asked_at),
-    tags: tagNames((r as { tag_names?: string | null }).tag_names),
+    // The list statement's `tag_names`, unit-separated (data/queries/tag-names.ts); absent where it does not read them.
+    tags: (r as { tag_names?: string | null }).tag_names?.split("\x1f").sort(),
   };
-}
-
-/** The list statement's `tag_names` (unit-separated), in name order; undefined where the statement does not read them. */
-function tagNames(v: string | null | undefined): string[] | undefined {
-  return v ? v.split("\x1f").sort((a, b) => a.localeCompare(b)) : undefined;
 }
 
 export function toCapacityTask(r: TaskRow): CapacityTask {
