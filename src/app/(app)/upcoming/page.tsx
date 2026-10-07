@@ -8,9 +8,13 @@
 // this one; "Calendar week" swaps the next seven days for the week on the
 // person's week start. Past the week the agenda keeps going by day, with
 // capacity readouts out to day 14, a "Due" group on the day a deadline falls,
-// and tasks waiting for their start date under "Starting later".
+// and tasks waiting for their start date under "Starting later". On a phone a
+// 7-day strip of mini bars stays pinned over the agenda (a tap jumps to the
+// day), and "Not yet planned" is a strip pinned above the tab bar that opens
+// a sheet with a day picker per task.
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CapacityTask } from "@/core/capacity";
 import { keyBetween } from "@/core/ordering";
 import { compareDates, formatMinutes, localDate, type LocalDate } from "@/core/time";
@@ -24,6 +28,7 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useListSelection } from "@/features/selection/selection-provider";
+import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useWorkingSetSynced } from "@/features/shell/use-working-set";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
@@ -37,8 +42,9 @@ import { useConvertToProject } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { DayBar, ReadoutText } from "@/features/upcoming/capacity-bar";
 import { CompactRow } from "@/features/upcoming/compact-row";
+import { DayStrip, type StripDay } from "@/features/upcoming/day-strip";
 import { dueByDay, laterGroups, startingByDay, type AgendaDay } from "@/features/upcoming/later";
-import { RailColumn, UnplannedButton, UnplannedSheet } from "@/features/upcoming/unplanned";
+import { RailColumn, UnplannedButton, UnplannedStrip } from "@/features/upcoming/unplanned";
 import { useWeekCapacity } from "@/features/upcoming/use-week-capacity";
 import { useWeekKeys } from "@/features/upcoming/use-week-keys";
 import { useWeekBand, useWeekMode } from "@/features/upcoming/use-week-view";
@@ -56,6 +62,13 @@ import { LOADING_LINE } from "../loading-view";
 
 /** Capacity readouts reach this many days ahead (SCREENS.md §6). */
 const READOUT_DAYS = 14;
+
+// The rail's sheet, with a day picker per task, loads in idle time and mounts on the first open.
+const loadUnplannedSheet = () => import("@/features/upcoming/unplanned-sheet");
+const UnplannedSheet = dynamic(() => loadUnplannedSheet().then((m) => m.UnplannedSheet), { ssr: false });
+
+/** The id of a stacked day's header, where the strip's jump lands. */
+const agendaId = (day: LocalDate) => `agenda-${day.toString()}`;
 
 /** "Tue 6 – Mon 12 October", or "Wed 28 Oct – Tue 3 Nov" across a month. */
 function rangeTitle(first: LocalDate, last: LocalDate, today: LocalDate): string {
@@ -242,6 +255,7 @@ export default function UpcomingPage() {
 
   // ---- the rail: a column in the wide band, a sheet below it
   const [sheetOpen, setSheetOpen] = useState(false);
+  useEffect(() => (band === "wide" ? undefined : preloadOnIdle(loadUnplannedSheet)), [band]);
   const railRef = useRef<HTMLElement>(null);
   const planYourWeek = () => {
     if (band === "wide" && railRef.current) {
@@ -261,7 +275,7 @@ export default function UpcomingPage() {
       onSomeday={() => void repo.setState(t.id, "someday")}
     />
   );
-  const fullRow = (t: Task, opts: { section?: Task[]; day?: LocalDate; actions?: boolean } = {}) => (
+  const fullRow = (t: Task, opts: { section?: Task[]; day?: LocalDate; actions?: boolean; footer?: ReactNode } = {}) => (
     <TaskRow
       key={t.id}
       task={t}
@@ -275,6 +289,7 @@ export default function UpcomingPage() {
       meta={meta(t)}
       onBreakDown={opts.actions === false ? undefined : () => void breakDown(t.id)}
       actions={opts.actions === false ? undefined : moveActions(t)}
+      footer={opts.footer}
     />
   );
   const compactRow = (t: Task, opts: { section?: Task[]; day?: LocalDate; evening?: boolean; selectable?: boolean } = {}) => (
@@ -320,16 +335,19 @@ export default function UpcomingPage() {
     ) : null;
   };
 
-  // ---- the phone's stacked days (P15 brings its 7-day strip)
+  // ---- the phone's stacked days, under the pinned 7-day strip
   const agendaDay = (d: ColumnDay) => {
     const daytime = d.tasks.filter((t) => !t.evening);
     const evening = d.tasks.filter((t) => t.evening);
     const body = (
       <section className="flex flex-col gap-2">
-        <SectionLabel className="px-0.5" count={d.tasks.length > 0 ? d.tasks.length : undefined} detail={d.tasks.length > 0 ? minutes(d.tasks) : undefined}>
-          {dayLabel(d)}
-          {d.isToday && <span className="ml-2 font-medium normal-case tracking-normal text-ink-2">today</span>}
-        </SectionLabel>
+        {/* The strip's jump lands here: clear of the pinned strip, and focused so the keyboard and a reader follow. */}
+        <div id={agendaId(d.day)} tabIndex={-1} className="scroll-mt-24 rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+          <SectionLabel className="px-0.5" count={d.tasks.length > 0 ? d.tasks.length : undefined} detail={d.tasks.length > 0 ? minutes(d.tasks) : undefined}>
+            {dayLabel(d)}
+            {d.isToday && <span className="ml-2 font-medium normal-case tracking-normal text-ink-2">today</span>}
+          </SectionLabel>
+        </div>
         {capacityLine(d.readout, d)}
         {d.tasks.length === 0 ? (
           // On the title's own column, so an empty day reads as a line in the list rather than a stray note.
@@ -353,9 +371,35 @@ export default function UpcomingPage() {
   };
   const phoneDays = days.filter((d) => !d.past || d.tasks.length > 0 || d.due.length > 0);
   const [phoneFirst, ...phoneRest] = phoneDays;
-  const phoneSegments = foldFreeDays(phoneRest, (d) => d.tasks.length === 0 && d.startingLater.length === 0 && d.due.length === 0);
+  // A day the strip jumped to is unfolded out of its run of free days, so it has a header to land on.
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
+  const phoneSegments = foldFreeDays(phoneRest, (d) => d.tasks.length === 0 && d.startingLater.length === 0 && d.due.length === 0 && !unfolded.has(d.day.toString()));
 
-  const railRows = unplanned.map((t) => (columnsLayout ? compactRow(t) : fullRow(t)));
+  // ---- the strip: tap a day to jump to it (SCREENS.md §3 "Responsive")
+  const [jump, setJump] = useState<{ iso: string; seq: number } | null>(null);
+  const jumpTo = (d: StripDay) => {
+    const iso = d.day.toString();
+    setUnfolded((s) => (s.has(iso) ? s : new Set(s).add(iso)));
+    setJump((j) => ({ iso, seq: (j?.seq ?? 0) + 1 }));
+  };
+  useEffect(() => {
+    if (!jump) return;
+    const header = document.getElementById(agendaId(localDate(jump.iso)));
+    header?.scrollIntoView?.({ block: "start", behavior: scrollMotion() });
+    header?.focus({ preventScroll: true });
+  }, [jump]);
+  const shown = new Set(phoneDays.map((d) => d.day.toString()));
+  // The next seven days from today, for the sheet's per-task pickers; their bars come from the same capacity.
+  const nextDays = useMemo(
+    (): StripDay[] =>
+      Array.from({ length: 7 }, (_, i) => {
+        const day = today.add({ days: i });
+        return { day, isToday: i === 0, capacity: capacity.byDay.get(day.toString()) ?? null, readout: readoutFor(day) };
+      }),
+    [today, capacity, readoutFor],
+  );
+
+  const railRows = unplanned.map((t) => compactRow(t));
   const stepButton = (delta: 1 | -1) => (
     <button
       type="button"
@@ -399,6 +443,7 @@ export default function UpcomingPage() {
             this week
           </Button>
         )}
+        {/* On a phone the strip pinned above the tab bar takes its place. */}
         {columnsLayout && band !== "wide" && (
           <span className="ml-auto">
             <UnplannedButton count={unplanned.length} onOpen={() => setSheetOpen(true)} />
@@ -454,6 +499,10 @@ export default function UpcomingPage() {
             />
           ) : (
             <>
+              {/* Pinned while the agenda scrolls under it; the page's own gutter, edge to edge. */}
+              <div className="sticky top-0 z-10 -mx-5 -my-3 bg-paper/95 px-5 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6">
+                <DayStrip days={days} label="Jump to a day" onPick={jumpTo} isDisabled={(d) => !shown.has(d.day.toString())} />
+              </div>
               {phoneFirst && agendaDay(phoneFirst)}
               {phoneSegments.map((seg) =>
                 seg.kind === "day" ? (
@@ -488,16 +537,8 @@ export default function UpcomingPage() {
                   </section>
                 ),
               )}
-              <div data-rail="">
-                <DropZone label="Not yet planned" onDropTask={dropOnUnplanned}>
-                  <section className="flex flex-col gap-2">
-                    <SectionLabel className="px-0.5" count={unplanned.length > 0 ? unplanned.length : undefined}>
-                      Not yet planned
-                    </SectionLabel>
-                    {unplanned.length === 0 ? synced && <p className="pl-11 text-body text-ink-3">Every task has a day.</p> : <TaskList>{railRows}</TaskList>}
-                  </section>
-                </DropZone>
-              </div>
+              {/* "Not yet planned" is the strip pinned above the tab bar (SCREENS.md §3). */}
+              {unplanned.length > 0 && <UnplannedStrip count={unplanned.length} onOpen={() => setSheetOpen(true)} />}
             </>
           )}
 
@@ -540,11 +581,7 @@ export default function UpcomingPage() {
           ))}
         </>
       )}
-      {sheetOpen && (
-        <UnplannedSheet count={unplanned.length} onClose={() => setSheetOpen(false)}>
-          {unplanned.length > 0 && <TaskList>{unplanned.map((t) => fullRow(t))}</TaskList>}
-        </UnplannedSheet>
-      )}
+      {sheetOpen && <UnplannedSheet tasks={unplanned} days={nextDays} today={today} row={(t, footer) => fullRow(t, { footer })} onClose={() => setSheetOpen(false)} />}
     </main>
   );
 }

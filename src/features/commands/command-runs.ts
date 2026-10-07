@@ -7,7 +7,8 @@ import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
-import { snoozePresets } from "@/features/tasks/snooze";
+import { requestRow } from "@/features/tasks/row-request";
+import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
 import type { Binding } from "./keys";
@@ -96,10 +97,10 @@ const applyPatch = (ctx: CommandContext, ids: string[], patch: TaskPatch, note?:
 };
 const applyState = (ctx: CommandContext, ids: string[], state: TaskState) => (ids.length === 1 ? ctx.tasks.setState(ids[0], state) : ctx.tasks.setStateMany(ids, state));
 
-const snooze = (presetId: "evening" | "tomorrow" | "in4h" | "weekend" | "nextweek") =>
+const snooze = (presetId: SnoozePreset["id"]) =>
   onTargets((ctx, ids) => {
     const preset = snoozePresets(ctx.now, ctx.zone, ctx.today).find((p) => p.id === presetId);
-    if (preset) return applyPatch(ctx, ids, preset.patch, `Moved {title} to ${preset.label.toLowerCase()}`);
+    if (preset) return applySnooze(ctx.tasks, ids, preset);
   });
 
 /** A key the view on screen gives its meaning to (view-keys.ts), handed the selected task. */
@@ -171,6 +172,25 @@ export const RUNS: readonly CommandRun[] = [
   { id: "task.weekend", shortcut: "w", requiresSelection: true, run: snooze("weekend") },
   { id: "task.in4h", shortcut: "h", requiresSelection: true, run: snooze("in4h") },
   { id: "task.nextweek", requiresSelection: true, run: snooze("nextweek") },
+  // `.` (SCREENS.md §24): the selected row's ⋯ menu; a row without one (a week column's compact row) opens the task.
+  // With nothing selected the key is typing, and opens quick add like any other (SCREENS.md §1 rule 4).
+  {
+    id: "task.menu",
+    shortcut: ".",
+    requiresSelection: true,
+    run: onSelected((ctx, id) => void (requestRow(id, "menu") || ctx.openTask(id))),
+    passes: (ctx) => !ctx.selectedTaskId,
+  },
+  // Move to… (SCREENS.md §3): the row's day picker; several ticked rows share the bulk date picker, and a row with
+  // no picker of its own opens its detail at the do-date.
+  {
+    id: "task.move",
+    requiresSelection: true,
+    run: onTargets((ctx, ids) => {
+      if (ids.length > 1) return ctx.editTicked("do");
+      if (!requestRow(ids[0], "move")) ctx.openTask(ids[0], "do");
+    }),
+  },
   { id: "task.someday", shortcut: "s", requiresSelection: true, run: onTargets((ctx, ids) => applyState(ctx, ids, "someday")) },
   { id: "task.drop", shortcut: "backspace", requiresSelection: true, run: onTargets((ctx, ids) => applyState(ctx, ids, "dropped")) },
   { id: "task.priority1", shortcut: "1", requiresSelection: true, run: priority(3) },

@@ -3,8 +3,9 @@
 // backlog you are behind on. What the rollover filed on its own is pinned at
 // the top with Review and Bring them all back, announced once per batch; the
 // rest is grouped by project, loose tasks last. Every row offers Today ·
-// Pick a date · Back to active · Drop, each undoable; on a phone they are in
-// the row's ⋯ menu. No counts in the sidebar, no age shaming.
+// Pick a date (the shared day picker) · Back to active · Drop, each
+// undoable; the row's ⋯ menu holds them all with the snooze presets and
+// Move to…. No counts in the sidebar, no age shaming.
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
@@ -16,7 +17,7 @@ import { useAnnouncement } from "@/features/rollover/use-announcement";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
-import { RowAction } from "@/features/tasks/task-actions";
+import { MoveToAction, RowAction } from "@/features/tasks/task-actions";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useConvertToProject } from "@/features/tasks/use-convert";
@@ -25,7 +26,6 @@ import { Button, iconButtonClass } from "@/ui/button";
 import { Icon } from "@/ui/icons";
 import { EmptyCard } from "@/ui/list-card";
 import { SectionLabel } from "@/ui/section-label";
-import { PickDateSheet } from "./pick-date-sheet";
 import { somedayGroups } from "./someday-groups";
 
 // The walk is fetched when Review is first pressed, not with the page.
@@ -50,7 +50,6 @@ export default function SomedayPage() {
   const stamps = useMemo(() => groups.autoFiled.map((t) => t.auto_filed_at), [groups.autoFiled]);
   const announcement = useAnnouncement("autoFiled", stamps);
   const [reviewing, setReviewing] = useState(false);
-  const [picking, setPicking] = useState<TaskRowType | null>(null);
   const review = () => {
     announcement.dismiss();
     setReviewing(true);
@@ -73,7 +72,8 @@ export default function SomedayPage() {
         actions={
           <>
             <RowAction label="Today" primary title="Today (T)" onClick={() => void repo.reschedule(t.id, today)} />
-            <RowAction label="Pick a date" icon="calendar" text={null} title="Pick a date" onClick={() => setPicking(r)} />
+            {/* The row's day picker (the next seven days, then any date), as Move to… in its ⋯ menu. */}
+            <MoveToAction label="Pick a date" text={null} />
             <RowAction label="Back to active" onClick={() => void repo.setState(t.id, "active", "Brought back {title}")} />
             <RowAction label="Drop" title="Drop (Backspace)" onClick={() => void repo.setState(t.id, "dropped")} />
           </>
@@ -155,7 +155,6 @@ export default function SomedayPage() {
         </>
       )}
       {reviewing && <SomedayReview tasks={groups.autoFiled} today={today} zone={zone} projectNames={projectNames} onClose={() => setReviewing(false)} />}
-      {picking && <PickDateSheet title={picking.title ?? "this task"} today={today} onPick={(day) => void repo.reschedule(picking.id, day)} onClose={() => setPicking(null)} />}
     </main>
   );
 }

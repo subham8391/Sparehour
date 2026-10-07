@@ -2,15 +2,14 @@
 // "Not yet planned" (SCREENS.md §3): active tasks with no day yet. In the
 // wide band it is the planner's last column — compact rows to drag onto a
 // day, and a drop target that takes a day away. In the narrow and medium
-// bands it is a "Not yet planned · N" button that opens the same list as a
-// sheet, where a task goes to Today or Tomorrow at a tap, or opens to be
-// given any day (a day picker per task comes with the phone's strip).
+// bands it is a "Not yet planned · N" button, and on the phone a strip pinned
+// above the tab bar, that opens the same list as a sheet with a day picker
+// per task (unplanned-sheet.tsx, lazy).
 import type { ReactNode, RefObject } from "react";
 import { DropZone } from "@/features/tasks/drop-zone";
 import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icons";
 import { EYEBROW } from "@/ui/section-label";
-import { Sheet } from "@/ui/sheet";
 import { cx } from "@/ui/cx";
 
 export const RAIL_ID = "not-yet-planned";
@@ -55,22 +54,27 @@ export function UnplannedButton({ count, onOpen }: { count: number; onOpen: () =
   );
 }
 
-/** The rail as a sheet: the same tasks as full rows, each with its moves. */
-export function UnplannedSheet({ count, onClose, children }: { count: number; onClose: () => void; children: ReactNode }) {
+/**
+ * The phone's way in (SCREENS.md §3, DECISIONS.md "Not yet planned on the phone"): a strip pinned at the bottom,
+ * above the tab bar and clear of the FAB, the safe area respected, reading "Not yet planned · 5". It opens the sheet
+ * where each task gets a day picker.
+ */
+export function UnplannedStrip({ count, onOpen, className }: { count: number; onOpen: () => void; className?: string }) {
   return (
-    <Sheet label="Not yet planned" onClose={onClose} width="lg" className="max-h-[calc(100dvh-5rem)] sm:max-h-[80dvh]">
-      <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2 sm:pt-4">
-        <h2 className="font-display text-pane font-medium text-ink">
-          Not yet planned <span className="text-ink-3 num">· {count}</span>
-        </h2>
-        <Button variant="icon" onClick={onClose} aria-label="Close" className="-mr-2">
-          <Icon name="close" size={18} />
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-4">
-        {count === 0 ? <p className="px-2 pb-2 text-body text-ink-2">Every task has a day.</p> : <p className="px-2 pb-2 text-body-sm text-ink-2">Send a task to Today or Tomorrow, or open it to give it any day.</p>}
-        {children}
-      </div>
-    </Sheet>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-haspopup="dialog"
+      className={cx(
+        // Tab bar 56 px + 8 px; the FAB sits to the right (20 px in, 56 px wide), so the strip stops 96 px from the edge.
+        "fixed right-24 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-4 z-20 flex h-12 items-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface/95 px-4 text-left text-body font-medium text-ink shadow-raised backdrop-blur-md transition-transform dur-fast motion-safe:active:scale-97",
+        className,
+      )}
+    >
+      <span className="min-w-0 truncate">
+        Not yet planned <span className="text-ink-2 num">· {count}</span>
+      </span>
+      <Icon name="chevron-right" size={16} className="ml-auto shrink-0 text-ink-3" />
+    </button>
   );
 }
