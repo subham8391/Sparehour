@@ -79,6 +79,7 @@ const WORDS: Record<string, Words> = {
   "day.plan-my-day": { title: "Plan my day", group: "Go to", keywords: "schedule suggest timeline blocks" },
   "day.trim": { title: "Trim today…", group: "Go to", keywords: "over too much fits move tomorrow someday" },
   "day.replan": { title: "Re-plan the rest of today", group: "Go to", keywords: "plan my day schedule blocks afternoon" },
+  "inbox.triage-all": { title: "Triage all", group: "Go to", keywords: "inbox zero one at a time" },
   "list.down": { title: "Select next", group: "List", hidden: true },
   "list.up": { title: "Select previous", group: "List", hidden: true },
   "list.down-arrow": { title: "Select next", group: "List", hidden: true },

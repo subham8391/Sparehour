@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The Inbox (SCREENS.md §5): rows say their age, the selected row expands to the triage actions, the ⋯ menu leads
 // with the phone's four, "Select" ticks rows, "+ Add to Inbox" adds, and an empty Inbox says "Inbox zero. Nice."
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,7 +17,7 @@ vi.mock("@/data/powersync", () => ({
   useQuery: (sql: string) => {
     if (sql.includes("from user_settings")) return { data: [{ id: "settings1", timezone: "UTC", day_rollover_hour: 0 }], isLoading: false };
     if (sql.includes("personal_space_id")) return { data: [{ personal_space_id: "space1" }], isLoading: false };
-    if (sql.includes("state = 'inbox'")) return { data: inbox.rows, isLoading: false };
+    if (sql.includes("state = 'inbox'") || sql.includes("json_each")) return { data: inbox.rows, isLoading: false };
     return { data: [], isLoading: false };
   },
   useLocalDatabase: () => ({ execute, getAll, getOptional, writeTransaction }),
@@ -112,6 +112,19 @@ describe("Inbox (SCREENS.md §5)", () => {
     await vi.waitFor(() => expect(writeTransaction).toHaveBeenCalled());
     const insert = execute.mock.calls.find(([s]) => String(s).startsWith("insert into tasks"));
     expect(insert?.[1]).toEqual(expect.arrayContaining(["Call the plumber", "inbox", "space1"]));
+  });
+
+  it("Triage all ▸, or the palette's Triage all, opens the walk on the whole queue", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: "Triage all" }));
+    const walk = await screen.findByRole("dialog", { name: "Triage" });
+    expect(within(walk).getByRole("heading", { level: 2 })).toHaveTextContent("Look into the pricing thing");
+    expect(walk).toHaveTextContent("1 of 2");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Triage" })).toBeNull();
+    const { requestTriageAll } = await import("@/features/inbox/triage-request");
+    act(() => void requestTriageAll());
+    expect(await screen.findByRole("dialog", { name: "Triage" })).toBeInTheDocument();
   });
 
   it("an empty Inbox says so in one line, and keeps the add row", async () => {

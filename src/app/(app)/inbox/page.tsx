@@ -15,6 +15,7 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { addedLabel } from "@/features/inbox/age";
 import { triage, type TriageAction } from "@/features/inbox/triage";
 import { TriageSheetIsland, TriageWalkIsland, preloadTriage } from "@/features/inbox/triage-islands";
+import { onTriageAll } from "@/features/inbox/triage-request";
 import { TriageActions } from "@/features/inbox/triage-row";
 import type { TriagePick } from "@/features/inbox/triage-sheet";
 import { useProjectNames } from "@/features/projects/use-project-names";
@@ -57,6 +58,13 @@ export default function InboxPage() {
   const [walking, setWalking] = useState<readonly string[] | null>(null);
   const [picking, setPicking] = useState<{ id: string; pick: TriagePick } | null>(null);
   useEffect(() => preloadTriage(), []);
+  // The palette's Triage all: taken once the queue has loaded, so the walk starts with every task in it.
+  const [asked, setAsked] = useState(false);
+  useEffect(() => onTriageAll(() => setAsked(true)), []);
+  if (asked && !isLoading) {
+    setAsked(false);
+    setWalking(tasks.map((t) => t.id));
+  }
   // "Select" is this view's: leaving the Inbox lets go of it.
   useEffect(() => () => setSelecting(false), [setSelecting]);
 

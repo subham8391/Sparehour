@@ -7,6 +7,7 @@ import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
+import { requestTriageAll } from "@/features/inbox/triage-request";
 import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
 import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
@@ -288,6 +289,8 @@ export const RUNS: readonly CommandRun[] = [
   // panel opens (and keeps "today" finding Go to Today first).
   { id: "day.trim", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
   { id: "day.replan", run: (ctx) => ctx.planDay("replan") },
+  // Triage all (SCREENS.md §5): the Inbox's walk, at once or as soon as the Inbox is open.
+  { id: "inbox.triage-all", run: (ctx) => void (requestTriageAll() || ctx.go("/inbox")) },
 
   // ---- list plumbing
   { id: "list.down", shortcut: "j", run: (ctx) => selectNext(ctx, 1) },
