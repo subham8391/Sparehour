@@ -99,6 +99,8 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
       onConvert={() => void convert(task.id)}
       onDuplicate={() => requestOrganize({ kind: "duplicate", id: task.id })}
+      onMovePicker={() => requestOrganize({ kind: "move", ids: [task.id] })}
+      onTagPicker={() => requestOrganize({ kind: "tag", ids: [task.id] })}
       onCopyLink={() => requestOrganize({ kind: "copy-link", id: task.id })}
       onClose={onClose}
       fieldRequest={field}

@@ -64,6 +64,9 @@ export interface TaskDetailPanelProps {
   onConvert?: () => void;
   /** A copy right after the task, which then opens (SCREENS.md §10 footer ⋯ "Duplicate"). */
   onDuplicate?: () => void;
+  /** The `#` and `@` pickers as sheets (SCREENS.md §12 "Move to project · Add tag"): the phone's tap path to them. */
+  onMovePicker?: () => void;
+  onTagPicker?: () => void;
   /** Copies `<origin>/today?task=<id>` (SCREENS.md §10 footer ⋯ "Copy link"). */
   onCopyLink?: () => void;
   onClose: () => void;
@@ -357,6 +360,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   // An open or parked task can become a project; a finished, dropped or archived one cannot.
   const onConvert = p.onConvert && !done && task.state !== "dropped" && task.state !== "archived" ? p.onConvert : undefined;
   const seriesActions = repeating && Boolean(p.onSkipOccurrence || p.onPause || p.onResume);
+  /** Still open: it can be filed and tagged from the menu. */
+  const open = task.state === "inbox" || task.state === "active" || task.state === "someday";
 
   return (
     // flex-1, not h-full: on the phone the sheet's grabber sits above, and a full height pushed the footer off the screen.
@@ -653,6 +658,16 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                   {task.state !== "dropped" && (
                     <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onDrop())}>
                       Drop
+                    </button>
+                  )}
+                  {open && p.onMovePicker && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onMovePicker?.())}>
+                      Move to project…
+                    </button>
+                  )}
+                  {open && p.onTagPicker && (
+                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), p.onTagPicker?.())}>
+                      Add a tag…
                     </button>
                   )}
                   {p.onDuplicate && (
