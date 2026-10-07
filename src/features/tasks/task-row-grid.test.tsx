@@ -3,6 +3,7 @@
 // the selected row's title in place (SCREENS.md §10, §24; DECISIONS.md "Inline rename": a plain rename).
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { instant } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
@@ -42,11 +43,14 @@ const task = (id: string, title: string): Task => ({
   routineRunId: null,
 });
 const tasks = [task("t1", "Draft the proposal"), task("t2", "Call Mum"), task("t3", "Water the plants")];
-let selectFromOutside: (id: string | null) => void = () => {};
+const outside = { select: (id: string | null): void => void id };
+const selectFromOutside = (id: string | null) => outside.select(id);
 
 function List({ onOpen = vi.fn() }: { onOpen?: (id: string) => void }) {
   const sel = useListSelection(tasks.map((t) => t.id));
-  selectFromOutside = sel.select;
+  useEffect(() => {
+    outside.select = sel.select;
+  });
   return (
     <TaskList>
       {tasks.map((t) => (
