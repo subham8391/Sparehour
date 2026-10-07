@@ -3145,6 +3145,8 @@ src/app/
   offline/page.tsx
 ```
 
+**As built (2026-10-07), the M1 first run.** Not an `(onboarding)` group: `(app)/welcome/page.tsx` runs inside the client shell (it needs the local database and the undo stack) with the shell's chrome switched off (`showsChrome` in `features/shell/nav.ts`: no sidebar, tab bar, add bar, printable-key quick add or other single-key shortcut; only the modifier chords such as undo and the palette answer). Step 1b and the brain dump are one route; confirmed hours are remembered per device and account in `localStorage`, so a reload or reopen resumes at the brain dump. Completion is `user_settings.onboarded_at` (migration `20261007171500`, every existing row stamped, synced in `user_data`); the shell's `FirstRunGate` is one query and a `router.replace('/welcome')`, and fires only once the settings row is on the device, it is unstamped, and it was created on or after 2026-10-07 — a device whose copy predates the column reads null until the stamped row arrives. The brain dump (and the parser) is a `next/dynamic` island fetched in idle time on 1b; `/welcome` is in `scripts/size-budget.mjs` at 320 KB.
+
 Route-group discipline: `(marketing)` and `(auth)` are server-rendered and must not import from `src/data/`; a lint rule enforces it, because one accidental import puts 1.2 MB of wasm on the landing page. The `"use client"` boundary is drawn at `(app)/layout.tsx`, not at the root layout — PowerSync requires a browser environment, but the root layout must remain a Server Component for `metadata` to work.
 
 ### 11.2 State

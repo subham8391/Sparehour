@@ -1068,6 +1068,8 @@ Specified in full in `ONBOARDING.md` §Step 5, including the wireframe and all s
 
 **Responsive.** Phone: onboarding is **one step per screen** (1a/1b and 2/2b become consecutive screens), buttons full-width, targets ≥ 44 px; the reveal keeps the hero, the ribbon and the equation stacked in one column. Narrow and up: as described in `ONBOARDING.md`.
 
+**As built (2026-10-07), the M1 first run (`/welcome`).** Working hours (1b) then the brain dump (step 3), before Today, once per account (`ONBOARDING.md` header "As built"). Full screen on every band: no sidebar, tab bar, add bar or FAB. A column of at most 576 px on paper: the serif question, its sentence, the step, and the buttons, which on the phone hold the bottom edge above the safe area at 48 px and full width (the primary last), and from `sm` sit right-aligned under the step. The day pills are 44 px toggle chips (M T W T F S S on the phone, Mon … Sun above). The brain dump's composer is the quick-add sheet's body in the page, without the suggestion chips; its rows sit above it, and as they push the box down it scrolls back into view above the phone's held buttons. From `sm` the buttons follow the step in the flow rather than holding the bottom edge. A paste's Undo is in the composer's own notice (no toast over the buttons).
+
 ---
 
 ## 24. Keyboard shortcut map — M1

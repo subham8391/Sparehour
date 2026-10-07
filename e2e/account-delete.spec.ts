@@ -40,6 +40,8 @@ test.beforeAll(async () => {
        values (gen_random_uuid(), $1::uuid, $2::text, jsonb_build_object('sub', $2::text, 'email', $3::text), 'email', now(), now(), now())`,
       [uid, uid, email],
     );
+    // Past the first run (/welcome), which is magic-link.spec.ts's to walk: this test is about deletion.
+    await c.query("update public.user_settings set onboarded_at = now() where user_id = $1", [uid]);
   });
 });
 

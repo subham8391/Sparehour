@@ -12,6 +12,7 @@ import { PROJECT_NAME_SQL, TASK_STATE_SQL } from "@/data/queries/shell";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { showsChrome } from "@/features/shell/nav";
 import { requestBulkField } from "@/features/tasks/bulk-field-request";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
@@ -188,6 +189,13 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
         return;
       }
       const chord = chordOf(e, isMac);
+      // The first run stands alone (ONBOARDING.md 1b and step 3): no single-key navigation, quick add or list keys
+      // to wander off with; only the modifier chords (undo, the palette) still answer there.
+      const bare = !showsChrome(contextRef.current().pathname);
+      if (bare && !chord.mod) {
+        pendingRef.current = null;
+        return;
+      }
       const r = resolveKey(chord, pendingRef.current, BINDINGS);
       pendingRef.current = r.pending;
       if (r.match) {

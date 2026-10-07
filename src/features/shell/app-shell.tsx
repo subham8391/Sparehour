@@ -22,7 +22,8 @@ import { TaskDetailPane, TaskDetailProvider, useTaskDetail } from "@/features/ta
 import { UndoProvider } from "@/features/undo/undo-provider";
 import { cx } from "@/ui/cx";
 import { FabRoomContext } from "./fab-visibility";
-import { showsQuickAdd, showsTabBar } from "./nav";
+import { FirstRunGate } from "./first-run-gate";
+import { showsChrome, showsQuickAdd, showsTabBar } from "./nav";
 import { OpenTo } from "./open-to";
 import { useIdleMount } from "./preload-on-idle";
 import { Sidebar } from "./sidebar";
@@ -71,6 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <PushDeepLink />
                     <OrganizeHost />
                     <OpenTo />
+                    <FirstRunGate />
                   </Keyboard>
                 </BlockingProvider>
               </PaletteProvider>
@@ -99,6 +101,8 @@ function Frame({ children }: { children: ReactNode }) {
   useAppBadge(counts.today);
   const tabs = showsTabBar(pathname);
   const adds = showsQuickAdd(pathname);
+  // The first run is the whole screen: no navigation to wander off into, nothing beside it.
+  if (!showsChrome(pathname)) return <div className="flex min-h-dvh flex-col overflow-x-clip">{children}</div>;
   return (
     <div className="flex min-h-dvh overflow-x-clip sm:h-dvh">
       <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
