@@ -37,7 +37,7 @@ export interface PlacingDay {
    * Blocking is paused, and why (PRODUCT_SPEC.md §10.3 rule 5: calendar access revoked, or the write calendar gone):
    * no new block is made — not by `B`, a drop, a tap or a copy — while the existing ones can still be edited.
    */
-  off?: string | null;
+  off?: string | null | false;
   /**
    * The selected block and the task waiting for a tap, when the screen holds them itself: Today keeps them in its
    * shell (a row's "Block…" and Plan my day set them) and runs this hook inside the day pane's island.

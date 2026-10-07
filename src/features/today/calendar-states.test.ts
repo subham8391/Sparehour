@@ -13,6 +13,7 @@ import type { CalendarConnectionRow } from "@/data/queries/calendar";
 import { EVENTS_AROUND_SQL, dayWindowParams } from "@/data/queries/today";
 import type { CalendarEventRow } from "@/data/schema.client";
 import { blockSync } from "./block-sync";
+import { issueMessage, pausedLine } from "./calendar-words";
 import { allDayTitles, calendarIssueFrom, calendarWrites } from "./hooks/use-today";
 
 const conn = (over: Partial<CalendarConnectionRow>): CalendarConnectionRow => ({ id: "acct", provider: "google", email: "me@gmail.com", status: "ok", can_write: 1, last_synced_at: "2026-10-07T09:12:00Z", last_error: null, write_lost_at: null, ...over });
@@ -21,8 +22,11 @@ const writer = [{ calendar_account_id: "acct", write_target: 1 }];
 describe("calendarIssueFrom and calendarWrites (PRODUCT_SPEC.md §10.3 rule 5)", () => {
   it("revoked access to the write calendar's account pauses blocking and says why", () => {
     const rows = [conn({ status: "revoked" })];
-    expect(calendarIssueFrom(rows, writer)).toMatchObject({ kind: "reauth", blocking: true, message: "Google Calendar (me@gmail.com) needs reconnecting." });
-    expect(calendarWrites(rows, writer)).toEqual({ on: false, off: expect.stringMatching(/^Blocking is paused until Google Calendar is reconnected\. Your blocks stay here, not synced\.$/) });
+    const issue = calendarIssueFrom(rows, writer);
+    expect(issue).toMatchObject({ kind: "reauth", blocking: true });
+    expect(issueMessage(issue!)).toBe("Google Calendar (me@gmail.com) needs reconnecting.");
+    expect(calendarWrites(rows, writer)).toEqual({ on: false, off: "reauth" });
+    expect(pausedLine("reauth")).toBe("Blocking is paused until Google Calendar is reconnected. Your blocks stay here, not synced.");
   });
 
   it("a lapsed read-only account asks to reconnect without pausing blocking", () => {
@@ -33,8 +37,9 @@ describe("calendarIssueFrom and calendarWrites (PRODUCT_SPEC.md §10.3 rule 5)",
 
   it("a write calendar gone from Google pauses blocking until another is chosen; keeping blocks local is no issue", () => {
     const rows = [conn({ write_lost_at: "2026-10-07T08:00:00Z" })];
-    expect(calendarIssueFrom(rows, [])).toMatchObject({ kind: "write_gone", blocking: true, key: "gone:acct:2026-10-07T08:00:00Z" });
-    expect(calendarWrites(rows, []).off).toMatch(/until you choose where blocks go/);
+    expect(calendarIssueFrom(rows, [])).toMatchObject({ kind: "write_gone", blocking: true, key: "write_gone:acct:2026-10-07T08:00:00Z" });
+    expect(calendarWrites(rows, []).off).toBe("write_gone");
+    expect(pausedLine("write_gone")).toMatch(/until you choose where blocks go/);
     // Picked again: the server clears the mark, and until it does a live write target already ends the issue.
     expect(calendarIssueFrom(rows, writer)).toBeNull();
     expect(calendarIssueFrom([conn({})], [])).toBeNull();
@@ -43,7 +48,7 @@ describe("calendarIssueFrom and calendarWrites (PRODUCT_SPEC.md §10.3 rule 5)",
   it("an unreachable calendar names the last good sync and never pauses blocking", () => {
     const issue = calendarIssueFrom([conn({ last_error: "google 503" })], writer);
     expect(issue).toMatchObject({ kind: "error", blocking: false });
-    expect(issue?.message).toMatch(/^Couldn't reach Google Calendar\. Showing your last sync from .+\.$/);
+    expect(issueMessage(issue!)).toMatch(/^Couldn't reach Google Calendar\. Showing your last sync from .+\.$/);
     expect(issue?.key).toBe("error:acct:2026-10-07T09:12:00Z");
   });
 
@@ -67,7 +72,7 @@ describe("blockSync: the will-sync and not-synced marks (SCREENS.md §2.7, §20,
     expect(blockSync({ id: "b1", pushState: "synced" }, new Set(), on)).toBeNull();
   });
   it("every block is not synced while blocking is paused", () => {
-    expect(blockSync({ id: "b1", pushState: "synced" }, new Set(), { on: false, off: "Blocking is paused…" })).toBe("off");
+    expect(blockSync({ id: "b1", pushState: "synced" }, new Set(), { on: false, off: "reauth" })).toBe("off");
   });
 });
 

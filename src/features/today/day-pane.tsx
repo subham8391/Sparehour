@@ -10,6 +10,7 @@ import { formatTime, timeFromMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
 import { usePlacing, type PlacingApi, type PlacingDay } from "@/features/blocking/use-placing";
 import { PENDING_BLOCKS_SQL, blockSync } from "./block-sync";
+import { pausedLine } from "./calendar-words";
 import type { CalendarWrites } from "./hooks/use-today";
 import { PlacingBar, Timeline, type TimelineProps } from "./timeline";
 
@@ -60,7 +61,7 @@ export interface DayPaneProps {
 }
 
 export function DayPane({ start, end, bufferPct, hint, placing, onOpenTask, timeline, writes }: DayPaneProps) {
-  const off = writes?.off ?? null;
+  const off = pausedLine(writes?.off ?? null);
   // B, drops, moves, copies and blocks of your own: here, so none of it rides in Today's first download.
   const placer = usePlacing({ ...placing, off });
   const waiting = off ? undefined : placer.placingTask;

@@ -32,13 +32,13 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const issue = (over: Partial<CalendarIssue>): CalendarIssue => ({ kind: "error", message: "Couldn't reach Google Calendar. Showing your last sync from 9:12 AM.", key: "error:acct:t", blocking: false, ...over });
+const issue = (over: Partial<CalendarIssue>): CalendarIssue => ({ kind: "error", email: "me@gmail.com", lastSyncedAt: "2026-10-07T09:12:00Z", key: "error:acct:t", blocking: false, ...over });
 
 describe("CalendarBanner", () => {
   it("revoked access: Reconnect goes back through Google's consent to Today, and says blocking is paused", () => {
-    render(<CalendarBanner issue={issue({ kind: "reauth", message: "Google Calendar (me@gmail.com) needs reconnecting.", blocking: true, key: "reauth:acct" })} />);
+    render(<CalendarBanner issue={issue({ kind: "reauth", blocking: true, key: "reauth:acct" })} />);
     const banner = screen.getByRole("status", { name: "Calendar access" });
-    expect(banner).toHaveTextContent("needs reconnecting");
+    expect(banner).toHaveTextContent("Google Calendar (me@gmail.com) needs reconnecting.");
     expect(banner).toHaveTextContent(/Blocking is paused until you reconnect\. Your blocks stay here, marked not synced\./);
     const reconnect = screen.getByRole("link", { name: "Reconnect" });
     expect(reconnect).toHaveAttribute("href", RECONNECT_HREF);
@@ -47,7 +47,8 @@ describe("CalendarBanner", () => {
 
   it("write calendar gone: the picker is inline, picking one sets it, and keeping blocks local puts the banner away", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(<CalendarBanner issue={issue({ kind: "write_gone", message: "The calendar your blocks went to is no longer in Google Calendar.", blocking: true, key: "gone:acct:t1" })} />);
+    const { unmount } = render(<CalendarBanner issue={issue({ kind: "write_gone", blocking: true, key: "gone:acct:t1" })} />);
+    expect(screen.getByRole("status", { name: "Where blocks go" })).toHaveTextContent("The calendar your blocks went to is no longer in Google Calendar.");
     const picker = screen.getByRole("radiogroup", { name: "Write calendar" });
     expect(screen.getAllByRole("radio")).toHaveLength(2); // Work (writable) and Keep blocks in Sparehour only; Team is read-only
     await user.click(screen.getByRole("radio", { name: "Work" }));
@@ -57,14 +58,14 @@ describe("CalendarBanner", () => {
     expect(screen.queryByRole("status", { name: "Where blocks go" })).toBeNull();
     unmount();
     // The choice holds on this device for this issue.
-    render(<CalendarBanner issue={issue({ kind: "write_gone", message: "x", blocking: true, key: "gone:acct:t1" })} />);
+    render(<CalendarBanner issue={issue({ kind: "write_gone", blocking: true, key: "gone:acct:t1" })} />);
     expect(screen.queryByRole("status", { name: "Where blocks go" })).toBeNull();
   });
 
   it("unreachable: names the last good sync, Retry syncs now, and it can be dismissed for the session", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<CalendarBanner issue={issue({})} />);
-    expect(screen.getByRole("status", { name: "Calendar sync" })).toHaveTextContent("Showing your last sync from 9:12 AM.");
+    expect(screen.getByRole("status", { name: "Calendar sync" })).toHaveTextContent(/^Couldn't reach Google Calendar\. Showing your last sync from .+\./);
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(h.calendarSyncNow).toHaveBeenCalled();
     expect(await screen.findByText("Synced.")).toBeInTheDocument();

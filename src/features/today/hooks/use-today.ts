@@ -115,8 +115,8 @@ export const REMOVED_BLOCKS_SQL = `select id, task_id from time_blocks where del
 export interface CalendarWrites {
   /** A write calendar is set and its account may write: a block's pending push_state means it will sync. */
   on: boolean;
-  /** Blocking is paused, and this says why; null while blocking works. */
-  off: string | null;
+  /** Blocking is paused, and why (calendar-words.ts says it); null while blocking works. */
+  off: "reauth" | "write_gone" | null;
 }
 
 export interface TodayModel {
@@ -274,7 +274,9 @@ const CALENDAR_ARRIVED_SQL = `select 1 as n`;
 export interface CalendarIssue {
   /** reauth: access lapsed or revoked; write_gone: the calendar blocks went to left Google; error: a sync failed. */
   kind: "reauth" | "write_gone" | "error";
-  message: string;
+  /** The account's address, and its last good sync, for the banner's words (calendar-words.ts). */
+  email: string | null;
+  lastSyncedAt: string | null;
   /** The account, and the moment the issue began, so a dismissal for the session is of this issue only. */
   key: string;
   /** Blocking is paused until it is fixed (PRODUCT_SPEC.md §10.3 rule 5); an unreachable calendar never pauses it. */
@@ -294,19 +296,13 @@ const lapsed = (r: CalendarConnectionRow) => r.status === "needs_reauth" || r.st
  */
 export function calendarIssueFrom(rows: readonly CalendarConnectionRow[], calendars: readonly CalendarLink[] = []): CalendarIssue | null {
   const writer = writeAccount(calendars);
+  const issue = (kind: CalendarIssue["kind"], r: CalendarConnectionRow, key: string, blocking: boolean): CalendarIssue => ({ kind, email: r.email, lastSyncedAt: r.last_synced_at, key: `${kind}:${r.id}:${key}`, blocking });
   const reauth = rows.find((r) => lapsed(r) && r.id === writer) ?? rows.find(lapsed);
-  if (reauth) return { kind: "reauth", message: `Google Calendar${reauth.email ? ` (${reauth.email})` : ""} needs reconnecting.`, key: `reauth:${reauth.id}`, blocking: reauth.id === writer };
+  if (reauth) return issue("reauth", reauth, "", reauth.id === writer);
   const gone = writer === null ? rows.find((r) => r.write_lost_at) : undefined;
-  if (gone) return { kind: "write_gone", message: "The calendar your blocks went to is no longer in Google Calendar.", key: `gone:${gone.id}:${gone.write_lost_at}`, blocking: true };
+  if (gone) return issue("write_gone", gone, gone.write_lost_at ?? "", true);
   const failed = rows.find((r) => r.last_error);
-  if (failed)
-    return {
-      kind: "error",
-      message: failed.last_synced_at ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(failed.last_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Couldn't reach Google Calendar yet.",
-      key: `error:${failed.id}:${failed.last_synced_at ?? ""}`,
-      blocking: false,
-    };
-  return null;
+  return failed ? issue("error", failed, failed.last_synced_at ?? "", false) : null;
 }
 
 /** Whether blocks reach Google now, and the plain-words reason blocking is paused when the issue pauses it. */
@@ -316,7 +312,7 @@ export function calendarWrites(rows: readonly CalendarConnectionRow[], calendars
   const account = writer ? rows.find((r) => r.id === writer) : undefined;
   return {
     on: Boolean(account && account.can_write === 1 && !lapsed(account)),
-    off: issue?.blocking ? (issue.kind === "reauth" ? "Blocking is paused until Google Calendar is reconnected. Your blocks stay here, not synced." : "Blocking is paused until you choose where blocks go. Your blocks stay here, not synced.") : null,
+    off: issue?.blocking ? (issue.kind as "reauth" | "write_gone") : null,
   };
 }
 

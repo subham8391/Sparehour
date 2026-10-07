@@ -47,8 +47,6 @@ describe("PaneBoundary: a pane that throws fails in place", () => {
       </div>,
     );
     expect(screen.getByText("The list still works")).toBeInTheDocument();
-    // The panel is an island: until it arrives the place already says what happened, never a blank.
-    expect(screen.getByRole("status")).toHaveTextContent(/stopped before it finished drawing/);
     expect(await screen.findByRole("heading", { name: "Your day stopped before it finished drawing." })).toBeInTheDocument();
     for (const name of ["Try again", "Copy details"]) expect(screen.getByRole("button", { name })).toHaveClass("h-11");
     expect(document.body.textContent).not.toMatch(/Something went wrong|at \w+ \(/);

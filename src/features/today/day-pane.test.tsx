@@ -22,7 +22,7 @@ const blocks: TimelineBlock[] = [
   { id: "b2", taskId: null, title: "Deep work", start: 780, end: 870, locked: false, pushState: "pending" },
 ];
 
-function pane(writes?: { on: boolean; off: string | null }) {
+function pane(writes?: { on: boolean; off: "reauth" | "write_gone" | null }) {
   return (
     <DayPane
       start={540}
@@ -54,7 +54,7 @@ describe("DayPane", () => {
   it("with blocking paused, says why, marks every block not synced, and takes no drops, drawn blocks or copies", () => {
     h.pending = [];
     const off = "Blocking is paused until Google Calendar is reconnected. Your blocks stay here, not synced.";
-    render(pane({ on: false, off }));
+    render(pane({ on: false, off: "reauth" }));
     expect(screen.getByRole("note")).toHaveTextContent(off);
     expect(screen.getAllByRole("button", { name: /, not synced$/ })).toHaveLength(2);
     const placer = { repo: {}, placingTask: { title: "x" }, moveBlock: vi.fn(), tapSlot: vi.fn(), placeTask: vi.fn(), createAdHoc: vi.fn(), duplicateBlock: vi.fn() } as never;

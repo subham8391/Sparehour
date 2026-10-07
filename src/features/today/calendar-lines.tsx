@@ -17,6 +17,7 @@ import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { Radio } from "@/ui/radio";
+import { issueMessage } from "./calendar-words";
 import type { CalendarIssue } from "./hooks/use-today";
 
 const DISMISSED_KEY = "sparehour:calendar-line-dismissed";
@@ -41,7 +42,6 @@ const session = () => window.sessionStorage;
 const local = () => window.localStorage;
 
 const BANNER = "flex flex-col gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-body-sm text-ink-2";
-const LINK = cx(buttonClass({ variant: "link", size: "compact" }), "-ml-2 self-start underline decoration-line-strong underline-offset-2");
 
 /** Reconnect starts Google's consent again and comes back to Today (the same route Settings › Calendar uses). */
 export const RECONNECT_HREF = `/api/calendar/google/start?next=${encodeURIComponent("/today")}`;
@@ -55,7 +55,7 @@ export function CalendarBanner({ issue }: { issue: CalendarIssue }) {
   if (issue.kind === "reauth") {
     return (
       <section role="status" aria-label="Calendar access" className={BANNER}>
-        <p className="text-pretty text-ink">{issue.message}</p>
+        <p className="text-pretty text-ink">{issueMessage(issue)}</p>
         {issue.blocking && <p className="text-pretty">Blocking is paused until you reconnect. Your blocks stay here, marked not synced.</p>}
         {/* A full navigation: the route answers with a redirect to Google, which client routing cannot follow. */}
         <a href={RECONNECT_HREF} className={cx(buttonClass({ variant: "secondary" }), "w-full sm:w-auto sm:self-start")}>
@@ -68,7 +68,7 @@ export function CalendarBanner({ issue }: { issue: CalendarIssue }) {
   if (issue.kind === "write_gone") {
     return (
       <section role="status" aria-label="Where blocks go" className={BANNER}>
-        <p className="text-pretty text-ink">{issue.message}</p>
+        <p className="text-pretty text-ink">{issueMessage(issue)}</p>
         <p className="text-pretty">Blocking is paused until you choose where blocks go. Your blocks stay here, marked not synced.</p>
         <WritePicker
           onKeepLocal={() => {
@@ -89,7 +89,7 @@ export function CalendarBanner({ issue }: { issue: CalendarIssue }) {
   };
   return (
     <section role="status" aria-label="Calendar sync" className={cx(BANNER, "flex-row flex-wrap items-center gap-x-3 gap-y-1 py-2")}>
-      <span className="min-w-0 flex-1 basis-56 text-pretty">{said ?? issue.message}</span>
+      <span className="min-w-0 flex-1 basis-56 text-pretty">{said ?? issueMessage(issue)}</span>
       <span className="flex items-center gap-1">
         <Button variant="link" size="compact" disabled={busy} onClick={() => void retry()} className="underline decoration-line-strong underline-offset-2">
           {busy ? "Retrying…" : "Retry"}
