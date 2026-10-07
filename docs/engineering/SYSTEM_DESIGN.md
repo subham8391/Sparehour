@@ -397,6 +397,7 @@ create table public.tasks (
   space_id      uuid not null references public.spaces(id) on delete cascade,
   project_id    uuid references public.projects(id) on delete set null,
   heading_id    uuid references public.headings(id) on delete set null,
+  area_id       uuid references public.areas(id) on delete set null,  -- a loose task filed in an area; never with project_id (20261007124400, trigger tasks_filing)
   assignee_id   uuid references public.users(id),        -- M2.5
   title         text not null,
   notes_md      text,

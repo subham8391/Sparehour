@@ -577,6 +577,8 @@ Thu 24 Sept, wide band; the ribbon and the other Today sections are as in §2.
 
 **Area view.** Header with the area name and an inline rename. Below: its projects as cards — name, open task count, next deadline, and a one-line progress bar — then loose tasks belonging to the area directly. An `Add project` card sits last.
 
+**As built (2026-10-07).** A task is filed in a project or in an area, never both (`tasks.area_id`; DECISIONS.md M1 gap rulings): the detail's Project field lists the areas after the projects, and choosing one files the task there with no project. The area view's cards show the open count, the estimate, the nearest deadline and a static bar of what was finished in the last 7 days against that plus the open tasks, labelled "3 done this week · 9 open". Under the cards, the area's loose open tasks are standard rows (drag or Move up / Move down to reorder, multi-select, the detail sheet on a phone) with an `Add to <area>` row. The header's `⋯` has **Delete area…**: the confirmation says what stays ("Its 3 projects and 5 tasks stay, without an area."), and the undo toast puts the area back with them in it. Areas and projects reorder by drag in the sidebar and in Browse (a project can also be dropped into another area or the no-area group, and a task row onto a sidebar project files it there, with an undo toast); the tap path is each Browse row's `⋯` (Move up · Move down · Move to area… for a project, Delete area… for an area) and the project header's `⋯ › Move to area…`.
+
 **Project view.**
 
 ```
@@ -742,6 +744,8 @@ Rules: the palette never performs a destructive action without a confirm step in
 | Milestone | M1. `Save this as a filter` appears here at M2 and pins the result to the sidebar |
 
 **Responsive.** Phone: entered from **Browse**'s search field (or `/` on a hardware keyboard); full-screen; the filter chips scroll horizontally in one row; results use the same rows and swipe actions. Narrow and up: the overlay as described.
+
+**As built (2026-10-07).** Each word of the query is matched on its own, in any order, in the title, the notes or a step ("acme proposal" finds "Draft the Acme proposal"). Archived tasks are left out unless the state chip is Archived. Results rank by recency, then relevance: the day the task was last touched, newest first; within a day, a title holding every word, then some, then a match only in the notes or steps. The area chip also takes in tasks filed in the area directly. A 5,000-task search runs well inside 100 ms on the local database (`search.sql.test.ts`).
 
 ---
 
