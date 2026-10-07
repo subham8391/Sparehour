@@ -94,7 +94,6 @@ export default function InboxPage() {
                 variant="link"
                 size="touch"
                 className="sm:hidden"
-                aria-pressed={bulk}
                 onClick={() => {
                   if (bulk) clearChecks();
                   setSelecting(!bulk);
