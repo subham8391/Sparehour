@@ -26,7 +26,10 @@ export interface TaskPatch {
   estimateMin?: number | null;
   priority?: Priority;
   missPolicy?: MissPolicy;
+  /** Files it in a project, out of any area (a task has one or the other, never both); null leaves it unfiled. */
   projectId?: string | null;
+  /** Files it directly in an area, out of its project and heading; null takes it out of the area. */
+  areaId?: string | null;
   recurrenceRule?: string | null;
   recurrenceMode?: RecurrenceMode | null;
 }
@@ -37,6 +40,8 @@ export interface NewTaskContext {
   projectId?: string | null;
   /** The section inside the project, if any. */
   headingId?: string | null;
+  /** The area it is filed in directly, when it has no project (the area view's add row). */
+  areaId?: string | null;
   /** Sort key of the item to place the task after in its day list; omitted = at the end. */
   afterKey?: string | null;
 }
@@ -61,16 +66,17 @@ export class TaskRepo {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const projectId = ctx.projectId ?? null;
+    const areaId = projectId ? null : (ctx.areaId ?? null);
     const doDate = draft.doDate?.toString() ?? null;
-    const state = doDate || projectId || draft.deadline || draft.startDate ? "active" : "inbox";
+    const state = doDate || projectId || areaId || draft.deadline || draft.startDate ? "active" : "inbox";
 
     await this.db.writeTransaction(async (tx) => {
       const defaults = draft.recurrenceRule ? null : await tx.getOptional<{ default_miss_policy: string | null }>(`select default_miss_policy from user_settings limit 1`);
       const missPolicy: MissPolicy = draft.recurrenceRule ? "skip" : defaults?.default_miss_policy === "skip" || defaults?.default_miss_policy === "expire" ? defaults.default_miss_policy : "carry";
       const lastInList = await tx.getOptional<{ sort_key: string | null }>(
         `select sort_key from tasks where deleted_at is null and state in ('inbox', 'active', 'someday')
-           and coalesce(project_id, '') = coalesce(?, '') order by sort_key desc limit 1`,
-        [projectId],
+           and coalesce(project_id, '') = coalesce(?, '') and coalesce(area_id, '') = coalesce(?, '') order by sort_key desc limit 1`,
+        [projectId, areaId],
       );
       const sortKey = keyBetween(lastInList?.sort_key ?? null, null);
 
@@ -88,15 +94,16 @@ export class TaskRepo {
       }
 
       await tx.execute(
-        `insert into tasks (id, space_id, project_id, heading_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date,
+        `insert into tasks (id, space_id, project_id, heading_id, area_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date,
                             evening, estimate_min, carry_count, last_touched_at, miss_policy, recurrence_rule,
                             recurrence_mode, recurrence_series_id, sort_key, day_sort_key, source, created_at, updated_at)
-         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'quickadd', ?, ?)`,
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'quickadd', ?, ?)`,
         [
           id,
           ctx.spaceId,
           projectId,
           ctx.headingId ?? null,
+          areaId,
           draft.title,
           draft.notes,
           state,
@@ -494,7 +501,7 @@ function recurringOf(row: RowSnapshot): RecurringRow | null {
 
 const STATE_SETS = `state = ?, do_date = case when ? in ('someday','archived') then null else do_date end, carry_count = case when ? in ('someday','archived','dropped') then 0 else carry_count end, updated_at = ?`;
 /** The state a reopened task goes back to: the Inbox when nothing files or dates it (§5.1 rule 5), else active. */
-const REOPENED_STATE = `case when project_id is null and do_date is null and deadline is null and start_date is null then 'inbox' else 'active' end`;
+const REOPENED_STATE = `case when project_id is null and area_id is null and do_date is null and deadline is null and start_date is null then 'inbox' else 'active' end`;
 const STATE_LABELS: Record<TaskState, string> = { dropped: "Dropped", someday: "Moved {title} to Someday", archived: "Archived", active: "Brought back" };
 
 /** The SET clause a patch writes, shared by the single and the bulk update. */
@@ -519,7 +526,18 @@ function buildSets(patch: TaskPatch): { sets: string[]; args: (string | number |
   if ("estimateMin" in patch) set("estimate_min", patch.estimateMin ?? null);
   if ("priority" in patch && patch.priority !== undefined) set("priority", patch.priority);
   if ("missPolicy" in patch && patch.missPolicy !== undefined) set("miss_policy", patch.missPolicy);
-  if ("projectId" in patch) set("project_id", patch.projectId ?? null);
+  // A task is filed in a project or in an area, never both (DECISIONS.md, M1 gap rulings): an area clears the
+  // project and its heading, a project (or "No project") clears the area. The server's tasks_filing trigger agrees.
+  if (patch.areaId) {
+    set("area_id", patch.areaId);
+    set("project_id", null);
+    set("heading_id", null);
+  } else if ("projectId" in patch) {
+    set("project_id", patch.projectId ?? null);
+    set("area_id", null);
+  } else if ("areaId" in patch) {
+    set("area_id", null);
+  }
   if ("recurrenceRule" in patch) {
     set("recurrence_rule", patch.recurrenceRule ?? null);
     set("recurrence_mode", patch.recurrenceRule ? (patch.recurrenceMode ?? "fixed") : null);
@@ -534,8 +552,8 @@ function buildSets(patch: TaskPatch): { sets: string[]; args: (string | number |
   return { sets, args };
 }
 
-/** Whether the patch gives the task a project, a deadline or a start date: enough to leave the Inbox. */
-const filesOrDates = (patch: TaskPatch): boolean => Boolean(patch.projectId || patch.deadline || patch.startDate);
+/** Whether the patch files the task (a project or an area) or gives it a deadline or a start date: enough to leave the Inbox. */
+const filesOrDates = (patch: TaskPatch): boolean => Boolean(patch.projectId || patch.areaId || patch.deadline || patch.startDate);
 
 const PATCH_COLUMNS: Record<keyof TaskPatch, readonly string[]> = {
   title: ["title"],
@@ -548,7 +566,8 @@ const PATCH_COLUMNS: Record<keyof TaskPatch, readonly string[]> = {
   estimateMin: ["estimate_min"],
   priority: ["priority"],
   missPolicy: ["miss_policy"],
-  projectId: ["project_id"],
+  projectId: ["project_id", "area_id"],
+  areaId: ["area_id", "project_id", "heading_id"],
   recurrenceRule: ["recurrence_rule", "recurrence_mode", "recurrence_series_id"],
   recurrenceMode: ["recurrence_mode"],
 };
