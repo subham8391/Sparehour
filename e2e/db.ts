@@ -102,16 +102,17 @@ export interface StoodAside {
 /**
  * Stands aside the account's open tasks due on or before `through` (default: today), whatever their title, by
  * starting them tomorrow: they leave Today, Carried over and the planner, and CI's crowded seed (or another
- * spec's leftovers) cannot outrank or hide a spec's own rows. Returns what `putBack` needs.
+ * spec's leftovers) cannot outrank or hide a spec's own rows. `startsIn` days instead of one keeps them off later
+ * days too (two: off tomorrow's capacity as well). Returns what `putBack` needs.
  */
-export async function standAside(c: Client, me: DevAccount, through: string = me.today): Promise<StoodAside[]> {
+export async function standAside(c: Client, me: DevAccount, through: string = me.today, startsIn = 1): Promise<StoodAside[]> {
   const { rows } = await c.query<StoodAside>(
     `select id, start_date::text, last_touched_at::text from public.tasks
       where space_id = $1 and deleted_at is null and state in ('inbox', 'active')
         and do_date is not null and do_date <= $2::date and (start_date is null or start_date <= $3::date)`,
     [me.sid, through, me.today],
   );
-  if (rows.length > 0) await c.query("update public.tasks set start_date = $2::date + 1 where id = any($1::uuid[])", [rows.map((r) => r.id), me.today]);
+  if (rows.length > 0) await c.query("update public.tasks set start_date = $2::date + $3::int where id = any($1::uuid[])", [rows.map((r) => r.id), me.today, startsIn]);
   return rows;
 }
 

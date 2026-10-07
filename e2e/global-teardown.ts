@@ -7,6 +7,8 @@ export default async function teardown(): Promise<void> {
   try {
     await withDb(async (c) => {
       await c.query("delete from public.time_blocks where task_id in (select id from public.tasks where title like $1)", [`${E2E_PREFIX}%`]);
+      // Blocks of your own (no task) a spec drew and named.
+      await c.query("delete from public.time_blocks where task_id is null and title like $1", [`${E2E_PREFIX}%`]);
       // A repeat's one-off changes (Just this once, Skip this occurrence) name its series, not the task: no key takes them with it.
       await c.query("delete from public.recurrence_exceptions e using public.tasks t where t.title like $1 and e.series_id = coalesce(t.recurrence_series_id, t.id)", [`${E2E_PREFIX}%`]);
       await c.query("delete from public.tasks where title like $1", [`${E2E_PREFIX}%`]);
