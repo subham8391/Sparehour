@@ -41,8 +41,6 @@ export interface SettingsPatch {
   todaySort?: TodaySort;
   /** Today's ⋯ Show completed. */
   showCompleted?: boolean;
-  /** The first run was finished or skipped (ISO instant); the shell stops sending the person to /welcome. */
-  onboardedAt?: string;
 }
 
 const COLUMNS: Record<keyof SettingsPatch, string> = {
@@ -71,7 +69,6 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   defaultView: "default_view",
   todaySort: "today_sort",
   showCompleted: "show_completed",
-  onboardedAt: "onboarded_at",
 };
 
 export class SettingsRepo {
@@ -87,5 +84,14 @@ export class SettingsRepo {
       return typeof v === "boolean" ? (v ? 1 : 0) : (v ?? null);
     });
     await this.db.execute(`update user_settings set ${sets}, updated_at = ? where id = ?`, [...values, new Date().toISOString(), id]);
+  }
+
+  /**
+   * The first run is over, finished or skipped (ONBOARDING.md 1b and step 3): the shell stops sending the person
+   * to /welcome. Once only; there is nothing to undo back into.
+   */
+  async finishFirstRun(id: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.execute(`update user_settings set onboarded_at = ?, updated_at = ? where id = ? and onboarded_at is null`, [now, now, id]);
   }
 }
