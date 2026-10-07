@@ -69,4 +69,11 @@ describe("BlockRepo editing", () => {
     await history.record.mock.calls[0][0].undo();
     expect(execute.mock.calls[1][1][0]).toBe(0);
   });
+
+  it("a block of your own says it was added, whatever its placeholder name", async () => {
+    const { db } = fakeDb();
+    const history = { record: vi.fn() };
+    await new BlockRepo(db, history).create({ spaceId: "s", userId: "u", taskId: null, title: "Block", startAt: "a", endAt: "b" });
+    expect(history.record.mock.calls[0][0]).toMatchObject({ label: "Added a block", toast: true });
+  });
 });

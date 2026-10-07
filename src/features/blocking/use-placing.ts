@@ -84,7 +84,7 @@ export function usePlacing(d: PlacingDay) {
     return create(task.id, task.title, at.start, at.end);
   };
   /** An ad-hoc block, with no task (a lunch, deep work): drawn on empty space, or "New block here". */
-  const createAdHoc = (start: number, end: number) => create(null, null, start, end);
+  const createAdHoc = (start: number, end: number) => create(null, "Block", start, end);
   /** Moved, keeping its length, snapped to five minutes; a locked block stays put. */
   const moveBlock = (id: string, startMin: number) => {
     const b = blockOf(id);

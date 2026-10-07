@@ -84,7 +84,7 @@ describe("usePlacing", () => {
     expect(repo.duplicate).toHaveBeenCalledWith("b1", "2026-10-07T15:00:00Z", "2026-10-07T15:45:00Z");
     expect(result.current.placer.selectedBlockId).toBe("copy");
     await act(async () => void (await result.current.placer.createAdHoc(720, 780)));
-    expect(repo.create).toHaveBeenLastCalledWith(expect.objectContaining({ taskId: null, title: null, startAt: "2026-10-07T12:00:00Z", endAt: "2026-10-07T13:00:00Z" }));
+    expect(repo.create).toHaveBeenLastCalledWith(expect.objectContaining({ taskId: null, title: "Block", startAt: "2026-10-07T12:00:00Z", endAt: "2026-10-07T13:00:00Z" }));
   });
 
   it("tap-to-schedule: the next tap places the waiting task; Escape lets go", async () => {

@@ -63,7 +63,8 @@ export class BlockRepo {
       [id, block.spaceId, block.userId, block.taskId, block.title, block.startAt, block.endAt, now, now],
     );
     this.history?.record({
-      label: block.title ? `Blocked “${block.title}”` : "Blocked time",
+      // A block of your own (no task) is "a block" until it is named.
+      label: block.taskId === null ? "Added a block" : block.title ? `Blocked “${block.title}”` : "Blocked time",
       toast: true,
       undo: () => this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [new Date().toISOString(), new Date().toISOString(), id]).then(() => undefined),
     });
