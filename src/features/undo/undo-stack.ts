@@ -67,6 +67,76 @@ export function valueEntry<T>(label: string, write: (to: T, from: T) => unknown,
   };
 }
 
+/**
+ * Both stacks, twenty deep each. A new write clears the redo stack; an undo whose entry cannot be redone clears it
+ * too, since nothing older may be made again on top of a change that stays undone. Undo and redo run one at a time,
+ * in order, so each reads its rows after the one before has written them; an undo overtaken by a write while it ran
+ * leaves no redo behind. `changed` hears every change of either stack.
+ */
+export class UndoHistory {
+  private undos: UndoEntry[] = [];
+  private redos: RedoItem[] = [];
+  private writes = 0;
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly changed: (history: UndoHistory) => void = () => {},
+    private readonly limit = UNDO_LIMIT,
+  ) {}
+
+  get canUndo(): boolean {
+    return this.undos.length > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.redos.length > 0;
+  }
+
+  record(entry: UndoEntry): void {
+    this.writes += 1;
+    this.undos = push(this.undos, entry, this.limit);
+    this.redos = [];
+    this.changed(this);
+  }
+
+  /** Undoes the latest entry: resolves it and whether it went onto the redo stack, or null when there was nothing. */
+  undo(): Promise<{ entry: UndoEntry; redoable: boolean } | null> {
+    return this.serial(async () => {
+      const { entry, rest } = pop(this.undos);
+      if (!entry) return null;
+      this.undos = rest;
+      this.changed(this);
+      const at = this.writes;
+      const again = await entry.undo();
+      const redoable = Boolean(again) && at === this.writes;
+      this.redos = again && redoable ? push(this.redos, { entry, again }, this.limit) : [];
+      this.changed(this);
+      return { entry, redoable };
+    });
+  }
+
+  /** Makes the latest undone entry again and puts it back on the undo stack: resolves it, or null when there was nothing. */
+  redo(): Promise<UndoEntry | null> {
+    return this.serial(async () => {
+      const { entry: item, rest } = pop(this.redos);
+      if (!item) return null;
+      this.redos = rest;
+      this.changed(this);
+      await item.again.redo();
+      const back = redone(item);
+      this.undos = push(this.undos, back, this.limit);
+      this.changed(this);
+      return back;
+    });
+  }
+
+  private serial<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(task, task);
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+}
+
 /** The toast after an undo, and what the live region says: "Undone: Dropped “Draft the proposal”". */
 export const undoneWords = (entry: Pick<UndoEntry, "label">): string => `Undone: ${entry.label}`;
 /** What the live region says after a redo: "Redone: Dropped “Draft the proposal”". */

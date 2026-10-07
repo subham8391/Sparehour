@@ -8,7 +8,7 @@ import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import { redoable, type UndoRecord } from "@/data/repositories/undo";
 import { Button } from "@/ui/button";
 import { Toast } from "@/ui/toast";
-import { pop, push, redone, redoneWords, undoneWords, type RedoItem, type UndoEntry } from "./undo-stack";
+import { UndoHistory, redoneWords, undoneWords, type UndoEntry } from "./undo-stack";
 
 export interface UndoSink {
   /** A repository's record (the rows it declares make it redoable), or a screen's own entry (its undo resolves its redo). */
@@ -54,13 +54,8 @@ interface ToastState {
 export function UndoProvider({ children }: { children: ReactNode }) {
   // Outside the database provider (tests, the sign-in pages) there is none: entries still undo, without a redo.
   const db = useLocalDatabase() as LocalDatabase | null | undefined;
-  const undos = useRef<UndoEntry[]>([]);
-  const redos = useRef<RedoItem[]>([]);
-  /** Counts writes: an undo still running when a new write lands must not leave a redo on top of it. */
-  const writes = useRef(0);
-  /** Undo and redo run one at a time, in order: each reads its rows after the one before has written. */
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const [depth, setDepth] = useState({ undo: 0, redo: 0 });
+  const [depth, setDepth] = useState({ canUndo: false, canRedo: false });
+  const [history] = useState(() => new UndoHistory((h) => setDepth({ canUndo: h.canUndo, canRedo: h.canRedo })));
   const [toast, setToast] = useState<ToastState | null>(null);
   /** The live region's words: the entry's announcement, else a toast's label. The same words again get a trailing space so they are read again. */
   const [said, setSaid] = useState("");
@@ -81,78 +76,47 @@ export function UndoProvider({ children }: { children: ReactNode }) {
     timer.current = setTimeout(() => setToast(null), TOAST_MS);
   }, []);
   const say = useCallback((words: string) => setSaid((s) => (s === words ? `${words} ` : words)), []);
-  const settle = useCallback(() => setDepth({ undo: undos.current.length, redo: redos.current.length }), []);
 
   const record = useCallback(
     (raw: UndoEntry | UndoRecord) => {
       const entry: UndoEntry = "rows" in raw ? (db ? redoable(db, raw) : { label: raw.label, toast: raw.toast, announce: raw.announce, undo: raw.undo }) : raw;
-      writes.current += 1;
-      undos.current = push(undos.current, entry);
-      redos.current = [];
-      settle();
+      history.record(entry);
       if (entry.toast) showToast({ text: entry.label, action: "Undo" });
       const words = entry.announce ?? (entry.toast ? entry.label : "");
       if (words) say(words);
     },
-    [db, showToast, say, settle],
+    [db, history, showToast, say],
   );
 
-  const serial = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
-    const run = queue.current.then(task, task);
-    queue.current = run.catch(() => undefined);
-    return run;
-  }, []);
+  const undo = useCallback(async () => {
+    if (!history.canUndo) return false;
+    showToast(null);
+    setSaid("");
+    const done = await history.undo();
+    if (!done) return false;
+    if (done.redoable) {
+      // The touch path to Redo (DECISIONS.md "Redo"): the undo is confirmed in a toast that offers it, for ten seconds.
+      showToast({ text: undoneWords(done.entry), action: "Redo" });
+      say(undoneWords(done.entry));
+    }
+    return true;
+  }, [history, showToast, say]);
 
-  const undo = useCallback(
-    () =>
-      serial(async () => {
-        const { entry, rest } = pop(undos.current);
-        if (!entry) return false;
-        undos.current = rest;
-        settle();
-        showToast(null);
-        setSaid("");
-        const at = writes.current;
-        const again = await entry.undo();
-        if (again && at === writes.current) {
-          redos.current = push(redos.current, { entry, again });
-          // The touch path to Redo (DECISIONS.md "Redo"): the undo is confirmed in a toast that offers it, for ten seconds.
-          showToast({ text: undoneWords(entry), action: "Redo" });
-          say(undoneWords(entry));
-        } else {
-          // Not redoable, or overtaken by a newer write: nothing older can be made again on top of it.
-          redos.current = [];
-        }
-        settle();
-        return true;
-      }),
-    [serial, settle, showToast, say],
-  );
-
-  const redo = useCallback(
-    () =>
-      serial(async () => {
-        const { entry: item, rest } = pop(redos.current);
-        if (!item) return false;
-        redos.current = rest;
-        settle();
-        showToast(null);
-        await item.again.redo();
-        const back = redone(item);
-        undos.current = push(undos.current, back);
-        settle();
-        if (back.toast) showToast({ text: back.label, action: "Undo" });
-        say(redoneWords(back));
-        return true;
-      }),
-    [serial, settle, showToast, say],
-  );
+  const redo = useCallback(async () => {
+    if (!history.canRedo) return false;
+    showToast(null);
+    const back = await history.redo();
+    if (!back) return false;
+    if (back.toast) showToast({ text: back.label, action: "Undo" });
+    say(redoneWords(back));
+    return true;
+  }, [history, showToast, say]);
 
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  const api = useMemo<UndoApi>(() => ({ record, undo, redo, canUndo: depth.undo > 0, canRedo: depth.redo > 0 }), [record, undo, redo, depth]);
+  const api = useMemo<UndoApi>(() => ({ record, undo, redo, canUndo: depth.canUndo, canRedo: depth.canRedo }), [record, undo, redo, depth]);
 
   return (
     <UndoContext.Provider value={api}>
