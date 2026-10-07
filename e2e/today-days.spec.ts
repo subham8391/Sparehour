@@ -7,7 +7,7 @@
 // for the length of the spec (extra rows beside its own, deleted in afterAll).
 import { expect, test } from "./fixtures";
 import { addAllDayHours, devAccount, isoPlus, waitForRow, withDb, type DevAccount } from "./db";
-import { DEV_USER, openApp, quickAdd, uniqueTitle } from "./helpers";
+import { DEV_USER, openApp, quickAdd, uniqueTitle, waitForSync } from "./helpers";
 
 let me: DevAccount;
 let addedHours: string[] = [];
@@ -44,6 +44,8 @@ test("] shows tomorrow — its tasks and timeline, blockable — the address kee
   // The day is in the address: a reload opens on it.
   await page.reload();
   await expect(page).toHaveURL(new RegExp(`day=${tomorrow}$`));
+  // A reload opens the local database and syncs again (pwa.spec.ts): the list is drawn after that.
+  await waitForSync(page);
   await expect(row).toBeVisible();
 
   // B blocks it on tomorrow's timeline.
