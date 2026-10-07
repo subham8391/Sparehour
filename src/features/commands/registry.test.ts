@@ -36,6 +36,8 @@ function ctxWith(over: Partial<CommandContext> = {}): CommandContext & { tasks: 
     openShortcuts: vi.fn(),
     setTheme: vi.fn(),
     undo: vi.fn(),
+    redo: vi.fn(),
+    canRedo: false,
     blockTask: vi.fn(),
     planDay: vi.fn(),
     taskState: vi.fn(async () => "active"),

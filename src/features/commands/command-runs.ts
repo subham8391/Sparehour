@@ -44,6 +44,10 @@ export interface CommandContext {
   openShortcuts: () => void;
   setTheme: (theme: Theme) => void;
   undo: () => void;
+  /** Makes the latest undone change again (⇧⌘Z, Ctrl+Y, the palette's Redo). */
+  redo: () => void;
+  /** Whether an undone change is waiting to be made again: without one the palette lists Redo off, with the reason. */
+  canRedo: boolean;
   /** Places the task in the next free gap that fits its estimate (only where a day is in view). */
   blockTask: (id: string) => void;
   /** Opens the Plan my day preview where the day is (Today, or the morning plan's last step); elsewhere it goes to Today first. */
@@ -66,8 +70,8 @@ export interface CommandRun {
   passes?: (ctx: CommandContext) => boolean;
   /** The one view the command belongs to (`/today`, or every `/project/…` page): listed elsewhere, but disabled with the reason. */
   onlyOn?: { path: string; reason: string };
-  /** Why it cannot run right now (no timeline on screen, no block selected), or null when it can. */
-  unavailable?: () => string | null;
+  /** Why it cannot run right now (no timeline on screen, no block selected, nothing to redo), or null when it can. */
+  unavailable?: (ctx: Partial<Pick<CommandContext, "canRedo">>) => string | null;
 }
 
 /** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
@@ -337,6 +341,10 @@ export const RUNS: readonly CommandRun[] = [
 
   // ---- app
   { id: "app.undo", shortcut: "mod+z", run: (ctx) => ctx.undo() },
+  // ⇧⌘Z everywhere, and Ctrl+Y as Windows has it (SCREENS.md §24). Inside a text field the browser keeps its own redo:
+  // the keyboard layer never takes keys from a typing target.
+  { id: "app.redo", shortcut: "mod+shift+z", run: (ctx) => ctx.redo(), unavailable: (ctx) => (ctx.canRedo === false ? "after an undo" : null) },
+  { id: "app.redo-y", shortcut: "mod+y", run: (ctx) => ctx.redo(), unavailable: (ctx) => (ctx.canRedo === false ? "after an undo" : null) },
   { id: "app.palette", shortcut: "mod+k", run: (ctx) => ctx.openPalette() },
   { id: "app.search", shortcut: "/", run: (ctx) => ctx.go("/search") },
   { id: "app.export", run: (ctx) => ctx.go("/settings") },
@@ -357,10 +365,10 @@ export interface Availability {
 }
 
 /** Commands that need a selection are listed but disabled with the reason (§12 rules). */
-export function availability(command: CommandRun, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds"> & { pathname?: string }): Availability {
+export function availability(command: CommandRun, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds"> & { pathname?: string; canRedo?: boolean }): Availability {
   const only = command.onlyOn;
   if (only && ctx.pathname !== only.path && !(only.path.endsWith("/") && ctx.pathname?.startsWith(only.path))) return { enabled: false, reason: only.reason };
   if (command.requiresSelection && targets(ctx).length === 0) return { enabled: false, reason: "select a task first" };
-  const why = command.unavailable?.();
+  const why = command.unavailable?.(ctx);
   return why ? { enabled: false, reason: why } : { enabled: true };
 }

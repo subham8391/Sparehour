@@ -126,6 +126,8 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
         if (accountId) void new SettingsRepo(db).update(accountId, { theme });
       },
       undo: () => void undoApi?.undo(),
+      redo: () => void undoApi?.redo(),
+      canRedo: undoApi?.canRedo ?? false,
       blockTask: (id) => blocking?.blockTask(id),
       planDay: (mode) => {
         // Today and the morning plan take the request where they are; anywhere else it waits for Today to open.

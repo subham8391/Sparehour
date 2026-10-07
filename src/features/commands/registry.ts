@@ -100,6 +100,8 @@ const WORDS: Record<string, Words> = {
   "view.theme-dark": { title: "Dark theme", group: "View", keywords: "appearance" },
   "view.theme-system": { title: "Follow the system theme", group: "View", keywords: "appearance auto" },
   "app.undo": { title: "Undo", group: "App" },
+  "app.redo": { title: "Redo", group: "App", keywords: "again undo" },
+  "app.redo-y": { title: "Redo", group: "App", hidden: true },
   "app.palette": { title: "Command palette", group: "App", hidden: true },
   "app.search": { title: "Search", group: "App", keywords: "find filter" },
   "app.export": { title: "Export your data", group: "App", keywords: "download backup json markdown csv" },
