@@ -11,6 +11,7 @@ import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 const loadRowMenu = () => import("./row-menu");
 const loadDayPicker = () => import("./day-picker");
 const loadEstimate = () => import("./estimate-popover");
+const loadSwipe = () => import("./swipe-layer");
 
 const RowMenuLazy = lazy(() => loadRowMenu().then((m) => ({ default: m.RowMenu })));
 
@@ -30,9 +31,13 @@ export const EstimateIsland = dynamic(() => loadEstimate().then((m) => m.Estimat
 
 let preloaded = false;
 
-/** Once per page load, whichever row mounts first: both parts in idle time. */
+/** A row's swipe (swipe-layer.tsx), mounted by the row's first touch. */
+export const SwipeIsland = dynamic(() => loadSwipe().then((m) => m.SwipeLayer), { ssr: false });
+
+/** Once per page load, whichever row mounts first: both parts in idle time, and the swipe on a device that cannot hover. */
 export function preloadRowIslands(): void {
   if (preloaded) return;
   preloaded = true;
-  preloadOnIdle(() => Promise.all([loadRowMenu(), loadDayPicker()]));
+  const touch = typeof matchMedia === "function" && matchMedia("(hover: none)").matches;
+  preloadOnIdle(() => Promise.all([loadRowMenu(), loadDayPicker(), touch && loadSwipe()]));
 }

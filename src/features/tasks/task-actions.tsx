@@ -12,20 +12,23 @@ import { Icon, type IconName } from "@/ui/icons";
 import { MENU_ITEM } from "@/ui/popover";
 import type { DayChip, DayChipTone } from "./day-chip";
 
-export type RowActionsLayout = "inline" | "menu";
+/** `swipe`: drawn nowhere, each action handing its handler to the row's swipe (swipe-layer.tsx), so a swipe runs exactly what the ⋯ item runs. */
+export type RowActionsLayout = "inline" | "menu" | "swipe";
 
 interface Layout {
   layout: RowActionsLayout;
   close?: () => void;
   /** Opens the row's day picker beside `anchor` (Move to…, Someday's Pick a date), named `label`. */
   move?: (anchor: HTMLElement | null, label?: string) => void;
+  /** The swipe layout's sink for each action's label and handler. */
+  register?: (label: string, run: () => void) => void;
 }
 
 const LayoutContext = createContext<Layout>({ layout: "inline" });
 
 /** Wraps the actions where the row renders them; `close` dismisses the menu after a choice. */
-export function RowActionsLayoutProvider({ layout, close, move, children }: Layout & { children: ReactNode }) {
-  return <LayoutContext.Provider value={{ layout, close, move }}>{children}</LayoutContext.Provider>;
+export function RowActionsLayoutProvider({ layout, close, move, register, children }: Layout & { children: ReactNode }) {
+  return <LayoutContext.Provider value={{ layout, close, move, register }}>{children}</LayoutContext.Provider>;
 }
 
 /** The row's layout, close and day picker, for the menu's own items (the snooze presets, Move to…). */
@@ -71,8 +74,12 @@ export function RowAction({
   primary?: boolean;
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
-  const { layout, close } = useContext(LayoutContext);
+  const { layout, close, register } = useContext(LayoutContext);
   const owned = useContext(OwnedContext);
+  if (layout === "swipe") {
+    register?.(label, onClick as () => void);
+    return null;
+  }
   const visual = glyph ?? (icon && <Icon name={icon} size={12} strokeWidth={2} className="shrink-0" />);
   if (layout === "menu") {
     if (owned?.has(label)) return null;
@@ -134,7 +141,7 @@ export function MoveActions({
  */
 export function MenuOnly({ children }: { children: ReactNode }) {
   const { layout } = useContext(LayoutContext);
-  return layout === "menu" ? <>{children}</> : null;
+  return layout !== "inline" ? <>{children}</> : null;
 }
 
 /**
@@ -143,7 +150,7 @@ export function MenuOnly({ children }: { children: ReactNode }) {
  */
 export function MoveToAction({ label = "Move to…", text, icon = "calendar", title }: { label?: string; text?: string | null; icon?: IconName; title?: string }) {
   const { layout, move } = useContext(LayoutContext);
-  if (layout === "menu" || !move) return null;
+  if (layout !== "inline" || !move) return null;
   return <RowAction label={label} text={text} icon={icon} title={title ?? label} onClick={(e) => move(e.currentTarget, label)} />;
 }
 

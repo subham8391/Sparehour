@@ -31,7 +31,7 @@ import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
 import { DefaultEstimate } from "./default-estimate";
 import { guessLabel } from "./estimate-presets";
-import { DayPickerIsland, EstimateIsland, RowMenuIsland, preloadRowIslands } from "./row-islands";
+import { DayPickerIsland, EstimateIsland, RowMenuIsland, SwipeIsland, preloadRowIslands } from "./row-islands";
 import { listenForRowRequests } from "./row-request";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
@@ -142,6 +142,7 @@ export function TaskRow({
   const ticked = sel?.checkedIds.includes(task.id) ?? false;
   const multi = (sel?.checkedIds.length ?? 0) > 0 || Boolean(sel?.selecting);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [swipe, setSwipe] = useState(false);
   /** A long-press just ticked the row: the click the finger's release sends is part of it, not a tap that opens. */
   const longPressed = useRef(false);
   const cancelPress = () => {
@@ -152,6 +153,8 @@ export function TaskRow({
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     // A new press starts clean, even if the last long-press sent no click (the finger slid off).
     longPressed.current = false;
+    // The first touch brings the swipe in (swipe-layer.tsx, lazy); a mouse never does.
+    if (e.pointerType === "touch") setSwipe(true);
     if (!sel || e.pointerType !== "touch") return;
     cancelPress();
     pressTimer.current = setTimeout(() => {
@@ -381,6 +384,8 @@ export function TaskRow({
           : "[--row-bg:var(--surface)] [--row-wash:transparent] hover:[--row-wash:var(--hover)] active:[--row-wash:var(--press)]",
         dragging && "opacity-40",
         "focus-visible:-outline-offset-2",
+        // A sideways finger is the swipe's; the page keeps vertical scrolling and pinch zoom.
+        hasActions && "touch:[touch-action:pan-y_pinch-zoom]",
       )}
       role="row"
       data-roving={roving || undefined}
@@ -398,7 +403,7 @@ export function TaskRow({
       onPointerLeave={cancelPress}
     >
       {edge && <span aria-hidden="true" data-testid="drop-edge" className={cx("pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-ink", edge === "top" ? "-top-px" : "-bottom-px")} />}
-      <div role="gridcell" className={cx("min-h-0", completing && "overflow-hidden")}>
+      <div role="gridcell" className={cx("relative min-h-0", completing && "overflow-hidden")}>
         <div
           className={cx(
             "relative flex min-h-14 items-center gap-x-3 py-2 sm:grid sm:min-h-11 sm:gap-x-0 sm:py-0",
@@ -507,6 +512,8 @@ export function TaskRow({
                   const own = (
                     <>
                       {rowActions}
+                      {/* The ring's action, here too: every swipe has a tap path in the ⋯ (DESIGN_SYSTEM.md §5). */}
+                      {onDone && !done && <RowAction label="Complete" onClick={complete} />}
                       {task.recurrenceRule && (task.state === "active" || task.state === "inbox") && <SkipOccurrence id={task.id} />}
                       <OrganizeActions task={task} />
                     </>
@@ -536,6 +543,15 @@ export function TaskRow({
             label={moving.label}
             anchor={moving.anchor}
             onClose={() => setMoving(null)}
+          />
+        )}
+        {swipe && hasActions && (
+          <SwipeIsland row={ref} task={task} today={day} complete={onDone && complete} actions={
+              <>
+                {rowActions}
+                {menuLead}
+              </>
+            }
           />
         )}
         {estimating && <EstimateIsland taskId={task.id} title={task.title} current={task.estimateMin} anchor={estimating} onClose={() => setEstimating(null)} />}
