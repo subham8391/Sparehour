@@ -11,6 +11,8 @@ import { cx } from "@/ui/cx";
 import { Input } from "@/ui/field";
 import { MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
+import { RatingSparkline } from "./rating-sparkline";
+import type { RatingTrend } from "./rating-trend";
 import { Lead, RitualFooter, RitualFrame } from "./ritual-frame";
 import { OUTCOME_LABEL, SHUTDOWN_STEPS, carriedLine, carriedToTomorrow, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine, type CarryChoice, type CarryRow, type ShutdownStep } from "./shutdown";
 
@@ -22,6 +24,8 @@ export interface ShutdownFlowProps {
   unfinished: readonly CarryRow[];
   defaultEstimateMin: number;
   rating: number | null;
+  /** The last fourteen days' ratings, once five of them are rated (rating-trend.ts); null before. */
+  trend?: RatingTrend | null;
   highlight: string;
   tomorrow: { spareMin: number | null; planned: number };
   onCarry: (id: string, to: CarryChoice) => void;
@@ -170,6 +174,7 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
               </button>
             ))}
           </div>
+          {p.trend && <RatingSparkline trend={p.trend} className="mt-2" />}
         </>
       );
       break;
