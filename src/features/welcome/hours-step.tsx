@@ -84,7 +84,7 @@ export function HoursStep({ saved, zone: proposedZone, onConfirm, busy = false, 
         <div className="flex flex-col gap-3">
           <div role="group" aria-label="Working days" className="grid grid-cols-7 gap-0.5 sm:flex sm:gap-1.5">
             {DAY_NAMES.map((name, d) => (
-              <button key={name} type="button" aria-label={name} aria-pressed={strip.days[d]} onClick={() => toggleDay(d)} className={cx(chipButtonClass({ size: "touch" }), "justify-center px-0 sm:w-12")}>
+              <button key={name} type="button" aria-label={name} aria-pressed={strip.days[d]} onClick={() => toggleDay(d)} className={cx(chipButtonClass({ size: "touch" }), "justify-center")}>
                 <span aria-hidden="true" className="sm:hidden">
                   {DAY_LETTERS[d]}
                 </span>
