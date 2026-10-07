@@ -7,7 +7,8 @@
 // and the command palette are mounted once here.
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { readStorageFull, subscribeStorageFull } from "@/data/powersync";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
@@ -48,6 +49,13 @@ const SidebarDrag = dynamic(() => loadNavDrag().then((m) => m.SidebarDrag), { ss
 
 function SidebarDragIsland({ areas }: { areas: ReturnType<typeof useNavData>["areas"] }) {
   return useIdleMount(loadNavDrag, false) ? <SidebarDrag areas={areas} /> : null;
+}
+
+// Storage full (SCREENS.md §21): the banner with Export your data loads only once the device reports it is out of room.
+const StorageFull = dynamic(() => import("@/features/pwa/storage-full"), { ssr: false });
+
+function StorageFullBanner() {
+  return useSyncExternalStore(subscribeStorageFull, readStorageFull, () => false) ? <StorageFull /> : null;
 }
 
 function Keyboard({ children }: { children: ReactNode }) {
@@ -124,6 +132,7 @@ function Frame({ children }: { children: ReactNode }) {
           tabIndex={0}
           className="flex flex-1 flex-col focus-visible:-outline-offset-2 sm:min-h-0 sm:overflow-y-auto"
         >
+          <StorageFullBanner />
           <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
         </div>
         {adds && <QuickAddBar />}

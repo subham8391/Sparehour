@@ -3,13 +3,15 @@
 // Client-only: SQLite lives in a worker; server components render shells.
 // Storage that will not open — a private window, most often — is reported to
 // `failed`, which shows the inline error state instead of a screen that waits
-// forever (SYSTEM_DESIGN.md §10.3; ruled 2026-10-06: no in-memory fallback at M1).
+// forever (SYSTEM_DESIGN.md §10.3; ruled 2026-10-06: no in-memory fallback at M1). Storage that fills up later
+// is watched here too (quota.ts) and shown by the shell's storage-full banner.
 import { PowerSyncContext } from "@powersync/react";
 import { createConsoleLogger, LogLevels, PowerSyncDatabase, WASQLiteVFS } from "@powersync/web";
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppSchema } from "../schema.client";
 import { SparehourConnector } from "./connector";
 import { resolvePowerSyncUrl } from "./endpoint";
+import { watchQuota } from "./quota";
 
 let instance: PowerSyncDatabase | null = null;
 
@@ -65,8 +67,12 @@ export function PowerSyncProvider({ children, failed }: { children: ReactNode; f
     watchStorage(opened.db, typeof navigator === "undefined" ? undefined : navigator.storage, (error) => {
       if (live) setFailure((f) => f ?? { error });
     });
+    // Running out of room (SCREENS.md §21 "Quota / storage full"): a refused write or an estimate near the quota
+    // raises the shell's banner; the app keeps reading and keeps trying its writes.
+    const unwatch = watchQuota(window, navigator.storage);
     return () => {
       live = false;
+      unwatch();
     };
   }, [opened]);
   if (failure && failed) return <>{failed(failure.error)}</>;
