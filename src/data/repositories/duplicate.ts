@@ -128,6 +128,7 @@ function recordUndo(db: LocalDatabase, history: UndoRecorder | undefined, made: 
   history?.record({
     label,
     toast: true,
+    rows: { task_tags: made.links, checklist_items: made.steps, tasks: made.tasks, headings: made.headings, projects: made.projects },
     undo: async () => {
       await db.writeTransaction(async (tx) => {
         const at = new Date().toISOString();

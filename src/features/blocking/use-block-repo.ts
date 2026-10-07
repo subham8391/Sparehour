@@ -2,8 +2,9 @@
 import { useMemo } from "react";
 import { useLocalDatabase } from "@/data/powersync";
 import { BlockRepo, type ApprovedPlan, type NewBlock } from "@/data/repositories/block-repo";
+import type { UndoRecorder } from "@/data/repositories/undo";
 import { noteBlockCreated } from "@/features/notifications/block-nudge-store";
-import { useUndoSink } from "@/features/undo/undo-provider";
+import { useUndoSink, type UndoSink } from "@/features/undo/undo-provider";
 import { schedulePush } from "./push-after-write";
 
 /**
@@ -49,8 +50,26 @@ class PushingBlockRepo extends BlockRepo {
   }
 }
 
+/** A block change taken back, made again by a redo or taken back again after one goes to Google soon after, like the change itself. */
+function pushingHistory(sink: UndoSink): UndoRecorder {
+  return {
+    record: (entry) =>
+      sink.record({
+        ...entry,
+        undo: async () => {
+          await entry.undo();
+          schedulePush();
+        },
+        settled: (now) => {
+          entry.settled?.(now);
+          schedulePush();
+        },
+      }),
+  };
+}
+
 export function useBlockRepo(): BlockRepo {
   const db = useLocalDatabase();
   const undo = useUndoSink();
-  return useMemo(() => new PushingBlockRepo(db, undo ?? undefined), [db, undo]);
+  return useMemo(() => new PushingBlockRepo(db, undo ? pushingHistory(undo) : undefined), [db, undo]);
 }

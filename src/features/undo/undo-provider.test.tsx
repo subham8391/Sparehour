@@ -3,9 +3,10 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { UndoProvider, useUndo } from "./undo-provider";
+import type { UndoEntry } from "./undo-stack";
 
-function Harness({ undoFn }: { undoFn: () => Promise<void> }) {
-  const { record, undo, canUndo } = useUndo();
+function Harness({ undoFn }: { undoFn: UndoEntry["undo"] }) {
+  const { record, undo, redo, canUndo, canRedo } = useUndo();
   return (
     <div>
       <button type="button" onClick={() => record({ label: "Dropped “Draft the proposal”", toast: true, undo: undoFn })}>
@@ -20,7 +21,11 @@ function Harness({ undoFn }: { undoFn: () => Promise<void> }) {
       <button type="button" onClick={() => void undo()}>
         cmd-z
       </button>
+      <button type="button" onClick={() => void redo()}>
+        cmd-shift-z
+      </button>
       <p>can undo: {String(canUndo)}</p>
+      <p>can redo: {String(canRedo)}</p>
     </div>
   );
 }
@@ -119,5 +124,56 @@ describe("<UndoProvider>", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("an undo that can be redone is confirmed in a toast with Redo; Redo makes it again, says so and offers Undo again", async () => {
+    const again = { redo: vi.fn().mockResolvedValue(undefined), undo: vi.fn().mockResolvedValue(undefined) };
+    const undoFn = vi.fn().mockResolvedValue(again);
+    const user = userEvent.setup();
+    const { container } = render(
+      <UndoProvider>
+        <Harness undoFn={undoFn} />
+      </UndoProvider>,
+    );
+    const region = container.querySelector('[aria-live="polite"]');
+    await user.click(screen.getByRole("button", { name: "drop" }));
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(undoFn).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Undone: Dropped “Draft the proposal”");
+    expect(region).toHaveTextContent("Undone: Dropped “Draft the proposal”");
+    expect(screen.getByText("can redo: true")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Redo" }));
+    expect(again.redo).toHaveBeenCalledTimes(1);
+    expect(region).toHaveTextContent("Redone: Dropped “Draft the proposal”");
+    expect(screen.getByRole("status")).toHaveTextContent("Dropped “Draft the proposal”");
+    expect(screen.getByText("can redo: false")).toBeInTheDocument();
+    // Undoing after the redo takes it back the redo's own way, and Redo is offered once more.
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(again.undo).toHaveBeenCalledTimes(1);
+    expect(undoFn).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Redo" })).toBeInTheDocument();
+  });
+
+  it("⇧⌘Z redoes a silent entry: no toast for it, the live region says what was redone, and a new write clears the redo", async () => {
+    const again = { redo: vi.fn().mockResolvedValue(undefined), undo: vi.fn().mockResolvedValue(undefined) };
+    const user = userEvent.setup();
+    const { container } = render(
+      <UndoProvider>
+        <Harness undoFn={vi.fn().mockResolvedValue(again)} />
+      </UndoProvider>,
+    );
+    const region = container.querySelector('[aria-live="polite"]');
+    await user.click(screen.getByRole("button", { name: "silent" }));
+    await user.click(screen.getByRole("button", { name: "cmd-z" }));
+    await user.click(screen.getByRole("button", { name: "cmd-shift-z" }));
+    expect(again.redo).toHaveBeenCalledTimes(1);
+    expect(region).toHaveTextContent("Redone: Changed “Draft the proposal”");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "cmd-z" }));
+    expect(screen.getByText("can redo: true")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "silent" }));
+    expect(screen.getByText("can redo: false")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "cmd-shift-z" }));
+    expect(again.redo).toHaveBeenCalledTimes(1);
   });
 });

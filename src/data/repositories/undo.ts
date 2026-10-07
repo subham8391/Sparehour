@@ -1,18 +1,65 @@
-// What every repository shares for undo (FEATURES.md §8 "Undo for every
-// action", PRODUCT_SPEC.md §7 rule 4): the recorder they write into, and the
-// one way a row is put back as it was.
+// What every repository shares for undo and redo (FEATURES.md §8 "Undo for
+// every action", PRODUCT_SPEC.md §7 rule 4, SCREENS.md §24 "Cmd+Z ·
+// Cmd+Shift+Z"): the recorder they write into, the one way a row is put back
+// as it was, and the generic redo built from the rows each write declares.
 import type { LocalDatabase } from "../powersync";
+
+/** The synced tables a repository may put a row back into, or a redo write again. A closed list: the name goes into SQL. */
+export type UndoTable =
+  | "tasks"
+  | "projects"
+  | "headings"
+  | "areas"
+  | "task_tags"
+  | "checklist_items"
+  | "recurrence_exceptions"
+  | "time_blocks"
+  | "task_completions"
+  | "user_settings"
+  | "day_plans";
+
+/**
+ * The rows a write changed, by table: by id, or (`{ task_id: [...] }`) every row of the table that belongs to those
+ * tasks — the tag links of tasks a paste made, whose ids the paste never sees.
+ */
+export type UndoRows = Partial<Record<UndoTable, readonly string[] | { readonly task_id: readonly string[] }>>;
+
+/** One write's undo entry, as a repository records it. */
+export interface UndoRecord {
+  label: string;
+  toast: boolean;
+  announce?: string;
+  /** Every row the write changed (and its undo puts back), so a redo can make exactly the same change again. */
+  rows: UndoRows;
+  undo: () => Promise<void>;
+  /**
+   * Runs once a redo has made the change again ("redone"), or an undo after a redo has taken it back again
+   * ("undone"): what a screen keeps beside the rows, such as a list it shows or a push to the calendar.
+   */
+  settled?: (now: "redone" | "undone") => void;
+}
 
 /** Where the inverse of each write goes (the undo stack); optional so scripts and tests can skip it. */
 export interface UndoRecorder {
-  record: (entry: { label: string; toast: boolean; announce?: string; undo: () => Promise<void> }) => void;
+  record: (entry: UndoRecord) => void;
+}
+
+/** A change taken back, and how to make it again: `redo` re-applies it, `undo` takes it back again after a redo. */
+export interface Redo {
+  redo: () => Promise<void>;
+  undo: () => Promise<void>;
+}
+
+/** An entry whose undo hands back its redo (or nothing, when its rows could not be read). */
+export interface RedoableEntry {
+  label: string;
+  toast: boolean;
+  announce?: string;
+  undo: () => Promise<Redo | undefined>;
 }
 
 export type Tx = Parameters<Parameters<LocalDatabase["writeTransaction"]>[0]>[0];
 export type RowSnapshot = Record<string, string | number | null> & { id: string };
-
-/** The synced tables a repository may put a row back into. A closed list: the name goes into SQL. */
-export type UndoTable = "tasks" | "projects" | "headings" | "areas" | "task_tags" | "checklist_items" | "recurrence_exceptions";
 
 /** A name as the undo toast quotes it: “Draft the proposal”. */
 export const quoted = (name: string | number | null | undefined): string => `“${String(name ?? "")}”`;
@@ -25,10 +72,19 @@ export const placeholders = (ids: readonly unknown[]): string => ids.map(() => "
  * task once it is done), so an undo a few seconds later can find nothing to
  * update. Presence is checked with a read: the local tables are views, and an
  * update through them reports zero rows affected either way. Run it inside
- * the caller's writeTransaction, so sync cannot take the row away between the
- * check and the write. For a soft delete, pass `deleted_at` among the columns.
+ * the caller's writeTransaction, so sync cannot take the row away between
+ * the check and the write. For a soft delete, pass `deleted_at` among the columns.
+ * `held` is what the server holds in those columns, when it is known (a redo knows it): a re-inserted row carries
+ * those values first, so the update after it changes every one of the columns and each reaches the server.
  */
-export async function restoreRow(tx: Pick<Tx, "execute" | "getOptional">, table: UndoTable, before: RowSnapshot, columns: readonly string[], at: string): Promise<void> {
+export async function restoreRow(
+  tx: Pick<Tx, "execute" | "getOptional">,
+  table: UndoTable,
+  before: RowSnapshot,
+  columns: readonly string[],
+  at: string,
+  held?: RowSnapshot | null,
+): Promise<void> {
   const id = before.id;
   const update = () => tx.execute(`update ${table} set ${columns.map((c) => `${c} = ?`).join(", ")}, updated_at = ? where id = ?`, [...columns.map((c) => before[c] ?? null), at, id]);
   const present = await tx.getOptional<{ id: string }>(`select id from ${table} where id = ?`, [id]);
@@ -41,8 +97,93 @@ export async function restoreRow(tx: Pick<Tx, "execute" | "getOptional">, table:
   // (PowerSync diffs old and new). A timestamp being restored to null (deleted_at, completed_at) is therefore
   // inserted as `at` and cleared by the update below, so the clearing is a change and reaches the server; it was
   // set there, and inserted as null here it never got unset (the e2e suite found a revived block still deleted).
-  for (const c of columns) if (row[c] == null && c.endsWith("_at")) row[c] = at;
+  for (const c of columns) {
+    if (held && held[c] != null) row[c] = held[c];
+    else if (row[c] == null && c.endsWith("_at")) row[c] = at;
+  }
   const cols = Object.keys(row);
   await tx.execute(`insert into ${table} (${cols.join(", ")}) values (${placeholders(cols)})`, cols.map((c) => row[c] ?? null));
   await update();
+}
+
+// ---- redo (SCREENS.md §24 "Cmd+Shift+Z", §12 "Undo · Redo"): one generic mechanism; no repository has a redo of its own
+
+/** One declared row in one state: its snapshot, or null when it was not on the device. */
+export interface RowState {
+  table: UndoTable;
+  id: string;
+  row: RowSnapshot | null;
+}
+
+/** Statements stay well under SQLite's bound-parameter limit however many tasks a batch touched. */
+const CHUNK = 500;
+
+/** The declared rows as they are now, whole. */
+export async function captureRows(db: Pick<LocalDatabase, "getAll">, rows: UndoRows): Promise<RowState[]> {
+  const out: RowState[] = [];
+  for (const [table, set] of Object.entries(rows) as [UndoTable, UndoRows[UndoTable]][]) {
+    if (!set) continue;
+    const byTask = "task_id" in set;
+    const ids = [...new Set(byTask ? set.task_id : (set as readonly string[]))];
+    const found: RowSnapshot[] = [];
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const part = ids.slice(i, i + CHUNK);
+      const got = await db.getAll<RowSnapshot>(`select * from ${table} where ${byTask ? "task_id" : "id"} in (${placeholders(part)})`, part);
+      if (Array.isArray(got)) found.push(...got);
+    }
+    if (byTask) {
+      for (const row of found) out.push({ table, id: row.id, row: { ...row } });
+      continue;
+    }
+    const byId = new Map(found.map((r) => [r.id, r]));
+    for (const id of ids) {
+      const row = byId.get(id);
+      out.push({ table, id, row: row ? { ...row } : null });
+    }
+  }
+  return out;
+}
+
+/**
+ * Makes a recorded write redoable. Its rows are read as the write left them the moment it is recorded (the write
+ * has just run, and sync leaves a row with changes still to upload where it is), again just before its undo runs
+ * (so a field another device changed meanwhile is what the redo keeps), and once more after it; the redo writes
+ * back the columns the undo changed, and an undo after the redo writes them back again (redo-apply.ts). A new action
+ * clears the redo stack (the undo provider), so a redo never lands on top of a later change.
+ */
+export function redoable(db: Pick<LocalDatabase, "getAll" | "writeTransaction">, entry: UndoRecord): RedoableEntry {
+  const done = captureRows(db, entry.rows);
+  done.catch(() => undefined);
+  return {
+    label: entry.label,
+    toast: entry.toast,
+    ...(entry.announce ? { announce: entry.announce } : {}),
+    undo: async () => {
+      const pre = await captureRows(db, entry.rows).catch(() => null);
+      await entry.undo();
+      let after: RowState[];
+      let undone: RowState[];
+      try {
+        [after, undone] = await Promise.all([done, captureRows(db, entry.rows)]);
+      } catch {
+        // Rows that cannot be read leave the change undone, and not redoable.
+        return undefined;
+      }
+      // The write half loads now, while the toast offers Redo, and never with a shell.
+      const apply = import("./redo-apply");
+      apply.catch(() => undefined);
+      return {
+        redo: async () => {
+          const { applyRows, beforeUndo } = await apply;
+          await applyRows(db, beforeUndo(pre, after), undone);
+          entry.settled?.("redone");
+        },
+        undo: async () => {
+          const { applyRows, beforeUndo } = await apply;
+          await applyRows(db, undone, beforeUndo(pre, after));
+          entry.settled?.("undone");
+        },
+      };
+    },
+  };
 }

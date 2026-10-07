@@ -84,6 +84,7 @@ const COMMAND_ICON: Record<string, IconName> = {
   "task.repeat": "routines",
   "task.do": "calendar",
   "app.undo": "carry",
+  "app.redo": "arrow-right",
   "app.search": "search",
   "app.connect-calendar": "calendar",
   "app.export": "arrow-down",

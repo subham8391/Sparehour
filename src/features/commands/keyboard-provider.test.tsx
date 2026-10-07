@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,6 +25,7 @@ import { QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { useListSelection, useSelection, SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
 import { listenForRowRequests } from "@/features/tasks/row-request";
+import { UndoProvider, useUndo } from "@/features/undo/undo-provider";
 import { KeyboardProvider, useCommands } from "./keyboard-provider";
 import { registerViewKeys } from "./view-keys";
 
@@ -326,5 +327,86 @@ describe("<KeyboardProvider>", () => {
     stop();
     await user.keyboard(".");
     expect(screen.getByText("open: t1")).toBeInTheDocument();
+  });
+});
+
+describe("<KeyboardProvider> Redo (SCREENS.md §24 “Cmd+Z · Cmd+Shift+Z”)", () => {
+  it("⇧Ctrl+Z and Ctrl+Y make the undone change again; inside a text field the browser keeps its own", async () => {
+    const again = { redo: vi.fn().mockResolvedValue(undefined), undo: vi.fn().mockResolvedValue(undefined) };
+    function Change() {
+      const { record } = useUndo();
+      return (
+        <button type="button" onClick={() => record({ label: "Changed “Draft”", toast: false, undo: async () => again })}>
+          Change
+        </button>
+      );
+    }
+    render(
+      <UndoProvider>
+        <QuickAddProvider>
+          <TaskDetailProvider>
+            <SelectionProvider>
+              <KeyboardProvider>
+                <Change />
+                <List />
+              </KeyboardProvider>
+            </SelectionProvider>
+          </TaskDetailProvider>
+        </QuickAddProvider>
+      </UndoProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    await user.keyboard("{Control>}z{/Control}");
+    await user.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
+    await waitFor(() => expect(again.redo).toHaveBeenCalledTimes(1));
+    await user.keyboard("{Control>}z{/Control}");
+    await waitFor(() => expect(again.undo).toHaveBeenCalledTimes(1));
+    await user.keyboard("{Control>}y{/Control}");
+    await waitFor(() => expect(again.redo).toHaveBeenCalledTimes(2));
+    await user.keyboard("{Control>}z{/Control}");
+    await waitFor(() => expect(again.undo).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("textbox", { name: "Other field" }));
+    await user.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
+    await user.keyboard("{Control>}y{/Control}");
+    expect(again.redo).toHaveBeenCalledTimes(2);
+  });
+
+  it("on a Mac ⇧⌘Z redoes and ⌘Y stays the browser's (History), unclaimed", async () => {
+    const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    try {
+      const again = { redo: vi.fn().mockResolvedValue(undefined), undo: vi.fn().mockResolvedValue(undefined) };
+      function Change() {
+        const { record } = useUndo();
+        return (
+          <button type="button" onClick={() => record({ label: "Changed “Draft”", toast: false, undo: async () => again })}>
+            Change
+          </button>
+        );
+      }
+      render(
+        <UndoProvider>
+          <QuickAddProvider>
+            <TaskDetailProvider>
+              <SelectionProvider>
+                <KeyboardProvider>
+                  <Change />
+                </KeyboardProvider>
+              </SelectionProvider>
+            </TaskDetailProvider>
+          </QuickAddProvider>
+        </UndoProvider>,
+      );
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Change" }));
+      await user.keyboard("{Meta>}z{/Meta}");
+      const cmdY = new KeyboardEvent("keydown", { key: "y", metaKey: true, bubbles: true, cancelable: true });
+      window.dispatchEvent(cmdY);
+      expect(cmdY.defaultPrevented).toBe(false);
+      await user.keyboard("{Meta>}{Shift>}z{/Shift}{/Meta}");
+      await waitFor(() => expect(again.redo).toHaveBeenCalledTimes(1));
+    } finally {
+      platform.mockRestore();
+    }
   });
 });

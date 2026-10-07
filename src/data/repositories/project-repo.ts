@@ -76,6 +76,7 @@ export class ProjectRepo {
     this.history.record({
       label: label.replace("{name}", quoted(before.name)),
       toast,
+      rows: { projects: [before.id] },
       undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "projects", before, columns, new Date().toISOString())),
     });
   }

@@ -45,6 +45,8 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
   const [added, setAdded] = useState<Added[]>([]);
   /** How many lines have been handed to the save so far: the next one's place, counted before the list redraws. */
   const committed = useRef(0);
+  /** Every draft saved here by its task's id, so a redone paste can put its rows back above the box. */
+  const drafts = useRef(new Map<string, TaskDraft>());
   const placeholder = useCyclingPlaceholder();
   const flush = useRef<QuickAddFlush>(null);
   const composer = useRef<HTMLDivElement>(null);
@@ -62,6 +64,7 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
         projectId = existing?.id ?? (await projects.create(s.createProjectName, { spaceId: sid }));
       }
       const id = await tasks.create(draft, { spaceId: sid, projectId });
+      drafts.current.set(id, draft);
       setAdded((list) => [...list, { id, draft }]);
       return id;
     } catch (e) {
@@ -72,14 +75,29 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
 
   // A paste is one undo for all its tasks, here and on the stack, run once whichever comes first (PRODUCT_SPEC.md §5.1 rule 6).
   const onPasted = (ids: readonly string[]) => {
+    // Whether the paste's rows are here: the composer's Undo and the stack's can both take them back, and each
+    // counts them out once.
+    let here = true;
+    const leave = () => {
+      if (!here) return;
+      here = false;
+      committed.current -= ids.length;
+      setAdded((list) => list.filter((a) => !ids.includes(a.id)));
+    };
     let taken: Promise<void> | null = null;
-    const takeBack = () =>
-      (taken ??= tasks.removeCreated(ids).then(() => {
-        committed.current -= ids.length;
-        setAdded((list) => list.filter((a) => !ids.includes(a.id)));
-      }));
+    const takeBack = () => (taken ??= tasks.removeCreated(ids).then(leave));
+    // A redo makes the tasks again (the rows and their tag links); the rows above the box follow it either way, and
+    // the composer's Undo takes them back again rather than answer with the earlier take-back.
+    const settled = (now: "redone" | "undone") => {
+      if (now === "undone") return leave();
+      if (here) return;
+      here = true;
+      taken = null;
+      committed.current += ids.length;
+      setAdded((list) => [...list, ...ids.flatMap((id) => (list.some((a) => a.id === id) ? [] : [{ id, draft: drafts.current.get(id) }])).filter((a): a is Added => a.draft !== undefined)]);
+    };
     // The composer's own notice carries the Undo; a toast on a phone would sit over the step's buttons.
-    undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: false, undo: takeBack });
+    undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: false, rows: { tasks: ids, task_tags: { task_id: ids } }, undo: takeBack, settled });
     return takeBack;
   };
 

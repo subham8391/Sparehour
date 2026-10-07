@@ -55,6 +55,7 @@ export class BlockRepo {
       // A block of your own (no task) is "a block" until it is named.
       label: block.taskId === null ? "Added a block" : block.title ? `Blocked “${block.title}”` : "Blocked time",
       toast: true,
+      rows: { time_blocks: [id] },
       announce: `${block.title ? `Blocked “${block.title}”` : "Blocked time"} ${await this.span(block.startAt, block.endAt)}`.trim(),
       undo: () => this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [new Date().toISOString(), new Date().toISOString(), id]).then(() => undefined),
     });
@@ -71,6 +72,7 @@ export class BlockRepo {
       this.history?.record({
         label: `Moved ${what}`,
         toast: false,
+        rows: { time_blocks: [id] },
         announce: `${resized ? "Resized" : "Moved"} ${what} to ${(await this.span(startAt, endAt)) || "its new time"}`,
         undo: () => this.db.execute(`update time_blocks set start_at = ?, end_at = ?, updated_at = ? where id = ?`, [before.start_at, before.end_at, new Date().toISOString(), id]).then(() => undefined),
       });
@@ -118,6 +120,7 @@ export class BlockRepo {
     this.history?.record({
       label: `Planned ${n} ${n === 1 ? "block" : "blocks"}`,
       toast: true,
+      rows: { time_blocks: [...ids, ...replaced.map((r) => r.id)] },
       undo: async () => {
         const at = new Date().toISOString();
         await this.db.writeTransaction(async (tx) => {
@@ -144,6 +147,7 @@ export class BlockRepo {
     this.history?.record({
       label: locked ? "Locked the block" : "Unlocked the block",
       toast: false,
+      rows: { time_blocks: [id] },
       undo: () => this.db.execute(`update time_blocks set locked = ?, updated_at = ? where id = ?`, [locked ? 0 : 1, new Date().toISOString(), id]).then(() => undefined),
     });
   }
@@ -161,6 +165,7 @@ export class BlockRepo {
       this.history?.record({
         label: next ? `Renamed the block to “${next}”` : "Cleared the block’s name",
         toast: true,
+        rows: { time_blocks: [id] },
         undo: () => this.db.execute(`update time_blocks set title = ?, updated_at = ? where id = ?`, [before.title ?? null, new Date().toISOString(), id]).then(() => undefined),
       });
     }
@@ -186,6 +191,7 @@ export class BlockRepo {
     this.history?.record({
       label: from.title ? `Copied “${from.title}”` : "Copied the block",
       toast: true,
+      rows: { time_blocks: [copy] },
       undo: () => this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [new Date().toISOString(), new Date().toISOString(), copy]).then(() => undefined),
     });
     return copy;
@@ -200,6 +206,7 @@ export class BlockRepo {
       this.history?.record({
         label: `Removed the block${before.title ? ` for “${before.title}”` : ""}`,
         toast: true,
+        rows: { time_blocks: [id] },
         undo: () => this.db.writeTransaction((tx) => reviveBlocks(tx, [before], new Date().toISOString())),
       });
     }

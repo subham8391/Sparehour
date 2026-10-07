@@ -33,6 +33,7 @@ export class ChecklistRepo {
     this.history?.record({
       label: `Added step ${quoted(clean)}`,
       toast: false,
+      rows: { checklist_items: [id] },
       undo: async () => {
         const at = new Date().toISOString();
         await this.db.execute(`update checklist_items set deleted_at = ?, updated_at = ? where id = ?`, [at, at, id]);
@@ -80,6 +81,7 @@ export class ChecklistRepo {
     this.history.record({
       label: `${verb} ${quoted(before.title)}`,
       toast,
+      rows: { checklist_items: [before.id] },
       undo: () => this.db.writeTransaction((tx) => restoreRow(tx, "checklist_items", before, columns, new Date().toISOString())),
     });
   }
