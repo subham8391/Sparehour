@@ -22,6 +22,7 @@ const capacity: Capacity = {
   eveningMin: 0,
   outsideHoursMin: 0,
   unansweredMin: 0,
+  unanswered: [],
   allDayNotes: [],
   windows: [{ start: 540, end: 1080 }],
   busy: [{ start: 600, end: 660 }],

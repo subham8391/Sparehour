@@ -27,10 +27,12 @@ export const BLOCKS_AROUND_SQL = `
   where deleted_at is null
     and substr(start_at, 1, 10) between ? and ?`;
 
+/** Timed events starting in the window, and all-day ones (a date, no start_at) overlapping it; params [from, to]. */
 export const EVENTS_AROUND_SQL = `
   select * from calendar_events
   where deleted_at is null
-    and substr(start_at, 1, 10) between ? and ?`;
+    and (substr(start_at, 1, 10) between ?1 and ?2
+      or (start_at is null and start_date <= ?2 and coalesce(end_date, start_date) >= ?1))`;
 
 export const CALENDARS_SQL = `select id, read from calendars where deleted_at is null`;
 

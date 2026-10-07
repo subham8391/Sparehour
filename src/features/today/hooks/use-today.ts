@@ -28,6 +28,10 @@ export interface TimelineBlock {
   source?: string | null;
   /** Its task is done, or no longer open (parked, dropped): the block is done too (PRODUCT_SPEC.md §10.2). A block without a task never is. */
   done?: boolean;
+  /** time_blocks.push_state, the server's word on Google: 'pending' and 'failed' are still to be written. */
+  pushState?: string | null;
+  /** The mark the timeline draws (SCREENS.md §2.7, §21): "will sync" while a change waits, "not synced" while blocking is off. */
+  sync?: "will" | "off" | null;
 }
 
 /**
@@ -70,6 +74,7 @@ export function timelineBlocks(rows: readonly TimeBlockRow[], tasks: ReadonlyMap
         locked: r.locked === 1,
         source: r.source ?? null,
         done: isClosed(task),
+        pushState: r.push_state ?? null,
       };
     })
     .filter((b): b is TimelineBlock => b !== null)
@@ -96,6 +101,22 @@ export interface TimelineMeeting {
   end: number;
   /** "Busy" when the calendar is private or the event has no summary. */
   title: string;
+  /** An invitation not yet answered: still busy, drawn hatched (SYSTEM_DESIGN.md §5.4). */
+  unanswered?: boolean;
+}
+
+/**
+ * Blocks whose event Google deleted while their task was open (time_blocks.notice, server-owned): soft-deleted, so
+ * no other query sees them, and streamed until the task row has said "Block removed in Google Calendar" once.
+ */
+export const REMOVED_BLOCKS_SQL = `select id, task_id from time_blocks where deleted_at is not null and notice = 'removed_in_google' and task_id is not null`;
+
+/** Whether new blocks can reach Google, and why blocking is paused when it cannot (PRODUCT_SPEC.md §10.3 rule 5). */
+export interface CalendarWrites {
+  /** A write calendar is set and its account may write: a block's pending push_state means it will sync. */
+  on: boolean;
+  /** Blocking is paused, and this says why; null while blocking works. */
+  off: string | null;
 }
 
 export interface TodayModel {
@@ -122,6 +143,14 @@ export interface TodayModel {
   calendarConnected: boolean;
   /** The one line above the ribbon when an account needs attention (SCREENS.md §2.7). */
   calendarIssue: CalendarIssue | null;
+  /** Whether blocks reach Google, and whether blocking is paused (access revoked, write calendar gone). */
+  writes: CalendarWrites;
+  /** Today's all-day events, by title, for the line under the date (SYSTEM_DESIGN.md §5.4: flagged, never busy). */
+  allDay: string[];
+  /** Each task's blocks that Google removed, for the row's one quiet note (PRODUCT_SPEC.md §10.3 rule 3). */
+  removedBlocks: ReadonlyMap<string, readonly string[]>;
+  /** A calendar is connected but this window of its events has not arrived yet (SCREENS.md §21 Loading). */
+  calendarLoading: boolean;
 }
 
 export function useToday(now: Temporal.Instant): TodayModel {
@@ -144,6 +173,11 @@ export function useToday(now: Temporal.Instant): TodayModel {
   });
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
+  const { data: removedRows } = useQuery<{ id: string; task_id: string }>(REMOVED_BLOCKS_SQL);
+  // Has this window of the calendar arrived at least once? The same subscription, held until it has synced.
+  const { isLoading: calendarWaiting } = useQuery<{ n: number }>(CALENDAR_ARRIVED_SQL, [], {
+    streams: [{ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24, waitForStream: true }],
+  });
   // The same subscription the closed day's summary takes, so a task completed here stays on the device to say its block is done.
   const months = useMemo(() => monthsBack(localDate(todayIso), 1), [todayIso]);
   const { data: blockTaskRows } = useQuery<{ id: string; title: string | null; state: string | null }>(BLOCK_TASKS_SQL, [from, to], {
@@ -200,9 +234,13 @@ export function useToday(now: Temporal.Instant): TodayModel {
           start: start.hour * 60 + start.minute,
           end: end.toPlainDate().equals(today) ? end.hour * 60 + end.minute : 24 * 60,
           title: hidden || !e.summary ? "Busy" : e.summary,
+          unanswered: e.self_response === "needsAction",
         };
       })
       .filter((m): m is TimelineMeeting => m !== null);
+    const removedBlocks = new Map<string, string[]>();
+    for (const r of removedRows ?? []) removedBlocks.set(r.task_id, [...(removedBlocks.get(r.task_id) ?? []), r.id]);
+    const connected = (calendarRows ?? []).length > 0;
 
     return {
       ready: !isLoading && settings !== null,
@@ -220,22 +258,74 @@ export function useToday(now: Temporal.Instant): TodayModel {
       meetings,
       repo,
       // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: one line when the calendar has a problem.
-      calendarConnected: (calendarRows ?? []).length > 0,
-      calendarIssue: calendarIssueFrom(connectionRows ?? []),
+      calendarConnected: connected,
+      calendarIssue: calendarIssueFrom(connectionRows ?? [], calendarRows ?? []),
+      writes: calendarWrites(connectionRows ?? [], calendarRows ?? []),
+      allDay: allDayTitles(eventRows ?? [], today, readByCalendar, privateIds),
+      removedBlocks,
+      calendarLoading: connected && calendarWaiting,
     };
-  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
+  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, removedRows, calendarWaiting, workRows, settings, today, now, isLoading, repo]);
 }
+
+/** A cheap row for the calendar window's subscription to wait on; its loading state is "not arrived yet". */
+const CALENDAR_ARRIVED_SQL = `select 1 as n`;
 
 export interface CalendarIssue {
-  kind: "reauth" | "error";
+  /** reauth: access lapsed or revoked; write_gone: the calendar blocks went to left Google; error: a sync failed. */
+  kind: "reauth" | "write_gone" | "error";
   message: string;
+  /** The account, and the moment the issue began, so a dismissal for the session is of this issue only. */
+  key: string;
+  /** Blocking is paused until it is fixed (PRODUCT_SPEC.md §10.3 rule 5); an unreachable calendar never pauses it. */
+  blocking: boolean;
 }
 
-/** The first account that needs attention: lapsed access first, then a sync that failed (its events are still the last good ones). */
-export function calendarIssueFrom(rows: readonly CalendarConnectionRow[]): CalendarIssue | null {
-  const reauth = rows.find((r) => r.status === "needs_reauth" || r.status === "revoked");
-  if (reauth) return { kind: "reauth", message: `Google Calendar${reauth.email ? ` (${reauth.email})` : ""} needs reconnecting.` };
+type CalendarLink = Pick<CalendarFullRow, "calendar_account_id" | "write_target">;
+
+/** The account behind the write calendar, when there is one. */
+const writeAccount = (calendars: readonly CalendarLink[]) => calendars.find((c) => c.write_target === 1)?.calendar_account_id ?? null;
+const lapsed = (r: CalendarConnectionRow) => r.status === "needs_reauth" || r.status === "revoked";
+
+/**
+ * The first thing about the calendar that needs attention (SCREENS.md §2.7, §21): lapsed access first, then a write
+ * calendar that left Google, then a sync that failed (its events are still the last good ones). Lapsed access
+ * pauses blocking when it is the write calendar's account; a lost write calendar always does.
+ */
+export function calendarIssueFrom(rows: readonly CalendarConnectionRow[], calendars: readonly CalendarLink[] = []): CalendarIssue | null {
+  const writer = writeAccount(calendars);
+  const reauth = rows.find((r) => lapsed(r) && r.id === writer) ?? rows.find(lapsed);
+  if (reauth) return { kind: "reauth", message: `Google Calendar${reauth.email ? ` (${reauth.email})` : ""} needs reconnecting.`, key: `reauth:${reauth.id}`, blocking: reauth.id === writer };
+  const gone = writer === null ? rows.find((r) => r.write_lost_at) : undefined;
+  if (gone) return { kind: "write_gone", message: "The calendar your blocks went to is no longer in Google Calendar.", key: `gone:${gone.id}:${gone.write_lost_at}`, blocking: true };
   const failed = rows.find((r) => r.last_error);
-  if (failed) return { kind: "error", message: failed.last_synced_at ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(failed.last_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Couldn't reach Google Calendar yet." };
+  if (failed)
+    return {
+      kind: "error",
+      message: failed.last_synced_at ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(failed.last_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Couldn't reach Google Calendar yet.",
+      key: `error:${failed.id}:${failed.last_synced_at ?? ""}`,
+      blocking: false,
+    };
   return null;
+}
+
+/** Whether blocks reach Google now, and the plain-words reason blocking is paused when the issue pauses it. */
+export function calendarWrites(rows: readonly CalendarConnectionRow[], calendars: readonly CalendarLink[]): CalendarWrites {
+  const issue = calendarIssueFrom(rows, calendars);
+  const writer = writeAccount(calendars);
+  const account = writer ? rows.find((r) => r.id === writer) : undefined;
+  return {
+    on: Boolean(account && account.can_write === 1 && !lapsed(account)),
+    off: issue?.blocking ? (issue.kind === "reauth" ? "Blocking is paused until Google Calendar is reconnected. Your blocks stay here, not synced." : "Blocking is paused until you choose where blocks go. Your blocks stay here, not synced.") : null,
+  };
+}
+
+/** Today's all-day events by title (private calendars say "Busy"); out-of-office days have their own line on the ribbon. */
+export function allDayTitles(rows: readonly CalendarEventRow[], today: LocalDate, readByCalendar: ReadonlyMap<string, boolean>, privateIds: ReadonlySet<string>): string[] {
+  const day = today.toString();
+  return rows
+    .filter((e) => e.all_day && e.start_date && e.start_date <= day && day < (e.end_date ?? localDate(e.start_date).add({ days: 1 }).toString()))
+    .filter((e) => e.status !== "cancelled" && e.self_response !== "declined" && e.event_type !== "outOfOffice")
+    .filter((e) => !e.calendar_id || readByCalendar.get(e.calendar_id) !== false)
+    .map((e) => (e.calendar_id && privateIds.has(e.calendar_id)) || !e.summary ? "Busy" : e.summary);
 }
