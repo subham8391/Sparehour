@@ -26,7 +26,8 @@ test.afterAll(async () => {
 test("] shows tomorrow — its tasks and timeline, blockable — the address keeps it, and back to today returns", async ({ page }) => {
   const tomorrow = isoPlus(me.today, 1);
   await openApp(page, "/today");
-  const title = uniqueTitle("tomorrow");
+  // No day word in the title itself: quick-add would read it as the day and take it out of the title.
+  const title = uniqueTitle("stepped ahead");
   await quickAdd(page, `${title} tomorrow ~30m`);
   const row = page.getByRole("row").filter({ hasText: title });
   await expect(row).toHaveCount(0);
