@@ -1,17 +1,59 @@
 "use client";
-// The context pane's edge (SCREENS.md §1 "width is draggable and remembered per view"): a vertical separator laid
-// between the main column and the pane, as a flex item of no width of its own. A mouse drags it and a double-click
-// puts the pane's default back; the keyboard steps it with the arrows, Home and End (Enter for the default); on a
-// touch screen it is a 44 px grip, and a tap steps the pane through four widths. The width is `--pane-w` (panes.ts).
+// The context pane's edge (SCREENS.md §1 "width is draggable and remembered per view"), an island the panes load:
+// a vertical separator laid between the main column and the pane, as a flex item of no width of its own. A mouse
+// drags it and a double-click puts the pane's default back; the keyboard steps it with the arrows, Home and End
+// (Enter for the default); on a touch screen it is a 44 px grip, and a tap steps the pane through four widths.
+//
+// The widths are remembered per view in one stored map, drawn as `[data-view="today"] { --pane-w: 420px }` rules
+// in one <style> (the shell's frame carries data-view): the theme bootstrap writes it before the first paint, and
+// this island rewrites it on every change, so a pane never opens at the wrong width.
 import { useState, type KeyboardEvent, type PointerEvent } from "react";
 import { cx } from "@/ui/cx";
-import { PANE_MAX, PANE_MIN, clampPane, paneWidth, setPaneWidth } from "./panes";
-
+import { PANES_KEY, PANE_MAX, PANE_MIN } from "./panes";
 const TAPS = [PANE_MIN, 400, 480, PANE_MAX];
 
+export const clampPane = (w: number): number => Math.round(Math.min(PANE_MAX, Math.max(PANE_MIN, w)));
+
+/** Every view's stored width. */
+export function readPaneWidths(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(PANES_KEY) ?? "{}") ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** The CSS for a map of widths; the theme bootstrap writes the same rules from storage before the first paint. */
+export const paneCss = (widths: Record<string, number>): string =>
+  Object.entries(widths)
+    .filter(([view]) => /^[a-z-]+$/.test(view))
+    .map(([view, w]) => `[data-view="${view}"]{--pane-w:${clampPane(+w)}px}`)
+    .join("");
+
+/** Sets one view's width (null: back to the pane's default) and redraws the rules; `save` remembers it. */
+export function setPaneWidth(view: string, w: number | null, save = true): void {
+  const all = readPaneWidths();
+  if (w === null) delete all[view];
+  else all[view] = clampPane(w);
+  let style = document.getElementById("pane-w");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "pane-w";
+    document.head.appendChild(style);
+  }
+  style.textContent = paneCss(all);
+  if (!save) return;
+  try {
+    localStorage.setItem(PANES_KEY, JSON.stringify(all));
+  } catch {
+    // storage unavailable: the width holds until the next reload
+  }
+}
+
 export function PaneResizer({ view, label, fallback, className }: { view: string; label: string; fallback: number; className: string }) {
-  const [w, setW] = useState(() => paneWidth(view) ?? fallback);
-  const set = (next: number | null, save = true) => {
+  const stored = () => clampPane(readPaneWidths()[view] ?? fallback);
+  const [w, setW] = useState(stored);
+  const set = (next: number | null, save?: boolean) => {
     setPaneWidth(view, next, save);
     setW(next === null ? fallback : clampPane(next));
   };
@@ -19,13 +61,14 @@ export function PaneResizer({ view, label, fallback, className }: { view: string
     const step = e.shiftKey ? 64 : 16;
     const to = ({ ArrowLeft: w + step, ArrowRight: w - step, Home: PANE_MIN, End: PANE_MAX, Enter: null } as Record<string, number | null>)[e.key];
     if (to === undefined) return;
+    // Taken here, so the list's arrow keys (J/K, Upcoming's days) leave it alone.
     e.preventDefault();
     set(to);
   };
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const el = e.currentTarget;
-    const from = { x: e.clientX, w: paneWidth(view) ?? w, last: 0 };
+    const from = { x: e.clientX, w: stored(), last: 0 };
     el.setPointerCapture?.(e.pointerId);
     const move = (m: globalThis.PointerEvent) => {
       if (!from.last && Math.abs(m.clientX - from.x) < 4) return;
@@ -38,7 +81,7 @@ export function PaneResizer({ view, label, fallback, className }: { view: string
       el.removeEventListener("pointercancel", up);
       // A drag saves where it let go; a tap on a touch screen steps to the next width.
       if (from.last) set(from.last);
-      else if (e.pointerType !== "mouse") set(TAPS.find((t) => t > w + 8) ?? PANE_MIN);
+      else if (e.pointerType !== "mouse") set(TAPS.find((t) => t > from.w + 8) ?? PANE_MIN);
     };
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerup", up);
@@ -55,6 +98,7 @@ export function PaneResizer({ view, label, fallback, className }: { view: string
         aria-valuenow={w}
         tabIndex={0}
         title={`${label}: drag, or use the arrow keys`}
+        onFocus={() => setW(stored())}
         onKeyDown={keys}
         onPointerDown={down}
         onDoubleClick={() => set(null)}

@@ -27,7 +27,6 @@ import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualActions, RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
 import { useHideQuickAddFab } from "@/features/shell/fab-visibility";
-import { PaneResizer } from "@/features/shell/pane-resizer";
 import { atLeast } from "@/features/shell/panes";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { ViewHeader } from "@/features/shell/view-header";
@@ -73,6 +72,8 @@ const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(),
 // mounts, alongside the local database opening, rather than on idle.
 const loadDayPane = () => import("@/features/today/day-pane");
 const DayPane = dynamic(() => loadDayPane().then((m) => m.DayPane), { ssr: false });
+// The day pane's edge from the wide band (SCREENS.md §1 "width is draggable"), the same island the task pane uses.
+const PaneResizer = dynamic(() => import("@/features/shell/pane-resizer").then((m) => m.PaneResizer), { ssr: false });
 // The closed day's summary, All done and the empty day (one of them at most, and only on some days), and a long
 // carried pile's folded line and its whole-pile moves.
 const loadDayStates = () => import("@/features/today/day-states");

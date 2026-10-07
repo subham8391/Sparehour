@@ -1,18 +1,18 @@
-// The shell's panes as data attributes and CSS variables (SCREENS.md §1 "Sidebar", "Context pane"): Cmd+\ folds the
-// full sidebar to the icon rail from the medium band, remembered per device (`data-sidebar` on <html>, stamped
-// before the first paint by the theme bootstrap; globals.css swaps the two navs), and the context pane's width is
-// `--pane-w` on <html>, remembered per view. No React state: the attribute and the variable are the state.
+// The shell's panes as data attributes (SCREENS.md §1 "Sidebar"): Cmd+\ folds the full sidebar to the icon rail
+// from the medium band, remembered per device as `data-sidebar` on <html>, which the theme bootstrap stamps before
+// the first paint and globals.css reads to swap the two navs. No React state: the attribute is the state. The
+// context pane's width per view lives with its handle (pane-resizer.tsx, an island).
 
 export const SIDEBAR_KEY = "sparehour.sidebar";
+/** The context pane's widths per view, and their range (pane-resizer.tsx; the theme bootstrap draws them first). */
 export const PANES_KEY = "sparehour.panes";
-/** The context pane's range (detail from 900 px, Today's timeline from 1180 px). */
 export const PANE_MIN = 320;
 export const PANE_MAX = 560;
 
 /** Whether the viewport is at least `px` wide: false where it cannot be measured (tests, the server). */
-export const atLeast = (px: number): boolean => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(`(min-width: ${px}px)`).matches;
+export const atLeast = (px: number): boolean => typeof matchMedia === "function" && matchMedia(`(min-width: ${px}px)`).matches;
 
-/** The commands' reason below the band where a pane exists (the palette lists them off, with it). */
+/** A command's reason below the band where its pane exists (the palette lists it off, with this). */
 export const needsWidth = (px: number) => (): string | null => (atLeast(px) ? null : "on a wider screen");
 
 /**
@@ -22,6 +22,7 @@ export const needsWidth = (px: number) => (): string | null => (atLeast(px) ? nu
 export function toggleSidebar(): void {
   const root = document.documentElement;
   const rail = root.dataset.sidebar !== "rail";
+  const from = document.activeElement?.closest("nav[data-variant]");
   if (rail) root.dataset.sidebar = "rail";
   else delete root.dataset.sidebar;
   try {
@@ -30,42 +31,5 @@ export function toggleSidebar(): void {
   } catch {
     // storage unavailable (a private window): it holds for this visit
   }
-  if (document.activeElement?.closest(`nav[data-variant="${rail ? "full" : "rail"}"]`)) {
-    document.querySelector<HTMLElement>(`nav[data-variant="${rail ? "rail" : "full"}"] [data-sidebar-toggle]`)?.focus();
-  }
-}
-
-/** The view a width belongs to: a path's first segment ("today", "inbox", "project"). */
-export const paneView = (pathname: string): string => pathname.split("/")[1] || "today";
-
-function readWidths(): Record<string, number> {
-  try {
-    return JSON.parse(localStorage.getItem(PANES_KEY) ?? "{}") ?? {};
-  } catch {
-    return {};
-  }
-}
-
-export const clampPane = (w: number): number => Math.round(Math.min(PANE_MAX, Math.max(PANE_MIN, w)));
-
-/** The view's stored width, or null for the pane's own default. */
-export function paneWidth(view: string): number | null {
-  const w = readWidths()[view];
-  return typeof w === "number" && Number.isFinite(w) ? clampPane(w) : null;
-}
-
-/** Points `--pane-w` at a width (null clears it, so each pane falls back to its own default); `save` remembers it for the view. */
-export function setPaneWidth(view: string, w: number | null, save = false): void {
-  const root = document.documentElement;
-  if (w === null) root.style.removeProperty("--pane-w");
-  else root.style.setProperty("--pane-w", `${clampPane(w)}px`);
-  if (!save) return;
-  const all = readWidths();
-  if (w === null) delete all[view];
-  else all[view] = clampPane(w);
-  try {
-    localStorage.setItem(PANES_KEY, JSON.stringify(all));
-  } catch {
-    // storage unavailable: the width holds until the next reload
-  }
+  if (from) document.querySelector<HTMLElement>(`nav[data-variant="${rail ? "rail" : "full"}"] [data-sidebar-toggle]`)?.focus();
 }

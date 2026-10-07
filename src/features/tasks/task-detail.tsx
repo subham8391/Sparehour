@@ -4,8 +4,6 @@
 // wired to the local database, is task-detail-connected.tsx.
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { PaneResizer } from "@/features/shell/pane-resizer";
-import { paneView } from "@/features/shell/panes";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { cx } from "@/ui/cx";
 import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet-parts";
@@ -16,6 +14,9 @@ import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet-parts";
 // first paint, mounted when a task is opened.
 const loadPanel = () => import("./task-detail-connected");
 const TaskDetail = dynamic(() => loadPanel().then((m) => m.TaskDetail), { ssr: false, loading: Opening });
+// The pane's edge, from the medium band (SCREENS.md §1 "width is draggable"): an island like the panel itself.
+const loadResizer = () => import("@/features/shell/pane-resizer");
+const PaneResizer = dynamic(() => loadResizer().then((m) => m.PaneResizer), { ssr: false });
 
 export function Opening() {
   return <div className="p-5 text-body text-ink-3">Opening…</div>;
@@ -69,7 +70,7 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
     [selectedId, last, close, open],
   );
   const api = useMemo(() => ({ selectedId, field, open, close, toggle }), [selectedId, field, open, close, toggle]);
-  useEffect(() => preloadOnIdle(loadPanel), []);
+  useEffect(() => preloadOnIdle(() => Promise.all([loadPanel(), loadResizer()])), []);
   return <TaskDetailContext.Provider value={api}>{children}</TaskDetailContext.Provider>;
 }
 
@@ -92,7 +93,7 @@ export function TaskDetailPane({ pathname }: { pathname: string }) {
   }, [selectedId, close]);
 
   if (!selectedId) return null;
-  return <DetailSurface id={selectedId} field={field} onClose={close} view={paneView(pathname)} />;
+  return <DetailSurface id={selectedId} field={field} onClose={close} view={pathname.split("/")[1]} />;
 }
 
 const OVERLAY_QUERY = "(max-width: 47.9375rem)";
