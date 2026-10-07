@@ -21,4 +21,4 @@ export function WelcomeFrame({ title, lead, children, footer }: { title: string;
 }
 
 /** With `size="sheet"` (48 px, full width on the phone): the desktop size from `sm`. */
-export const FOOTER_BUTTON = "sm:h-9 sm:w-auto sm:text-body";
+export const FOOTER_BUTTON = "sm:h-9 sm:w-auto sm:text-body touch:h-11";

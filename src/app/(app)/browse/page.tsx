@@ -33,7 +33,7 @@ const ROW = "flex min-h-11 items-center gap-3 px-4 text-body-lg text-ink transit
 const CHEVRON = <Icon name="chevron-right" size={16} className="shrink-0 text-ink-3" />;
 const SPACE_SQL = `select personal_space_id from users limit 1`;
 /** A row's ⋯: always shown (nothing is hover-only), 44 px on the phone. */
-const MORE = "mr-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink focus-visible:-outline-offset-2 sm:size-9";
+const MORE = "mr-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink focus-visible:-outline-offset-2 sm:size-9 touch:size-11";
 
 const OrganiseSheet = dynamic(() => import("@/features/projects/organise-sheet").then((m) => m.OrganiseSheet), { ssr: false });
 

@@ -442,7 +442,7 @@ function EstimateChip({ task, defaultEstimateMin, onEstimate, request }: { task:
       text={label}
       className={cx(
         chipClass({ tone: task.estimateMin ? "neutral" : "guess", size: "auto" }),
-        "relative z-1 cursor-pointer hover:border-line-strong max-sm:h-8",
+        "relative z-1 cursor-pointer hover:border-line-strong max-sm:h-8 hit-touch",
         // 32 px drawn, 44 px to the finger on a phone (DESIGN_SYSTEM.md §4a).
         "max-sm:before:absolute max-sm:before:inset-x-0 max-sm:before:-inset-y-1.5 max-sm:before:content-['']",
       )}

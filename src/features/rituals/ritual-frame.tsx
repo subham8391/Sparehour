@@ -56,7 +56,7 @@ function StepStrip({ labels, index, onStep }: RitualSteps) {
             aria-label={`Step ${i + 1}: ${label}`}
             aria-current={i === index ? "step" : undefined}
             title={label}
-            className="flex size-11 items-center justify-center rounded-lg transition-colors dur-fast hover:bg-hover sm:size-8"
+            className="flex size-11 items-center justify-center rounded-lg transition-colors dur-fast hover:bg-hover sm:size-8 touch:size-11"
           >
             <span
               className={cx(
@@ -85,13 +85,13 @@ export function RitualFooter({ onBack, canGoBack, primary }: { onBack: () => voi
     // step instead, so a short step does not leave a band of empty paper above its own rule.
     <footer className="sticky bottom-0 z-20 mt-auto flex items-center gap-3 border-t border-line bg-paper/95 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:mt-6 sm:justify-between sm:pb-4">
       {canGoBack && (
-        <Button variant="secondary" size="sheet" onClick={onBack} className="max-w-24 sm:h-9 sm:w-auto sm:max-w-none sm:text-body">
+        <Button variant="secondary" size="sheet" onClick={onBack} className="max-w-24 sm:h-9 sm:w-auto sm:max-w-none sm:text-body touch:h-11">
           <Icon name="arrow-left" size={16} />
           Back
         </Button>
       )}
       {/* On the phone the primary fills whatever Back leaves; from `sm` it keeps the right edge either way. */}
-      <Button variant="primary" size="sheet" onClick={primary.onClick} className={cx("flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body", !canGoBack && "sm:ml-auto")}>
+      <Button variant="primary" size="sheet" onClick={primary.onClick} className={cx("flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body touch:h-11", !canGoBack && "sm:ml-auto")}>
         {primary.label}
       </Button>
     </footer>

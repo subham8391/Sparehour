@@ -735,7 +735,7 @@ function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; all
           // A tag is a neutral chip (green and blue mean time and projects); the remove target keeps 44 px on a phone without stretching the chip.
           <span key={t.id} className="inline-flex h-7 items-center gap-0.5 rounded-sm bg-surface-2 pr-0.5 pl-2 text-body-sm font-medium text-ink-2">
             @{t.name}
-            <button type="button" onClick={() => onRemove?.(t.id)} aria-label={`Remove tag ${t.name}`} className="-my-2 flex size-11 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:text-ink sm:my-0 sm:size-6">
+            <button type="button" onClick={() => onRemove?.(t.id)} aria-label={`Remove tag ${t.name}`} className="-my-2 flex size-11 items-center justify-center rounded-sm text-ink-3 transition-colors dur-fast hover:text-ink sm:my-0 sm:size-6 touch:size-11">
               <Icon name="close" size={11} strokeWidth={2} />
             </button>
           </span>
@@ -753,7 +753,7 @@ function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; all
             }
           }}
           onBlur={add}
-          className={cx(BARE, "h-11 min-w-24 flex-1 text-body text-ink sm:h-9")}
+          className={cx(BARE, "h-11 min-w-24 flex-1 text-body text-ink sm:h-9 touch:h-11")}
         />
         <datalist id={listId}>
           {allTags

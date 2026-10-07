@@ -107,7 +107,7 @@ export function EmptyDay(p: PullInProps) {
 export function CarriedFolded({ count, onOpen }: { count: number; onOpen: () => void }) {
   return (
     <section className="flex flex-col gap-2">
-      <button type="button" aria-expanded={false} onClick={onOpen} className={cx(EYEBROW, "-mx-2 flex min-h-11 items-center gap-2 rounded-sm px-2 text-left hover:bg-hover sm:min-h-7")}>
+      <button type="button" aria-expanded={false} onClick={onOpen} className={cx(EYEBROW, "-mx-2 flex min-h-11 items-center gap-2 rounded-sm px-2 text-left hover:bg-hover sm:min-h-7 touch:min-h-11")}>
         Carried over
         <span className="font-medium normal-case tracking-normal num">
           <b className="font-semibold text-ink-2">{count}</b>

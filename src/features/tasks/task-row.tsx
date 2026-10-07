@@ -402,7 +402,7 @@ export function TaskRow({
         <div
           className={cx(
             "relative flex min-h-14 items-center gap-x-3 py-2 sm:grid sm:min-h-11 sm:gap-x-0 sm:py-0",
-            multi && sel ? "sm:grid-cols-[28px_44px_minmax(0,1fr)_auto_auto_auto]" : "sm:grid-cols-[44px_minmax(0,1fr)_auto_auto_auto]",
+            multi && sel ? "sm:grid-cols-[28px_44px_minmax(0,1fr)_auto_auto_auto] touch:grid-cols-[44px_44px_minmax(0,1fr)_auto_auto_auto]" : "sm:grid-cols-[44px_minmax(0,1fr)_auto_auto_auto]",
             !hasActions && "max-sm:pr-4",
           )}
         >
@@ -413,7 +413,7 @@ export function TaskRow({
               aria-label={`Select ${task.title}`}
               onChange={() => sel.toggleCheck(task.id)}
               onClick={(e) => e.stopPropagation()}
-              className="relative z-1 sm:size-7 sm:justify-self-center"
+              className="relative z-1 sm:size-7 sm:justify-self-center touch:size-11"
             />
           )}
           {task.priority > 1 && !done && (

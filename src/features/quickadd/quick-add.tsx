@@ -177,6 +177,8 @@ const SUGGESTIONS: { label: string; insert: string }[] = [
 
 /** A suggestion or a project match: the chip that is a button (DESIGN_SYSTEM.md §5 "Chips"). */
 const SUGGEST = chipButtonClass();
+// One row that scrolls sideways under a fade on a phone, so the Add button stays put above the keyboard; wrapped from `sm`.
+const CHIP_ROW = "-m-1 flex items-center gap-1.5 p-1 max-sm:scroll-fade sm:flex-wrap";
 
 /** The line itself: the field look at 48 px and 16 px type on every width, so iOS never zooms. The border turns ink on focus, so no ring. */
 const LINE = "h-12 w-full rounded-lg border border-line-control px-3.5 text-base outline-none placeholder:text-ink-4 focus:border-ink focus-visible:outline-none";
@@ -586,7 +588,7 @@ export function QuickAdd({
 
         {tagSpan && !tagKnown ? (
           // The tag being typed: its matches first, then (or alone, when none) "Create @name" (SCREENS.md §11).
-          <div role="group" aria-label="Tags" className="flex flex-wrap items-center gap-1.5">
+          <div role="group" aria-label="Tags" className={CHIP_ROW}>
             {tagSuggestions.map((t) => (
               <button key={t.id} type="button" onClick={() => pickTag(t)} className={SUGGEST}>
                 @{t.name}
@@ -602,7 +604,7 @@ export function QuickAdd({
           projectName &&
           !exact && (
             // Two projects of one name are told apart by their area, and neither is created again (§5.4).
-            <div role="group" aria-label="Projects" className="flex flex-wrap items-center gap-1.5">
+            <div role="group" aria-label="Projects" className={CHIP_ROW}>
               {suggestions.map((p) => (
                 <button key={p.id} type="button" onClick={() => pickProject(p)} className={SUGGEST}>
                   {projectOptionLabel(p, projects)}
@@ -620,7 +622,7 @@ export function QuickAdd({
         )}
 
         {!inline && (
-          <div role="group" aria-label="Suggestions" className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label="Suggestions" className={CHIP_ROW}>
             {SUGGESTIONS.map((s) => (
               <button key={s.label} type="button" onClick={() => insert(s.insert)} className={SUGGEST}>
                 {s.label}
@@ -705,7 +707,7 @@ function FactChip({ fact, first, onRemove }: { fact: Fact; first: boolean; onRem
             onClick={onRemove}
             aria-label={`Remove “${text}”`}
             title="Keep these words in the title"
-            className="-my-3 flex size-11 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5"
+            className="-my-3 flex size-11 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5 hit-touch"
           >
             <Icon name="close" size={10} strokeWidth={2} />
           </button>

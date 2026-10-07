@@ -49,7 +49,7 @@ export function chipClass({ tone = "neutral", size = "md" }: { tone?: ChipTone; 
 export function chipButtonClass({ size = "auto" }: { size?: "auto" | "touch" } = {}): string {
   return cx(
     "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-line px-3 text-body-sm font-medium text-ink transition-[border-color,background-color,color,transform] dur-fast hover:border-line-strong motion-safe:active:scale-97 aria-pressed:border-ink aria-pressed:bg-surface-2 num",
-    size === "touch" ? "h-11" : "h-11 sm:h-8 sm:px-2.5",
+    size === "touch" ? "h-11" : "h-11 sm:h-8 sm:px-2.5 touch:h-11",
   );
 }
 

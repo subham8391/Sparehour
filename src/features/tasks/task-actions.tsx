@@ -40,8 +40,8 @@ export function OwnedLabels({ labels, children }: { labels: ReadonlySet<string>;
   return <OwnedContext.Provider value={labels}>{children}</OwnedContext.Provider>;
 }
 
-// 28 px in the desktop row's zone; 44 px wherever the inline layout shows on a phone (the morning plan's carried list).
-const INLINE = "inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color,transform] dur-fast hover:bg-hover hover:text-ink motion-safe:active:scale-97 sm:h-7";
+// 28 px in the desktop row's zone with a mouse; 44 px on a phone (the morning plan's carried list) and on any touch device.
+const INLINE = "inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-[background-color,color,transform] dur-fast hover:bg-hover hover:text-ink motion-safe:active:scale-97 sm:h-7 touch:h-11";
 
 /**
  * One row action. `label` is its accessible name; `text` is what the row
@@ -95,7 +95,7 @@ export function RowAction({
   }
   const iconOnly = text === null;
   return (
-    <button type="button" aria-label={iconOnly || text !== undefined ? label : undefined} title={title} onClick={onClick} className={cx(INLINE, iconOnly && "w-11 justify-center px-0 sm:w-7", primary && "text-ink")}>
+    <button type="button" aria-label={iconOnly || text !== undefined ? label : undefined} title={title} onClick={onClick} className={cx(INLINE, iconOnly && "w-11 justify-center px-0 sm:w-7 touch:w-11", primary && "text-ink")}>
       {visual}
       {!iconOnly && (text ?? label)}
     </button>
@@ -168,7 +168,7 @@ export function DayChipTag({ chip, count = true }: { chip: DayChip | null; count
 }
 
 // 44 px on the phone, pulled into the panel's padding so it stays compact; 28 px beside the sentence on desktop.
-const ASK_ACTION = "inline-flex h-11 items-center whitespace-nowrap rounded-sm px-2 text-body-sm font-medium transition-[background-color,color] dur-fast hover:bg-hover max-sm:-my-1.5 sm:h-7";
+const ASK_ACTION = "inline-flex h-11 items-center whitespace-nowrap rounded-sm px-2 text-body-sm font-medium transition-[background-color,color] dur-fast hover:bg-hover max-sm:-my-1.5 sm:h-7 touch:h-11";
 
 /**
  * The gentle ask in place of a row's actions once it has been carried over too many times (SCREENS.md §2.3): an

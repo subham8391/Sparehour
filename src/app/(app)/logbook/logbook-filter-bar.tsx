@@ -24,7 +24,7 @@ export interface LogbookFilterBarProps {
 
 // As in Search: a filter is a control (the secondary button at the button scale), its × a full target of its own.
 const FILTER = cx(buttonClass({ variant: "secondary" }), "pr-0.5 pl-3 text-body-sm num");
-const FILTER_REMOVE = cx(iconButtonClass({ size: "touch" }), "rounded-sm text-ink-3 sm:size-8");
+const FILTER_REMOVE = cx(iconButtonClass({ size: "touch" }), "rounded-sm text-ink-3 sm:size-8 touch:size-11");
 const MENU = cx(buttonClass({ variant: "quiet" }), "px-3");
 
 export function LogbookFilterBar({ filters, onChange, options, today }: LogbookFilterBarProps) {
