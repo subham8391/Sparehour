@@ -13,7 +13,7 @@
 // remains, until the wide band shows both panes and the row goes.
 import Link from "next/link";
 import { formatTime, type LocalTime } from "@/core/time";
-import { plannedLabel } from "@/features/rituals/easiest-move";
+import { plannedLabel } from "@/features/rituals/planned-label";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";

@@ -105,8 +105,9 @@ export function readout(picked: readonly Task[], fitsMin: number, defaultEstimat
   return { fitsMin, pickedMin, count: daytime.length, overMin, line, coach };
 }
 
-// The easiest move and the "Planned at" label live apart, so the Today shell carries only them (SYSTEM_DESIGN.md §11.6).
-export { easiestMove, plannedLabel, type EasiestMove } from "./easiest-move";
+// The easiest move and the "Planned at" label live apart, so the Today shell carries only the label (SYSTEM_DESIGN.md §11.6).
+export { easiestMove, type EasiestMove } from "./easiest-move";
+export { plannedLabel } from "./planned-label";
 
 /**
  * The frame step's one line of prose, in place of stat tiles (brief P5):

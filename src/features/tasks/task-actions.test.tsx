@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { CarryAsk, MenuOnly, MoveActions, RowAction, RowActionsLayoutProvider } from "./task-actions";
+import { CarryAsk } from "./carry-ask";
+import { MenuOnly, MoveActions, RowAction, RowActionsLayoutProvider } from "./task-actions";
 
 describe("<RowAction> in the phone's menu", () => {
   it("shows the whole word its name is, never an abbreviation of it (WCAG 2.5.3)", () => {

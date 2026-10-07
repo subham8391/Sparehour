@@ -1,6 +1,6 @@
-// The two pieces of the morning plan Today shows in its header and ribbon (SCREENS.md §2.1, PRODUCT_SPEC.md §9.4):
-// the "easiest move" when the day is over, and the "Planned at" label. Kept apart from morning-plan.ts so the
-// Today shell carries only these, not the plan's candidate groups and readout (SYSTEM_DESIGN.md §11.6).
+// The morning plan's "easiest move" when the day is over (PRODUCT_SPEC.md §9.4): Today's ribbon names it through the
+// over day's island (day-states.tsx), the morning plan in its readout. The "Planned at" label the Today shell shows
+// is planned-label.ts, so the shell carries neither this nor the plan's candidate groups (SYSTEM_DESIGN.md §11.6).
 import { formatMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
 
@@ -27,9 +27,4 @@ export function easiestMove(picked: readonly Task[], overMin: number, tomorrowSp
   const leavesOverMin = Math.max(0, overMin - estimateOf(task, defaultEstimateMin));
   const tail = leavesOverMin === 0 ? "Moving it makes the day fit." : leavesOverMin <= 15 ? `Moving it leaves ${formatMinutes(leavesOverMin)} over — close enough to keep.` : `Moving it leaves ${formatMinutes(leavesOverMin)} over.`;
   return { task, reason: `No deadline, and tomorrow has ${formatMinutes(tomorrowSpareMin)} spare. ${tail}`, leavesOverMin };
-}
-
-/** "Planned at 8:42" for the Today header. */
-export function plannedLabel(time: string): string {
-  return `Planned at ${time}`;
 }

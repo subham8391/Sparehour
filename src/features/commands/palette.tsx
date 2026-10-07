@@ -15,7 +15,7 @@ import { EYEBROW } from "@/ui/section-label";
 import { Sheet } from "@/ui/sheet";
 import { usePointerHighlight } from "@/ui/use-pointer-highlight";
 import { dayChip } from "@/features/tasks/day-chip";
-import { DayChipTag } from "@/features/tasks/task-actions";
+import { DayChipTag } from "@/features/tasks/day-chip-tag";
 import type { LocalDate } from "@/core/time";
 import { displayShortcut } from "./keys";
 import { rankCommands, rankNamed, rankScoped } from "./palette-rank";

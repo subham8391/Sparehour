@@ -16,7 +16,7 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockNudgePending } from "@/features/notifications/block-nudge-store";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useCarryReview } from "@/features/rituals/carry-review-host";
-import { plannedLabel } from "@/features/rituals/easiest-move";
+import { plannedLabel } from "@/features/rituals/planned-label";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon";
@@ -29,7 +29,8 @@ import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-r
 import { useHideQuickAddFab } from "@/features/shell/fab-visibility";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { ViewHeader } from "@/features/shell/view-header";
-import { BLOCK_GLYPH, CarryAsk, MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
+import { BLOCK_GLYPH, MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
+import { CarryAsk } from "@/features/tasks/carry-ask";
 import { useConvertToProject } from "@/features/tasks/use-convert";
 import { useRecordAsks } from "@/features/rollover/use-carry-asks";
 import { useListSelection } from "@/features/selection/selection-provider";

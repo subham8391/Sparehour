@@ -12,7 +12,7 @@ vi.mock("@/data/powersync", () => ({ useLocalDatabase: () => db, useQuery: () =>
 
 import { SelectionProvider, useListSelection, useSelection } from "@/features/selection/selection-provider";
 import { DefaultEstimate } from "./default-estimate";
-import { DayChipTag } from "./task-actions";
+import { DayChipTag } from "./day-chip-tag";
 import { dayChip } from "./day-chip";
 import { requestRow } from "./row-request";
 import { TaskList, TaskRow } from "./task-row";

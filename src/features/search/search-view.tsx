@@ -8,7 +8,7 @@ import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "re
 import type { LocalDate } from "@/core/time";
 import type { Task, TaskState } from "@/core/types";
 import { dayChip } from "@/features/tasks/day-chip";
-import { DayChipTag } from "@/features/tasks/task-actions";
+import { DayChipTag } from "@/features/tasks/day-chip-tag";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { HitActions } from "./hit-actions";
 import { Button, buttonClass, iconButtonClass } from "@/ui/button";
