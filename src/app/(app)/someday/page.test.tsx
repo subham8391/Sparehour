@@ -114,11 +114,12 @@ describe("Someday (SCREENS.md §7)", () => {
     await vi.waitFor(() => expect(getOptional).toHaveBeenCalledWith(expect.stringContaining("select * from tasks where id = ?"), ["t-loose"]));
   });
 
-  it("Pick a date opens a sheet with the date picker", async () => {
+  it("Pick a date opens the day picker: the next seven days and the date field", async () => {
     const user = setup();
     const row = within(section("Not in a project")).getAllByRole("listitem")[0];
     await user.click(within(row).getAllByRole("button", { name: "Pick a date" })[0]);
-    expect(screen.getByRole("dialog", { name: "Pick a date" })).toBeInTheDocument();
+    const picker = await screen.findByRole("dialog", { name: "Pick a date" });
+    expect(within(picker).getAllByRole("listitem")).toHaveLength(7);
     expect(screen.getByLabelText("Pick a date for Visit Lisbon")).toHaveAttribute("type", "date");
   });
 });

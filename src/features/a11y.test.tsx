@@ -78,6 +78,27 @@ describe("axe: every M1 surface", () => {
     );
   }, 20_000);
 
+  it("a row's ⋯ menu: a popover from `sm` up and a bottom sheet on a phone, with the presets and Move to…", async () => {
+    for (const phone of [false, true]) {
+      const query = { matches: phone, media: "", onchange: null, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop, dispatchEvent: () => false };
+      Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: () => query });
+      try {
+        render(
+          <SelectionProvider>
+            <Rows />
+          </SelectionProvider>,
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]);
+        await screen.findByRole("menuitem", { name: "Move to…" });
+        // The menu is drawn at the end of the document, so the whole body is checked.
+        expect(await a11yViolations(document.body)).toEqual([]);
+        cleanup();
+      } finally {
+        Reflect.deleteProperty(window, "matchMedia");
+      }
+    }
+  }, 20_000);
+
   it("the task detail panel", async () => {
     await check(
       <TaskDetailPanel
