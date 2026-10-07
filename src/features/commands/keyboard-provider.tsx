@@ -158,8 +158,11 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
     if (detailOpen) return;
     setTimeout(() => {
       if (e.defaultPrevented) return;
-      if (s.checkedIds.length > 0) s.clearChecks();
-      else if (s.selectedId) s.select(null);
+      // The ticks and the Inbox's Select mode (checkboxes shown, none ticked yet) are one layer.
+      if (s.checkedIds.length > 0 || s.selecting) {
+        s.clearChecks();
+        s.setSelecting(false);
+      } else if (s.selectedId) s.select(null);
       else if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
     }, 0);
   }, []);

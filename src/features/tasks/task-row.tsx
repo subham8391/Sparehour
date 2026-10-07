@@ -249,16 +249,18 @@ export function TaskRow({
   const [renaming, setRenaming] = useState(false);
   /** Set once the field has answered: focus going back to the row blurs it, which must not save a second time. */
   const renamed = useRef(false);
-  const endRename = (input: HTMLInputElement, save: boolean) => {
+  /** `refocus`: back to the row, unless focus is already on its way to something the person clicked or tabbed to. */
+  const endRename = (input: HTMLInputElement, save: boolean, refocus = true) => {
     if (renamed.current) return;
     renamed.current = true;
     const next = input.value.trim();
     setRenaming(false);
     if (save && next && next !== task.title) void repo.update(task.id, { title: next });
-    ref.current?.focus({ preventScroll: true });
+    if (refocus) ref.current?.focus({ preventScroll: true });
   };
   const onRenameKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter" && e.key !== "Escape") return;
+    // An IME's Enter picks a candidate; it is not the end of the name.
+    if ((e.key !== "Enter" && e.key !== "Escape") || e.nativeEvent.isComposing) return;
     e.preventDefault();
     e.stopPropagation();
     endRename(e.currentTarget, e.key === "Enter");
@@ -407,7 +409,7 @@ export function TaskRow({
                 aria-label="Title"
                 defaultValue={task.title}
                 onKeyDown={onRenameKey}
-                onBlur={(e) => endRename(e.currentTarget, true)}
+                onBlur={(e) => endRename(e.currentTarget, true, !e.relatedTarget)}
                 onClick={(e) => e.stopPropagation()}
                 className="relative z-1 block h-11 w-full min-w-0 rounded-sm bg-transparent text-body-lg text-ink outline-none sm:pr-3"
               />

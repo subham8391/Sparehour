@@ -171,4 +171,24 @@ describe("<TaskRow> inline rename (Enter)", () => {
     expect(db.execute).toHaveBeenCalledTimes(1);
     expect(db.execute.mock.calls[0][1][0]).toBe("Draft the proposal v3");
   });
+
+  it("leaving the field for another control saves and leaves focus where the person put it", async () => {
+    const user = userEvent.setup();
+    setup();
+    const elsewhere = document.createElement("input");
+    elsewhere.setAttribute("aria-label", "Elsewhere");
+    document.body.append(elsewhere);
+    act(() => selectFromOutside("t1"));
+    db.execute.mockClear();
+    act(() => void requestRow("t1", "rename"));
+    await user.type(screen.getByRole("textbox", { name: "Title" }), " v4");
+    // A browser drops a click's focus change when a blur handler moves focus itself, so the row must not take it back.
+    const rowFocus = vi.spyOn(screen.getAllByRole("row")[0], "focus");
+    await user.click(elsewhere);
+    await vi.waitFor(() => expect(db.execute).toHaveBeenCalledTimes(1));
+    expect(db.execute.mock.calls[0][1][0]).toBe("Draft the proposal v4");
+    expect(rowFocus).not.toHaveBeenCalled();
+    expect(elsewhere).toHaveFocus();
+    elsewhere.remove();
+  });
 });

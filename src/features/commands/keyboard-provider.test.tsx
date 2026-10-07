@@ -31,12 +31,16 @@ const pressed = vi.fn();
 
 function List() {
   const { selectedId } = useListSelection(["t1", "t2", "t3"]);
-  const { checkedIds } = useSelection();
+  const { checkedIds, selecting, setSelecting } = useSelection();
   const detail = useTaskDetail();
   return (
     <div>
       <p>selected: {selectedId ?? "none"}</p>
       <p>checked: {checkedIds.length ? checkedIds.join(",") : "none"}</p>
+      <p>selecting: {selecting ? "yes" : "no"}</p>
+      <button type="button" onClick={() => setSelecting(true)}>
+        Select
+      </button>
       <p>open: {detail.selectedId ?? "none"}</p>
       <p>field: {detail.field?.name ?? "none"}</p>
       <label>
@@ -261,6 +265,16 @@ describe("<KeyboardProvider>", () => {
     await user.keyboard("{Escape}");
     await new Promise((r) => setTimeout(r, 5));
     expect(document.activeElement).toBe(document.body);
+  });
+
+  it("Esc leaves Select mode (checkboxes shown, none ticked) as the ticks' layer, before the selection", async () => {
+    const { user } = setup();
+    await user.keyboard("j");
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    expect(screen.getByText("selecting: yes")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(await screen.findByText("selecting: no")).toBeInTheDocument();
+    expect(screen.getByText("selected: t1")).toBeInTheDocument();
   });
 
   it("Space opens the selected task; Enter asks its row to edit the title in place", async () => {

@@ -171,6 +171,8 @@ export function PlanPreview(p: PlanPreviewProps) {
       const view = sectionRef.current?.closest("main") ?? document.body;
       if (!nowhere && !view.contains(el)) return;
       if (el?.closest("input, textarea, select, [contenteditable='true']") && !sectionRef.current?.contains(el)) return;
+      // The press is this layer's: the keyboard layer's Esc unwinding (keyboard-provider.tsx) leaves the selection be.
+      e.preventDefault();
       escape.current.onClose();
     };
     window.addEventListener("keydown", onKey);
