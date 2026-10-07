@@ -5,7 +5,7 @@ import type { MotionChoice } from "./motion";
 import { hoursSummary, type Segment } from "./settings-rules";
 import type { SettingsValues } from "./types";
 
-export type SectionKey = "account" | "working-hours" | "calendar" | "notifications" | "planning" | "appearance" | "data" | "app";
+export type SectionKey = "account" | "working-hours" | "calendar" | "notifications" | "planning" | "appearance" | "data" | "app" | "about";
 
 export interface SectionMeta {
   key: SectionKey;
@@ -21,6 +21,7 @@ export const SECTIONS: readonly SectionMeta[] = [
   { key: "appearance", title: "Appearance" },
   { key: "data", title: "Data" },
   { key: "app", title: "App" },
+  { key: "about", title: "About" },
 ];
 
 /** The section a hash names ("#calendar"), or null for the list; unknown names are the list too. */
@@ -71,8 +72,10 @@ export function sectionSummary(key: SectionKey, s: SummaryInput): string {
     case "appearance":
       return [THEME[v.theme], s.motion === "reduce" ? "reduced motion" : null].filter(Boolean).join(" · ");
     case "data":
-      return "Export JSON · Markdown · CSV";
+      return "Export · archive · delete permanently";
     case "app":
-      return s.version ? `Install, storage · version ${s.version}` : "Install and storage";
+      return "Install and storage";
+    case "about":
+      return s.version ? `Version ${s.version} · what’s new · privacy` : "What’s new and privacy";
   }
 }

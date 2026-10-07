@@ -148,6 +148,8 @@ export const tasks = new Table(
     archive_batch_id: column.text,
     /** The state it had before it was archived, for restoring its batch. */
     archived_from_state: column.text,
+    /** When it went into its archive batch: names the batch in Settings › Data › Archive. */
+    archived_at: column.text,
   },
   {
     indexes: {

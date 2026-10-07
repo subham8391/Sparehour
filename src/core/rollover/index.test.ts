@@ -123,13 +123,30 @@ describe("rollover (the job)", () => {
 });
 
 describe("clearTheSlate", () => {
-  it("archives every carrying task and reports the ids for one undo entry", () => {
-    const a = task({ doDate: localDate("2026-09-10") });
+  it("Today only archives every active task dated today or earlier, keeps its date, and reports the ids for one undo entry", () => {
+    const a = task({ doDate: localDate("2026-09-10"), carryCount: 3 });
     const b = task({ doDate: TODAY });
-    const r = clearTheSlate([a, b], TODAY);
-    expect(r.archivedIds).toEqual([a.id]);
-    expect(r.tasks[0].state).toBe("archived");
-    expect(r.tasks[1].state).toBe("active");
+    const later = task({ doDate: TODAY.add({ days: 1 }) });
+    const undated = task({ doDate: null });
+    const r = clearTheSlate([a, b, later, undated], TODAY);
+    expect(r.archivedIds).toEqual([a.id, b.id]);
+    expect(r.tasks[0]).toMatchObject({ state: "archived", doDate: localDate("2026-09-10"), carryCount: 0 });
+    expect(r.tasks[1]).toMatchObject({ state: "archived", doDate: TODAY });
+    expect(r.tasks[2].state).toBe("active");
+    expect(r.tasks[3].state).toBe("active");
+  });
+
+  it("Today + backlog adds active tasks with no date and nothing ahead, and leaves the Inbox and repeating tasks alone", () => {
+    const carried = task({ doDate: localDate("2026-09-10") });
+    const undated = task({ doDate: null });
+    const startsLater = task({ doDate: null, startDate: TODAY.add({ days: 3 }) });
+    const dueLater = task({ doDate: null, deadline: TODAY.add({ days: 3 }) });
+    const duePassed = task({ doDate: null, deadline: localDate("2026-09-01") });
+    const inbox = task({ doDate: null, state: "inbox" });
+    const repeating = task({ doDate: TODAY, recurrenceRule: "FREQ=DAILY" });
+    const list = [carried, undated, startsLater, dueLater, duePassed, inbox, repeating];
+    expect(clearTheSlate(list, TODAY, "backlog").archivedIds).toEqual([carried.id, undated.id, duePassed.id]);
+    expect(clearTheSlate(list, TODAY, "today").archivedIds).toEqual([carried.id]);
   });
 });
 

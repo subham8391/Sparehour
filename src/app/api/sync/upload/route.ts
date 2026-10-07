@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { deleteAfter } from "@/features/account/deletion";
 import { createUserScopedClient } from "@/server/auth/supabase";
 import { UploadBody, sanitize } from "@/server/sync/upload";
 
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  // An account waiting for deletion syncs nothing (SYSTEM_DESIGN.md §9.6: sync stops at once).
+  if (deleteAfter(user.app_metadata)) return NextResponse.json({ error: "account_deleted" }, { status: 403 });
 
   let json: unknown;
   try {

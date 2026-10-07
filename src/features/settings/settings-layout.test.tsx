@@ -120,7 +120,8 @@ describe("sections", () => {
     expect(sectionSummary("notifications", { ...input, subscribed: null, values: { ...SETTINGS_VALUES, quietHoursStart: "", quietHoursEnd: "" } })).toBe("Reminders and quiet hours");
     expect(sectionSummary("planning", input)).toBe("Ask after 3 carries · missed tasks carry · opens to Today");
     expect(sectionSummary("appearance", input)).toBe("System theme · reduced motion");
-    expect(sectionSummary("data", input)).toBe("Export JSON · Markdown · CSV");
-    expect(sectionSummary("app", input)).toBe("Install, storage · version abc123");
+    expect(sectionSummary("data", input)).toBe("Export · archive · delete permanently");
+    expect(sectionSummary("app", input)).toBe("Install and storage");
+    expect(sectionSummary("about", input)).toBe("Version abc123 · what’s new · privacy");
   });
 });

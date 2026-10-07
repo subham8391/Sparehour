@@ -19,7 +19,7 @@ describe("row → domain", () => {
       last_touched_at: "2026-09-13 10:00:00+00", miss_policy: "carry", recurrence_rule: null, recurrence_mode: null,
       recurrence_series_id: null, recurrence_paused_until: null, sort_key: "a0", day_sort_key: "a1", source: "quickadd",
       routine_run_id: null, routine_item_key: null, routine_item_id: null, routine_date: null, completed_at: null, expired_at: null, auto_filed_at: null,
-      carry_asked_at: null, archive_batch_id: null, archived_from_state: null, created_at: null, updated_at: null, deleted_at: null,
+      carry_asked_at: null, archive_batch_id: null, archived_from_state: null, archived_at: null, created_at: null, updated_at: null, deleted_at: null,
     });
     expect(t.doDate?.toString()).toBe("2026-09-15");
     expect(t.doTime?.toString({ smallestUnit: "minute" })).toBe("09:45");

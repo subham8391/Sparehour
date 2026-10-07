@@ -16,8 +16,7 @@ export interface TodayMenuProps {
   onSort: (sort: TodaySort) => void;
   showCompleted: boolean;
   onShowCompleted: (show: boolean) => void;
-  /** How many tasks Clear the slate would archive (today's carried-over pile). */
-  carriedCount: number;
+  /** Opens Clear the slate's confirmation, which offers its two scopes with their counts. */
   onClearSlate: () => void;
   onTrim: () => void;
   /** What Copy today as text writes. */
@@ -84,15 +83,8 @@ export default function TodayMenu(p: TodayMenuProps) {
         Show completed
         {p.showCompleted && <Icon name="check" size={16} className="text-ink" />}
       </button>
-      <button
-        type="button"
-        role="menuitem"
-        aria-disabled={p.carriedCount === 0 || undefined}
-        className={cx(MENU_ITEM, "justify-between gap-3", p.carriedCount === 0 && "text-ink-3 hover:bg-transparent")}
-        onClick={p.carriedCount === 0 ? undefined : run(p.onClearSlate)}
-      >
-        Clear the slate
-        <span className={cx(SUB, "num", p.carriedCount === 0 && "text-ink-3")}>{p.carriedCount === 0 ? "Nothing carried over" : `${p.carriedCount} carried`}</span>
+      <button type="button" role="menuitem" aria-haspopup="dialog" className={MENU_ITEM} onClick={run(p.onClearSlate)}>
+        Clear the slate…
       </button>
       <button type="button" role="menuitem" className={MENU_ITEM} onClick={run(p.onTrim)}>
         Trim today

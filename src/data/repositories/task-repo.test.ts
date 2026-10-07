@@ -65,24 +65,6 @@ describe("TaskRepo undo", () => {
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("clearing the slate archives the batch and one undo restores every task", async () => {
-    const { db, execute } = fakeDb(row, [
-      { id: "t1", state: "active", do_date: "2026-09-12" },
-      { id: "t2", state: "inbox", do_date: "2026-09-13" },
-    ]);
-    const history = { record: vi.fn() };
-    await new TaskRepo(db, history).archiveMany(["t1", "t2"]);
-    expect(execute).toHaveBeenCalledTimes(1);
-    expect(String(execute.mock.calls[0][0])).toMatch(/set state = 'archived', do_date = null, carry_count = 0/);
-    expect(execute.mock.calls[0][1].slice(1)).toEqual(["t1", "t2"]);
-    const entry = history.record.mock.calls[0][0];
-    expect(entry).toMatchObject({ label: "Cleared the slate · 2 tasks", toast: true });
-    await entry.undo();
-    expect(execute).toHaveBeenCalledTimes(3);
-    expect(execute.mock.calls[1][1].slice(0, 2)).toEqual(["active", "2026-09-12"]);
-    expect(execute.mock.calls[2][1].slice(0, 2)).toEqual(["inbox", "2026-09-13"]);
-  });
-
   it("a bulk edit is one statement and one undo entry that restores every row", async () => {
     const { db, execute, getAll } = fakeDb(row, [
       { id: "t1", title: "Draft the proposal", do_date: "2026-09-14", do_time: "15:00", state: "active" },
@@ -145,14 +127,6 @@ describe("TaskRepo undo", () => {
     await repo.updateMany([], { priority: 2 });
     await repo.completeMany([]);
     await repo.setStateMany([], "someday");
-    expect(execute).not.toHaveBeenCalled();
-    expect(history.record).not.toHaveBeenCalled();
-  });
-
-  it("clearing an empty slate does nothing", async () => {
-    const { db, execute } = fakeDb(row);
-    const history = { record: vi.fn() };
-    await new TaskRepo(db, history).archiveMany([]);
     expect(execute).not.toHaveBeenCalled();
     expect(history.record).not.toHaveBeenCalled();
   });
