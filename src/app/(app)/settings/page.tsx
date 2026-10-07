@@ -13,6 +13,8 @@ import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { applyTheme } from "@/features/commands/theme";
 import { BUILD_ID } from "@/data/build-id";
+import { clearThisDevice } from "@/features/account/clear-device";
+import { loadSignInMethods } from "@/features/account/identity";
 import { useCalendar } from "@/features/calendar/use-calendar";
 import { useExport } from "@/features/export/use-export";
 import { usePush } from "@/features/notifications/use-push";
@@ -27,7 +29,7 @@ import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { LOADING_LINE } from "../loading-view";
 
-const USER_SQL = `select id, email, display_name, personal_space_id from users limit 1`;
+const USER_SQL = `select id, email, display_name, avatar_url, personal_space_id from users limit 1`;
 
 const MISS_POLICIES: readonly MissPolicy[] = ["carry", "skip", "expire"];
 const OPEN_TO: readonly OpenTo[] = ["today", "inbox", "upcoming"];
@@ -48,7 +50,7 @@ export default function SettingsPage() {
   const [unsynced, setUnsynced] = useState<number | null>(null);
   const { data: settings } = useQuery<UserSettingsRow & { id: string }>(SETTINGS_SQL);
   const { data: hours } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
-  const { data: users } = useQuery<{ id: string; email: string | null; display_name: string | null; personal_space_id: string | null }>(USER_SQL);
+  const { data: users } = useQuery<{ id: string; email: string | null; display_name: string | null; avatar_url: string | null; personal_space_id: string | null }>(USER_SQL);
   const s = settings?.[0];
   const user = users?.[0];
 
@@ -162,11 +164,7 @@ export default function SettingsPage() {
     // A shared device must not keep the last person's data: clear the local database, then the session.
     // The auth client is loaded here rather than with the page (§11.6 budgets).
     const { supabaseBrowser } = await import("@/data/supabase-browser");
-    // Deleted rows otherwise stay readable in the database file's free pages (the walkthrough found titles and the
-    // email still in it): zero them as they are deleted, then compact the file. Both are best effort.
-    await db.execute("PRAGMA secure_delete = ON").catch(() => {});
-    await db.disconnectAndClear();
-    await db.execute("VACUUM").catch(() => {});
+    await clearThisDevice(db);
     // This device only: a global sign-out also ended every other device's session, leaving a phone retrying a dead token.
     await supabaseBrowser().auth.signOut({ scope: "local" });
     // A full load, not a client navigation: the router's cache would otherwise bring the signed-in screens back on Back.
@@ -186,7 +184,8 @@ export default function SettingsPage() {
     values,
     workHours,
     detectedTimeZone: detected,
-    account: { name: user?.display_name ?? null, email: user?.email ?? null },
+    account: { name: user?.display_name ?? null, email: user?.email ?? null, avatarUrl: user?.avatar_url ?? null },
+    signInMethods: loadSignInMethods,
     app: { install: pwa.install, persistence: pwa.persistence, version: BUILD_ID, onInstall: () => void pwa.promptInstall() },
     notifications: {
       copy: push.copy,

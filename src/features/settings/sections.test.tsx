@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { detectPushPlatform, permissionCopy } from "@/features/notifications/push";
 import { iosInstallSteps } from "@/features/pwa/install";
 import { AllSections, SETTINGS_VALUES, WORK_WEEK } from "@/test/settings";
+import { AccountSection } from "./sections/account-section";
 import { WorkDayRow } from "./sections/hours-section";
 import type { SettingsFormProps } from "./types";
 
 const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
+
+/** The props every section needs, for rendering one section on its own. */
+function base(): SettingsFormProps {
+  return { values: SETTINGS_VALUES, workHours: WORK_WEEK, detectedTimeZone: null, account: { name: "Dev User", email: "dev@sparehour.local" }, onChange: vi.fn(), onWorkHours: vi.fn(), onSignOut: vi.fn() };
+}
 
 function setup(over: Partial<SettingsFormProps> = {}) {
   const onChange = vi.fn();
@@ -251,6 +257,53 @@ describe("Settings sections", () => {
     await user.click(screen.getByRole("button", { name: "Install Sparehour" }));
     expect(onInstall).toHaveBeenCalled();
     expect(screen.getByText(/protected from automatic cleanup/)).toBeInTheDocument();
+  });
+
+  it("Account shows the provider's picture, or the initials without one or when it fails to load", () => {
+    const { container } = render(<AccountSection {...base()} account={{ name: "Dev User", email: "dev@sparehour.local", avatarUrl: "https://lh3.googleusercontent.com/a/abc" }} />);
+    const img = container.querySelector("img");
+    expect(img).toHaveAttribute("src", "https://lh3.googleusercontent.com/a/abc");
+    expect(img).toHaveAttribute("referrerpolicy", "no-referrer");
+    fireEvent.error(img as HTMLImageElement);
+    expect(screen.getByTestId("avatar-initials")).toHaveTextContent("DU");
+    cleanup();
+    render(<AccountSection {...base()} account={{ name: null, email: "dev@sparehour.local", avatarUrl: null }} />);
+    expect(screen.getByTestId("avatar-initials")).toHaveTextContent("D");
+    expect(screen.getByText("dev@sparehour.local")).toBeInTheDocument();
+  });
+
+  it("Account lists the sign-in methods once the auth server answers, and says when it can't", async () => {
+    let answer!: (m: string[]) => void;
+    const signInMethods = vi.fn(() => new Promise<string[]>((resolve) => (answer = resolve)));
+    render(<AccountSection {...base()} signInMethods={signInMethods} />);
+    expect(screen.getByText("Signed in with")).toBeInTheDocument();
+    expect(screen.getByText("Checking…")).toBeInTheDocument();
+    await act(async () => answer(["Google", "Email code"]));
+    expect(screen.getByText("Google · Email code")).toBeInTheDocument();
+    expect(signInMethods).toHaveBeenCalledTimes(1);
+    cleanup();
+    render(<AccountSection {...base()} signInMethods={() => Promise.reject(new Error("offline"))} />);
+    expect(await screen.findByText("Shown when you’re online")).toBeInTheDocument();
+    cleanup();
+    // Outside the app there is no auth client to ask: no row.
+    render(<AccountSection {...base()} />);
+    expect(screen.queryByText("Signed in with")).not.toBeInTheDocument();
+  });
+
+  it("Delete account is a destructive 44 px button that opens the typed confirmation with the export first", async () => {
+    const onExport = vi.fn();
+    const user = userEvent.setup();
+    render(<AccountSection {...base()} data={{ onExport, busy: null, error: null, lastFile: null }} />);
+    const button = screen.getByRole("button", { name: "Delete account" });
+    expect(button).toHaveClass("h-11", "text-deadline");
+    expect(screen.getByText("Everything in your account goes, after 30 days to change your mind.")).toBeInTheDocument();
+    await user.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Delete your account?" });
+    await user.click(within(dialog).getByRole("button", { name: "Export your data first" }));
+    expect(onExport).toHaveBeenCalledWith("json");
+    expect(within(dialog).getByRole("button", { name: "Delete account" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("signs out", async () => {
