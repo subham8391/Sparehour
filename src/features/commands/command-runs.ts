@@ -12,6 +12,7 @@ import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
 import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
+import { dayWords, openDay, parseDay } from "@/features/today/day-address";
 import { requestToday } from "@/features/today/today-request";
 import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
 import type { Binding } from "./keys";
@@ -163,10 +164,11 @@ const projectIn = (pathname: string): string | null => {
 
 /**
  * N (SCREENS.md §24 "Add a task in the current list"): quick-add opened with the words that file the task where
- * the person is — the project's token on a project, "today" on Today — and empty anywhere else.
+ * the person is — the project's token on a project, "today" on Today (or the later day it was stepped to) — and
+ * empty anywhere else.
  */
-export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName">): Promise<string | undefined> {
-  if (ctx.pathname === "/today") return "today ";
+export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName" | "today">): Promise<string | undefined> {
+  if (ctx.pathname === "/today") return dayWords(parseDay(new URLSearchParams(window.location.search).get("day")) ?? ctx.today, ctx.today);
   const id = projectIn(ctx.pathname);
   if (!id) return undefined;
   const name = await ctx.projectName(id);
@@ -292,6 +294,11 @@ export const RUNS: readonly CommandRun[] = [
   // panel opens (and keeps "today" finding Go to Today first).
   { id: "day.trim", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
   { id: "day.replan", run: (ctx) => ctx.planDay("replan") },
+  // Today on another day (SCREENS.md §12 Day, §2.1): tomorrow and yesterday by name, any day through Jump to date's
+  // typed date, which Today opens at once or as soon as it is open.
+  { id: "day.tomorrow", run: (ctx) => openDay(ctx.today.add({ days: 1 }), ctx.today, ctx) },
+  { id: "day.yesterday", run: (ctx) => openDay(ctx.today.subtract({ days: 1 }), ctx.today, ctx) },
+  { id: "day.jump", run: (ctx) => void (requestToday({ kind: "jump" }) || ctx.go("/today")) },
   // Triage all (SCREENS.md §5): the Inbox's walk, at once or as soon as the Inbox is open.
   { id: "inbox.triage-all", run: (ctx) => void (requestTriageAll() || ctx.go("/inbox")) },
 

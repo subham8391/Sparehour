@@ -186,23 +186,9 @@ export default function TodayPage() {
     const t = setTimeout(() => setNotice(null), 4000);
     return () => clearTimeout(t);
   }, [notice]);
-  // The palette's Trim today, Sort by… and Show completed (features/today/today-request.ts).
-  const onRequest = useRef<(r: TodayRequest) => void>(() => undefined);
-  useEffect(() => {
-    onRequest.current = (r) => {
-      if (r.kind === "trim") {
-        // Trimming is today's: from another day it comes home first.
-        goHome();
-        setTrimOpen(true);
-      } else if (r.kind === "sort") savePref({ todaySort: r.sort });
-      else if (r.kind === "jump") setJumping(true);
-      else savePref({ showCompleted: !showCompleted });
-    };
-  });
-  useEffect(() => registerTodayHandler((r) => onRequest.current(r)), []);
-
   // Another day (SCREENS.md §2.1, §24): `[` / `]` and the header's arrows step a day, `T` with nothing selected and
-  // "back to today" come home. Only the address changes (`?day=`), so a reload keeps the day.
+  // "back to today" come home, and the palette's Jump to date picks any day. Only the address changes (`?day=`), so
+  // a reload keeps the day.
   const [jumping, setJumping] = useState(false);
   const stepBy = (days: number) => openDay(day.add({ days }), model.today);
   const goHome = () => openDay(model.today, model.today);
@@ -220,6 +206,22 @@ export default function TodayPage() {
       }),
     [],
   );
+
+  // The palette's Trim today, Sort by…, Show completed and Jump to date (features/today/today-request.ts).
+  const onRequest = useRef<(r: TodayRequest) => void>(() => undefined);
+  useEffect(() => {
+    onRequest.current = (r) => {
+      if (r.kind === "trim") {
+        // Trimming is today's: from another day it comes home first.
+        goHome();
+        setTrimOpen(true);
+      } else if (r.kind === "sort") savePref({ todaySort: r.sort });
+      else if (r.kind === "jump") setJumping(true);
+      else savePref({ showCompleted: !showCompleted });
+    };
+  });
+  useEffect(() => registerTodayHandler((r) => onRequest.current(r)), []);
+
   // Above eight rows Carried over starts folded; unfolding it holds for the rest of the day on this device.
   const [carriedOpenOn, setCarriedOpenOn] = useState<string | null>(null);
   const todayIsoNow = model.today.toString();
@@ -544,6 +546,7 @@ export default function TodayPage() {
                   blocks: model.blocks,
                   // Free time clicked: "Add something" for the day shown (SCREENS.md §2.2).
                   onAdd: () => quickAdd.open(dayWords(day, model.today)),
+                  addFor: onToday ? undefined : formatDay(day, { today: model.today }),
                   onMeeting: (m) => {
                     setView("day");
                     // From the wide band an open detail stands in the day pane's place.

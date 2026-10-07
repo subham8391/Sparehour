@@ -84,7 +84,7 @@ export function ShortcutsDialog({ isMac, onClose }: { isMac: boolean; onClose: (
           ))}
         </div>
         <p className="text-body-sm text-ink-3 touch:hidden">
-          Any other letter opens quick-add and types itself. <Kbd>T</Kbd> with nothing selected jumps to today.
+          Any other letter opens quick-add and types itself. <Kbd>T</Kbd> with nothing selected goes back to today, or to this week in Upcoming.
         </p>
       </div>
     </Sheet>

@@ -4,6 +4,7 @@
 // while the local database opens, so it is in memory by the time there is a day to draw — and the timeline's
 // growth (zoom, block editing, the toolbar's Move… and Duplicate, blocks of your own) lands here rather than in
 // the shell. The wiring from the shared placing hook to the timeline lives here for the same reason.
+import type { ReactNode } from "react";
 import { formatTime, timeFromMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
 import { usePlacing, type PlacingApi, type PlacingDay } from "@/features/blocking/use-placing";
@@ -45,21 +46,38 @@ export interface DayPaneProps {
   placing: PlacingDay;
   onOpenTask: (taskId: string) => void;
   timeline: DrawnDay;
+  /** A day that has passed (Today stepped back, DECISIONS.md "Today on another day"): its blocks and meetings, drawn only. */
+  readOnly?: boolean;
 }
 
-export function DayPane({ start, end, bufferPct, hint, placing, onOpenTask, timeline }: DayPaneProps) {
+export function DayPane(p: DayPaneProps) {
+  // Nothing places, moves or answers `B` on a day that has passed, so the placing hook is not even mounted.
+  return p.readOnly ? <PaneFrame {...p} timeline={<Timeline {...p.timeline} />} /> : <PlacingPane {...p} />;
+}
+
+function PlacingPane(p: DayPaneProps) {
   // B, drops, moves, copies and blocks of your own: here, so none of it rides in Today's first download.
-  const placer = usePlacing(placing);
+  const placer = usePlacing(p.placing);
   const waiting = placer.placingTask;
+  return (
+    <PaneFrame
+      {...p}
+      // Tap-to-schedule (SCREENS.md §2.8): the task waiting for a time, and how to let go of it.
+      bar={waiting && <PlacingBar text={`Tap a time for “${waiting.title}”`} onCancel={() => placer.setPlacing(null)} />}
+      timeline={<Timeline {...p.timeline} {...placerTimeline(placer, p.placing.findTask, p.onOpenTask)} />}
+    />
+  );
+}
+
+function PaneFrame({ start, end, bufferPct, hint, bar, timeline }: Pick<DayPaneProps, "start" | "end" | "bufferPct" | "hint"> & { bar?: ReactNode; timeline: ReactNode }) {
   return (
     <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
       <h2 className="font-display text-pane font-medium text-ink">Your day</h2>
       <p className="mt-1 mb-4.5 text-body-sm text-ink-3 num">
         {formatTime(timeFromMinutes(start))} – {formatTime(timeFromMinutes(end))} · buffer {bufferPct}%
       </p>
-      {/* Tap-to-schedule (SCREENS.md §2.8): the task waiting for a time, and how to let go of it. */}
-      {waiting && <PlacingBar text={`Tap a time for “${waiting.title}”`} onCancel={() => placer.setPlacing(null)} />}
-      <Timeline {...timeline} {...placerTimeline(placer, placing.findTask, onOpenTask)} />
+      {bar}
+      {timeline}
       {hint && (
         <p className="mt-4 text-body-sm text-pretty text-ink-3">
           <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B. Drag on an empty stretch for a block of your own.</span>

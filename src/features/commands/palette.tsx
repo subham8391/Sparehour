@@ -70,6 +70,8 @@ const COMMAND_ICON: Record<string, IconName> = {
   "go.settings": "sliders",
   "day.plan": "sun",
   "day.shutdown": "moon",
+  "day.tomorrow": "arrow-right",
+  "day.yesterday": "arrow-left",
   "task.complete": "check",
   "task.today": "sun",
   "task.tomorrow": "arrow-right",
@@ -89,6 +91,7 @@ const COMMAND_ICON: Record<string, IconName> = {
 const GROUP_ICON: Record<CommandGroup, IconName> = {
   Create: "plus",
   "Go to": "arrow-right",
+  Day: "calendar",
   "Selected task": "chevron-right",
   List: "menu",
   View: "sun",

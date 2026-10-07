@@ -9,8 +9,8 @@ import { RUNS, type CommandRun } from "./command-runs";
 
 export { availability, keyBindings, prefillHere, targets, type Availability, type CommandContext, type PaletteScope, type Theme } from "./command-runs";
 
-export type CommandGroup = "Create" | "Go to" | "Selected task" | "List" | "View" | "App";
-export const GROUP_ORDER: readonly CommandGroup[] = ["Selected task", "Create", "Go to", "List", "View", "App"];
+export type CommandGroup = "Create" | "Go to" | "Day" | "Selected task" | "List" | "View" | "App";
+export const GROUP_ORDER: readonly CommandGroup[] = ["Selected task", "Create", "Go to", "Day", "List", "View", "App"];
 
 interface Words {
   title: string;
@@ -74,11 +74,14 @@ const WORDS: Record<string, Words> = {
   "go.area": { title: "Go to area…", group: "Go to", keywords: "open area picker" },
   "go.browse": { title: "Go to Browse", group: "Go to", keywords: "areas projects" },
   "go.settings": { title: "Settings", group: "Go to" },
-  "day.plan": { title: "Start morning plan", group: "Go to", keywords: "plan the day ritual pick" },
-  "day.shutdown": { title: "Start evening shutdown", group: "Go to", keywords: "close the day ritual" },
-  "day.plan-my-day": { title: "Plan my day", group: "Go to", keywords: "schedule suggest timeline blocks" },
-  "day.trim": { title: "Trim today…", group: "Go to", keywords: "over too much fits move tomorrow someday" },
-  "day.replan": { title: "Re-plan the rest of today", group: "Go to", keywords: "plan my day schedule blocks afternoon" },
+  "day.plan": { title: "Start morning plan", group: "Day", keywords: "plan the day ritual pick" },
+  "day.shutdown": { title: "Start evening shutdown", group: "Day", keywords: "close the day ritual" },
+  "day.plan-my-day": { title: "Plan my day", group: "Day", keywords: "schedule suggest timeline blocks" },
+  "day.trim": { title: "Trim today…", group: "Day", keywords: "over too much fits move tomorrow someday" },
+  "day.replan": { title: "Re-plan the rest of today", group: "Day", keywords: "plan my day schedule blocks afternoon" },
+  "day.tomorrow": { title: "Go to tomorrow", group: "Day", keywords: "next day step ] plan ahead" },
+  "day.yesterday": { title: "Go to yesterday", group: "Day", keywords: "previous day step [ back done" },
+  "day.jump": { title: "Jump to date…", group: "Day", keywords: "go to day date pick show another day" },
   "inbox.triage-all": { title: "Triage all", group: "Go to", keywords: "inbox zero one at a time" },
   "list.down": { title: "Select next", group: "List", hidden: true },
   "list.up": { title: "Select previous", group: "List", hidden: true },
@@ -87,8 +90,9 @@ const WORDS: Record<string, Words> = {
   "list.check": { title: "Tick the row for a bulk edit", group: "List", keywords: "multi select" },
   "list.check-all": { title: "Select all in this section", group: "List", keywords: "multi bulk every" },
   "list.clear-checks": { title: "Clear the selection", group: "List", keywords: "deselect none" },
-  "view.prev": { title: "Previous week", group: "View", hidden: true },
-  "view.next": { title: "Next week", group: "View", hidden: true },
+  // `[` and `]` step a day on Today and a week in Upcoming (SCREENS.md §24).
+  "view.prev": { title: "Previous day or week", group: "View", hidden: true },
+  "view.next": { title: "Next day or week", group: "View", hidden: true },
   "view.sort": { title: "Sort by…", group: "View", keywords: "order manual time priority deadline estimate" },
   "view.show-completed": { title: "Show completed", group: "View", keywords: "done finished hide" },
   "view.zoom-in": { title: "Zoom timeline in", group: "View", keywords: "zoom timeline day rows 15 5 minutes closer" },

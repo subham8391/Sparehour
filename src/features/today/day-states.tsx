@@ -1,7 +1,7 @@
 "use client";
 // Today's parts that show only on some days (SCREENS.md §2.1, §2.3, §2.7, ONBOARDING.md §4): the closed day's
-// summary, all done, the empty day with its pull-in suggestions, and a long carried pile's folded line and
-// whole-pile moves. An island out of Today's first download (SYSTEM_DESIGN.md §11.6), fetched as the page mounts
+// summary, all done, the empty day with its pull-in suggestions, a long carried pile's folded line and
+// whole-pile moves, the calendar's problem line, and the header and note of another day Today was stepped to. An island out of Today's first download (SYSTEM_DESIGN.md §11.6), fetched as the page mounts
 // so it is in memory before the day it describes is known. The page keeps the state (whether the pull-in list or
 // the pile is open), so the island only draws it.
 import Link from "next/link";
@@ -10,6 +10,7 @@ import { useQuery } from "@/data/powersync";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { toTask } from "@/data/mappers";
+import { CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow } from "@/data/queries/calendar";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { pullInSuggestions } from "@/features/rituals/morning-plan";
@@ -18,6 +19,7 @@ import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
+import { Icon } from "@/ui/icons";
 import { ListLine } from "@/ui/list-card";
 import { EYEBROW, SectionAction } from "@/ui/section-label";
 
@@ -130,5 +132,60 @@ export function CarriedPile({ onTomorrow, onSomeday }: { onTomorrow: () => void;
         All to Someday
       </SectionAction>
     </ListLine>
+  );
+}
+
+export interface CalendarIssue {
+  kind: "reauth" | "error";
+  message: string;
+}
+
+/** The first account that needs attention: lapsed access first, then a sync that failed (its events are still the last good ones). */
+export function calendarIssueFrom(rows: readonly CalendarConnectionRow[]): CalendarIssue | null {
+  const reauth = rows.find((r) => r.status === "needs_reauth" || r.status === "revoked");
+  if (reauth) return { kind: "reauth", message: `Google Calendar${reauth.email ? ` (${reauth.email})` : ""} needs reconnecting.` };
+  const failed = rows.find((r) => r.last_error);
+  if (failed) return { kind: "error", message: failed.last_synced_at ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(failed.last_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Couldn't reach Google Calendar yet." };
+  return null;
+}
+
+/** The one line above today's ribbon when a calendar account needs attention (SCREENS.md §2.7); other days leave it out. */
+export function CalendarIssueLine() {
+  const { data } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
+  const issue = calendarIssueFrom(data ?? []);
+  if (!issue) return null;
+  return (
+    <p role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-body-sm text-ink-2">
+      <span>{issue.message}</span>
+      <Link href="/settings#calendar" className="text-ink underline decoration-line-strong underline-offset-2">
+        {issue.kind === "reauth" ? "Reconnect" : "Retry"}
+      </Link>
+    </p>
+  );
+}
+
+/** Today stepped to another day (SCREENS.md §2.1): the eyebrow names it and the way back, "Tomorrow · ← back to today". */
+export function OffDayEyebrow({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-1">
+      {label}
+      <span aria-hidden="true">·</span>
+      <button type="button" onClick={onBack} title="Back to today (T)" className={cx(buttonClass({ variant: "link", size: "compact" }), "-ml-1 gap-1 tracking-normal normal-case")}>
+        <Icon name="arrow-left" size={14} />
+        back to today
+      </button>
+    </span>
+  );
+}
+
+/** How long a finished task stays on the device (DECISIONS.md 2026-09-28, done purge): the Logbook's week. */
+const KEPT_DAYS = 7;
+
+/** A day that has passed, above its blocks and what was finished on it: read-only, and why an old one is bare. */
+export function PastDay({ daysAgo }: { daysAgo: number }) {
+  return (
+    <p className="text-body-sm text-pretty text-ink-2">
+      {daysAgo > KEPT_DAYS ? "Finished tasks are kept for a week, so only this day’s blocks and meetings are left to show." : "A day that has passed, as it was: what you finished, and its blocks and meetings."}
+    </p>
   );
 }

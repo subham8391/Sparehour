@@ -1,10 +1,10 @@
 // Palette commands that act on Today's own view (Trim today, Sort by…, Show
-// completed; SCREENS.md §12 View): Today takes a request while it is
+// completed, Jump to date; SCREENS.md §12 View and Day): Today takes a request while it is
 // mounted; anywhere else the request waits until Today opens, as Plan my day's
 // does (features/planning/plan-request.ts).
 import type { TodaySort } from "@/core/today/sort-options";
 
-export type TodayRequest = { kind: "trim" } | { kind: "sort"; sort: TodaySort } | { kind: "completed" };
+export type TodayRequest = { kind: "trim" } | { kind: "sort"; sort: TodaySort } | { kind: "completed" } | { kind: "jump" };
 type Handler = (request: TodayRequest) => void;
 
 let handler: Handler | null = null;
