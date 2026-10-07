@@ -173,7 +173,14 @@ export const RUNS: readonly CommandRun[] = [
   { id: "task.in4h", shortcut: "h", requiresSelection: true, run: snooze("in4h") },
   { id: "task.nextweek", requiresSelection: true, run: snooze("nextweek") },
   // `.` (SCREENS.md §24): the selected row's ⋯ menu; a row without one (a week column's compact row) opens the task.
-  { id: "task.menu", shortcut: ".", requiresSelection: true, run: onSelected((ctx, id) => void (requestRow(id, "menu") || ctx.openTask(id))) },
+  // With nothing selected the key is typing, and opens quick add like any other (SCREENS.md §1 rule 4).
+  {
+    id: "task.menu",
+    shortcut: ".",
+    requiresSelection: true,
+    run: onSelected((ctx, id) => void (requestRow(id, "menu") || ctx.openTask(id))),
+    passes: (ctx) => !ctx.selectedTaskId,
+  },
   // Move to… (SCREENS.md §3): the row's day picker; several ticked rows share the bulk date picker, and a row with
   // no picker of its own opens its detail at the do-date.
   {

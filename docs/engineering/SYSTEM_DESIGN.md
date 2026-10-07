@@ -3242,6 +3242,8 @@ Single-key shortcuts (Linear-style, active when no input is focused): `q` quick 
 
 ## 12. Repo structure, testing, CI, environments
 
+
+**As built (2026-10-07).** Task rows are in every shell, so the row ⋯ menu's own group (the snooze presets and Move to…, `features/tasks/row-menu.tsx`) and the day picker (`features/tasks/day-picker.tsx`, which carries the week capacity hook) are lazy (`features/tasks/row-islands.tsx`), fetched in idle time once the first row with actions mounts; until the group arrives a menu shows the row's own actions alone. Upcoming's "Not yet planned" sheet with its per-task day strips (`features/upcoming/unplanned-sheet.tsx`) is a `next/dynamic` island of the Upcoming route.
 ### 12.1 Folder structure
 
 Feature-sliced, with a hard rule about dependency direction: **`app → features → {core, ui, data} → nothing`**. `core` never imports anything. `data` never imports React components. This is what makes the Firestore fallback a contained change and the engines reusable server-side.

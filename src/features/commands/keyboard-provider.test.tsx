@@ -23,6 +23,7 @@ vi.mock("next/navigation", () => ({
 import { QuickAddProvider } from "@/features/quickadd/quick-add-provider";
 import { useListSelection, useSelection, SelectionProvider } from "@/features/selection/selection-provider";
 import { TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail";
+import { listenForRowRequests } from "@/features/tasks/row-request";
 import { KeyboardProvider, useCommands } from "./keyboard-provider";
 import { registerViewKeys } from "./view-keys";
 
@@ -231,5 +232,21 @@ describe("<KeyboardProvider>", () => {
     await user.keyboard("jjj");
     expect(screen.getByRole("textbox", { name: "Task" })).toHaveValue("jjj");
     expect(screen.getByText("selected: none")).toBeInTheDocument();
+  });
+
+  it("`.` opens the selected row's menu; with no row to answer it opens the task, and with nothing selected it types into quick add", async () => {
+    const { user } = setup();
+    await user.keyboard(".");
+    expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue(".");
+    await user.keyboard("{Escape}");
+    await user.keyboard("j");
+    const asked = vi.fn((id: string, request: string) => id === "t1" && request === "menu");
+    const stop = listenForRowRequests(asked);
+    await user.keyboard(".");
+    expect(asked).toHaveBeenCalledWith("t1", "menu");
+    expect(screen.getByText("open: none")).toBeInTheDocument();
+    stop();
+    await user.keyboard(".");
+    expect(screen.getByText("open: t1")).toBeInTheDocument();
   });
 });
