@@ -5,6 +5,7 @@
 // Project… — head the row's ⋯ sheet (DECISIONS.md "Phone tap on an Inbox row"); "Select" ticks rows for a bulk edit,
 // as a long-press does. Triage all walks the queue one task at a time (features/inbox/triage-walk). "+ Add to Inbox"
 // at the end adds through the quick-add parser.
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { TaskDraft } from "@/core/quickadd/types";
 import { useQuery } from "@/data/powersync";
@@ -20,7 +21,6 @@ import { useProjectNames } from "@/features/projects/use-project-names";
 import { useListSelection, useSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
-import { InlineAdd } from "@/features/tasks/inline-add";
 import { requestOrganize } from "@/features/tasks/organize";
 import { MenuOnly, MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { useTaskDetail } from "@/features/tasks/task-detail";
@@ -29,9 +29,15 @@ import { useConvertToProject } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icons";
-import { EmptyCard } from "@/ui/list-card";
+import { EmptyCard, ListLine } from "@/ui/list-card";
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
+
+// The add row parses like quick-add, and the parser is heavy: it follows the first paint, in a line of the same height.
+const InlineAdd = dynamic(() => import("@/features/tasks/inline-add").then((m) => m.InlineAdd), {
+  ssr: false,
+  loading: () => <ListLine className="border-t border-line first:border-t-0" cellClassName="min-h-14 sm:min-h-11">{null}</ListLine>,
+});
 
 export default function InboxPage() {
   const repo = useTaskRepo();
