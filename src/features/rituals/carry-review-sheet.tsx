@@ -166,10 +166,10 @@ export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose, carryAs
           ))}
         </ul>
         <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-3 sm:py-4">
-          <Button variant="quiet" size="sheet" disabled={busy} onClick={() => void notNow()} className="max-w-32 sm:h-9 sm:w-auto sm:max-w-none sm:text-body touch:h-11">
+          <Button variant="quiet" size="sheet" disabled={busy} onClick={() => void notNow()} className="max-w-32 sm:h-9 sm:w-auto sm:max-w-none sm:text-body sm:touch:h-11">
             Not now
           </Button>
-          <Button variant="primary" size="sheet" disabled={busy} onClick={() => void done()} className="flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body touch:h-11">
+          <Button variant="primary" size="sheet" disabled={busy} onClick={() => void done()} className="flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body sm:touch:h-11">
             Done
           </Button>
         </div>

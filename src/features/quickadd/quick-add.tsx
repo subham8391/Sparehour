@@ -647,10 +647,11 @@ export function QuickAdd({
           {/* In the page the step's own button is the primary; Add stays as the tap path for a keyboard without Enter. */}
           <Button
             variant={inline ? "secondary" : "primary"}
-            size={inline ? "auto" : "desktop"}
+            // The sheet's 48 px full-width primary on a phone (touch or not), the desktop size from `sm` (44 px there on touch).
+            size={inline ? "auto" : "sheet"}
             onClick={() => void submit(false)}
             disabled={!draft || busy}
-            className={inline ? undefined : "max-sm:h-12 max-sm:w-full max-sm:text-body-lg"}
+            className={inline ? undefined : "sm:h-9 sm:w-auto sm:text-body sm:touch:h-11"}
           >
             Add
           </Button>
