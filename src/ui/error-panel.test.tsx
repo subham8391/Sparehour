@@ -47,7 +47,9 @@ describe("PaneBoundary: a pane that throws fails in place", () => {
       </div>,
     );
     expect(screen.getByText("The list still works")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Your day stopped before it finished drawing." })).toBeInTheDocument();
+    // The panel is an island: until it arrives the place already says what happened, never a blank.
+    expect(screen.getByRole("status")).toHaveTextContent(/stopped before it finished drawing/);
+    expect(await screen.findByRole("heading", { name: "Your day stopped before it finished drawing." })).toBeInTheDocument();
     for (const name of ["Try again", "Copy details"]) expect(screen.getByRole("button", { name })).toHaveClass("h-11");
     expect(document.body.textContent).not.toMatch(/Something went wrong|at \w+ \(/);
 
@@ -67,7 +69,7 @@ describe("the app's route boundary (app/(app)/error.tsx)", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const reset = vi.fn();
     render(<AppError error={Object.assign(new Error("boom"), { digest: "d1" })} reset={reset} />);
-    expect(screen.getByRole("heading", { name: "This screen stopped before it finished drawing." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "This screen stopped before it finished drawing." })).toBeInTheDocument();
     expect(screen.getByText(/Nothing you saved is lost/)).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     expect(reset).toHaveBeenCalled();

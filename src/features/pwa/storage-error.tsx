@@ -9,9 +9,11 @@
 import { BUILD_ID } from "@/data/build-id";
 import { ErrorPanel, errorDetails } from "@/ui/error-panel";
 
+const WHAT = "Sparehour couldn’t open this device’s storage.";
+
 /** What Copy details puts on the clipboard: the error's name and message, the build and the browser — nothing personal. */
 export function storageErrorDetails(error: unknown, build: string, userAgent: string, at: Date): string {
-  return errorDetails({ what: "Sparehour couldn’t open this device’s storage.", error, build, userAgent, at });
+  return errorDetails({ what: WHAT, error, build, userAgent, at });
 }
 
 export default function StorageError({ error }: { error: unknown }) {
@@ -22,7 +24,7 @@ export default function StorageError({ error }: { error: unknown }) {
         title="Sparehour can’t open its storage in this window."
         body="Private windows often keep it shut. Open Sparehour in a normal window, or try again. Everything is safe in your account."
         onRetry={() => window.location.reload()}
-        details={() => storageErrorDetails(error, BUILD_ID, navigator.userAgent, new Date())}
+        details={{ what: WHAT, error, build: BUILD_ID }}
       />
     </main>
   );

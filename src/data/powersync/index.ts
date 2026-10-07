@@ -5,4 +5,4 @@ export { column, Schema, Table } from "@powersync/web";
 export type { AbstractPowerSyncDatabase as LocalDatabase } from "@powersync/web";
 export { usePowerSync as useLocalDatabase, useQuery, useStatus as useSyncStatus } from "@powersync/react";
 export { readSyncSignedOut, setSyncSignedOut, subscribeSyncSignedOut } from "./auth-state";
-export { readStorageFull, subscribeStorageFull } from "./quota";
+export { readStorageFull, subscribeStorageFull } from "./quota-store";

@@ -1,7 +1,10 @@
 // Storage running out (SCREENS.md §21 "Quota / storage full", SYSTEM_DESIGN.md §10.4): a local write the browser
 // refused for want of room, or the origin's estimate within a few percent of its quota. Either one raises the
 // storage-full banner, which offers Export your data first. Nothing here blocks: reads keep working, and writes are
-// tried as usual — the banner only says why one may not stick.
+// tried as usual — the banner only says why one may not stick. The flag itself lives in quota-store.ts.
+import { setStorageFull, storageFullReason } from "./quota-store";
+
+export { readStorageFull, setStorageFull, subscribeStorageFull } from "./quota-store";
 
 /** The share of the quota past which the banner shows before anything has failed. */
 export const NEAR_FULL = 0.95;
@@ -20,27 +23,6 @@ export function nearQuota(estimate: { usage?: number; quota?: number } | null | 
   const usage = estimate?.usage ?? 0;
   const quota = estimate?.quota ?? 0;
   return quota > 0 && usage / quota >= NEAR_FULL;
-}
-
-/** Why storage reads as full: a refused write sticks until a reload; an estimate clears once there is room again. */
-let full: "write" | "estimate" | null = null;
-const listeners = new Set<() => void>();
-
-export function readStorageFull(): boolean {
-  return full !== null;
-}
-
-export function subscribeStorageFull(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => void listeners.delete(listener);
-}
-
-/** Marks storage full for a reason, or clears it (`null`; tests reset with it). A refused write outranks an estimate. */
-export function setStorageFull(reason: "write" | "estimate" | null): void {
-  const next = reason === "estimate" && full === "write" ? "write" : reason;
-  if (full === next) return;
-  full = next;
-  for (const l of listeners) l();
 }
 
 type Target = Pick<Window, "addEventListener" | "removeEventListener" | "setInterval" | "clearInterval">;
@@ -63,7 +45,7 @@ export function watchQuota(target: Target, storage: Estimator, everyMs = 10 * 60
       ?.estimate?.()
       .then((est) => {
         if (nearQuota(est)) setStorageFull("estimate");
-        else if (est?.quota && full === "estimate") setStorageFull(null);
+        else if (est?.quota && storageFullReason() === "estimate") setStorageFull(null);
       })
       .catch(() => undefined);
   };

@@ -2,7 +2,8 @@
 // The inline error state (SCREENS.md §21 "Unexpected failure"): what happened in plain words, then Try again and
 // Copy details — never a blank screen, never a stack trace, never "Something went wrong" alone. One panel for every
 // failure: the route boundaries (app/(app)/error.tsx, app/global-error.tsx), a pane that failed in place
-// (`PaneBoundary`) and storage that will not open (features/pwa/storage-error.tsx).
+// (`PaneBoundary`) and storage that will not open (features/pwa/storage-error.tsx). The boundaries load it as an
+// island (`LazyErrorPanel`, error-panel-lazy.tsx), so it never rides in a shell's first download.
 import { useState } from "react";
 import { Button } from "./button";
 import { cx } from "./cx";
@@ -27,13 +28,13 @@ export function errorDetails({ what, error, build, userAgent, at }: ErrorDetails
 }
 
 export interface ErrorPanelProps {
-  /** The tracked word above the title ("Storage", "Today"). */
+  /** The tracked word above the title ("Storage", "Unexpected error"). */
   eyebrow: string;
   title: string;
   body: string;
   onRetry: () => void;
-  /** Built when Copy details is pressed, so its time is the press's. */
-  details: () => string;
+  /** What Copy details describes; the browser and the time are added when it is pressed. */
+  details: { what: string; error: unknown; build: string };
   /** `screen` stands alone in the window; `inline` takes the place of the part that failed. */
   layout?: "screen" | "inline";
 }
@@ -42,7 +43,7 @@ export function ErrorPanel({ eyebrow, title, body, onRetry, details, layout = "s
   const [copied, setCopied] = useState<"yes" | "no" | null>(null);
   const [text, setText] = useState("");
   const copy = async () => {
-    const next = details();
+    const next = errorDetails({ ...details, userAgent: navigator.userAgent, at: new Date() });
     setText(next);
     try {
       await navigator.clipboard.writeText(next);
@@ -77,3 +78,5 @@ export function ErrorPanel({ eyebrow, title, body, onRetry, details, layout = "s
     </section>
   );
 }
+
+export default ErrorPanel;
