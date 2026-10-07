@@ -11,6 +11,7 @@ import type { CalendarEventRow, TimeBlockRow, WorkHoursRow } from "@/data/schema
 import { instant, type Instant, type LocalDate } from "@/core/time";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { pausedLine, useCalendarState } from "@/features/today/calendar-state";
 import type { PlanDrawing, PlanMode } from "./drawing";
 import { aheadDays, aheadThrough, candidateTasks, isoAt, planInputFrom, type PlanModel } from "./plan-input";
 import { PlanPreview, type PlanWriter } from "./plan-preview";
@@ -42,6 +43,8 @@ export function PlanIsland({ mode, model, now, layout, onDrawing, onClose }: Pla
   const { data: calendarRows } = useQuery<{ id: string; read: number | null }>(CALENDARS_SQL);
   const blocks = useBlockRepo();
   const taskRepo = useTaskRepo();
+  // Calendar access revoked or the write calendar gone: Approve waits like every other way to block (§10.3 rule 5).
+  const paused = pausedLine(useCalendarState().writes.off);
 
   const ages = new Map<string, LocalDate>();
   for (const r of ageRows ?? []) if (r.created_at) ages.set(r.id, instant(normaliseTimestamp(r.created_at)).toZonedDateTimeISO(zone).toPlainDate());
@@ -80,6 +83,7 @@ export function PlanIsland({ mode, model, now, layout, onDrawing, onClose }: Pla
       toIso={(minute) => isoAt(today, minute, zone)}
       onDrawing={onDrawing}
       onClose={onClose}
+      paused={paused}
     />
   );
 }

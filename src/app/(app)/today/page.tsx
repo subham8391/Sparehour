@@ -48,6 +48,8 @@ import { ListLine } from "@/ui/list-card";
 import { scrollMotion } from "@/ui/reduced-motion";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
+import { PaneBoundary } from "@/ui/pane-boundary";
+import { BUILD_ID } from "@/data/build-id";
 import { Loading } from "../loading-view";
 
 // The once-only expired digest (PRODUCT_SPEC.md §8.2 rule 5): a lazy island, out of the first download.
@@ -75,8 +77,7 @@ const CarriedPile = dynamic(() => loadDayStates().then((m) => m.CarriedPile), { 
 const ClosedDay = dynamic(() => loadDayStates().then((m) => m.ClosedDay), { ssr: false });
 const AllDone = dynamic(() => loadDayStates().then((m) => m.AllDone), { ssr: false });
 const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: false });
-// Today's calendar problem line (SCREENS.md §2.7), and another day's header and notes (SCREENS.md §2.1 `[` / `]`).
-const CalendarIssueLine = dynamic(() => loadDayStates().then((m) => m.CalendarIssueLine), { ssr: false });
+// Another day's header and notes (SCREENS.md §2.1 `[` / `]`).
 const OffDayEyebrow = dynamic(() => loadDayStates().then((m) => m.OffDayEyebrow), { ssr: false });
 const PastDay = dynamic(() => loadDayStates().then((m) => m.PastDay), { ssr: false });
 // The over day's one suggested move (it reads tomorrow), and the Done list.
@@ -90,6 +91,11 @@ const loadEveningSection = () => import("@/features/today/evening-section");
 const EveningSection = dynamic(() => loadEveningSection().then((m) => m.EveningSection), { ssr: false });
 const SectionDrop = dynamic(() => loadEveningSection().then((m) => m.SectionDrop), { ssr: false });
 const BlockDrop = dynamic(() => loadEveningSection().then((m) => m.BlockDrop), { ssr: false });
+// The calendar's lines (SCREENS.md §2.7, §21): reconnect, the write-calendar picker, the retry line and a row's
+// "Block removed in Google Calendar" — shown only when the calendar has something to say.
+const loadCalendarLines = () => import("@/features/today/calendar-lines");
+const CalendarBanner = dynamic(() => loadCalendarLines().then((m) => m.CalendarBanner), { ssr: false });
+const RemovedNote = dynamic(() => loadCalendarLines().then((m) => m.RemovedNote), { ssr: false });
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -432,6 +438,11 @@ export default function TodayPage() {
   const sectionMinutes = (list: Task[]) => formatMinutes(sectionTotal(list));
   // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
+  // Google removed this task's block (PRODUCT_SPEC.md §10.3 rule 3): one quiet line under the row, once.
+  const removedNote = (t: Task) => {
+    const ids = model.removedBlocks.get(t.id);
+    return ids && !model.blocksByTask.has(t.id) ? <RemovedNote blockIds={ids} /> : undefined;
+  };
   const blockChip = (t: Task) => {
     const bs = model.blocksByTask.get(t.id);
     return bs ? <BlockChip blocks={bs} estimateMin={t.estimateMin} /> : undefined;
@@ -453,6 +464,7 @@ export default function TodayPage() {
           onDone={() => void time("complete", () => model.repo.complete(t.id))}
           onBreakDown={() => void breakDown(t.id)}
           actions={convertItem(t.id)}
+          footer={removedNote(t)}
         />
       ))}
     </TaskList>
@@ -482,6 +494,8 @@ export default function TodayPage() {
           // Off today the eyebrow names the day and the way back: "Tomorrow · ← back to today" (SCREENS.md §2.1).
           eyebrow={onToday ? `Today · ${partOfDay(nowMinute, eveningAt)}` : <OffDayEyebrow label={daysAway(day, model.today)} onBack={backHome} />}
           title={formatDay(day, { weekday: "long", month: "long", today: model.today })}
+          // The day shown's all-day events sit under its date, never in the busy time (SYSTEM_DESIGN.md §5.4; ruled A12: no switch at M1).
+          subtitle={model.allDay.length > 0 ? `All day: ${model.allDay.join(" · ")}` : undefined}
           beside={
             <>
               {stepButton(-1)}
@@ -551,7 +565,9 @@ export default function TodayPage() {
           !past &&
           model.capacity && (
             <>
-              {onToday && <CalendarIssueLine />}
+              {/* The calendar's lines are today's; a later day keeps only an issue that pauses blocking, which is why its
+                  timeline takes no new block, with the way to fix it. */}
+              {model.calendarConnected && <CalendarBanner onToday={onToday} />}
               {overMin > 0 && <OverMove tasks={model.todayTasks} overMin={overMin} tomorrow={tomorrow} settings={model.settings} onMove={setOverMove} />}
               <Ribbon
                 c={model.capacity}
@@ -561,6 +577,8 @@ export default function TodayPage() {
                 connected={model.calendarConnected}
                 plannedCount={model.todayTasks.length + model.eveningTasks.length}
                 finished={doneToday.length > 0}
+                // The window of events around the day shown, still on its way (4 s, then "calendar still loading").
+                calendarLoading={model.calendarLoading}
                 onTrim={onToday ? () => setTrimOpen(true) : undefined}
                 suggestion={overMin > 0 ? overMove : null}
                 interactions={{
@@ -605,6 +623,8 @@ export default function TodayPage() {
           <LazyPlanIsland mode={planning.mode} model={model} now={now} layout="dock" onDrawing={planning.setDrawing} onClose={planning.close} />
         )}
 
+        {/* Each pane fails in place (SCREENS.md §21): a list that throws leaves the day pane working, and the other way round. */}
+        <PaneBoundary name="Today’s list" build={BUILD_ID}>
         <div className={cx("flex-col gap-6", previewing ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
           {/* A block dragged off the timeline onto the list is unblocked; its task stays where it is (SCREENS.md §2.6). */}
           {blockDrag && <BlockDrop />}
@@ -654,7 +674,7 @@ export default function TodayPage() {
                         )
                       }
                       footer={
-                        t.ask && (
+                        t.ask ? (
                           <CarryAsk
                             count={t.carryCount}
                             onKeep={() => void time("keep", () => model.repo.reschedule(t.id, model.today))}
@@ -662,6 +682,8 @@ export default function TodayPage() {
                             onBreakDown={() => void breakDown(t.id)}
                             onDrop={() => void time("drop", () => model.repo.setState(t.id, "dropped"))}
                           />
+                        ) : (
+                          removedNote(t)
                         )
                       }
                     />
@@ -712,6 +734,7 @@ export default function TodayPage() {
                       {convertItem(t.id)}
                     </>
                   }
+                  footer={removedNote(t)}
                 />
               ))}
               {model.todayTasks.length === 0 && !emptyDay && !allDone && <ListLine cellClassName="px-4 py-3 text-body-lg text-ink-3">Nothing planned yet.</ListLine>}
@@ -752,6 +775,7 @@ export default function TodayPage() {
             />
           )}
         </div>
+        </PaneBoundary>
       </div>
 
       {model.capacity && hasDay && (
@@ -771,6 +795,7 @@ export default function TodayPage() {
             previewing && "max-sm:pb-[min(62dvh,36rem)]",
           )}
         >
+          <PaneBoundary name="Your day" build={BUILD_ID}>
           <DayPane
             start={dayStart}
             end={dayEnd}
@@ -805,6 +830,7 @@ export default function TodayPage() {
               paneScrolls: true,
             }}
           />
+          </PaneBoundary>
         </aside>
       )}
       {trimOpen && onToday && (

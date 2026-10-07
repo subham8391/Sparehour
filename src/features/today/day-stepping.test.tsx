@@ -10,7 +10,7 @@ import { capacityFixture } from "@/test/fixtures";
 vi.mock("@/data/powersync", () => ({ useQuery: () => ({ data: [] }), useLocalDatabase: () => ({}) }));
 
 import { DayPane } from "./day-pane";
-import { OffDayEyebrow, PastDay, calendarIssueFrom } from "./day-states";
+import { OffDayEyebrow, PastDay } from "./day-states";
 import JumpToDate from "./jump-to-date";
 import { Ribbon, noWorkDayLine } from "./ribbon";
 import TodayMenu from "./today-menu";
@@ -39,7 +39,8 @@ describe("the ribbon on another day", () => {
     expect(screen.getByText(/nothing planned yet/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Plan your day" })).not.toBeInTheDocument();
     expect(container.querySelector(".ribbon-elapsed")).toBeNull();
-    expect(noWorkDayLine(2, true)).toBe("No working hours that day · 2 things planned");
+    expect(noWorkDayLine(2, { otherDay: true })).toBe("No working hours that day · 2 things planned");
+    expect(noWorkDayLine(1, { otherDay: true, outOfOffice: true })).toBe("Out of office that day · 1 thing planned");
     expect(noWorkDayLine(0)).toBe("No working hours today");
   });
 });
@@ -106,13 +107,5 @@ describe("Jump to date", () => {
     await userEvent.type(field, "2026-11-02");
     await userEvent.click(screen.getByRole("button", { name: "Go" }));
     expect(p.onJump.mock.calls[0][0].toString()).toBe("2026-11-02");
-  });
-});
-
-describe("the calendar's problem line", () => {
-  it("names lapsed access first, then a sync that failed", () => {
-    expect(calendarIssueFrom([])).toBeNull();
-    expect(calendarIssueFrom([{ id: "a", provider: "google", email: "me@example.com", status: "needs_reauth", can_write: 0, last_synced_at: null, last_error: null }])).toEqual({ kind: "reauth", message: "Google Calendar (me@example.com) needs reconnecting." });
-    expect(calendarIssueFrom([{ id: "a", provider: "google", email: null, status: "active", can_write: 0, last_synced_at: null, last_error: "boom" }])).toEqual({ kind: "error", message: "Couldn't reach Google Calendar yet." });
   });
 });

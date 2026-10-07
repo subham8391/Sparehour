@@ -11,7 +11,7 @@
 // drift apart. `heroState` is the matching rule for the words above it.
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import { cx } from "@/ui/cx";
@@ -49,7 +49,12 @@ export interface RibbonProps {
   finished?: boolean;
   /** Today stepped to a later day (SCREENS.md §2.1): its words drop "today" and it offers no morning plan. */
   otherDay?: boolean;
+  /** The calendar is connected but the day's events have not arrived (SCREENS.md §21 Loading). */
+  calendarLoading?: boolean;
 }
+
+/** How long the calendar may take before the ribbon says it is drawing working hours only (SCREENS.md §21). */
+export const CALENDAR_PATIENCE_MS = 4000;
 
 /** Over by more than this, the ribbon offers Trim today inline (PRODUCT_SPEC.md §9.4 "Well over"). */
 export const WELL_OVER_MIN = 120;
@@ -68,9 +73,12 @@ export function spokenMinutes(min: number): string {
   return m === 0 ? part(h, "hour") : `${part(h, "hour")} ${part(m, "minute")}`;
 }
 
-/** SCREENS.md §2.2, non-working day: "No working hours today · 3 things planned" ("that day" on another day). */
-export function noWorkDayLine(planned: number | undefined, otherDay = false): string {
-  const line = `No working hours ${otherDay ? "that day" : "today"}`;
+/**
+ * SCREENS.md §2.2, non-working day: "No working hours today · 3 things planned"; an out-of-office day says so instead
+ * (SYSTEM_DESIGN.md §5.4), and another day Today was stepped to is "that day".
+ */
+export function noWorkDayLine(planned: number | undefined, { outOfOffice = false, otherDay = false }: { outOfOffice?: boolean; otherDay?: boolean } = {}): string {
+  const line = `${outOfOffice ? "Out of office" : "No working hours"} ${otherDay ? "that day" : "today"}`;
   return planned ? `${line} · ${planned} ${planned === 1 ? "thing" : "things"} planned` : line;
 }
 
@@ -173,6 +181,10 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
             {c.busy.map((b, i) => (
               <span key={`m${i}`} className="absolute inset-y-0 rounded-[3px] bg-meet-fill" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
             ))}
+            {/* Unanswered invitations still count as busy, hatched so they read as not yet decided (SYSTEM_DESIGN.md §5.4). */}
+            {c.unanswered?.map((b, i) => (
+              <span key={`u${i}`} data-unanswered className="absolute inset-y-0 rounded-[3px] meet-unanswered" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
+            ))}
             {c.blocks.map((b, i) => (
               <span key={`b${i}`} className="absolute inset-y-0 rounded-[3px] bg-block-fill" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
             ))}
@@ -216,8 +228,24 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   );
 }
 
-export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion, interactions, finished = false, otherDay = false }: RibbonProps) {
-  if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount, otherDay)}</p>;
+/** True once `waiting` has held for `ms`; false again as soon as it stops. */
+function useLate(waiting: boolean, ms: number): boolean {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setTimeout(() => setLate(true), ms);
+    return () => {
+      clearTimeout(t);
+      setLate(false);
+    };
+  }, [waiting, ms]);
+  return waiting && late;
+}
+
+export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCount, onTrim, suggestion, interactions, finished = false, otherDay = false, calendarLoading = false }: RibbonProps) {
+  // Past four seconds without the calendar, the ribbon is the working-hours variant and says so; it fills in place.
+  const stillLoading = useLate(calendarLoading && connected, CALENDAR_PATIENCE_MS);
+  if (c.state === "no_work_day") return <p className="text-ink-2">{noWorkDayLine(plannedCount, { outOfOffice: c.reason === "out_of_office", otherDay })}</p>;
   const h = heroState(c);
   // Nothing planned yet (PRODUCT_SPEC.md §9.4 "Empty"): the line says so and invites the morning plan.
   const empty = c.committedMin + c.unscheduledMin === 0 && !finished;
@@ -243,7 +271,9 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
             </>
           )}
           <span className="text-ink-4"> · </span>
-          {connected ? (
+          {stillLoading ? (
+            <span data-calendar-loading>calendar still loading</span>
+          ) : connected ? (
             <>
               <b className="font-medium text-ink">{formatMinutes(c.busyMin)}</b> in meetings
             </>

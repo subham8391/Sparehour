@@ -145,6 +145,15 @@ describe("step 3 blocks the picked tasks", () => {
     expect(screen.getByTestId("timeline")).toHaveAttribute("data-drop-target-for-element", "true");
   });
 
+  it("while blocking is paused (calendar access revoked, write calendar gone) it says why over the timeline, and no task waits for a tap", async () => {
+    const why = "Blocking is paused until Google Calendar is reconnected. Your blocks stay here, not synced.";
+    const b = blocking({ placing: { title: "Outline talk", onCancel: vi.fn() }, paused: why });
+    const { user } = setup({ onToday: [proj], blocking: b });
+    await user.click(screen.getByRole("button", { name: "Step 3: Block time" }));
+    expect(screen.getByRole("note")).toHaveTextContent(why);
+    expect(screen.queryByText("Tap a time for “Outline talk”")).not.toBeInTheDocument();
+  });
+
   it("with everything picked blocked, it says so and the timeline takes the width", async () => {
     const b = blocking();
     const { user } = setup({ onToday: [proj], blocks: [{ id: "x", taskId: "p1" as TaskId, title: "Outline talk", start: 600, end: 630, locked: false }], blocking: b });

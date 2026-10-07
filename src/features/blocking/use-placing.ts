@@ -34,6 +34,11 @@ export interface PlacingDay {
   /** Whatever the screen does when a block is placed for it by `B` (Today shows its Day view). */
   onPlaced?: () => void;
   /**
+   * Blocking is paused, and why (PRODUCT_SPEC.md §10.3 rule 5: calendar access revoked, or the write calendar gone):
+   * no new block is made — not by `B`, a drop, a tap or a copy — while the existing ones can still be edited.
+   */
+  off?: string | null | false;
+  /**
    * The selected block and the task waiting for a tap, when the screen holds them itself: Today keeps them in its
    * shell (a row's "Block…" and Plan my day set them) and runs this hook inside the day pane's island.
    */
@@ -72,6 +77,7 @@ export function usePlacing(d: PlacingDay) {
   const ofTask = (taskId: string) => d.blocks.filter((b) => b.taskId === taskId);
 
   const create = async (taskId: string | null, title: string | null, start: number, end: number): Promise<string | null> => {
+    if (d.off) return null;
     const user = users?.[0];
     if (!user?.personal_space_id) return null;
     const id = await repo.create({ spaceId: user.personal_space_id, userId: user.id, taskId, title, startAt: atMinute(start), endAt: atMinute(end) });
@@ -100,7 +106,7 @@ export function usePlacing(d: PlacingDay) {
   };
   const duplicateBlock = async (id: string, startMin: number) => {
     const b = blockOf(id);
-    if (!b) return;
+    if (!b || d.off) return;
     const at = placeAt(startMin, b.end - b.start);
     const copy = await repo.duplicate(id, atMinute(at.start), atMinute(at.end));
     if (copy) setSelectedBlockId(copy);

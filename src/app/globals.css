@@ -323,6 +323,16 @@
 @utility ribbon-elapsed {
   background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1.2px, transparent 1.2px 5px);
 }
+/* An unanswered invitation (SYSTEM_DESIGN.md §5.4): still busy, so it keeps the meeting's fill, with a 45 degree
+   hatch of the surface laid over it so it reads as not yet decided. Ribbon and timeline share it. */
+@utility meet-unanswered {
+  background-color: var(--meet-fill);
+  background-image: repeating-linear-gradient(45deg, color-mix(in oklab, var(--surface) 55%, transparent) 0 1.5px, transparent 1.5px 5px);
+}
+/* The timeline's unanswered meeting: the same 45 degree hatch, in the meeting's line colour over its soft fill. */
+@utility meet-hatch {
+  background-image: repeating-linear-gradient(45deg, color-mix(in oklab, var(--meet-line) 70%, transparent) 0 1.5px, transparent 1.5px 6px);
+}
 /* Engraved ticks under the track: an 8 px hour tick and 4 px quarter ticks, drawn from --ribbon-hours.
    The third layer is the closing hour tick that a repeating tile cannot draw. */
 @utility ribbon-ticks {

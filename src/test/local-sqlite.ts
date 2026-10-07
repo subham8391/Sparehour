@@ -33,7 +33,7 @@ const TABLES: Record<string, string> = {
   checklist_items: "task_id, title, done, sort_key",
   recurrence_exceptions: "series_id, occurrence_date, kind, moved_to",
   task_completions: "task_id, occurrence_date, completed_at, actual_min",
-  time_blocks: "user_id, task_id, title, start_at, end_at, locked, source, routine_run_id, routine_item_key, routine_date, calendar_id, external_event_id, external_etag, push_state",
+  time_blocks: "user_id, task_id, title, start_at, end_at, locked, source, routine_run_id, routine_item_key, routine_date, calendar_id, external_event_id, external_etag, push_state, notice",
   user_settings: "user_id, timezone, day_rollover_hour, default_miss_policy, onboarded_at",
   work_hours: "user_id, weekday, start_time, end_time",
 };

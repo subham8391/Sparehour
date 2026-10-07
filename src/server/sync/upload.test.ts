@@ -37,6 +37,12 @@ describe("sanitize", () => {
     expect(sanitize(op({ table: "task_completions", op: "PUT", data: { task_id: "t1", carry_count_before: 9, last_carried_before: "2026-10-01" } }))?.data).toEqual({ task_id: "t1" });
   });
 
+  it("a block's 'removed in Google Calendar' note is the worker's: cleared by a person, never set", () => {
+    expect(sanitize(op({ table: "time_blocks", data: { notice: "removed_in_google", title: "b" } }))?.data).toEqual({ title: "b" });
+    expect(sanitize(op({ table: "time_blocks", data: { notice: null } }))?.data).toEqual({ notice: null });
+    expect(sanitize(op({ table: "time_blocks", data: { push_state: null } }))).toBeNull();
+  });
+
   it("strips id from data (it travels separately)", () => {
     expect(sanitize(op({ op: "PUT", data: { id: "other", title: "t" } }))?.data).toEqual({ title: "t" });
   });

@@ -100,6 +100,17 @@ describe("<PlanPreview>", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("while blocking is paused (calendar access revoked, write calendar gone) it previews but offers no Approve, and says why", () => {
+    const w = writer();
+    const why = "Blocking is paused until Google Calendar is reconnected. Your blocks stay here, not synced.";
+    render(<PlanPreview mode="plan" base={base()} layout="dock" writer={w} toIso={(m) => isoAt(TODAY, m, "UTC")} onClose={vi.fn()} paused={why} />);
+    expect(proposed().getAllByRole("listitem").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve some" })).toBeNull();
+    expect(screen.getByRole("note")).toHaveTextContent(why);
+    expect(w.approve).not.toHaveBeenCalled();
+  });
+
   it("Approve some writes only the ticked blocks", async () => {
     const { w, user } = setup();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();

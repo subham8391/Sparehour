@@ -2,7 +2,7 @@
 // Feeds the sync chip from PowerSync's status, the browser's online flag and
 // the local upload queue.
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { readSyncSignedOut, subscribeSyncSignedOut, useQuery, useSyncStatus } from "@/data/powersync";
+import { readStorageFull, readSyncSignedOut, subscribeStorageFull, subscribeSyncSignedOut, useQuery, useSyncStatus } from "@/data/powersync";
 import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { syncChipModel, type SyncChipModel } from "./sync-chip";
 
@@ -25,6 +25,7 @@ export function useSyncChip(): SyncChipModel {
   const status = useSyncStatus();
   const online = useSyncExternalStore(subscribeOnline, readOnline, readOnlineOnServer);
   const signedOut = useSyncExternalStore(subscribeSyncSignedOut, readSyncSignedOut, () => false);
+  const storageFull = useSyncExternalStore(subscribeStorageFull, readStorageFull, () => false);
   const { data } = useQuery<{ n: number }>(PENDING_SQL);
   const { data: waitingRows } = useQuery<{ data: string | null }>(PENDING_LIST_SQL);
   const [now, setNow] = useState(() => new Date());
@@ -49,6 +50,7 @@ export function useSyncChip(): SyncChipModel {
     pending: data?.[0]?.n ?? 0,
     now,
     persisted: persistence === "protected" ? true : persistence === "unprotected" ? false : undefined,
+    storageFull,
   });
 }
 

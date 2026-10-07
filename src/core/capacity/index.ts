@@ -91,6 +91,8 @@ export interface Capacity {
   outsideHoursMin: number;
   /** Unanswered invitations counted as busy; the UI hatches these. */
   unansweredMin: number;
+  /** Where those unanswered invitations sit, inside the working day, for the hatch on the ribbon and the timeline. */
+  unanswered: Interval[];
   /** All-day events that were not subtracted, for the day header. */
   allDayNotes: string[];
   /** Work windows, meetings and blocks as minutes of the day, for drawing the ribbon. */
@@ -167,6 +169,7 @@ const noWorkDay = (day: LocalDate, reason: "no_hours" | "out_of_office", extra: 
   eveningMin: 0,
   outsideHoursMin: 0,
   unansweredMin: 0,
+  unanswered: [],
   allDayNotes: [],
   windows: [],
   busy: [],
@@ -219,7 +222,8 @@ export function capacityFor(input: CapacityInput): Capacity {
   const workMin = totalMinutes(windows);
   const busy = clip(merge(rawBusy), windows);
   const busyMin = totalMinutes(busy);
-  const unansweredMin = totalMinutes(clip(unanswered, windows));
+  const unansweredIn = merge(clip(unanswered, windows));
+  const unansweredMin = totalMinutes(unansweredIn);
   const free = subtract(windows, busy);
 
   const dayBlocks: Interval[] = [];
@@ -277,6 +281,7 @@ export function capacityFor(input: CapacityInput): Capacity {
     eveningMin,
     outsideHoursMin,
     unansweredMin,
+    unanswered: unansweredIn,
     allDayNotes,
     windows,
     busy,

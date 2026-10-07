@@ -3,5 +3,6 @@
 // so swapping the sync engine (SYSTEM_DESIGN.md §4.9) touches one folder.
 export { column, Schema, Table } from "@powersync/web";
 export type { AbstractPowerSyncDatabase as LocalDatabase } from "@powersync/web";
-export { usePowerSync as useLocalDatabase, useQuery, useStatus as useSyncStatus } from "@powersync/react";
+export { usePowerSync as useLocalDatabase, useQuery, useStatus as useSyncStatus, useSyncStream } from "@powersync/react";
 export { readSyncSignedOut, setSyncSignedOut, subscribeSyncSignedOut } from "./auth-state";
+export { readStorageFull, subscribeStorageFull } from "./quota-store";

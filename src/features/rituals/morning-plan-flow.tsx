@@ -88,6 +88,11 @@ export interface BlockingStep {
   placing: { title: string; onCancel: () => void } | null;
   /** A task (or its Block) tapped: the next tap on the timeline places it. */
   onPlace: (taskId: string) => void;
+  /**
+   * Why blocking is paused (calendar access revoked, or the write calendar gone; PRODUCT_SPEC.md §10.3 rule 5), said
+   * over the timeline where a tap would have placed a block. Null while blocking works.
+   */
+  paused?: string | null;
 }
 
 const TITLES: Record<PlanStep, string> = { frame: "Here’s your day", pick: "Pick today’s tasks", block: "Block time" };
@@ -342,7 +347,12 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
                   </section>
                 )}
                 <div className={cx("rounded-xl border border-line bg-surface bg-daylight px-3 py-4 sm:px-4", !(b && toBlock.length > 0) && "md:col-span-2")}>
-                  {b?.placing && <PlacingBar text={`Tap a time for “${b.placing.title}”`} onCancel={b.placing.onCancel} />}
+                  {b?.paused && (
+                    <p role="note" className="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-body-sm text-pretty text-ink-2">
+                      {b.paused}
+                    </p>
+                  )}
+                  {b?.placing && !b.paused && <PlacingBar text={`Tap a time for “${b.placing.title}”`} onCancel={b.placing.onCancel} />}
                   <Timeline
                     c={drawing ? { ...c, free: [...drawing.free], projectedFinish: null } : c}
                     now={p.now}

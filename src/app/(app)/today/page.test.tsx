@@ -22,6 +22,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@/data/powersync", () => ({
   useQuery: (sql: string, params?: unknown[]) => ({ data: h.answer(sql, params ?? []), isLoading: false }),
   useLocalDatabase: () => ({ getOptional: async () => null }),
+  useSyncStream: () => null,
 }));
 // The router follows a replaced history entry; here a replace tells the hook to read the address again.
 vi.mock("next/navigation", async (actual) => {

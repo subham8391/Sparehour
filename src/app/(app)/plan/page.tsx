@@ -24,6 +24,7 @@ import { useConvertToProject } from "@/features/tasks/use-convert";
 import { usePlacing } from "@/features/blocking/use-placing";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useTaskDetail } from "@/features/tasks/task-detail";
+import { pausedLine, useCalendarState } from "@/features/today/calendar-state";
 import { placerTimeline } from "@/features/today/day-pane";
 import { useRecordAsks } from "@/features/rollover/use-carry-asks";
 
@@ -77,6 +78,8 @@ export default function PlanPage() {
   // Step 3 blocks the picked tasks with Today's own placing (B, drags, taps, moves), registered for B while the plan is open.
   // Only what is picked for today: B on a row still waiting in step 2 does not block a task the day does not hold.
   const findTask = (id: string) => onToday.find((t) => t.id === id);
+  const { writes } = useCalendarState();
+  const paused = pausedLine(writes.off);
   const placer = usePlacing({
     day: model.today,
     zone,
@@ -87,6 +90,8 @@ export default function PlanPage() {
     nowMinute: nowMin,
     defaultEstimateMin: model.settings?.defaultEstimateMin ?? 30,
     findTask,
+    // Calendar access revoked or the write calendar gone: blocking pauses here as on Today (PRODUCT_SPEC.md §10.3 rule 5).
+    off: writes.off,
   });
 
   if (!model.ready || !model.settings) return <Loading />;
@@ -130,9 +135,11 @@ export default function PlanPage() {
       onEstimate={(id, minutes) => void model.repo.update(id, { estimateMin: minutes })}
       onAddTask={() => quickAdd.open("today ")}
       blocking={{
-        timeline: placerTimeline(placer, findTask, detail.open),
-        placing: placer.placingTask ? { title: placer.placingTask.title, onCancel: () => placer.setPlacing(null) } : null,
+        timeline: placerTimeline(placer, findTask, detail.open, paused),
+        // Paused: nothing waits for a tap that could not place it; the step says why over the timeline instead.
+        placing: placer.placingTask && !paused ? { title: placer.placingTask.title, onCancel: () => placer.setPlacing(null) } : null,
         onPlace: placer.setPlacing,
+        paused,
       }}
       onDone={() => {
         if (user?.personal_space_id) void dayPlans.upsert(model.today.toString(), { spaceId: user.personal_space_id, userId: user.id }, { plannedAt: new Date().toISOString() });

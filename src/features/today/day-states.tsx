@@ -1,7 +1,7 @@
 "use client";
 // Today's parts that show only on some days (SCREENS.md §2.1, §2.3, §2.7, ONBOARDING.md §4): the closed day's
 // summary, all done, the empty day with its pull-in suggestions, a long carried pile's folded line and
-// whole-pile moves, the calendar's problem line, the over day's suggested move, the Done list, and the header
+// whole-pile moves, the over day's suggested move, the Done list, and the header
 // and note of another day Today was stepped to. An island out of Today's first download (SYSTEM_DESIGN.md
 // §11.6), fetched as the page mounts so it is in memory before the day it describes is known. The page keeps the
 // state (whether the pull-in list or the pile is open), so the island only draws it.
@@ -11,7 +11,6 @@ import { useQuery } from "@/data/powersync";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { toTask, type Settings } from "@/data/mappers";
-import { CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow } from "@/data/queries/calendar";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { easiestMove, pullInSuggestions } from "@/features/rituals/morning-plan";
@@ -134,35 +133,6 @@ export function CarriedPile({ onTomorrow, onSomeday }: { onTomorrow: () => void;
         All to Someday
       </SectionAction>
     </ListLine>
-  );
-}
-
-export interface CalendarIssue {
-  kind: "reauth" | "error";
-  message: string;
-}
-
-/** The first account that needs attention: lapsed access first, then a sync that failed (its events are still the last good ones). */
-export function calendarIssueFrom(rows: readonly CalendarConnectionRow[]): CalendarIssue | null {
-  const reauth = rows.find((r) => r.status === "needs_reauth" || r.status === "revoked");
-  if (reauth) return { kind: "reauth", message: `Google Calendar${reauth.email ? ` (${reauth.email})` : ""} needs reconnecting.` };
-  const failed = rows.find((r) => r.last_error);
-  if (failed) return { kind: "error", message: failed.last_synced_at ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(failed.last_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Couldn't reach Google Calendar yet." };
-  return null;
-}
-
-/** The one line above today's ribbon when a calendar account needs attention (SCREENS.md §2.7); other days leave it out. */
-export function CalendarIssueLine() {
-  const { data } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
-  const issue = calendarIssueFrom(data ?? []);
-  if (!issue) return null;
-  return (
-    <p role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-body-sm text-ink-2">
-      <span>{issue.message}</span>
-      <Link href="/settings#calendar" className="text-ink underline decoration-line-strong underline-offset-2">
-        {issue.kind === "reauth" ? "Reconnect" : "Retry"}
-      </Link>
-    </p>
   );
 }
 

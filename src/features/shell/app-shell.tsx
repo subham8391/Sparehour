@@ -7,7 +7,8 @@
 // and the command palette are mounted once here.
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { readStorageFull, subscribeStorageFull } from "@/data/powersync";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { KeyboardProvider } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
@@ -29,6 +30,7 @@ import { useIdleMount } from "./preload-on-idle";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
 import { useNavData } from "./use-nav-data";
+import { SyncModelContext } from "./sync-chip";
 import { useSyncChip } from "./use-sync-chip";
 
 // The bulk bar only shows while rows are ticked, so it is an island (the shells' 320 KB budget): fetched once the
@@ -48,6 +50,13 @@ const SidebarDrag = dynamic(() => loadNavDrag().then((m) => m.SidebarDrag), { ss
 
 function SidebarDragIsland({ areas }: { areas: ReturnType<typeof useNavData>["areas"] }) {
   return useIdleMount(loadNavDrag, false) ? <SidebarDrag areas={areas} /> : null;
+}
+
+// Storage full (SCREENS.md §21): the banner with Export your data loads only once the device reports it is out of room.
+const StorageFull = dynamic(() => import("@/features/pwa/storage-full"), { ssr: false });
+
+function StorageFullBanner() {
+  return useSyncExternalStore(subscribeStorageFull, readStorageFull, () => false) ? <StorageFull /> : null;
 }
 
 function Keyboard({ children }: { children: ReactNode }) {
@@ -124,7 +133,10 @@ function Frame({ children }: { children: ReactNode }) {
           tabIndex={0}
           className="flex flex-1 flex-col focus-visible:-outline-offset-2 sm:min-h-0 sm:overflow-y-auto"
         >
-          <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
+          <StorageFullBanner />
+          <SyncModelContext.Provider value={sync}>
+            <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
+          </SyncModelContext.Provider>
         </div>
         {adds && <QuickAddBar />}
         <BulkBarIsland />

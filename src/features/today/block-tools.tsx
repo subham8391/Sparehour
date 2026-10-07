@@ -123,7 +123,7 @@ export function Block({
       ) : (
         <button
           type="button"
-          aria-label={`Block: ${block.title}, ${range}${done ? ", done" : ""}${block.locked ? ", locked" : ""}`}
+          aria-label={`Block: ${block.title}, ${range}${done ? ", done" : ""}${block.locked ? ", locked" : ""}${block.sync === "will" ? ", will sync" : block.sync === "off" ? ", not synced" : ""}`}
           aria-pressed={selected}
           onClick={(e) => {
             e.stopPropagation();
@@ -136,6 +136,8 @@ export function Block({
             {done && <Icon name="check" size={10} strokeWidth={2.2} className="shrink-0" />}
             {block.locked && <Icon name="lock" size={10} className="shrink-0" />}
             <span className={cx("truncate", done && "line-through")}>{block.title}</span>
+            {/* "Will sync": a change still on its way (SCREENS.md §2.7, §20); hollow when it cannot sync at all (§21). */}
+            {block.sync && <span aria-hidden="true" data-sync={block.sync} className={cx("size-1.5 shrink-0 rounded-full", block.sync === "will" ? "bg-ink-3" : "border border-ink-3")} />}
           </span>
           <span className={cx("block text-micro text-ink-2 num", tall ? "truncate" : "shrink-0 whitespace-nowrap")}>{tall ? rangeLine(start, end) : hhmm(start)}</span>
         </button>

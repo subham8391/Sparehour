@@ -59,6 +59,10 @@ describe("persistence", () => {
     expect(await requestPersistence({ persist, persisted }, store)).toBe("unprotected");
     expect(await requestPersistence({ persist, persisted }, store)).toBe("unprotected");
     expect(persist).toHaveBeenCalledTimes(1);
+    // Installed, or notifications allowed: the browser weighs the origin again, so it is asked again.
+    persist.mockResolvedValueOnce(true);
+    expect(await requestPersistence({ persist, persisted }, store, true)).toBe("protected");
+    expect(persist).toHaveBeenCalledTimes(2);
   });
 
   it("reports protected when the browser already granted it, and unknown without the API", async () => {

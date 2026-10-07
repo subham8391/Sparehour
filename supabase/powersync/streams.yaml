@@ -20,6 +20,8 @@ streams:
       - SELECT * FROM work_hours    WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM calendars     WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM time_blocks   WHERE user_id = auth.user_id() AND deleted_at IS NULL
+      # a block Google removed, while its task row still owes the person one quiet note (time_blocks.notice)
+      - SELECT * FROM time_blocks   WHERE user_id = auth.user_id() AND deleted_at IS NOT NULL AND notice IS NOT NULL
       - SELECT * FROM calendar_connections WHERE user_id = auth.user_id() AND deleted_at IS NULL
       - SELECT * FROM day_plans     WHERE user_id = auth.user_id() AND deleted_at IS NULL
 
@@ -52,6 +54,11 @@ streams:
       - SELECT * FROM calendar_events
         WHERE user_id = auth.user_id() AND deleted_at IS NULL
           AND substring(start_at, 1, 7) IN subscription.parameter('months')
+      # all-day events carry a date and no start_at: Today lists them under its date and an all-day
+      # out-of-office zeroes the day (SYSTEM_DESIGN.md §5.4), so they are keyed by their start date's month
+      - SELECT * FROM calendar_events
+        WHERE user_id = auth.user_id() AND deleted_at IS NULL AND start_at IS NULL
+          AND substring(start_date, 1, 7) IN subscription.parameter('months')
 
   # the Logbook: large, cold, opened on demand, one bucket per month completed
   logbook:

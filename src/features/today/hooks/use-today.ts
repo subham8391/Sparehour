@@ -4,9 +4,11 @@
 // (SCREENS.md §2.1 `[` / `]`, DECISIONS.md "Today on another day"): a later day
 // has its own tasks, blocks and meetings and no now; a day that has passed keeps
 // only its blocks and meetings (what was finished there is the page's done list);
-// Carried over, its asks and the calendar's problem line belong to today alone.
+// Carried over and its asks belong to today alone. The calendar's state follows the
+// day shown: its all-day line, unanswered invitations, out of office, the loading
+// flag (the same month window the events query holds) and removed-block notes.
 import { useCallback, useMemo } from "react";
-import { useQuery } from "@/data/powersync";
+import { useQuery, useSyncStream } from "@/data/powersync";
 import { capacityFor, type Capacity, type CapacityBlock } from "@/core/capacity";
 import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
 import { Temporal, compareDates, instant, localDate, todayFor, type Instant, type LocalDate } from "@/core/time";
@@ -32,6 +34,10 @@ export interface TimelineBlock {
   source?: string | null;
   /** Its task is done, or no longer open (parked, dropped): the block is done too (PRODUCT_SPEC.md §10.2). A block without a task never is. */
   done?: boolean;
+  /** time_blocks.push_state, the server's word on Google: 'pending' and 'failed' are still to be written. */
+  pushState?: string | null;
+  /** The mark the timeline draws (SCREENS.md §2.7, §21): "will sync" while a change waits, "not synced" while blocking is off. */
+  sync?: "will" | "off" | null;
 }
 
 /**
@@ -74,6 +80,7 @@ export function timelineBlocks(rows: readonly TimeBlockRow[], tasks: ReadonlyMap
         locked: r.locked === 1,
         source: r.source ?? null,
         done: isClosed(task),
+        pushState: r.push_state ?? null,
       };
     })
     .filter((b): b is TimelineBlock => b !== null)
@@ -100,7 +107,15 @@ export interface TimelineMeeting {
   end: number;
   /** "Busy" when the calendar is private or the event has no summary. */
   title: string;
+  /** An invitation not yet answered: still busy, drawn hatched (SYSTEM_DESIGN.md §5.4). */
+  unanswered?: boolean;
 }
+
+/**
+ * Blocks whose event Google deleted while their task was open (time_blocks.notice, server-owned): soft-deleted, so
+ * no other query sees them, and streamed until the task row has said "Block removed in Google Calendar" once.
+ */
+export const REMOVED_BLOCKS_SQL = `select id, task_id from time_blocks where deleted_at is not null and notice = 'removed_in_google' and task_id is not null`;
 
 export interface TodayModel {
   ready: boolean;
@@ -108,7 +123,7 @@ export interface TodayModel {
   today: LocalDate;
   /** The day shown: today, or the day Today was stepped to. Everything below is this day's. */
   day: LocalDate;
-  /** The day shown is today: the now cursor, Carried over, the rituals and the calendar's problem line are only here. */
+  /** The day shown is today: the now cursor, Carried over, the rituals and the calendar's lines (bar one that pauses blocking) are only here. */
   onToday: boolean;
   /** The day shown has passed: read-only, its finished tasks, blocks and meetings. */
   past: boolean;
@@ -131,6 +146,12 @@ export interface TodayModel {
   repo: TaskRepo;
   /** False until a calendar is connected: the ribbon offers to connect one (PRODUCT_SPEC.md §9.4). */
   calendarConnected: boolean;
+  /** The day shown's all-day events, by title, for the line under the date (SYSTEM_DESIGN.md §5.4: flagged, never busy). */
+  allDay: string[];
+  /** Each task's blocks that Google removed, for the row's one quiet note (PRODUCT_SPEC.md §10.3 rule 3). */
+  removedBlocks: ReadonlyMap<string, readonly string[]>;
+  /** A calendar is connected but the window of its events around the day shown has not arrived yet (SCREENS.md §21 Loading). */
+  calendarLoading: boolean;
 }
 
 /** `view` is the day to show (`?day=`); left out, or today itself, it is today. */
@@ -158,10 +179,13 @@ export function useToday(now: Temporal.Instant, view?: LocalDate | null): TodayM
   // stepping days keeps the one subscription.
   const aroundToday = monthsAround(today);
   const eventMonths = aroundToday.includes(day.toPlainYearMonth().toString()) ? aroundToday : monthsAround(day);
-  const { data: eventRows } = useQuery<CalendarEventRow>(EVENTS_AROUND_SQL, [from, to], {
-    streams: [{ name: "calendar_window", parameters: { months: eventMonths }, ttl: 60 * 60 * 24 }],
-  });
+  const calendarWindow = { name: "calendar_window", parameters: { months: eventMonths }, ttl: 60 * 60 * 24 };
+  const { data: eventRows } = useQuery<CalendarEventRow>(EVENTS_AROUND_SQL, [from, to], { streams: [calendarWindow] });
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
+  const { data: removedRows } = useQuery<{ id: string; task_id: string }>(REMOVED_BLOCKS_SQL);
+  // Has the window around the day shown arrived at least once? The very subscription the events query holds (stepped
+  // past today's three months it is the day's own), so the flag clears when that window lands.
+  const calendarWaiting = useSyncStream(calendarWindow)?.subscription.hasSynced !== true;
   // The same subscription the closed day's summary takes, so a task completed here stays on the device to say its block is done.
   const months = useMemo(() => monthsBack(localDate(dayIso), 1), [dayIso]);
   const { data: blockTaskRows } = useQuery<{ id: string; title: string | null; state: string | null }>(BLOCK_TASKS_SQL, [from, to], {
@@ -220,9 +244,13 @@ export function useToday(now: Temporal.Instant, view?: LocalDate | null): TodayM
           start: start.hour * 60 + start.minute,
           end: end.toPlainDate().equals(day) ? end.hour * 60 + end.minute : 24 * 60,
           title: hidden || !e.summary ? "Busy" : e.summary,
+          unanswered: e.self_response === "needsAction",
         };
       })
       .filter((m): m is TimelineMeeting => m !== null);
+    const removedBlocks = new Map<string, string[]>();
+    for (const r of removedRows ?? []) removedBlocks.set(r.task_id, [...(removedBlocks.get(r.task_id) ?? []), r.id]);
+    const connected = (calendarRows ?? []).length > 0;
 
     return {
       ready: !isLoading && settings !== null,
@@ -242,8 +270,22 @@ export function useToday(now: Temporal.Instant, view?: LocalDate | null): TodayM
       blocksByTask,
       meetings,
       repo,
-      // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected.
-      calendarConnected: (calendarRows ?? []).length > 0,
+      // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: the calendar's lines
+      // (an issue, blocking paused) are the banner island's own reading (calendar-state.ts).
+      calendarConnected: connected,
+      allDay: allDayTitles(eventRows ?? [], day, readByCalendar, privateIds),
+      removedBlocks,
+      calendarLoading: connected && calendarWaiting,
     };
-  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, workRows, settings, today, day, onToday, past, now, isLoading, repo]);
+  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, removedRows, calendarWaiting, workRows, settings, today, day, onToday, past, now, isLoading, repo]);
+}
+
+/** The day's all-day events by title (private calendars say "Busy"); out-of-office days have their own line on the ribbon. */
+export function allDayTitles(rows: readonly CalendarEventRow[], day: LocalDate, readByCalendar: ReadonlyMap<string, boolean>, privateIds: ReadonlySet<string>): string[] {
+  const iso = day.toString();
+  return rows
+    .filter((e) => e.all_day && e.start_date && e.start_date <= iso && iso < (e.end_date ?? localDate(e.start_date).add({ days: 1 }).toString()))
+    .filter((e) => e.status !== "cancelled" && e.self_response !== "declined" && e.event_type !== "outOfOffice")
+    .filter((e) => !e.calendar_id || readByCalendar.get(e.calendar_id) !== false)
+    .map((e) => (e.calendar_id && privateIds.has(e.calendar_id)) || !e.summary ? "Busy" : e.summary);
 }

@@ -495,19 +495,26 @@ export function Timeline(p: TimelineProps) {
             const height = Math.max(14, (b.end - b.start) * scale - 2);
             const past = b.end <= elapsed;
             const tall = height >= TWO_LINE_PX;
+            // An invitation not yet answered is still busy, hatched like on the ribbon (SYSTEM_DESIGN.md §5.4).
+            const unanswered = (c.unanswered ?? []).some((u) => u.start <= b.start && u.end >= b.end);
             return (
               <div
                 key={`m${i}`}
                 data-meeting={b.start}
+                data-unanswered={unanswered ? "true" : undefined}
                 className={cx(
                   "absolute right-2 left-13 overflow-hidden rounded-sm border-l-[3px] px-2 pl-2.5",
                   tall ? "py-1" : "flex items-center gap-1.5",
                   past ? "border-meet-line bg-[color-mix(in_oklab,var(--meet-soft)_55%,var(--surface))]" : "border-meet-fill bg-meet-soft",
+                  unanswered && "meet-hatch",
                   p.shownMeeting === b.start && "outline-2 outline-offset-1 outline-meet-fill",
                 )}
                 style={{ top: y(b.start) + 1, height, ...laneStyle(lanes.get(`m${i}`)) }}
               >
-                <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-meet">{meetingTitle(b, p.meetings)}</span>
+                <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-meet">
+                  {meetingTitle(b, p.meetings)}
+                  {unanswered && <span className="sr-only">, not answered yet</span>}
+                </span>
                 {/* On one line the time keeps its shape and the title gives way. */}
                 <span className={cx("block text-micro text-meet num", tall ? "truncate" : "shrink-0 whitespace-nowrap")}>{tall ? rangeLine(b.start, b.end) : hhmm(b.start)}</span>
               </div>
