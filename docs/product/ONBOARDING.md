@@ -4,6 +4,8 @@
 
 **Milestone.** **M2** (ruled 2026-09-13 — beta users need it; `PRODUCT_SPEC.md` §25 item 2). M1 ships only the working-hours confirmation (1b) and the brain dump (step 3), as a minimal first-run for a single user. M3 adds the landing page, billing hand-off and import.
 
+**As built (2026-10-07), the M1 first run.** `/welcome`, shown once to an account whose `user_settings.onboarded_at` is unset (every account that existed before is marked done, and so is the seeded dev account). 1b: the week strip (Mon–Fri on) with one 09:00–18:00 pair, the detected zone with Change, "That's right" and "Edit my hours" (per-day rows, up to three stretches a day), and the §1b validation words; accepting writes the zone and any changed days, with one undo. Step 3: the production quick-add composer in the page, with the cycling placeholder (still under reduced motion), the hint strip, rows above the box with their chips and "Friday — I'll keep it for then.", one undo for a paste, and after the twentieth the quiet line with later lines going to the Inbox. "Next — N things" and "I'll add things later" both stamp `onboarded_at` and open Today (steps 2, 4 and 5 and the post-reveal prompt are M2). Analytics events are not sent (no analytics yet); progressive tips (§5) are M2 (DECISIONS.md, 2026-10-06).
+
 **The one thing that must happen.** Step 5, *the reveal* — a real number, computed from the user's own calendar and their own tasks, that they did not have before they arrived. Everything before it is setup; everything after it is habit. If a step does not make the reveal truer or faster, it does not belong in onboarding.
 
 **Constraints.**
