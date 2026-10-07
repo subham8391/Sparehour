@@ -10,7 +10,7 @@ function Interim() {
   return (
     <p role="status" className="px-4 py-5 text-body-lg text-pretty text-ink-2">
       This part of Sparehour stopped before it finished drawing. Nothing you saved is lost.{" "}
-      <button type="button" onClick={() => window.location.reload()} className="font-medium text-ink underline decoration-line-strong underline-offset-2">
+      <button type="button" onClick={() => window.location.reload()} className="inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
         Reload
       </button>
     </p>

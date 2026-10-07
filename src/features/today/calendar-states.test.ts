@@ -125,3 +125,17 @@ describe("EVENTS_AROUND_SQL reaches all-day events (they have a date and no star
     expect(ids.sort()).toEqual(["allday", "timed", "week"]);
   });
 });
+
+describe("Keep blocks in Sparehour only (the write-calendar banner's last choice)", () => {
+  it("settles that loss on this device: no issue, and blocking resumes with blocks kept local", () => {
+    const rows = [conn({ write_lost_at: "2026-10-07T08:00:00Z" })];
+    const key = calendarIssueFrom(rows, [])!.key;
+    expect(calendarIssueFrom(rows, [], key)).toBeNull();
+    expect(calendarWrites(rows, [], key)).toEqual({ on: false, off: null });
+    // A later loss is a new issue, and pauses blocking again.
+    const later = [conn({ write_lost_at: "2026-10-09T08:00:00Z" })];
+    expect(calendarWrites(later, [], key).off).toBe("write_gone");
+    // An answer to a lost write calendar never quiets lapsed access.
+    expect(calendarWrites([conn({ status: "revoked", write_lost_at: "2026-10-07T08:00:00Z" })], writer, key).off).toBe("reauth");
+  });
+});

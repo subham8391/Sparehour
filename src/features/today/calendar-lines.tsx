@@ -4,7 +4,7 @@
 //
 // - Access revoked: a banner with Reconnect; blocking pauses when it was the write calendar's account.
 // - Write calendar gone from Google: a banner with the write-calendar picker in it; blocking pauses until a
-//   calendar is chosen, or "Keep blocks in Sparehour only" is.
+//   calendar is chosen, or "Keep blocks in Sparehour only" is (which settles it on this device: blocking resumes).
 // - Unreachable: one line naming the last good sync, with Retry, dismissible for the session.
 // - On a task row: "Block removed in Google Calendar", once — dismissed, or gone when Today is left.
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,11 +17,9 @@ import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { Radio } from "@/ui/radio";
-import { issueMessage, useCalendarState } from "./calendar-state";
+import { issueMessage, keepBlocksLocal, useCalendarState, useKeptLocal } from "./calendar-state";
 
 const DISMISSED_KEY = "sparehour:calendar-line-dismissed";
-/** "Keep blocks in Sparehour only" after the write calendar left: a choice for this device, kept with the issue it answered. */
-const KEEP_LOCAL_KEY = "sparehour:write-gone-local";
 
 function read(storage: () => Storage, key: string): string | null {
   try {
@@ -38,7 +36,6 @@ function write(storage: () => Storage, key: string, value: string): void {
   }
 }
 const session = () => window.sessionStorage;
-const local = () => window.localStorage;
 
 const BANNER = "flex flex-col gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-body-sm text-ink-2";
 
@@ -47,9 +44,10 @@ export const RECONNECT_HREF = `/api/calendar/google/start?next=${encodeURICompon
 
 export function CalendarBanner() {
   const { issue } = useCalendarState();
-  // What was put away: the unreachable line for this session, "Keep blocks in Sparehour only" on this device.
+  // What was put away: the unreachable line for this session, "Keep blocks in Sparehour only" on this device (which
+  // calendar-state.ts also reads, so the day pane's blocking resumes with it).
   const [dismissed, setDismissed] = useState<string | null>(() => read(session, DISMISSED_KEY));
-  const [keptLocal, setKeptLocal] = useState<string | null>(() => read(local, KEEP_LOCAL_KEY));
+  const keptLocal = useKeptLocal();
   const [said, setSaid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (!issue || issue.key === dismissed || issue.key === keptLocal) return null;
@@ -72,12 +70,7 @@ export function CalendarBanner() {
       <section role="status" aria-label="Where blocks go" className={BANNER}>
         <p className="text-pretty text-ink">{issueMessage(issue)}</p>
         <p className="text-pretty">Blocking is paused until you choose where blocks go. Your blocks stay here, marked not synced.</p>
-        <WritePicker
-          onKeepLocal={() => {
-            write(local, KEEP_LOCAL_KEY, issue.key);
-            setKeptLocal(issue.key);
-          }}
-        />
+        <WritePicker onKeepLocal={() => keepBlocksLocal(issue.key)} />
       </section>
     );
   }

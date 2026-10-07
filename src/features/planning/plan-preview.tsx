@@ -42,6 +42,11 @@ export interface PlanPreviewProps {
   /** The ghosts and free time for the timeline; called whenever the proposal changes. */
   onDrawing?: (drawing: PlanDrawing | null) => void;
   onClose: () => void;
+  /**
+   * Why blocking is paused (calendar access revoked, or the write calendar gone; PRODUCT_SPEC.md §10.3 rule 5):
+   * the preview still shows, Approve does not, and this line says why. Null while blocking works.
+   */
+  paused?: string | null;
 }
 
 export const PROPOSED_LABEL = "Proposed blocks";
@@ -91,7 +96,8 @@ export function PlanPreview(p: PlanPreviewProps) {
   const chosen = choosing ? blocks.filter((b) => !unticked.has(b.key)) : blocks;
   const removedTasks = (p.base?.candidates ?? []).filter((t) => removed.has(t.id));
   const replaced = (p.base?.blocks ?? []).filter((b) => proposal?.replaces.includes(b.id));
-  const allowed = canApprovePlan();
+  // Approving writes blocks, so it waits, like every other way to block, while blocking is paused.
+  const allowed = canApprovePlan() && !p.paused;
   const title = PLAN_LABEL[p.mode];
   const dock = p.layout === "dock";
 
@@ -105,7 +111,7 @@ export function PlanPreview(p: PlanPreviewProps) {
   })();
 
   const approve = async () => {
-    if (!proposal || chosen.length === 0 || busy) return;
+    if (!proposal || chosen.length === 0 || busy || !allowed) return;
     setBusy(true);
     setError(null);
     try {
@@ -307,6 +313,11 @@ export function PlanPreview(p: PlanPreviewProps) {
         {error && (
           <p role="alert" className="mt-2 text-body-sm text-deadline">
             {error}
+          </p>
+        )}
+        {p.paused && (
+          <p role="note" className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-body-sm text-pretty text-ink-2">
+            {p.paused}
           </p>
         )}
       </div>
