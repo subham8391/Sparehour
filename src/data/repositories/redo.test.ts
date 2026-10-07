@@ -54,8 +54,7 @@ function state(s: Db, refs: readonly (readonly [string, string])[]): (Row | null
   return refs.map(([table, id]) => {
     const row = s.row(table, id);
     if (!row) return null;
-    const { updated_at: _stamp, ...rest } = row;
-    return rest;
+    return Object.fromEntries(Object.entries(row).filter(([column]) => column !== "updated_at"));
   });
 }
 
