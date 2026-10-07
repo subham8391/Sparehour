@@ -954,6 +954,8 @@ Two-column: a section list on the left, the section on the right. Every change s
 
 **Responsive.** Phone: toasts stack above the tab bar, safe-area aware, with the Undo target ≥ 44 px; banners sit under the header; push notifications on iOS arrive without action buttons (rules above). Same anatomy on every band.
 
+**As built (2026-10-07), Redo.** An undo that can be made again is confirmed in the toast, "Undone: Dropped “Expenses”" with `Redo` for ten seconds (DECISIONS.md "Redo"), the touch path beside the palette's Redo in the `⌘K` sheet; a redo of a toasted action shows its toast with Undo again, and the polite live region says "Redone: …". Any new action clears what there was to redo.
+
 **As built (2026-10-06).** The numbers in the morning, day-of deadline and shutdown bodies are filled in at send time from the day's rows with the same capacity engine as Today ("fits today" is capacity: work − meetings − buffer); without a connected calendar the meetings clause is left out, and a figure that would be zero or negative is not said. The block body is "09:30–10:15 · 45m", with "· starts in 10m" only when Settings asks for a lead. Quiet hours (default 21:00–08:00) drop every kind. Every push carries `app_badge`; the badge is today's remaining count once permission is granted, 0 from the evening shutdown until the day rolls over, and off with Settings' switch. The permission prompt is an inline banner above the ribbon after the first block made on a device not yet asked — "Want a nudge when this starts?" · `Yes` · `Not now` — never on iOS Safari outside the Home Screen app; Not now is remembered on the device.
 
 ---
