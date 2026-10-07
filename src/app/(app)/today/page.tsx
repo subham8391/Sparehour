@@ -275,14 +275,6 @@ export default function TodayPage() {
     setPlacingId(id);
     setView("day");
   };
-  // What belongs to one day lets go when the day changes: the selected block and a task waiting for a time.
-  const dayIso = day.toString();
-  const [daySeen, setDaySeen] = useState(dayIso);
-  if (dayIso !== daySeen) {
-    setDaySeen(dayIso);
-    setSelectedBlockId(null);
-    setPlacingId(null);
-  }
   // Plan my day (SCREENS.md §2.1, §2.6): the preview shows the Day view with the proposal drawn on it, nothing written until Approve.
   // It plans today, so asked for on another day it comes home first.
   const planning = usePlanPreview(() => {
@@ -292,6 +284,16 @@ export default function TodayPage() {
     setPlacingId(null);
     detail.close();
   });
+  // What belongs to one day lets go when the day changes: the selected block, a task waiting for a time, and a plan
+  // preview when the day stepped away from today (one asked for elsewhere has just come home with it).
+  const dayIso = day.toString();
+  const [daySeen, setDaySeen] = useState(dayIso);
+  if (dayIso !== daySeen) {
+    setDaySeen(dayIso);
+    setSelectedBlockId(null);
+    setPlacingId(null);
+    if (!onToday && planning.mode) planning.close();
+  }
   // Once per preview, the first proposed block is brought into view: in the day pane from the wide band, above the sheet on a phone.
   // Between those the panel sits above the timeline in one column, and scrolling would carry its buttons away.
   const firstGhost = planning.drawing?.ghosts[0]?.key ?? null;
@@ -443,7 +445,7 @@ export default function TodayPage() {
   const dayOver = hasDay && nowMinute >= dayEnd;
   // Once the day has started and the plan has put blocks on it, the button offers to re-plan what is left.
   const nextPlan = planMode(nowMinute, dayStart, model.blocks.some((b) => b.source === "plan"));
-  const drawing = planning.drawing;
+  const drawing = previewing ? planning.drawing : null;
   const replacedIds = new Set(drawing?.replacedIds ?? []);
   // The header's day arrows: `[` and `]` on screen, 44 px on a phone (SCREENS.md §2.1).
   const stepButton = (delta: -1 | 1) => (
