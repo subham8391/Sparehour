@@ -172,7 +172,8 @@ const projectIn = (pathname: string): string | null => {
 export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName" | "today">): Promise<string | undefined> {
   if (ctx.pathname === "/today") {
     const { dayWords, parseDay } = await loadDays();
-    return dayWords(parseDay(new URLSearchParams(window.location.search).get("day")) ?? ctx.today, ctx.today);
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    return dayWords(parseDay(new URLSearchParams(search).get("day")) ?? ctx.today, ctx.today);
   }
   const id = projectIn(ctx.pathname);
   if (!id) return undefined;
