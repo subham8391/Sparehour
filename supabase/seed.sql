@@ -36,6 +36,8 @@ declare
   keys text[] := array['a0','a1','a2','a3','a4','a5','a6','a7','a8','a9'];
 begin
   select personal_space_id into sid from public.users where id = uid;
+  -- Three years of use: well past the first run (/welcome), which local runs, e2e and CI never see.
+  update public.user_settings set onboarded_at = now() where user_id = uid;
 
   insert into public.areas (id, space_id, name, sort_key) values
     (work_area, sid, 'Work', 'a0'), (personal_area, sid, 'Personal', 'a1'), (gen_random_uuid(), sid, 'Health', 'a2');

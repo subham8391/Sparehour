@@ -29,6 +29,10 @@ test("a new person sees only their own (empty) world, and sign-out clears the de
   await page.getByRole("button", { name: "Email me a code" }).click();
   await page.getByLabel("Code").fill(await waitForCode(email));
   await page.getByRole("button", { name: "Sign in" }).click();
+  // A new account's first run comes first; the quickest way through is the default hours and "later".
+  await expect(page.getByRole("heading", { name: "When do you work?" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "That’s right" }).click();
+  await page.getByRole("button", { name: "I’ll add things later" }).click();
   await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
   await waitForSync(page);
 
