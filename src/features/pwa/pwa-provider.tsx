@@ -52,7 +52,6 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   const [persistence, setPersistence] = useState<PersistenceState>("unknown");
   const [updateReady, setUpdateReady] = useState(false);
   const workerRef = useRef<Serwist | null>(null);
-  const waitingRef = useRef(false);
 
   useEffect(() => {
     const media = window.matchMedia("(display-mode: standalone)");
@@ -83,10 +82,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
     const worker = new Serwist("/sw.js", { scope: "/", type: "classic" });
     workerRef.current = worker;
-    worker.addEventListener("waiting", () => {
-      waitingRef.current = true;
-      setUpdateReady(true);
-    });
+    worker.addEventListener("waiting", () => setUpdateReady(true));
     worker.addEventListener("controlling", (event) => {
       if (event.isUpdate) window.location.reload();
     });
@@ -98,17 +94,6 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const gateMounted = useIdleMount(loadVersionGate, false);
-
-  // The forced update (§10.2) moves on this way: a waiting worker takes over (and `controlling` reloads); without one, a reload fetches the new pages, which are
-  // network-first. The fallback reload covers a worker that never answers.
-  const applyUpdate = useCallback(() => {
-    if (workerRef.current && waitingRef.current) {
-      workerRef.current.messageSkipWaiting();
-      setTimeout(() => window.location.reload(), 4000);
-    } else {
-      window.location.reload();
-    }
-  }, []);
 
   const requestPersist = useCallback(() => {
     void requestPersistence(navigator.storage, safeStorage()).then(setPersistence);
@@ -134,7 +119,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   return (
     <PwaContext.Provider value={api}>
       {children}
-      {gateMounted && <VersionGate applyUpdate={applyUpdate} />}
+      {gateMounted && <VersionGate />}
       {updateReady && (
         // The one toast surface (DESIGN_SYSTEM.md §5): raised on surface-3 with one quiet action.
         <Toast

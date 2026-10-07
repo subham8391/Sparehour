@@ -14,7 +14,7 @@ vi.mock("@/data/build-id", () => ({
 vi.mock("@serwist/window", () => ({ Serwist: class {} }));
 vi.mock("./update-required", () => ({ default: ({ min }: { min: string }) => <p role="alertdialog" aria-label="Update required">{min}</p> }));
 
-const { default: VersionGate } = await import("./version-gate");
+const { default: VersionGate, moveToNewVersion } = await import("./version-gate");
 const { PwaProvider } = await import("./pwa-provider");
 
 let gate: string | null = null;
@@ -35,14 +35,14 @@ afterEach(() => {
 describe("the version gate", () => {
   it("blocks with Update required when the oldest build allowed is newer than this one", async () => {
     gate = "2026.10.07.1900";
-    render(<VersionGate applyUpdate={vi.fn()} />);
+    render(<VersionGate />);
     expect(await screen.findByRole("alertdialog", { name: "Update required" })).toHaveTextContent("2026.10.07.1900");
     expect(fetchMock).toHaveBeenCalledWith("/api/bootstrap", expect.objectContaining({ cache: "no-store" }));
   });
 
   it("stays open at or above the gate", async () => {
     gate = "2026.10.07.1500";
-    render(<VersionGate applyUpdate={vi.fn()} />);
+    render(<VersionGate />);
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("the version gate", () => {
   it("a development build never asks", async () => {
     build.id = "dev";
     gate = "9999";
-    render(<VersionGate applyUpdate={vi.fn()} />);
+    render(<VersionGate />);
     await new Promise((r) => setTimeout(r, 20));
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("the version gate", () => {
   it("asks again when the app comes back into view, at most twice an hour", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
-      render(<VersionGate applyUpdate={vi.fn()} />);
+      render(<VersionGate />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
       document.dispatchEvent(new Event("visibilitychange"));
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -71,6 +71,31 @@ describe("the version gate", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it("moves to the new version through a waiting worker, else by reloading", async () => {
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...original, reload } });
+    try {
+      const postMessage = vi.fn();
+      vi.stubGlobal("navigator", { ...navigator, serviceWorker: { getRegistration: async () => ({ waiting: { postMessage } }) } });
+      vi.useFakeTimers();
+      await moveToNewVersion();
+      expect(postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
+      expect(reload).not.toHaveBeenCalled();
+      // A worker that never answers still ends in a reload.
+      vi.advanceTimersByTime(4000);
+      expect(reload).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+
+      vi.stubGlobal("navigator", { ...navigator, serviceWorker: { getRegistration: async () => undefined } });
+      await moveToNewVersion();
+      expect(reload).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+      Object.defineProperty(window, "location", { configurable: true, value: original });
     }
   });
 

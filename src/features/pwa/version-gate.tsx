@@ -13,7 +13,24 @@ import { fetchBootstrap, isUpdateRequired } from "./version";
 /** How often an open, visible app asks again. */
 export const GATE_EVERY_MS = 30 * 60_000;
 
-export default function VersionGate({ applyUpdate }: { applyUpdate: () => void }) {
+/**
+ * Moves to the new version: a waiting service worker is told to take over (the PWA provider reloads on its
+ * `controlling`), else a reload fetches the new pages, which are network-first. The fallback reload covers a worker
+ * that never answers.
+ */
+export async function moveToNewVersion(): Promise<void> {
+  const registration = await navigator.serviceWorker?.getRegistration?.().catch(() => undefined);
+  if (registration?.waiting) {
+    registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    setTimeout(() => window.location.reload(), 4000);
+    return;
+  }
+  window.location.reload();
+}
+
+const applyUpdate = () => void moveToNewVersion();
+
+export default function VersionGate() {
   const [gate, setGate] = useState<string | null>(null);
   useEffect(() => {
     if (!/\d/.test(BUILD_ID)) return;
