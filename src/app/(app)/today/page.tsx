@@ -436,7 +436,7 @@ export default function TodayPage() {
     </TaskList>
   );
   const eveningDrop = canLand(model.eveningTasks);
-  const eveningAt =model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
+  const eveningAt = model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
   // Past the working day: the ritual row says so even when there is no projected finish left to name.
   const dayOver = hasDay && nowMinute >= dayEnd;
   // Once the day has started and the plan has put blocks on it, the button offers to re-plan what is left.
@@ -675,14 +675,14 @@ export default function TodayPage() {
             {canLand(model.todayTasks) && <SectionDrop label="Drop here to do it today" onDrop={dropAtEnd(model.todayTasks, false)} />}
           </section>
 
-          {(model.eveningTasks.length > 0 || eveningDrop) && (
+          {model.settings && (model.eveningTasks.length > 0 || eveningDrop) && (
             // This Evening (SCREENS.md §2.5): its own readout and quieter overload line; collapsed on a phone (§2.8).
             <EveningSection
               count={model.eveningTasks.length}
               plannedMin={sectionTotal(model.eveningTasks)}
               windows={model.capacity?.windows ?? []}
-              eveningStartsAt={model.settings!.eveningStartsAt}
-              eveningEndsAt={model.settings!.eveningEndsAt}
+              eveningStartsAt={model.settings.eveningStartsAt}
+              eveningEndsAt={model.settings.eveningEndsAt}
               rows={eveningRows}
               onDrop={eveningDrop ? dropAtEnd(model.eveningTasks, true) : null}
               onShutChange={setEveningShut}
