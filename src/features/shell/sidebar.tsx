@@ -42,6 +42,13 @@ const ITEM = "flex h-9 items-center gap-3 rounded-lg px-3 text-body text-ink tra
 // The active pill: surface lifted by the 1 px ring shadow.
 const ACTIVE = "bg-surface shadow-nav";
 const RAIL_ITEM = "size-9 justify-center px-0";
+/**
+ * Where a dragged area or project would land (SCREENS.md §1 "drag-to-reorder Areas and projects"): a line above or
+ * below the row, or a ring round it when it would go inside (a project into an area, a task into a project). The
+ * drag itself is wired in an island (nav-drag.ts), which sets `data-drop` on the row under the pointer.
+ */
+export const DROP_MARK =
+  "relative before:pointer-events-none before:absolute before:inset-x-2 before:z-10 before:hidden before:h-0.5 before:rounded-full before:bg-ink data-[drop=bottom]:before:-bottom-px data-[drop=bottom]:before:block data-[drop=top]:before:-top-px data-[drop=top]:before:block data-[drop=inside]:outline-2 data-[drop=inside]:-outline-offset-2 data-[drop=inside]:outline-ink";
 
 function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathname: string; count?: number; rail: boolean; icon: IconName }) {
   const active = isActive(pathname, view.href);
@@ -70,7 +77,7 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
   const activeArea = !area.loose && isActive(pathname, `/area/${area.id}`);
   return (
     <li>
-      <div className={cx(ITEM, "font-medium", activeArea && ACTIVE)}>
+      <div data-nav-area={area.id} className={cx(ITEM, DROP_MARK, "font-medium", activeArea && ACTIVE)}>
         {/* A 28 px target whose chevron is centred on the icon column, so the area name lines up with the view names. */}
         <button
           type="button"
@@ -85,7 +92,8 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
           // Projects without an area: there is no area page to go to, so the group's name is plain text.
           <span className="min-w-0 flex-1 truncate">{area.name}</span>
         ) : (
-          <Link href={`/area/${area.id}`} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate">
+          // The row is what drags, so the link inside it does not start a link drag of its own.
+          <Link href={`/area/${area.id}`} draggable={false} aria-current={activeArea ? "page" : undefined} className="min-w-0 flex-1 truncate">
             {area.name}
           </Link>
         )}
@@ -96,7 +104,7 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
             const active = isActive(pathname, `/project/${p.id}`);
             return (
               <li key={p.id}>
-                <Link href={`/project/${p.id}`} aria-current={active ? "page" : undefined} className={cx(ITEM, "pl-4", active && ACTIVE)}>
+                <Link href={`/project/${p.id}`} data-nav-project={p.id} aria-current={active ? "page" : undefined} className={cx(ITEM, DROP_MARK, "pl-4", active && ACTIVE)}>
                   {/* The dot sits in the icon column, a step in from the area's chevron, so project names read as nested. */}
                   <span className="flex size-4.5 shrink-0 items-center justify-center" aria-hidden="true">
                     <span className="size-1.5 rounded-full bg-line-control" />

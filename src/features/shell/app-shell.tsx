@@ -39,6 +39,15 @@ function BulkBarIsland() {
   return useIdleMount(loadBulkBar, checkedIds.length > 0) ? <BulkBar /> : null;
 }
 
+// Dragging areas, projects and task rows in the sidebar's tree is a pointer nicety with a tap path in Browse,
+// so its wiring is an island too: fetched in idle time, never in a shell's first download.
+const loadNavDrag = () => import("./nav-drag-island");
+const SidebarDrag = dynamic(() => loadNavDrag().then((m) => m.SidebarDrag), { ssr: false });
+
+function SidebarDragIsland({ areas }: { areas: ReturnType<typeof useNavData>["areas"] }) {
+  return useIdleMount(loadNavDrag, false) ? <SidebarDrag areas={areas} /> : null;
+}
+
 function Keyboard({ children }: { children: ReactNode }) {
   const palette = usePalette();
   return <KeyboardProvider onOpenPalette={palette.open}>{children}</KeyboardProvider>;
@@ -92,6 +101,7 @@ function Frame({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh overflow-x-clip sm:h-dvh">
       <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
       <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
+      <SidebarDragIsland areas={areas} />
       <div
         className={cx(
           "flex min-w-0 flex-1 flex-col sm:relative sm:pb-0",
