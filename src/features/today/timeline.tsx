@@ -58,6 +58,8 @@ export interface TimelineProps {
   onTapSlot?: (startMin: number) => void;
   /** Plan my day's proposal while it is previewed: drawn as ghosts, never written (SYSTEM_DESIGN.md §5.5). */
   proposed?: readonly PlanGhost[];
+  /** The start of a meeting clicked on the ribbon: outlined for a moment (SCREENS.md §2.2). */
+  shownMeeting?: number | null;
 }
 
 interface Ghost {
@@ -223,7 +225,13 @@ export function Timeline(p: TimelineProps) {
         return (
           <div
             key={`m${i}`}
-            className={cx("absolute right-2 left-13 overflow-hidden rounded-sm border-l-[3px] px-2 pl-2.5", tall ? "py-1" : "flex items-center gap-1.5", past ? "border-meet-line bg-[color-mix(in_oklab,var(--meet-soft)_55%,var(--surface))]" : "border-meet-fill bg-meet-soft")}
+            data-meeting={b.start}
+            className={cx(
+              "absolute right-2 left-13 overflow-hidden rounded-sm border-l-[3px] px-2 pl-2.5",
+              tall ? "py-1" : "flex items-center gap-1.5",
+              past ? "border-meet-line bg-[color-mix(in_oklab,var(--meet-soft)_55%,var(--surface))]" : "border-meet-fill bg-meet-soft",
+              p.shownMeeting === b.start && "outline-2 outline-offset-1 outline-meet-fill",
+            )}
             style={{ top: y(b.start) + 1, height, ...laneStyle(lanes.get(`m${i}`)) }}
           >
             <span className="block min-w-0 truncate text-label leading-[15px] font-semibold text-meet">{meetingTitle(b, p.meetings)}</span>

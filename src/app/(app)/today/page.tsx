@@ -22,7 +22,9 @@ import { easiestMove, plannedLabel } from "@/features/rituals/easiest-move";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
-import { Ribbon, heroState } from "@/features/today/ribbon";
+import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon";
+import { SectionDrop, useTaskDrag } from "@/features/today/section-drop";
+import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
@@ -39,8 +41,11 @@ import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
 import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
+import { CollapsedGroup } from "@/ui/collapsed-group";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
+import { scrollMotion } from "@/ui/reduced-motion";
+import { usePhone } from "@/ui/use-phone";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
 import { Loading } from "../loading-view";
@@ -57,7 +62,7 @@ const loadClearSlate = () => import("@/features/archive/clear-slate-sheet");
 const TodayMenu = dynamic(loadTodayMenu, { ssr: false });
 const TrimToday = dynamic(loadTrimToday, { ssr: false });
 const ClearSlate = dynamic(loadClearSlate, { ssr: false });
-const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(), loadClearSlate()]);
+const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(), loadClearSlate(), preloadRibbonOverlay()]);
 // "Your day" with its timeline (SCREENS.md §2.6): drawn as soon as the day is known, so it is fetched as the page
 // mounts, alongside the local database opening, rather than on idle.
 const loadDayPane = () => import("@/features/today/day-pane");
@@ -76,6 +81,15 @@ const CARRIED_OPEN_KEY = "sparehour:carried-open";
 function readCarriedOpen(day: string): boolean {
   try {
     return localStorage.getItem(CARRIED_OPEN_KEY) === day;
+  } catch {
+    return false;
+  }
+}
+// On a phone This Evening starts collapsed (SCREENS.md §2.8); opening or closing it is remembered on the device.
+const EVENING_OPEN_KEY = "sparehour:evening-open";
+function readEveningOpen(): boolean {
+  try {
+    return localStorage.getItem(EVENING_OPEN_KEY) === "1";
   } catch {
     return false;
   }
@@ -191,6 +205,29 @@ export default function TodayPage() {
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [view, setView] = useState<TodayView>("list");
+  // A meeting clicked on the ribbon (SCREENS.md §2.2): the Day view on a phone, the timeline scrolled to it, marked for a moment.
+  const [shownMeeting, setShownMeeting] = useState<number | null>(null);
+  useEffect(() => {
+    if (shownMeeting === null) return;
+    document.querySelector(`[data-meeting="${shownMeeting}"]`)?.scrollIntoView?.({ block: "center", behavior: scrollMotion() });
+    const t = setTimeout(() => setShownMeeting(null), 2400);
+    return () => clearTimeout(t);
+  }, [shownMeeting]);
+  const quickAdd = useQuickAdd();
+  // This Evening on a phone: collapsed until opened, and the choice is remembered (SCREENS.md §2.8).
+  const phone = usePhone();
+  const [eveningOpen, setEveningOpen] = useState(readEveningOpen);
+  const toggleEvening = (open: boolean) => {
+    setEveningOpen(open);
+    try {
+      localStorage.setItem(EVENING_OPEN_KEY, open ? "1" : "0");
+    } catch {
+      // storage unavailable: it holds for this visit only
+    }
+  };
+  const eveningShut = phone && !eveningOpen;
+  // A row being dragged: an empty section shows where it can land (SCREENS.md §2.5).
+  const dragId = useTaskDrag();
   const windows = model.capacity?.windows ?? [];
   const dayStart = windows[0]?.start ?? 9 * 60;
   const dayEnd = windows[windows.length - 1]?.end ?? 17 * 60;
@@ -315,8 +352,8 @@ export default function TodayPage() {
   // logbook subscription is the one use-today already holds for block states, so this costs no extra sync.
   const { data: doneRows } = useQuery<TaskRowType>(DONE_BETWEEN_SQL, dayBounds, { streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] });
   const doneToday = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
-  // J/K walk the rows in the order they are drawn, Done last when it shows.
-  const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
+  // J/K walk the rows in the order they are drawn, Done last when it shows; a collapsed This Evening is stepped over.
+  const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningShut ? [] : eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
   // Everything planned for today is done (SCREENS.md §2.7 "All done"): at least one thing finished and nothing left on
   // today or this evening. Nothing planned and nothing finished is still the empty day below.
   const bodyState = dayState({ closed: Boolean(closedAt), carried: model.carried.length, today: model.todayTasks.length, evening: model.eveningTasks.length, done: doneToday.length });
@@ -355,6 +392,11 @@ export default function TodayPage() {
   };
   const dropInToday = dropInto(model.todayTasks, false);
   const dropInEvening = dropInto(model.eveningTasks, true);
+  // A row dropped on a section with no row to land beside (empty, or held still by a sort): it goes to the end.
+  const dropAtEnd = (list: Task[], evening: boolean) => (id: string) => {
+    if (!findTask(id)) return;
+    void time("reorder", () => model.repo.placeInDay(id, model.today, keyBetween(list[list.length - 1]?.daySortKey ?? null, null), evening));
+  };
 
   const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
   const showDay = hasDay && view === "day";
@@ -369,6 +411,7 @@ export default function TodayPage() {
   // The phone's ritual row turns to the shutdown once the plan is projected to be done, or the day is two hours from its end.
   const shutdownTime = shutdownReady || (finish !== null && nowMinute >= finish.hour * 60 + finish.minute);
   const manual = sort === "manual";
+  const canLand = (list: Task[]) => dragId !== null && !list.some((t) => t.id === dragId) && (list.length === 0 || !manual);
   const carriedIds = model.carried.map((t) => t.id);
   const clearSlate = () => setSlateOpen(true);
   // The row's menu on a phone: Convert to project (PRODUCT_SPEC.md §6), beside the moves it already has.
@@ -387,7 +430,31 @@ export default function TodayPage() {
   const sectionMinutes = (list: Task[]) => formatMinutes(list.reduce((s, t) => s + (t.estimateMin ?? defaultEstimate), 0));
   // The project name in the row's quiet run, as on every other cross-project list (DESIGN_SYSTEM.md §5 "Task row").
   const meta = (t: Task) => t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>;
-  const eveningAt = model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
+  const eveningRows = (
+    <TaskList>
+      {eveningList.map((t) => (
+        <TaskRow
+          key={t.id}
+          task={t}
+          today={model.today}
+          draggable
+          onDropTask={manual ? (src, edge) => dropInEvening(src, t.id, edge) : undefined}
+          timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
+          meta={meta(t)}
+          onOpen={() => detail.open(t.id)}
+          selected={sel.selectedId === t.id}
+          onSelect={() => sel.select(t.id)}
+          onDone={() => void time("complete", () => model.repo.complete(t.id))}
+          onBreakDown={() => void breakDown(t.id)}
+          actions={convertItem(t.id)}
+        />
+      ))}
+    </TaskList>
+  );
+  // More planned for the evening than it has time for (PRODUCT_SPEC.md §9.1): one quiet line, no over colour.
+  const fullEvening = model.evening?.full && model.eveningTasks.length > 0 && <p className="px-0.5 text-body-sm text-ink-2">That&rsquo;s a full evening.</p>;
+  const eveningDrop = canLand(model.eveningTasks) && <SectionDrop label="Drop here for this evening" onDrop={dropAtEnd(model.eveningTasks, true)} />;
+  const eveningAt =model.settings ? model.settings.eveningStartsAt.hour * 60 + model.settings.eveningStartsAt.minute : 18 * 60;
   // Past the working day: the ritual row says so even when there is no projected finish left to name.
   const dayOver = hasDay && nowMinute >= dayEnd;
   // Once the day has started and the plan has put blocks on it, the button offers to re-plan what is left.
@@ -474,6 +541,19 @@ export default function TodayPage() {
                 plannedCount={model.todayTasks.length + model.eveningTasks.length}
                 onTrim={() => setTrimOpen(true)}
                 suggestion={suggested?.task.title ?? null}
+                interactions={{
+                  bufferPct: model.settings?.bufferPct ?? 15,
+                  meetings: model.meetings,
+                  blocks: model.blocks,
+                  // Free time clicked: "Add something" for today (SCREENS.md §2.2).
+                  onAdd: () => quickAdd.open("today "),
+                  onMeeting: (m) => {
+                    setView("day");
+                    // From the wide band an open detail stands in the day pane's place.
+                    if (detail.selectedId) detail.close();
+                    setShownMeeting(m.start);
+                  },
+                }}
               />
             </>
           )
@@ -610,32 +690,30 @@ export default function TodayPage() {
               {allDone && <AllDone {...pullInProps} pulling={pulling} onPull={() => setPulling((v) => !v)} />}
               {emptyDay && <EmptyDay {...pullInProps} />}
             </TaskList>
+            {canLand(model.todayTasks) && <SectionDrop label="Drop here to do it today" onDrop={dropAtEnd(model.todayTasks, false)} />}
           </section>
 
-          {model.eveningTasks.length > 0 && (
+          {(model.eveningTasks.length > 0 || eveningDrop) && (
+            // This Evening (SCREENS.md §2.5): its own readout and its own, quieter overload line. On a phone it starts
+            // collapsed to its label, count and minutes (SCREENS.md §2.8), and stays the way it was last left.
             <section className="flex flex-col gap-2">
-              <SectionLabel className="px-0.5" count={model.eveningTasks.length} detail={sectionMinutes(model.eveningTasks)}>
-                This evening
-              </SectionLabel>
-              <TaskList>
-                {eveningList.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    today={model.today}
-                    draggable
-                    onDropTask={manual ? (src, edge) => dropInEvening(src, t.id, edge) : undefined}
-                    timeChip={model.blockByTask.has(t.id) && <BlockChip block={model.blockByTask.get(t.id)!} />}
-                    meta={meta(t)}
-                    onOpen={() => detail.open(t.id)}
-                    selected={sel.selectedId === t.id}
-                    onSelect={() => sel.select(t.id)}
-                    onDone={() => void time("complete", () => model.repo.complete(t.id))}
-                    onBreakDown={() => void breakDown(t.id)}
-                    actions={convertItem(t.id)}
-                  />
-                ))}
-              </TaskList>
+              {phone && model.eveningTasks.length > 0 ? (
+                <>
+                  <CollapsedGroup className="px-0.5" label="This evening" count={model.eveningTasks.length} note={sectionMinutes(model.eveningTasks)} open={eveningOpen} onToggle={toggleEvening}>
+                    {eveningRows}
+                  </CollapsedGroup>
+                  {fullEvening}
+                </>
+              ) : (
+                <>
+                  <SectionLabel className="px-0.5" count={model.eveningTasks.length || undefined} detail={model.eveningTasks.length > 0 && sectionMinutes(model.eveningTasks)}>
+                    This evening
+                  </SectionLabel>
+                  {fullEvening}
+                  {model.eveningTasks.length > 0 && eveningRows}
+                  {eveningDrop}
+                </>
+              )}
             </section>
           )}
 
@@ -695,6 +773,7 @@ export default function TodayPage() {
               blocks: drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks,
               proposed: drawing?.ghosts,
               meetings: model.meetings,
+              shownMeeting,
               defaultEstimateMin: defaultEstimate,
               selectedBlockId,
               onSelectBlock: setSelectedBlockId,
