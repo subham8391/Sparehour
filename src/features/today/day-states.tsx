@@ -1,8 +1,9 @@
 "use client";
-// Today's states that show only on some days (SCREENS.md §2.1, §2.7, ONBOARDING.md §4): the closed day's summary,
-// all done, and the empty day with its pull-in suggestions. An island out of Today's first download
-// (SYSTEM_DESIGN.md §11.6), fetched as the page mounts so it is in memory before the day it describes is known.
-// The page keeps the state (whether the pull-in list is open), so the island only draws it.
+// Today's parts that show only on some days (SCREENS.md §2.1, §2.3, §2.7, ONBOARDING.md §4): the closed day's
+// summary, all done, the empty day with its pull-in suggestions, and a long carried pile's folded line and
+// whole-pile moves. An island out of Today's first download (SYSTEM_DESIGN.md §11.6), fetched as the page mounts
+// so it is in memory before the day it describes is known. The page keeps the state (whether the pull-in list or
+// the pile is open), so the island only draws it.
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
@@ -17,6 +18,7 @@ import { MoveActions } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
+import { EYEBROW, SectionAction } from "@/ui/section-label";
 
 const NOTHING_SQL = `select * from tasks where 0`;
 
@@ -96,6 +98,36 @@ export function EmptyDay(p: PullInProps) {
         </div>
       )}
       <p className="text-body-sm text-ink-3">Or just start typing.</p>
+    </li>
+  );
+}
+
+/** More than eight carried: one summary line until it is opened (SCREENS.md §2.3, PRODUCT_SPEC.md §8.2 rule 10). */
+export function CarriedFolded({ count, onOpen }: { count: number; onOpen: () => void }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <button type="button" aria-expanded={false} onClick={onOpen} className={cx(EYEBROW, "-mx-2 flex min-h-11 items-center gap-2 rounded-sm px-2 text-left hover:bg-hover sm:min-h-7")}>
+        Carried over
+        <span className="font-medium normal-case tracking-normal num">
+          <b className="font-semibold text-ink-2">{count}</b>
+          <span className="text-ink-3"> — </span>
+          <span className="text-ink-2 underline decoration-line-strong underline-offset-2">Expand</span>
+        </span>
+      </button>
+    </section>
+  );
+}
+
+/** The whole carried pile at once, each one statement and one undo (SCREENS.md §2.3): the last row of the list. */
+export function CarriedPile({ onTomorrow, onSomeday }: { onTomorrow: () => void; onSomeday: () => void }) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-1 border-t border-line px-2 py-1 print:hidden sm:px-3">
+      <SectionAction onClick={onTomorrow} className="mr-0">
+        Move all to tomorrow
+      </SectionAction>
+      <SectionAction onClick={onSomeday} className="mr-0">
+        All to Someday
+      </SectionAction>
     </li>
   );
 }

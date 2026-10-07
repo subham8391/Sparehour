@@ -41,7 +41,7 @@ import { buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
-import { EYEBROW, SectionAction, SectionLabel } from "@/ui/section-label";
+import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
 import { Loading } from "../loading-view";
 
@@ -59,8 +59,11 @@ const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday()]
 // mounts, alongside the local database opening, rather than on idle.
 const loadDayPane = () => import("@/features/today/day-pane");
 const DayPane = dynamic(() => loadDayPane().then((m) => m.DayPane), { ssr: false });
-// The closed day's summary, All done and the empty day: one of them at most, and only on some days.
+// The closed day's summary, All done and the empty day (one of them at most, and only on some days), and a long
+// carried pile's folded line and its whole-pile moves.
 const loadDayStates = () => import("@/features/today/day-states");
+const CarriedFolded = dynamic(() => loadDayStates().then((m) => m.CarriedFolded), { ssr: false });
+const CarriedPile = dynamic(() => loadDayStates().then((m) => m.CarriedPile), { ssr: false });
 const ClosedDay = dynamic(() => loadDayStates().then((m) => m.ClosedDay), { ssr: false });
 const AllDone = dynamic(() => loadDayStates().then((m) => m.AllDone), { ssr: false });
 const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: false });
@@ -499,16 +502,7 @@ export default function TodayPage() {
           {model.carried.length > 0 &&
             (carriedFolded ? (
               // More than eight carried: one summary line until it is opened (SCREENS.md §2.3, PRODUCT_SPEC.md §8.2 rule 10).
-              <section className="flex flex-col gap-2">
-                <button type="button" aria-expanded={false} onClick={openCarried} className={cx(EYEBROW, "-mx-2 flex min-h-11 items-center gap-2 rounded-sm px-2 text-left hover:bg-hover sm:min-h-7")}>
-                  Carried over
-                  <span className="font-medium normal-case tracking-normal num">
-                    <b className="font-semibold text-ink-2">{model.carried.length}</b>
-                    <span className="text-ink-3"> — </span>
-                    <span className="text-ink-2 underline decoration-line-strong underline-offset-2">Expand</span>
-                  </span>
-                </button>
-              </section>
+              <CarriedFolded count={model.carried.length} onOpen={openCarried} />
             ) : (
               <section className="flex flex-col gap-2">
                 <SectionLabel
@@ -565,14 +559,10 @@ export default function TodayPage() {
                   ))}
                   {model.carried.length >= 3 && (
                     // The whole pile at once, each one statement and one undo (SCREENS.md §2.3).
-                    <li className="flex flex-wrap items-center gap-x-1 border-t border-line px-2 py-1 print:hidden sm:px-3">
-                      <SectionAction onClick={() => void time("reschedule", () => model.repo.updateMany(carriedIds, { doDate: tomorrow }, "Moved {title} to tomorrow"))} className="mr-0">
-                        Move all to tomorrow
-                      </SectionAction>
-                      <SectionAction onClick={() => void time("someday", () => model.repo.setStateMany(carriedIds, "someday"))} className="mr-0">
-                        All to Someday
-                      </SectionAction>
-                    </li>
+                    <CarriedPile
+                      onTomorrow={() => void time("reschedule", () => model.repo.updateMany(carriedIds, { doDate: tomorrow }, "Moved {title} to tomorrow"))}
+                      onSomeday={() => void time("someday", () => model.repo.setStateMany(carriedIds, "someday"))}
+                    />
                   )}
                 </TaskList>
               </section>
