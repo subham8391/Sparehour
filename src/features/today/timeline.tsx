@@ -540,6 +540,7 @@ export function Timeline(p: TimelineProps) {
                 onRemove: p.onRemoveBlock ? () => p.onRemoveBlock?.(selected.id) : undefined,
                 onRename: p.onRenameBlock ? () => setRenaming(selected.id) : undefined,
                 onTimes: sendTimes,
+                onCancel: () => setArmed(null),
               }}
             />
           )}

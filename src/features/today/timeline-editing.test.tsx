@@ -148,6 +148,12 @@ describe("block editing (SCREENS.md §2.6, SYSTEM_DESIGN.md §11.5)", () => {
     fireEvent.change(screen.getByLabelText("End time"), { target: { value: "11:00" } });
     await user.click(screen.getByRole("button", { name: "Move" }));
     expect(h.onResizeBlock).toHaveBeenCalledWith("b1", 585, 660);
+    // Escape in the fields lets go, as Cancel on the bar does.
+    await user.click(screen.getByRole("button", { name: /^Move Draft/ }));
+    expect(screen.getByLabelText("Start time")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByLabelText("Start time")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("a locked block refuses Move… with a quiet reason", async () => {

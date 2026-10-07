@@ -160,6 +160,8 @@ export interface ToolbarActions {
   onRename?: () => void;
   /** The From / To fields sent: a move keeping the length (only From changed), a resize, or where the copy goes. */
   onTimes?: (kind: Armed["kind"], from: number, to: number) => void;
+  /** Escape in the time fields lets go of the waiting Move… or Duplicate. */
+  onCancel?: () => void;
 }
 
 /**
@@ -200,7 +202,12 @@ export function BlockToolbar({ block, top, below, armed, note, actions }: { bloc
       onPointerDown={(e) => e.stopPropagation()}
     >
       {armed ? (
-        <form onSubmit={send} className="flex flex-wrap items-center justify-end gap-1.5 px-1" aria-label={armed === "move" ? `Move ${block.title}` : `Copy ${block.title}`}>
+        <form
+          onSubmit={send}
+          onKeyDown={(e) => e.key === "Escape" && (e.preventDefault(), actions.onCancel?.())}
+          className="flex flex-wrap items-center justify-end gap-1.5 px-1"
+          aria-label={armed === "move" ? `Move ${block.title}` : `Copy ${block.title}`}
+        >
           <label className="flex items-center gap-1 text-label text-ink-2">
             From
             <TimeField value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Start time" className="w-20" />
