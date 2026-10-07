@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
@@ -37,7 +37,11 @@ import { useTaskDetail } from "@/features/tasks/task-detail";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday, type TimelineBlock } from "@/features/today/hooks/use-today";
-import { buttonClass } from "@/ui/button";
+import { dayWords, daysAway, openDay, parseDay } from "@/features/today/day-address";
+import { registerViewKeys } from "@/features/commands/view-keys";
+import { buttonClass, iconButtonClass } from "@/ui/button";
+import { Icon } from "@/ui/icons";
+import { relativeDay } from "@/ui/relative-day";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { MenuButton } from "@/ui/popover";
@@ -59,7 +63,7 @@ const loadClearSlate = () => import("@/features/archive/clear-slate-sheet");
 const TodayMenu = dynamic(loadTodayMenu, { ssr: false });
 const TrimToday = dynamic(loadTrimToday, { ssr: false });
 const ClearSlate = dynamic(loadClearSlate, { ssr: false });
-const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(), loadClearSlate(), preloadRibbonOverlay()]);
+const preloadTodayIslands = () => Promise.all([loadTodayMenu(), loadTrimToday(), loadClearSlate(), preloadRibbonOverlay(), loadJump()]);
 // "Your day" with its timeline (SCREENS.md §2.6): drawn as soon as the day is known, so it is fetched as the page
 // mounts, alongside the local database opening, rather than on idle.
 const loadDayPane = () => import("@/features/today/day-pane");
@@ -72,6 +76,13 @@ const CarriedPile = dynamic(() => loadDayStates().then((m) => m.CarriedPile), { 
 const ClosedDay = dynamic(() => loadDayStates().then((m) => m.ClosedDay), { ssr: false });
 const AllDone = dynamic(() => loadDayStates().then((m) => m.AllDone), { ssr: false });
 const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: false });
+// Today's calendar problem line (SCREENS.md §2.7), and another day's header and notes (SCREENS.md §2.1 `[` / `]`).
+const CalendarIssueLine = dynamic(() => loadDayStates().then((m) => m.CalendarIssueLine), { ssr: false });
+const OffDayEyebrow = dynamic(() => loadDayStates().then((m) => m.OffDayEyebrow), { ssr: false });
+const PastDay = dynamic(() => loadDayStates().then((m) => m.PastDay), { ssr: false });
+// Jump to date (SCREENS.md §12 Day): its typed date reads words the way quick-add does, so the parser stays out of the shell.
+const loadJump = () => import("@/features/today/jump-to-date");
+const JumpToDate = dynamic(loadJump, { ssr: false });
 // This Evening with its budget line and phone disclosure, and the place to drop a dragged row on an empty section.
 const loadEveningSection = () => import("@/features/today/evening-section");
 const EveningSection = dynamic(() => loadEveningSection().then((m) => m.EveningSection), { ssr: false });
@@ -133,7 +144,11 @@ export default function TodayPage() {
     const id = setInterval(() => setNow(Temporal.Now.instant()), 60_000);
     return () => clearInterval(id);
   }, []);
-  const model = useToday(now);
+  // The day shown (SCREENS.md §2.1): `/today?day=2026-10-08` after `[` / `]`, the arrows or the palette's Day commands.
+  const dayParam = useSearchParams().get("day");
+  const shownDay = useMemo(() => parseDay(dayParam), [dayParam]);
+  const model = useToday(now, shownDay);
+  const { day, onToday, past } = model;
   const detail = useTaskDetail();
   const review = useCarryReview();
   const time = useInteractionTimer();
@@ -175,21 +190,45 @@ export default function TodayPage() {
   const onRequest = useRef<(r: TodayRequest) => void>(() => undefined);
   useEffect(() => {
     onRequest.current = (r) => {
-      if (r.kind === "trim") setTrimOpen(true);
-      else if (r.kind === "sort") savePref({ todaySort: r.sort });
+      if (r.kind === "trim") {
+        // Trimming is today's: from another day it comes home first.
+        goHome();
+        setTrimOpen(true);
+      } else if (r.kind === "sort") savePref({ todaySort: r.sort });
+      else if (r.kind === "jump") setJumping(true);
       else savePref({ showCompleted: !showCompleted });
     };
   });
   useEffect(() => registerTodayHandler((r) => onRequest.current(r)), []);
+
+  // Another day (SCREENS.md §2.1, §24): `[` / `]` and the header's arrows step a day, `T` with nothing selected and
+  // "back to today" come home. Only the address changes (`?day=`), so a reload keeps the day.
+  const [jumping, setJumping] = useState(false);
+  const stepBy = (days: number) => openDay(day.add({ days }), model.today);
+  const goHome = () => openDay(model.today, model.today);
+  const keys = useRef({ stepBy, goHome, onToday });
+  useEffect(() => {
+    keys.current = { stepBy, goHome, onToday };
+  });
+  useEffect(
+    () =>
+      registerViewKeys({
+        prev: () => keys.current.stepBy(-1),
+        next: () => keys.current.stepBy(1),
+        // On today itself `T` with nothing selected has nothing to do.
+        home: () => !keys.current.onToday && (keys.current.goHome(), true),
+      }),
+    [],
+  );
   // Above eight rows Carried over starts folded; unfolding it holds for the rest of the day on this device.
   const [carriedOpenOn, setCarriedOpenOn] = useState<string | null>(null);
   const todayIsoNow = model.today.toString();
   const carriedFolded = model.carried.length > CARRIED_FOLD_AT && carriedOpenOn !== todayIsoNow && !readCarriedOpen(todayIsoNow);
   const openCarried = () => {
-    const day = model.today.toString();
-    setCarriedOpenOn(day);
+    const iso = model.today.toString();
+    setCarriedOpenOn(iso);
     try {
-      localStorage.setItem(CARRIED_OPEN_KEY, day);
+      localStorage.setItem(CARRIED_OPEN_KEY, iso);
     } catch {
       // storage unavailable: it unfolds for this visit only
     }
@@ -232,8 +271,18 @@ export default function TodayPage() {
     setPlacingId(id);
     setView("day");
   };
+  // What belongs to one day lets go when the day changes: the selected block and a task waiting for a time.
+  const dayIso = day.toString();
+  const [daySeen, setDaySeen] = useState(dayIso);
+  if (dayIso !== daySeen) {
+    setDaySeen(dayIso);
+    setSelectedBlockId(null);
+    setPlacingId(null);
+  }
   // Plan my day (SCREENS.md §2.1, §2.6): the preview shows the Day view with the proposal drawn on it, nothing written until Approve.
+  // It plans today, so asked for on another day it comes home first.
   const planning = usePlanPreview(() => {
+    goHome();
     setView("day");
     setSelectedBlockId(null);
     setPlacingId(null);
@@ -255,24 +304,24 @@ export default function TodayPage() {
   }, [planning.mode, firstGhost]);
 
   // The day's ritual state (SCREENS.md §2.1, §15): once shut down, the ribbon gives way to the day's summary.
-  const todayIso = model.today.toString();
-  const { data: planRows } = useQuery<{ shutdown_at: string | null; planned_at: string | null; highlights: string | null; day_rating: number | null }>(DAY_PLAN_SQL, [todayIso]);
+  const { data: planRows } = useQuery<{ shutdown_at: string | null; planned_at: string | null; highlights: string | null; day_rating: number | null }>(DAY_PLAN_SQL, [dayIso]);
   const plan = planRows?.[0] ?? null;
   const localTimeOf = (iso: string) => formatTime(instant(normaliseTimestamp(iso)).toZonedDateTimeISO(zone).toPlainTime());
   const closedAt = plan?.shutdown_at ? localTimeOf(plan.shutdown_at) : null;
   const plannedAt = plan?.planned_at ? localTimeOf(plan.planned_at) : null;
   const dayBounds = useMemo(() => {
-    const start = model.today.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
-    const end = tomorrow.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
-    return [start, end] as [string, string];
-  }, [model.today, tomorrow, zone]);
-  const months = useMemo(() => monthsBack(model.today, 1), [model.today]);
-  // What was finished today: the closed day's summary, Show completed, and the all-done state all read it. The
-  // logbook subscription is the one use-today already holds for block states, so this costs no extra sync.
+    const midnight = (d: LocalDate) => d.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
+    return [midnight(day), midnight(day.add({ days: 1 }))] as [string, string];
+  }, [day, zone]);
+  const months = useMemo(() => monthsBack(day, 1), [day]);
+  // What was finished on the day: the closed day's summary, Show completed, the all-done state and a past day's list
+  // all read it. The logbook subscription is the one use-today already holds for block states: no extra sync.
   const { data: doneRows } = useQuery<TaskRowType>(DONE_BETWEEN_SQL, dayBounds, { streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }] });
   const doneToday = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
+  // A day that has passed always lists what was finished on it (DECISIONS.md "Today on another day").
+  const showDone = showCompleted || past;
   // J/K walk the rows in the order they are drawn, Done last when it shows; a collapsed This Evening is stepped over.
-  const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningShut ? [] : eveningList.map((t) => t.id), showCompleted ? doneToday.map((t) => t.id) : []]);
+  const sel = useListSelection([model.carried.map((t) => t.id), todayList.map((t) => t.id), eveningShut ? [] : eveningList.map((t) => t.id), showDone ? doneToday.map((t) => t.id) : []]);
   // A row chosen after a block takes the keys back: Enter, L and Backspace act on the row, not the block.
   const [rowSeen, setRowSeen] = useState(sel.selectedId);
   if (sel.selectedId !== rowSeen) {
@@ -282,12 +331,14 @@ export default function TodayPage() {
   // Everything planned for today is done (SCREENS.md §2.7 "All done"): at least one thing finished and nothing left on
   // today or this evening. Nothing planned and nothing finished is still the empty day below.
   const bodyState = dayState({ closed: Boolean(closedAt), carried: model.carried.length, today: model.todayTasks.length, evening: model.eveningTasks.length, done: doneToday.length });
-  const allDone = model.ready && bodyState === "all-done";
-  const emptyDay = model.ready && bodyState === "empty";
+  // Both are today's: another day with nothing on it just says so, with no pull-in or plan to offer.
+  const allDone = model.ready && onToday && bodyState === "all-done";
+  const emptyDay = model.ready && onToday && bodyState === "empty";
   const [pulling, setPulling] = useState(false);
-  // Over (PRODUCT_SPEC.md §9.4): the ribbon names one move, the largest task with no deadline that fits tomorrow.
+  // Over (PRODUCT_SPEC.md §9.4): the ribbon names one move, the largest task with no deadline that fits tomorrow. Trim
+  // and its suggestion are today's; a later day over its time says how much, and its rows move as rows do.
   const hero = model.capacity && model.capacity.state !== "no_work_day" ? heroState(model.capacity) : null;
-  const overMin = hero?.over ? hero.min : 0;
+  const overMin = hero?.over && onToday ? hero.min : 0;
   const { spareMin: tomorrowSpare } = useTomorrowSpare(tomorrow, model.settings, overMin > 0);
   const suggested = overMin > 0 ? easiestMove(model.todayTasks, overMin, tomorrowSpare, model.settings?.defaultEstimateMin ?? 30) : null;
   const shutdownReady = !model.capacity || model.capacity.state === "no_work_day" || nowMinute >= model.capacity.windows[model.capacity.windows.length - 1].end - 120;
@@ -313,23 +364,24 @@ export default function TodayPage() {
     );
     if (!plan || !findTask(sourceId)) return;
     const inList = list.some((x) => x.id === sourceId);
-    void time("reorder", () => (inList ? model.repo.setDayOrder(sourceId, plan.key) : model.repo.placeInDay(sourceId, model.today, plan.key, evening)));
+    void time("reorder", () => (inList ? model.repo.setDayOrder(sourceId, plan.key) : model.repo.placeInDay(sourceId, day, plan.key, evening)));
   };
   const dropInToday = dropInto(model.todayTasks, false);
   const dropInEvening = dropInto(model.eveningTasks, true);
   // A row dropped on a section with no row to land beside (empty, or held still by a sort): it goes to the end.
   const dropAtEnd = (list: Task[], evening: boolean) => (id: string) => {
     if (!findTask(id)) return;
-    void time("reorder", () => model.repo.placeInDay(id, model.today, keyBetween(list[list.length - 1]?.daySortKey ?? null, null), evening));
+    void time("reorder", () => model.repo.placeInDay(id, day, keyBetween(list[list.length - 1]?.daySortKey ?? null, null), evening));
   };
 
   const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
   const showDay = hasDay && view === "day";
   // The phone's Day view is a timeline, not a task list: its free gaps are what a tap schedules into, so the FAB steps aside.
   useHideQuickAddFab(showDay);
-  // An ask is recorded once it is on screen: a folded pile shows none, and neither does Plan my day's preview, which
-  // takes the lists' place.
-  useRecordAsks(model.freshAsks, model.markAsked, model.ready && !carriedFolded && !(planning.mode && !closedAt));
+  // Plan my day's preview, which plans today and takes the lists' place.
+  const previewing = planning.mode !== null && onToday && !closedAt;
+  // An ask is recorded once it is on screen: a folded pile shows none, and neither does the preview.
+  useRecordAsks(model.freshAsks, model.markAsked, model.ready && !carriedFolded && !previewing);
 
   if (!model.ready) return <Loading />;
   const finish = model.capacity?.projectedFinish ?? null;
@@ -389,6 +441,12 @@ export default function TodayPage() {
   const nextPlan = planMode(nowMinute, dayStart, model.blocks.some((b) => b.source === "plan"));
   const drawing = planning.drawing;
   const replacedIds = new Set(drawing?.replacedIds ?? []);
+  // The header's day arrows: `[` and `]` on screen, 44 px on a phone (SCREENS.md §2.1).
+  const stepButton = (delta: -1 | 1) => (
+    <button type="button" aria-label={delta < 0 ? "Previous day" : "Next day"} title={delta < 0 ? "Previous day ([)" : "Next day (])"} onClick={() => stepBy(delta)} className={iconButtonClass()}>
+      <Icon name={delta < 0 ? "arrow-left" : "arrow-right"} size={16} />
+    </button>
+  );
 
   return (
     // Three panes from the wide band: the list column scrolls on its own and the day pane keeps its place beside it.
@@ -397,9 +455,18 @@ export default function TodayPage() {
       {/* Below the wide band the Day view replaces only the lists: the header, the hero and the ritual row (with the List/Day control) stay. */}
       <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible", showDay ? "pb-0 lg:pb-7" : "flex-1")}>
         <ViewHeader
-          eyebrow={`Today · ${partOfDay(nowMinute, eveningAt)}`}
-          title={formatDay(model.today, { weekday: "long", month: "long" })}
+          // Off today the eyebrow names the day and the way back: "Tomorrow · ← back to today" (SCREENS.md §2.1).
+          eyebrow={onToday ? `Today · ${partOfDay(nowMinute, eveningAt)}` : <OffDayEyebrow label={daysAway(day, model.today)} onBack={goHome} />}
+          title={formatDay(day, { weekday: "long", month: "long", today: model.today })}
+          beside={
+            <>
+              {stepButton(-1)}
+              {stepButton(1)}
+            </>
+          }
           actions={
+            // The rituals are today's (DECISIONS.md "Today on another day").
+            onToday &&
             !closedAt && (
               // From the narrow band up the rituals live here; the phone has its own row under the hero.
               <>
@@ -428,54 +495,55 @@ export default function TodayPage() {
             )
           }
           compactActions={
-            // Today's ⋯ on every band (SCREENS.md §2.1); its contents are a lazy island.
-            <MenuButton label="Today options">
-              {(close) => (
-                <TodayMenu
-                  close={close}
-                  sort={sort}
-                  onSort={(v) => savePref({ todaySort: v })}
-                  showCompleted={showCompleted}
-                  onShowCompleted={(v) => savePref({ showCompleted: v })}
-                  onClearSlate={clearSlate}
-                  onTrim={() => setTrimOpen(true)}
-                  text={{ day: model.today, carried: model.carried, today: todayList, evening: eveningList, blockStart: (id) => model.blocksByTask.get(id)?.[0]?.start ?? null, defaultEstimateMin: defaultEstimate }}
-                  onNotice={setNotice}
-                />
-              )}
-            </MenuButton>
+            // Today's ⋯ on every band (SCREENS.md §2.1); its contents are a lazy island. A day that has passed has
+            // nothing to sort or clear; a later one keeps Sort, Show completed and Print.
+            !past && (
+              <MenuButton label="Today options">
+                {(close) => (
+                  <TodayMenu
+                    close={close}
+                    sort={sort}
+                    onSort={(v) => savePref({ todaySort: v })}
+                    showCompleted={showCompleted}
+                    onShowCompleted={(v) => savePref({ showCompleted: v })}
+                    onClearSlate={onToday ? clearSlate : undefined}
+                    onTrim={onToday ? () => setTrimOpen(true) : undefined}
+                    text={onToday ? { day, carried: model.carried, today: todayList, evening: eveningList, blockStart: (id) => model.blocksByTask.get(id)?.[0]?.start ?? null, defaultEstimateMin: defaultEstimate } : undefined}
+                    onNotice={setNotice}
+                  />
+                )}
+              </MenuButton>
+            )
           }
         />
 
-        <ExpiredDigest />
+        {onToday && <ExpiredDigest />}
         {blockNudge && <BlockNudge />}
+        {/* A day that has passed is kept as it was, read-only: what was finished, its blocks and meetings. */}
+        {past && <PastDay daysAgo={-day.since(model.today, { largestUnit: "days" }).days} />}
         {closedAt ? (
           <ClosedDay done={doneToday} defaultEstimateMin={defaultEstimate} closedAt={closedAt} rating={plan?.day_rating ?? null} highlights={plan?.highlights ?? null} />
         ) : (
+          !past &&
           model.capacity && (
             <>
-              {model.calendarIssue && (
-                <p role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-body-sm text-ink-2">
-                  <span>{model.calendarIssue.message}</span>
-                  <Link href="/settings#calendar" className="text-ink underline decoration-line-strong underline-offset-2">
-                    {model.calendarIssue.kind === "reauth" ? "Reconnect" : "Retry"}
-                  </Link>
-                </p>
-              )}
+              {onToday && <CalendarIssueLine />}
               <Ribbon
                 c={model.capacity}
-                nowMin={nowMinute}
+                // No now cursor and no elapsed hatch on another day.
+                nowMin={onToday ? nowMinute : undefined}
+                otherDay={!onToday}
                 connected={model.calendarConnected}
                 plannedCount={model.todayTasks.length + model.eveningTasks.length}
                 finished={doneToday.length > 0}
-                onTrim={() => setTrimOpen(true)}
+                onTrim={onToday ? () => setTrimOpen(true) : undefined}
                 suggestion={suggested?.task.title ?? null}
                 interactions={{
                   bufferPct: model.settings?.bufferPct ?? 15,
                   meetings: model.meetings,
                   blocks: model.blocks,
-                  // Free time clicked: "Add something" for today (SCREENS.md §2.2).
-                  onAdd: () => quickAdd.open("today "),
+                  // Free time clicked: "Add something" for the day shown (SCREENS.md §2.2).
+                  onAdd: () => quickAdd.open(dayWords(day, model.today)),
                   onMeeting: (m) => {
                     setView("day");
                     // From the wide band an open detail stands in the day pane's place.
@@ -492,7 +560,8 @@ export default function TodayPage() {
             and the review beneath on the phone; only the control from the narrow band up, until the wide band shows both panes. */}
         <div className="contents print:hidden">
         <RitualRow
-          closed={Boolean(closedAt)}
+          // Another day offers no ritual, only the List | Day control.
+          closed={Boolean(closedAt) || !onToday}
           hasDay={hasDay}
           shutdownTime={shutdownTime}
           finish={finish}
@@ -505,12 +574,12 @@ export default function TodayPage() {
         />
         </div>
 
-        {planning.mode && !closedAt && (
+        {previewing && planning.mode && (
           // Beside the timeline from the wide band, above it below that, and a sheet over the Day view on a phone.
           <LazyPlanIsland mode={planning.mode} model={model} now={now} layout="dock" onDrawing={planning.setDrawing} onClose={planning.close} />
         )}
 
-        <div className={cx("flex-col gap-6", planning.mode && !closedAt ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
+        <div className={cx("flex-col gap-6", previewing ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
           {/* A block dragged off the timeline onto the list is unblocked; its task stays where it is (SCREENS.md §2.6). */}
           {blockDrag && <BlockDrop />}
           {model.carried.length > 0 &&
@@ -582,9 +651,11 @@ export default function TodayPage() {
               </section>
             ))}
 
+          {/* A day that has passed lists only what was finished on it (below). */}
+          {!past && (
           <section className="flex flex-col gap-2">
             <SectionLabel className="px-0.5" count={model.todayTasks.length} detail={sectionMinutes(model.todayTasks)}>
-              Today
+              {onToday ? "Today" : relativeDay(day, model.today)}
             </SectionLabel>
             <TaskList>
               {todayList.map((t) => (
@@ -606,8 +677,8 @@ export default function TodayPage() {
                     <>
                       {manual && <RowAction label="Move up" text={null} icon="arrow-up" onClick={() => move(t, -1)} />}
                       {manual && <RowAction label="Move down" text={null} icon="arrow-down" onClick={() => move(t, 1)} />}
-                      {/* The whole word, in the row and in the phone's menu: what is seen is what is named (WCAG 2.5.3). */}
-                      <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />
+                      {/* The whole word, in the row and in the phone's menu: what is seen is what is named (WCAG 2.5.3). Not on tomorrow itself. */}
+                      {!day.equals(tomorrow) && <RowAction label="Tomorrow" icon="arrow-right" title="Tomorrow (Shift+T)" onClick={() => void time("reschedule", () => model.repo.reschedule(t.id, tomorrow))} />}
                       {/* Still there once blocked: a task may take a second block (PRODUCT_SPEC.md §10.2). */}
                       {hasDay && (
                         <RowAction label={`Block ${t.title}`} text="Block" glyph={BLOCK_GLYPH} title="Pick a time on the timeline" onClick={() => startPlacing(t.id)} />
@@ -622,8 +693,9 @@ export default function TodayPage() {
               {allDone && <AllDone {...pullInProps} pulling={pulling} onPull={() => setPulling((v) => !v)} />}
               {emptyDay && <EmptyDay {...pullInProps} />}
             </TaskList>
-            {canLand(model.todayTasks) && <SectionDrop label="Drop here to do it today" onDrop={dropAtEnd(model.todayTasks, false)} />}
+            {canLand(model.todayTasks) && <SectionDrop label={onToday ? "Drop here to do it today" : "Drop here to do it this day"} onDrop={dropAtEnd(model.todayTasks, false)} />}
           </section>
+          )}
 
           {model.settings && (model.eveningTasks.length > 0 || eveningDrop) && (
             // This Evening (SCREENS.md §2.5): its own readout and quieter overload line; collapsed on a phone (§2.8).
@@ -639,9 +711,10 @@ export default function TodayPage() {
             />
           )}
 
-          {showCompleted && doneToday.length > 0 && (
-            // Show completed (SCREENS.md §2.4): today's finished tasks under a Done divider at the bottom; Reopen (or U) brings one back.
-            <section className="flex flex-col gap-2" aria-label="Done today">
+          {showDone && doneToday.length > 0 && (
+            // Show completed (SCREENS.md §2.4): the day's finished tasks under a Done divider at the bottom; Reopen (or U)
+            // brings one back. A day that has passed shows them always, and only to read.
+            <section className="flex flex-col gap-2" aria-label={onToday ? "Done today" : `Done on ${formatDay(day, { today: model.today })}`}>
               <SectionLabel className="px-0.5" count={doneToday.length}>
                 Done
               </SectionLabel>
@@ -655,7 +728,7 @@ export default function TodayPage() {
                     onOpen={() => detail.open(t.id)}
                     selected={sel.selectedId === t.id}
                     onSelect={() => sel.select(t.id)}
-                    actions={<RowAction label="Reopen" primary title="Reopen (U)" onClick={() => void model.repo.reopen(t.id)} />}
+                    actions={!past && <RowAction label="Reopen" primary title="Reopen (U)" onClick={() => void model.repo.reopen(t.id)} />}
                   />
                 ))}
               </TaskList>
@@ -678,22 +751,24 @@ export default function TodayPage() {
             showDay ? "flex" : "hidden",
             detail.selectedId ? "lg:hidden" : "lg:flex",
             // Room to scroll the whole day above the docked preview sheet.
-            planning.mode && "max-sm:pb-[min(62dvh,36rem)]",
+            previewing && "max-sm:pb-[min(62dvh,36rem)]",
           )}
         >
           <DayPane
             start={dayStart}
             end={dayEnd}
             bufferPct={model.settings?.bufferPct}
-            hint={model.blocks.length === 0 && !placingTask && !planning.mode}
+            hint={model.blocks.length === 0 && !placingTask && !previewing && !past}
+            // A day that has passed is drawn, not edited.
+            readOnly={past}
             placing={{
-              day: model.today,
+              day,
               zone,
               blocks: model.blocks,
               free: model.capacity.free,
               dayStart,
               dayEnd,
-              nowMinute,
+              nowMinute: onToday ? nowMinute : null,
               defaultEstimateMin: defaultEstimate,
               findTask,
               onPlaced: () => setView("day"),
@@ -715,7 +790,7 @@ export default function TodayPage() {
           />
         </aside>
       )}
-      {trimOpen && (
+      {trimOpen && onToday && (
         <TrimToday
           tasks={model.todayTasks}
           overMin={overMin}
@@ -727,6 +802,18 @@ export default function TodayPage() {
         />
       )}
       {slateOpen && <ClearSlate today={model.today.toString()} onClose={() => setSlateOpen(false)} />}
+      {jumping && (
+        <JumpToDate
+          today={model.today}
+          now={now}
+          zone={zone}
+          onJump={(d) => {
+            setJumping(false);
+            openDay(d, model.today);
+          }}
+          onClose={() => setJumping(false)}
+        />
+      )}
       {notice && <Toast>{notice}</Toast>}
     </main>
   );

@@ -1,16 +1,20 @@
 "use client";
 // Composes the local data with the core engines: capacity, carried-over and
-// today's list, all reactive to the local database.
+// today's list, all reactive to the local database. Today can show another day
+// (SCREENS.md §2.1 `[` / `]`, DECISIONS.md "Today on another day"): a later day
+// has its own tasks, blocks and meetings and no now; a day that has passed keeps
+// only its blocks and meetings (what was finished there is the page's done list);
+// Carried over, its asks and the calendar's problem line belong to today alone.
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@/data/powersync";
 import { capacityFor, type Capacity, type CapacityBlock } from "@/core/capacity";
 import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
-import { Temporal, instant, localDate, todayFor, type Instant, type LocalDate } from "@/core/time";
+import { Temporal, compareDates, instant, localDate, todayFor, type Instant, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, EVENTS_AROUND_SQL, SETTINGS_SQL, TASKS_THROUGH_TODAY_SQL, WORK_HOURS_SQL, dayWindowParams, monthsAround } from "@/data/queries/today";
 import { monthsBack } from "@/data/queries/shell";
-import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
+import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { useCarryAsks } from "@/features/rollover/use-carry-asks";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
@@ -100,7 +104,14 @@ export interface TimelineMeeting {
 
 export interface TodayModel {
   ready: boolean;
+  /** The person's today, whichever day is shown. */
   today: LocalDate;
+  /** The day shown: today, or the day Today was stepped to. Everything below is this day's. */
+  day: LocalDate;
+  /** The day shown is today: the now cursor, Carried over, the rituals and the calendar's problem line are only here. */
+  onToday: boolean;
+  /** The day shown has passed: read-only, its finished tasks, blocks and meetings. */
+  past: boolean;
   settings: Settings | null;
   /** The settings row, for Today's own preferences (⋯ Sort, Show completed). */
   settingsId: string | null;
@@ -120,39 +131,43 @@ export interface TodayModel {
   repo: TaskRepo;
   /** False until a calendar is connected: the ribbon offers to connect one (PRODUCT_SPEC.md §9.4). */
   calendarConnected: boolean;
-  /** The one line above the ribbon when an account needs attention (SCREENS.md §2.7). */
-  calendarIssue: CalendarIssue | null;
 }
 
-export function useToday(now: Temporal.Instant): TodayModel {
+/** `view` is the day to show (`?day=`); left out, or today itself, it is today. */
+export function useToday(now: Temporal.Instant, view?: LocalDate | null): TodayModel {
   // The undoable repo: everything done on Today answers ⌘Z and shows its toast, like every other list (FEATURES.md §8).
   const repo = useTaskRepo();
 
   const { data: settingsRows } = useQuery<UserSettingsRow>(SETTINGS_SQL);
   const settings = settingsRows?.[0] ? toSettings(settingsRows[0]) : null;
   const today = todayFor({ timezone: settings?.timezone ?? "UTC", dayRolloverHour: settings?.dayRolloverHour ?? 4 }, now);
-  const [from, to] = dayWindowParams(today);
-  const todayIso = today.toString();
+  const day = view ?? today;
+  const ahead = compareDates(day, today);
+  const onToday = ahead === 0;
+  const past = ahead < 0;
+  const [from, to] = dayWindowParams(day);
+  const dayIso = day.toString();
+  // Open tasks through today, or through a later day shown: Carried over needs today's, a later day its own.
+  const throughIso = (ahead > 0 ? day : today).toString();
 
   const { data: workRows } = useQuery<WorkHoursRow>(WORK_HOURS_SQL);
-  const { data: taskRows, isLoading } = useQuery<TaskRow>(TASKS_THROUGH_TODAY_SQL, [todayIso, todayIso]);
+  const { data: taskRows, isLoading } = useQuery<TaskRow>(TASKS_THROUGH_TODAY_SQL, [throughIso, throughIso]);
   const { data: blockRows } = useQuery<TimeBlockRow>(BLOCKS_AROUND_SQL, [from, to]);
   // The calendar mirror is month-bucketed on the server (§3.5); the query keeps a
-  // subscription to the months around today alive for as long as Today is open.
+  // subscription to the months around the day shown alive for as long as Today is open.
   const { data: eventRows } = useQuery<CalendarEventRow>(EVENTS_AROUND_SQL, [from, to], {
-    streams: [{ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24 }],
+    streams: [{ name: "calendar_window", parameters: { months: monthsAround(day) }, ttl: 60 * 60 * 24 }],
   });
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
-  const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
   // The same subscription the closed day's summary takes, so a task completed here stays on the device to say its block is done.
-  const months = useMemo(() => monthsBack(localDate(todayIso), 1), [todayIso]);
+  const months = useMemo(() => monthsBack(localDate(dayIso), 1), [dayIso]);
   const { data: blockTaskRows } = useQuery<{ id: string; title: string | null; state: string | null }>(BLOCK_TASKS_SQL, [from, to], {
     streams: [{ name: "logbook", parameters: { months }, ttl: 60 * 60 }],
   });
 
   const tasks = useMemo(() => (taskRows ?? []).map(toTask), [taskRows]);
   const hasSettings = settings !== null;
-  const carriedTasks = useMemo(() => (hasSettings ? carriedOver(tasks, today) : []), [hasSettings, tasks, today]);
+  const carriedTasks = useMemo(() => (hasSettings && onToday ? carriedOver(tasks, today) : []), [hasSettings, onToday, tasks, today]);
   // At most two asks a day, once per task per seven days (PRODUCT_SPEC.md §8.3.4); the screen that shows them records them.
   const { asks, fresh: freshAsks } = useCarryAsks(carriedTasks, { carryAskAfter: settings?.carryAskAfter ?? null, today, zone: settings?.timezone ?? "UTC", now });
   const markAsked = useCallback((ids: readonly string[], at: string) => repo.markAsked(ids, at), [repo]);
@@ -160,7 +175,8 @@ export function useToday(now: Temporal.Instant): TodayModel {
   return useMemo(() => {
     const carried = carriedTasks.map((t) => ({ ...t, ask: asks.has(t.id) }));
     const carriedIds = new Set(carried.map((t) => t.id));
-    const onDay = tasks.filter((t) => !carriedIds.has(t.id) && t.doDate?.equals(today));
+    // A day that has passed lists nothing open: what was left on it has moved on to today's Carried over.
+    const onDay = past ? [] : tasks.filter((t) => !carriedIds.has(t.id) && t.doDate?.equals(day));
     const readByCalendar = new Map((calendarRows ?? []).map((c) => [c.id, c.read !== 0]));
     // Each block's task: the open ones from the list at once, then every state (done included) once its query lands.
     const blockTasks = new Map<string, BlockTask>(tasks.map((t) => [t.id, { title: t.title, state: t.state }]));
@@ -168,7 +184,7 @@ export function useToday(now: Temporal.Instant): TodayModel {
 
     const capacity = settings
       ? capacityFor({
-          day: today,
+          day,
           settings: { timezone: settings.timezone, bufferPct: settings.bufferPct, defaultEstimateMin: settings.defaultEstimateMin },
           workHours: (workRows ?? []).map(toWorkWindow).filter((w): w is NonNullable<typeof w> => w !== null),
           events: (eventRows ?? []).map((e) => toCapacityEvent(e, readByCalendar.get(e.calendar_id ?? "") ?? true)),
@@ -177,13 +193,14 @@ export function useToday(now: Temporal.Instant): TodayModel {
             blockTasks,
             now,
           ),
-          tasks: (taskRows ?? []).map(toCapacityTask),
-          now,
+          tasks: past ? [] : (taskRows ?? []).map(toCapacityTask),
+          // The projected finish counts from now on today alone; another day is reckoned from its start.
+          now: onToday ? now : undefined,
         })
       : null;
 
     const zone = settings?.timezone ?? "UTC";
-    const blocks = timelineBlocks(blockRows ?? [], blockTasks, zone, today);
+    const blocks = timelineBlocks(blockRows ?? [], blockTasks, zone, day);
     const blocksByTask = new Map<string, TimelineBlock[]>();
     for (const b of blocks) if (b.taskId) blocksByTask.set(b.taskId, [...(blocksByTask.get(b.taskId) ?? []), b]);
     // PRODUCT_SPEC.md §10.3 rule 7: a private calendar shows its events as "Busy"; a calendar switched off does not show at all.
@@ -194,11 +211,11 @@ export function useToday(now: Temporal.Instant): TodayModel {
         if (e.calendar_id && readByCalendar.get(e.calendar_id) === false) return null;
         const start = instant(normaliseTimestamp(e.start_at)).toZonedDateTimeISO(zone);
         const end = instant(normaliseTimestamp(e.end_at)).toZonedDateTimeISO(zone);
-        if (!start.toPlainDate().equals(today)) return null;
+        if (!start.toPlainDate().equals(day)) return null;
         const hidden = e.calendar_id ? privateIds.has(e.calendar_id) : false;
         return {
           start: start.hour * 60 + start.minute,
-          end: end.toPlainDate().equals(today) ? end.hour * 60 + end.minute : 24 * 60,
+          end: end.toPlainDate().equals(day) ? end.hour * 60 + end.minute : 24 * 60,
           title: hidden || !e.summary ? "Busy" : e.summary,
         };
       })
@@ -207,6 +224,9 @@ export function useToday(now: Temporal.Instant): TodayModel {
     return {
       ready: !isLoading && settings !== null,
       today,
+      day,
+      onToday,
+      past,
       settings,
       settingsId: settingsRows?.[0]?.id ?? null,
       freshAsks,
@@ -219,23 +239,8 @@ export function useToday(now: Temporal.Instant): TodayModel {
       blocksByTask,
       meetings,
       repo,
-      // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: one line when the calendar has a problem.
+      // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected.
       calendarConnected: (calendarRows ?? []).length > 0,
-      calendarIssue: calendarIssueFrom(connectionRows ?? []),
     };
-  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, connectionRows, workRows, settings, today, now, isLoading, repo]);
-}
-
-export interface CalendarIssue {
-  kind: "reauth" | "error";
-  message: string;
-}
-
-/** The first account that needs attention: lapsed access first, then a sync that failed (its events are still the last good ones). */
-export function calendarIssueFrom(rows: readonly CalendarConnectionRow[]): CalendarIssue | null {
-  const reauth = rows.find((r) => r.status === "needs_reauth" || r.status === "revoked");
-  if (reauth) return { kind: "reauth", message: `Google Calendar${reauth.email ? ` (${reauth.email})` : ""} needs reconnecting.` };
-  const failed = rows.find((r) => r.last_error);
-  if (failed) return { kind: "error", message: failed.last_synced_at ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(failed.last_synced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Couldn't reach Google Calendar yet." };
-  return null;
+  }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, workRows, settings, today, day, onToday, past, now, isLoading, repo]);
 }

@@ -23,6 +23,7 @@ export function ViewHeader({
   subtitle,
   actions,
   compactActions,
+  beside,
 }: {
   eyebrow?: ReactNode;
   /** Plain text becomes the view's `<h1>`; an element (an editable `InlineTitle`) is the heading itself and is placed as it comes. */
@@ -31,6 +32,11 @@ export function ViewHeader({
   actions?: ReactNode;
   /** Controls that belong beside the eyebrow on a phone — a `⋯` menu, one icon — and with the actions above it. */
   compactActions?: ReactNode;
+  /**
+   * Controls that belong to the title (Today's day arrows): beside it on a phone, where the eyebrow's row is full, and
+   * after the actions from `sm` up. They never widen the phone's control column, so the title keeps its room.
+   */
+  beside?: ReactNode;
 }) {
   const palette = usePalette();
   const plain = typeof title === "string" || typeof title === "number";
@@ -46,6 +52,7 @@ export function ViewHeader({
         </button>
       </div>
       <div className="col-start-1 row-start-2 min-w-0">{plain ? <h1 className="font-display text-title font-book text-balance text-ink">{title}</h1> : title}</div>
+      {beside && <div className="col-start-2 row-start-2 -mt-2 -mr-2 flex items-center justify-end sm:col-start-3 sm:row-span-3 sm:row-start-1 sm:mt-0 sm:mr-0 sm:self-end sm:pb-1 print:hidden">{beside}</div>}
       {subtitle && <p className="col-start-1 row-start-3 mt-1.5 text-body-sm text-pretty text-ink-2">{subtitle}</p>}
     </header>
   );
