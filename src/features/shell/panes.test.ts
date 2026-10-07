@@ -2,7 +2,7 @@
 // The per-device layout choices (SCREENS.md §1 "Sidebar", "Context pane"): stamped on <html>, remembered on this
 // device, stamped again by the head script before the first paint so a folded sidebar never flashes open.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { THEME_BOOTSTRAP } from "@/features/commands/theme";
+import { THEME_BOOTSTRAP } from "@/features/commands/theme-bootstrap";
 import { PANES_KEY, atLeast, needsWidth, prefOn, setPref, toggleSidebar } from "./panes";
 
 const root = document.documentElement;

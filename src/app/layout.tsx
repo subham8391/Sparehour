@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, Newsreader } from "next/font/google";
-import { PAPER, THEME_BOOTSTRAP } from "@/features/commands/theme";
+import { PAPER } from "@/features/commands/theme";
+import { THEME_BOOTSTRAP } from "@/features/commands/theme-bootstrap";
 import "./globals.css";
 
 // Faces (DESIGN_SYSTEM.md §3). Newsreader carries the optical-size axis so the
