@@ -7,7 +7,7 @@
 // so a reload does not repeat it.
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
+import { useLocalDatabase } from "@/data/powersync";
 import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { requestOrganize } from "@/features/tasks/organize";
@@ -25,14 +25,19 @@ const FIRST_SYNC_WAIT_MS = 8000;
 export const NOT_HERE = "That task isn’t on this device.";
 const TASK_HERE_SQL = `select id from tasks where id = ? and deleted_at is null`;
 
-type TaskLookup = Pick<LocalDatabase, "getOptional" | "waitForFirstSync"> & { currentStatus?: { hasSynced?: boolean } };
+/** What the lookup needs of the local database. */
+interface TaskLookup {
+  getOptional: (sql: string, params: string[]) => Promise<unknown>;
+  waitForFirstSync: (request: { priority: number }) => Promise<void>;
+  currentStatus?: { hasSynced?: boolean };
+}
 
 /**
  * Whether the task is on this device. One that is not yet may only be waiting for the first sync after a sign-in:
  * that is given a few seconds, never longer, so the link always answers.
  */
 export async function taskOnDevice(db: TaskLookup, id: string, waitMs = FIRST_SYNC_WAIT_MS): Promise<boolean> {
-  const here = async () => Boolean(await db.getOptional<{ id: string }>(TASK_HERE_SQL, [id]));
+  const here = async () => Boolean(await db.getOptional(TASK_HERE_SQL, [id]));
   if (await here()) return true;
   if (db.currentStatus?.hasSynced) return false;
   let timer: ReturnType<typeof setTimeout> | undefined;
