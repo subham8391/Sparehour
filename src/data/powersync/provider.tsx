@@ -14,6 +14,7 @@ import { resolvePowerSyncUrl } from "./endpoint";
 import { watchQuota } from "./quota";
 
 let instance: PowerSyncDatabase | null = null;
+let connectAgain: (() => Promise<void>) | null = null;
 
 export function getDatabase(): PowerSyncDatabase {
   if (instance) return instance;
@@ -31,12 +32,24 @@ export function getDatabase(): PowerSyncDatabase {
     logger,
   });
   // Batch a burst of edits, but flush fast enough that a reload rarely loses the ack (§4.1)
-  void instance.connect(new SparehourConnector(endpoint), { crudUploadThrottleMs: 400 }).catch(() => undefined);
+  const db = instance;
+  const connector = new SparehourConnector(endpoint);
+  connectAgain = () => db.connect(connector, { crudUploadThrottleMs: 400 });
+  void connectAgain().catch(() => undefined);
   if (process.env.NODE_ENV === "development") {
     // Spike instrumentation (Appendix A1): lets the console time raw local queries.
     (window as unknown as { __sparehourDb?: PowerSyncDatabase }).__sparehourDb = instance;
   }
   return instance;
+}
+
+/**
+ * "Sync now" for the data (SCREENS.md §20, the sync chip): connect again, so a fresh token is fetched, waiting
+ * changes go up and anything new comes down without waiting for the next retry. Nothing happens before the
+ * database exists.
+ */
+export function syncNow(): Promise<void> {
+  return connectAgain ? connectAgain() : Promise.resolve();
 }
 
 type Opened = { db: PowerSyncDatabase; error?: undefined } | { db?: undefined; error: unknown };

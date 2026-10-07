@@ -16,6 +16,7 @@ import { FinishedProjects } from "@/features/projects/finished-projects";
 import type { OrganiseTarget } from "@/features/projects/organise-sheet";
 import { wireNavDrag } from "@/features/shell/nav-drag";
 import { useNavDragActions } from "@/features/shell/nav-drag-island";
+import { SyncRow } from "@/features/shell/sync-row";
 import { useNavData } from "@/features/shell/use-nav-data";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
 import { useAreaRepo, useProjectRepo } from "@/features/tasks/use-repos";
@@ -205,6 +206,8 @@ export default function BrowsePage() {
           ))}
         </ListCard>
       </section>
+      {/* Sync on a phone (ruling R4): the chip's words, and its expanded state as a sheet. */}
+      <SyncRow />
     </main>
   );
 }

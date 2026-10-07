@@ -71,13 +71,15 @@ const ASKED_KEY = "sparehour.persist-asked";
 /**
  * Asks the browser to exempt the origin from eviction, once, after the first
  * meaningful action (never on load — Chrome's heuristic likes engagement).
- * Resolves the resulting state.
+ * `again` asks even when it was asked before: after the app is installed and
+ * after notifications are allowed, the two things browsers weigh in granting it
+ * (SYSTEM_DESIGN.md §10.4). Resolves the resulting state.
  */
-export async function requestPersistence(storage: Pick<StorageManager, "persist" | "persisted"> | undefined, memory: Pick<Storage, "getItem" | "setItem"> | null): Promise<PersistenceState> {
+export async function requestPersistence(storage: Pick<StorageManager, "persist" | "persisted"> | undefined, memory: Pick<Storage, "getItem" | "setItem"> | null, again = false): Promise<PersistenceState> {
   if (!storage?.persisted) return "unknown";
   try {
     if (await storage.persisted()) return "protected";
-    if (memory?.getItem(ASKED_KEY)) return "unprotected";
+    if (!again && memory?.getItem(ASKED_KEY)) return "unprotected";
     memory?.setItem(ASKED_KEY, "1");
     const granted = storage.persist ? await storage.persist() : false;
     return granted ? "protected" : "unprotected";

@@ -7,13 +7,14 @@ import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import { CalendarRepo } from "@/data/repositories/calendar-repo";
 import type { CalendarAccountView, CalendarPanel, CalendarView } from "./calendar-section";
+import { CALENDAR_UNAVAILABLE, calendarSyncNow } from "./sync-now";
 
 const OUTCOME_COPY: Record<string, string> = {
   connected: "Connected. Your meetings are on their way.",
   read_only: "Connected for reading. Writing blocks to Google needs one more permission — grant it when you're ready.",
   denied: "No problem. You can connect later from here.",
   write_denied: "Blocks stay in Sparehour for now. If you'd rather keep them off your own calendar, a separate Sparehour calendar can take them.",
-  unavailable: "Google Calendar isn't set up on this server yet.",
+  unavailable: CALENDAR_UNAVAILABLE,
   error: "Google didn't answer. Try again.",
 };
 
@@ -101,15 +102,11 @@ export function useCalendar(): CalendarPanel {
       window.location.assign(new URL(`/api/calendar/google/start?purpose=write${fallback ? "&fallback=1" : ""}&next=${encodeURIComponent("/settings")}`, window.location.origin).toString());
     },
     onSyncNow: () => {
-      void post("/api/calendar/sync").then(async (res) => {
-        if (!res.ok) {
-          setNotice(res.status === 503 ? OUTCOME_COPY.unavailable : "Couldn't sync just now. Try again in a moment.");
-          return;
-        }
-        const { report } = (await res.json()) as { report: Record<string, { status: string; error: string | null }> };
-        const problem = Object.values(report).find((r) => r.error);
-        setNotice(problem ? problem.error : "Synced.");
-      });
+      // The one Sync now path, shared with the sync chip and Today's retry line (sync-now.ts).
+      setBusy(true);
+      void calendarSyncNow()
+        .then((outcome) => setNotice(outcome.message))
+        .finally(() => setBusy(false));
     },
     onDisconnect: (id) => {
       void post("/api/calendar/disconnect", { id }).then((res) => setNotice(res.ok ? "Disconnected. Your blocks stay, unsynced." : "Couldn't disconnect just now."));

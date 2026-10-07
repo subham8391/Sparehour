@@ -5,6 +5,7 @@
 // retiring the row. Rows are written straight to push_subscriptions under
 // RLS — they are per device and never sync.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { detectPushPlatform, permissionCopy, readPermission, subscriptionRow, urlBase64ToUint8Array, type PermissionCopy, type PermissionState, type PushPlatform } from "./push";
 
 // The Supabase client is loaded when a subscription is written, not with the
@@ -65,6 +66,7 @@ export function usePush(): PushApi {
   const [workerAvailable, setWorkerAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pwa = usePwaOptional();
   const platform = useMemo<PushPlatform>(() => (typeof navigator === "undefined" ? { isIOS: false, isSafari: false, isFirefox: false, standalone: false, touch: false, ua: "" } : detectPushPlatform(navigator, window.matchMedia("(display-mode: standalone)").matches)), []);
 
   // The launch re-registration (§7.3): an existing subscription is written again so a vanished one is noticed.
@@ -91,6 +93,8 @@ export function usePush(): PushApi {
       const result = await Notification.requestPermission();
       setPermission(result);
       if (result !== "granted") return;
+      // Allowed notifications count towards keeping storage (SYSTEM_DESIGN.md §10.4): ask for it again now.
+      pwa?.requestPersist(true);
       const reg = await registration();
       if (!reg) throw new Error("No service worker here — reminders need the installed app.");
       const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -103,7 +107,7 @@ export function usePush(): PushApi {
     } finally {
       setBusy(false);
     }
-  }, [platform]);
+  }, [platform, pwa]);
 
   const disable = useCallback(async () => {
     setBusy(true);

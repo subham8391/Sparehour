@@ -2,9 +2,10 @@
 // The sync chip (SCREENS.md §20): four states, never blocking, always
 // reassuring. The model is pure so every state is unit-tested; the hook that
 // feeds it from PowerSync lives in use-sync-chip.ts.
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useId, useState } from "react";
+import { createContext, useContext, useId, useState } from "react";
 import { Icon, type IconName } from "@/ui/icons";
 import { RAISED } from "@/ui/sheet-parts";
 
@@ -31,6 +32,8 @@ export interface SyncChipInput {
   serverError?: boolean;
   /** The first few waiting changes in words, oldest first. */
   waiting?: readonly string[];
+  /** This device is out of room (data/powersync/quota.ts): a sync problem with its own reason (SCREENS.md §20). */
+  storageFull?: boolean;
 }
 
 export interface SyncChipModel {
@@ -39,7 +42,9 @@ export interface SyncChipModel {
   label: string;
   detail: string;
   /** The one thing to do about it (SCREENS.md §20 "one action to fix it"). */
-  action?: "sign_in";
+  action?: "sign_in" | "export";
+  /** When the data last synced, for the expanded Synced state's exact time. */
+  lastSyncedAt?: Date | null;
   /** What is waiting to go up, shown under the detail while it cannot (SCREENS.md §20 Offline: "a list of the pending changes"). */
   waiting?: readonly string[];
   /** How many more are waiting beyond the list. */
@@ -98,6 +103,16 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
       ...pendingList(i),
     };
   }
+  // Out of room: nothing new may stick on this device, which is the problem to fix (SCREENS.md §20, §21).
+  if (i.storageFull) {
+    return {
+      state: "problem",
+      icon: "alert",
+      label: "Sync problem",
+      detail: "This device is out of room, so a new change may not save here. Nothing already saved is lost: export your data, then free some space.",
+      action: "export",
+    };
+  }
   if (i.hasError) {
     return {
       state: "problem",
@@ -127,7 +142,53 @@ export function syncChipModel(i: SyncChipInput): SyncChipModel {
     icon: "cloud-check",
     label: i.lastSyncedAt ? `Synced ${relativeTime(i.lastSyncedAt, i.now)}` : "Synced",
     detail: "Up to date. Works offline.",
+    lastSyncedAt: i.lastSyncedAt,
   };
+}
+
+/** The shell's sync model, for the places that show it without a sidebar (Browse on a phone, ruling R4). */
+export const SyncModelContext = createContext<SyncChipModel | null>(null);
+
+export function useSyncModel(): SyncChipModel | null {
+  return useContext(SyncModelContext);
+}
+
+// The expanded state's second half — the Synced times and Sync now, the install steps when storage is not
+// protected (SCREENS.md §20) — is an island: the chip rides in every shell, and none of that is needed until it opens.
+const loadSyncExtras = () => import("./sync-panel");
+export const preloadSyncExtras = () => loadSyncExtras();
+const SyncExtras = dynamic(loadSyncExtras, { ssr: false });
+
+/** What the chip expands to, in the sidebar's popover or the phone's sheet: the words, what waits, the one action. */
+export function SyncDetail({ model }: { model: SyncChipModel }) {
+  const pathname = usePathname();
+  return (
+    <>
+      <p className="mb-1 font-medium text-ink">{model.label}</p>
+      <p>{model.detail}</p>
+      {model.waiting && model.waiting.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-0.5 text-ink">
+          {model.waiting.map((w, n) => (
+            <li key={n} className="truncate">
+              {w}
+            </li>
+          ))}
+          {(model.more ?? 0) > 0 && <li className="text-ink-3 num">+{model.more} more</li>}
+        </ul>
+      )}
+      {model.action === "sign_in" && (
+        <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
+          Sign in again
+        </Link>
+      )}
+      {model.action === "export" && (
+        <Link href="/settings#data" className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
+          Export your data
+        </Link>
+      )}
+      {(model.state === "synced" || model.state === "unprotected" || (model.state === "problem" && model.action !== "export")) && <SyncExtras model={model} />}
+    </>
+  );
 }
 
 // Six states, three tones: quiet neutrals for the ordinary ones, amber for the
@@ -196,7 +257,6 @@ export function SyncChip({
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const pathname = usePathname();
   return (
     <div className={`relative ${className}`}>
       {/* Only a change of state is worth announcing; the label's "12s ago" re-renders every twelve seconds and would talk over everything. */}
@@ -206,6 +266,7 @@ export function SyncChip({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        onPointerEnter={() => void preloadSyncExtras().catch(() => undefined)}
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={compact ? model.label : undefined}
@@ -225,23 +286,7 @@ export function SyncChip({
           aria-label="Sync status"
           className={`${RAISED} absolute z-30 w-64 rounded-xl p-3 text-body-sm text-ink-2 ${placement === "above" ? "bottom-full left-0 mb-1" : "top-full right-0 mt-1"}`}
         >
-          <p className="mb-1 font-medium text-ink">{model.label}</p>
-          <p>{model.detail}</p>
-          {model.waiting && model.waiting.length > 0 && (
-            <ul className="mt-2 flex flex-col gap-0.5 text-ink">
-              {model.waiting.map((w, n) => (
-                <li key={n} className="truncate">
-                  {w}
-                </li>
-              ))}
-              {(model.more ?? 0) > 0 && <li className="text-ink-3 num">+{model.more} more</li>}
-            </ul>
-          )}
-          {model.action === "sign_in" && (
-            <Link href={`/login?next=${encodeURIComponent(pathname ?? "/today")}`} className="mt-2 inline-flex min-h-11 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 sm:min-h-0">
-              Sign in again
-            </Link>
-          )}
+          <SyncDetail model={model} />
         </div>
       )}
     </div>

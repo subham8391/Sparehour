@@ -25,8 +25,8 @@ interface BeforeInstallPromptEvent extends Event {
 export interface PwaApi {
   install: InstallState;
   persistence: PersistenceState;
-  /** Ask the browser to keep our storage; safe to call often, asks once. */
-  requestPersist: () => void;
+  /** Ask the browser to keep our storage; safe to call often, asks once — or again with `again` (installed, notifications allowed). */
+  requestPersist: (again?: boolean) => void;
   /** Show the browser's install prompt (only when `install.kind === "prompt"`). */
   promptInstall: () => Promise<void>;
   updateReady: boolean;
@@ -62,7 +62,11 @@ export function PwaProvider({ children }: { children: ReactNode }) {
       e.preventDefault();
       setPrompt(e as BeforeInstallPromptEvent);
     };
-    const onInstalled = () => setPrompt(null);
+    // Installed: the browser now weighs the origin differently, so ask again and let the status line follow (§10.4).
+    const onInstalled = () => {
+      setPrompt(null);
+      void requestPersistence(navigator.storage, safeStorage(), true).then(setPersistence);
+    };
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
     // Report what the browser already decided, without asking yet.
@@ -95,8 +99,8 @@ export function PwaProvider({ children }: { children: ReactNode }) {
 
   const gateMounted = useIdleMount(loadVersionGate, false);
 
-  const requestPersist = useCallback(() => {
-    void requestPersistence(navigator.storage, safeStorage()).then(setPersistence);
+  const requestPersist = useCallback((again = false) => {
+    void requestPersistence(navigator.storage, safeStorage(), again).then(setPersistence);
   }, []);
 
   const promptInstall = useCallback(async () => {

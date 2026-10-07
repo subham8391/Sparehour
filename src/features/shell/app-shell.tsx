@@ -30,6 +30,7 @@ import { useIdleMount } from "./preload-on-idle";
 import { Sidebar } from "./sidebar";
 import { TabBar } from "./tab-bar";
 import { useNavData } from "./use-nav-data";
+import { SyncModelContext } from "./sync-chip";
 import { useSyncChip } from "./use-sync-chip";
 
 // The bulk bar only shows while rows are ticked, so it is an island (the shells' 320 KB budget): fetched once the
@@ -133,7 +134,9 @@ function Frame({ children }: { children: ReactNode }) {
           className="flex flex-1 flex-col focus-visible:-outline-offset-2 sm:min-h-0 sm:overflow-y-auto"
         >
           <StorageFullBanner />
-          <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
+          <SyncModelContext.Provider value={sync}>
+            <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
+          </SyncModelContext.Provider>
         </div>
         {adds && <QuickAddBar />}
         <BulkBarIsland />
