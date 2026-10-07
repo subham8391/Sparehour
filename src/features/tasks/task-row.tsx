@@ -5,13 +5,16 @@
 // is left, nothing is reserved. The actions live in a zone pinned to the
 // row's right edge, out of the flow and hidden at rest; on hover, focus-within
 // and the J/K highlight it appears over the chips on the row's own
-// background, fading in at its left edge, so nothing shifts. A touch device
-// without hover keeps the zone in the flow, always shown. On a phone: a 56 px
-// row whose title comes first and clamps at two
-// lines, the chips and meta on a second line that fades out rather than
+// background, fading in at its left edge, so nothing shifts. The zone ends in
+// the ⋯ "More actions" menu, which holds every row action (`.` opens it on
+// the selected row). A touch device without hover keeps the zone in the flow,
+// always shown. On a phone: a 56 px row whose title comes first and clamps at
+// two lines, the chips and meta on a second line that fades out rather than
 // wraps, no inline actions; the whole row opens the detail, the ring and the
-// "More actions" menu are the other two targets. A footer can sit under the
-// row (the carried-over ask).
+// ⋯ (a bottom sheet there) are the other two targets. An open task's menu
+// adds the snooze presets and Move to…, the day picker (row-menu.tsx,
+// day-picker.tsx, both lazy). A footer can sit under the row (the
+// carried-over ask).
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Temporal, formatMinutes, formatTime, type LocalDate } from "@/core/time";
@@ -23,9 +26,11 @@ import { Chip, DeadlineChip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { ListCard } from "@/ui/list-card";
-import { MenuButton } from "@/ui/popover";
+import { MenuButton, type MenuHandle } from "@/ui/popover";
 import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { edgeFor, type Edge } from "./reorder";
+import { DayPickerIsland, RowMenuIsland, preloadRowIslands } from "./row-islands";
+import { listenForRowRequests } from "./row-request";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
 import { formatDay } from "@/core/time/format-day";
 import { useTaskRepo } from "./use-task-repo";
@@ -224,6 +229,26 @@ export function TaskRow({
     );
   const day = today ?? Temporal.Now.plainDateISO();
   const hasActions = Boolean(rowActions);
+  // An open task's menu adds the snooze presets and Move to… (PRODUCT_SPEC.md §8.6); a finished one has nothing to move.
+  const movable = hasActions && (task.state === "active" || task.state === "inbox" || task.state === "someday");
+
+  // The ⋯ menu and the day picker it opens, beside the ⋯ (or the inline action that asked).
+  const menu = useRef<MenuHandle>(null);
+  const [moving, setMoving] = useState<{ anchor: HTMLElement | null; label?: string } | null>(null);
+  const move = (anchor: HTMLElement | null, label?: string) => setMoving({ anchor: anchor ?? menu.current?.trigger() ?? ref.current, label });
+  useEffect(() => {
+    if (hasActions) preloadRowIslands();
+  }, [hasActions]);
+  // `.` and the palette's Move to… reach the selected row (row-request.ts).
+  useEffect(() => {
+    if (!selected || !hasActions) return;
+    return listenForRowRequests((id, request) => {
+      if (id !== task.id || (request === "move" && !movable)) return false;
+      if (request === "menu") menu.current?.open();
+      else setMoving({ anchor: menu.current?.trigger() ?? ref.current });
+      return true;
+    });
+  }, [selected, hasActions, movable, task.id]);
   const ring = (
     <span
       className={cx(
@@ -342,34 +367,54 @@ export function TaskRow({
           {hasActions && (
             <div
               className={cx(
-                "hidden items-center justify-end gap-0.5 pr-2 sm:flex print:hidden!",
+                // On a phone only the trailing ⋯, above the title's stretched tap area.
+                "relative z-1 -my-2 -ml-1 flex shrink-0 items-center print:hidden!",
+                "sm:z-auto sm:my-0 sm:ml-0 sm:justify-end sm:gap-0.5 sm:pr-2",
                 // Pinned to the right edge, out of the flow, on the row's own background (base tone under the wash), fading in on the left so it can sit over the chips.
                 "sm:absolute sm:inset-y-0 sm:right-0 sm:pl-6 sm:bg-(--row-bg) sm:shadow-[inset_0_0_0_100vmax_var(--row-wash)] sm:fade-start",
                 // Hidden at rest and no target then (axe reads pointer-events); revealed at 80 ms on hover, focus-within and the J/K highlight.
                 "pointer-events-none opacity-0 transition-opacity dur-reveal",
                 "group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-aria-[current=true]:pointer-events-auto group-aria-[current=true]:opacity-100",
-                // No hover, no reveal: a touch device keeps the zone in the flow (the grid's last track) and always shown.
-                "touch:sm:static touch:sm:pl-0 touch:sm:shadow-none touch:sm:[mask-image:none] touch:pointer-events-auto touch:opacity-100",
+                // No hover, no reveal: a touch device keeps the zone in the flow (the grid's last track) and always shown; so does a phone.
+                "touch:sm:static touch:sm:pl-0 touch:sm:shadow-none touch:sm:[mask-image:none] touch:pointer-events-auto touch:opacity-100 max-sm:pointer-events-auto max-sm:opacity-100",
               )}
             >
-              <RowActionsLayoutProvider layout="inline">{rowActions}</RowActionsLayoutProvider>
-            </div>
-          )}
-          {hasActions && (
-            <div className="relative z-1 -my-2 -ml-1 shrink-0 sm:hidden print:hidden!">
-              <MenuButton label="More actions">
-                {(close) => (
-                  <RowActionsLayoutProvider layout="menu" close={close}>
-                    {rowActions}
-                    {task.recurrenceRule && (task.state === "active" || task.state === "inbox") && <SkipOccurrence id={task.id} />}
-                  </RowActionsLayoutProvider>
-                )}
+              <span className="hidden items-center gap-0.5 sm:flex">
+                <RowActionsLayoutProvider layout="inline" move={movable ? move : undefined}>
+                  {rowActions}
+                </RowActionsLayoutProvider>
+              </span>
+              {/* Drawn at the end of the document from `sm` up, so the zone's fade cannot hide it; a sheet on a phone. */}
+              <MenuButton label="More actions" portal handle={menu}>
+                {(close) => {
+                  const own = (
+                    <>
+                      {rowActions}
+                      {task.recurrenceRule && (task.state === "active" || task.state === "inbox") && <SkipOccurrence id={task.id} />}
+                    </>
+                  );
+                  return (
+                    <RowActionsLayoutProvider layout="menu" close={close} move={movable ? move : undefined}>
+                      {movable ? <RowMenuIsland taskId={task.id}>{own}</RowMenuIsland> : own}
+                    </RowActionsLayoutProvider>
+                  );
+                }}
               </MenuButton>
             </div>
           )}
         </div>
         {footer}
       </div>
+      {moving && (
+        <DayPickerIsland
+          taskId={task.id}
+          title={task.title}
+          current={task.doDate}
+          label={moving.label}
+          anchor={moving.anchor}
+          onClose={() => setMoving(null)}
+        />
+      )}
     </li>
   );
 }

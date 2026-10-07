@@ -34,6 +34,8 @@ const WORDS: Record<string, Words> = {
   "task.weekend": { title: "This weekend", group: "Selected task" },
   "task.in4h": { title: "In 4 hours", group: "Selected task" },
   "task.nextweek": { title: "Next week", group: "Selected task" },
+  "task.menu": { title: "More actions", group: "Selected task", keywords: "menu row options snooze" },
+  "task.move": { title: "Move to…", group: "Selected task", keywords: "day date reschedule snooze another day pick" },
   "task.someday": { title: "Move to Someday", group: "Selected task" },
   "task.drop": { title: "Drop", group: "Selected task" },
   "task.priority1": { title: "Priority 1", group: "Selected task" },

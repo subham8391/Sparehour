@@ -5,7 +5,7 @@
 // on a phone the same actions live in the
 // row's "More actions" menu. One component, two layouts, told apart by the
 // context the row provides, so every view keeps its accessible names.
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, type MouseEvent, type ReactNode } from "react";
 import { BlockGlyph, Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon, type IconName } from "@/ui/icons";
@@ -14,11 +14,30 @@ import type { DayChip, DayChipTone } from "./day-chip";
 
 export type RowActionsLayout = "inline" | "menu";
 
-const LayoutContext = createContext<{ layout: RowActionsLayout; close?: () => void }>({ layout: "inline" });
+interface Layout {
+  layout: RowActionsLayout;
+  close?: () => void;
+  /** Opens the row's day picker beside `anchor` (Move to…, Someday's Pick a date), named `label`. */
+  move?: (anchor: HTMLElement | null, label?: string) => void;
+}
 
-/** Wraps the actions where the row renders them; `close` dismisses the phone menu after a choice. */
-export function RowActionsLayoutProvider({ layout, close, children }: { layout: RowActionsLayout; close?: () => void; children: ReactNode }) {
-  return <LayoutContext.Provider value={{ layout, close }}>{children}</LayoutContext.Provider>;
+const LayoutContext = createContext<Layout>({ layout: "inline" });
+
+/** Wraps the actions where the row renders them; `close` dismisses the menu after a choice. */
+export function RowActionsLayoutProvider({ layout, close, move, children }: Layout & { children: ReactNode }) {
+  return <LayoutContext.Provider value={{ layout, close, move }}>{children}</LayoutContext.Provider>;
+}
+
+/** The row's layout, close and day picker, for the menu's own items (the snooze presets, Move to…). */
+export function useRowActions(): Layout {
+  return useContext(LayoutContext);
+}
+
+/** Labels a menu already offers in its own group (the snooze presets): a row action saying the same steps aside there. */
+const OwnedContext = createContext<ReadonlySet<string> | null>(null);
+
+export function OwnedLabels({ labels, children }: { labels: ReadonlySet<string>; children: ReactNode }) {
+  return <OwnedContext.Provider value={labels}>{children}</OwnedContext.Provider>;
 }
 
 // 28 px in the desktop row's zone; 44 px wherever the inline layout shows on a phone (the morning plan's carried list).
@@ -50,11 +69,13 @@ export function RowAction({
   title?: string;
   /** The first, no-penalty choice reads in ink. */
   primary?: boolean;
-  onClick: () => void;
+  onClick: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const { layout, close } = useContext(LayoutContext);
+  const owned = useContext(OwnedContext);
   const visual = glyph ?? (icon && <Icon name={icon} size={12} strokeWidth={2} className="shrink-0" />);
   if (layout === "menu") {
+    if (owned?.has(label)) return null;
     const word = text && label.toLowerCase().includes(text.toLowerCase()) ? text : label;
     return (
       <button
@@ -62,8 +83,8 @@ export function RowAction({
         role="menuitem"
         aria-label={word !== label ? label : undefined}
         className={cx(MENU_ITEM, "gap-2.5")}
-        onClick={() => {
-          onClick();
+        onClick={(e) => {
+          onClick(e);
           close?.();
         }}
       >
@@ -114,6 +135,16 @@ export function MoveActions({
 export function MenuOnly({ children }: { children: ReactNode }) {
   const { layout } = useContext(LayoutContext);
   return layout === "menu" ? <>{children}</> : null;
+}
+
+/**
+ * The row's day picker from its inline zone, beside the button (Someday's "Pick a date"). The menu has its own
+ * "Move to…" for the same picker, so this one stays out of it.
+ */
+export function MoveToAction({ label = "Move to…", text, icon = "calendar", title }: { label?: string; text?: string | null; icon?: IconName; title?: string }) {
+  const { layout, move } = useContext(LayoutContext);
+  if (layout === "menu" || !move) return null;
+  return <RowAction label={label} text={text} icon={icon} title={title ?? label} onClick={(e) => move(e.currentTarget, label)} />;
 }
 
 /** The 7 px square that stands for a time block, in the current colour; drawn by the one glyph in `src/ui/chip`. */

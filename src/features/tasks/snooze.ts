@@ -1,7 +1,9 @@
 // Smart snooze presets (PRODUCT_SPEC.md §8.6): This evening · Tomorrow ·
-// In 4 hours · This weekend · Next week. "This weekend" is the next
-// Saturday; "Next week" is next Monday. Pure: takes the moment and the
-// user's day, returns the patch each preset would apply.
+// In 4 hours · This weekend · Next week, then Pick a date (the day picker,
+// day-picker.tsx). "This weekend" is the next Saturday; "Next week" is next
+// Monday. Pure: takes the moment and the user's day, returns the patch each
+// preset would apply; `applySnooze` is the one write the palette, the keys
+// and the row's ⋯ menu share.
 import { Temporal, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 
 export interface SnoozePatch {
@@ -44,6 +46,30 @@ export function snoozePresets(now: Instant, zone: string, today: LocalDate): Sno
     { id: "weekend", label: "This weekend", patch: { doDate: nextSaturday(today), doTime: null, evening: false } },
     { id: "nextweek", label: "Next week", patch: { doDate: nextMonday(today), doTime: null, evening: false } },
   ];
+}
+
+/** The preset words, for a menu that already offers them to leave out a row action saying the same ("Tomorrow"). */
+export const PRESET_LABELS: ReadonlySet<string> = new Set(["This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week"]);
+
+/** The undo toast's words: "Moved “Call Ana” to this weekend". */
+export function snoozeNote(preset: Pick<SnoozePreset, "label">): string {
+  return `Moved {title} to ${preset.label.toLowerCase()}`;
+}
+
+/** What a snooze writes to, the task repository's two update calls. */
+export interface SnoozeRepo {
+  update: (id: string, patch: SnoozePatch, note?: string) => Promise<void>;
+  updateMany: (ids: readonly string[], patch: SnoozePatch, note?: string) => Promise<void>;
+}
+
+/**
+ * A preset on one or more tasks: one write and one undo entry with its toast. The palette, the keys and the row's
+ * ⋯ menu all go through here, so a preset is the same patch wherever it is chosen (the carry count is the
+ * server's, and a do-date the person picked never counts as a carry).
+ */
+export function applySnooze(repo: SnoozeRepo, ids: readonly string[], preset: SnoozePreset): Promise<void> {
+  if (ids.length === 1) return repo.update(ids[0], preset.patch, snoozeNote(preset));
+  return repo.updateMany(ids, preset.patch, snoozeNote(preset));
 }
 
 export type { Temporal };

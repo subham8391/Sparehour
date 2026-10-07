@@ -7,7 +7,7 @@
 // sheet corners, the safe area — drawn over the tab bar and the FAB; from
 // `sm` up it is a popover anchored to its trigger (DESIGN_SYSTEM.md §4a,
 // §5 "Task row": the actions live in the ⋯ sheet on a phone).
-import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "./cx";
 import { Icon } from "./icons";
@@ -17,11 +17,12 @@ export type DismissReason = "outside" | "escape";
 
 /**
  * The dismissal both panels share: a click outside or Escape closes, and the
- * returned ref goes on the element that counts as "inside" (`also` is a second
- * one, for a panel drawn elsewhere in the document). The handler is read from
- * a ref, so a new closure on every render never re-subscribes.
+ * returned ref goes on the element that counts as "inside"; `also` is a
+ * selector for more of it drawn elsewhere in the document (a portalled
+ * panel). The handler is read from a ref, so a new closure on every render
+ * never re-subscribes.
  */
-export function useDismiss(open: boolean, onDismiss: (reason: DismissReason) => void, also?: RefObject<HTMLElement | null>) {
+export function useDismiss(open: boolean, onDismiss: (reason: DismissReason) => void, also?: string) {
   const ref = useRef<HTMLDivElement>(null);
   const latest = useRef(onDismiss);
   useEffect(() => {
@@ -31,7 +32,8 @@ export function useDismiss(open: boolean, onDismiss: (reason: DismissReason) => 
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (ref.current && !ref.current.contains(target) && !also?.current?.contains(target)) latest.current("outside");
+      const el = target instanceof Element ? target : target.parentElement;
+      if (ref.current && !ref.current.contains(target) && !(also && el?.closest(also))) latest.current("outside");
     };
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -58,44 +60,46 @@ const EDGE = 8;
 const GAP = 4;
 
 /**
- * Places a fixed panel beside `anchor`: under it (over it with `up`, or when
- * there is more room above), its right or left edge on the anchor's, kept 8 px
- * inside the viewport. Fixed, so no card, mask or scroller around the trigger
- * clips it; it follows the anchor while the page scrolls.
+ * A ref for a fixed panel that sits beside `anchor`: under it (over it with
+ * `up`, or when there is more room above), its right or left edge on the
+ * anchor's, kept 8 px inside the viewport. Fixed, so no card, mask or
+ * scroller around the trigger clips it; it follows the anchor while the page
+ * scrolls. With no anchor it does nothing.
  */
-export function useAnchoredPlacement(panel: RefObject<HTMLElement | null>, anchor: RefObject<HTMLElement | null>, active: boolean, align: "left" | "right" = "right", direction: "up" | "down" = "down") {
-  useLayoutEffect(() => {
-    const el = panel.current;
-    const at = anchor.current;
-    if (!active || !el || !at) return;
-    const place = () => {
-      const r = at.getBoundingClientRect();
-      const h = el.offsetHeight;
-      const w = el.offsetWidth;
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
-      const below = vh - r.bottom - GAP - EDGE;
-      const above = r.top - GAP - EDGE;
-      const up = direction === "up" ? above >= h || above > below : below < h && above > below;
-      const top = up ? Math.max(EDGE, r.top - GAP - h) : Math.max(EDGE, Math.min(r.bottom + GAP, vh - EDGE - h));
-      const left = Math.max(EDGE, Math.min(align === "right" ? r.right - w : r.left, vw - EDGE - w));
-      el.style.top = `${Math.round(top)}px`;
-      el.style.left = `${Math.round(left)}px`;
-    };
-    place();
-    window.addEventListener("scroll", place, true);
-    window.addEventListener("resize", place);
-    return () => {
-      window.removeEventListener("scroll", place, true);
-      window.removeEventListener("resize", place);
-    };
-  }, [panel, anchor, active, align, direction]);
+export function useAnchoredPlacement(anchor: HTMLElement | null, align: "left" | "right" = "right", direction: "up" | "down" = "down") {
+  return useCallback(
+    (el: HTMLElement | null) => {
+      if (!el || !anchor) return;
+      const place = () => {
+        const r = anchor.getBoundingClientRect();
+        const h = el.offsetHeight;
+        const w = el.offsetWidth;
+        const vh = window.innerHeight;
+        const vw = window.innerWidth;
+        const below = vh - r.bottom - GAP - EDGE;
+        const above = r.top - GAP - EDGE;
+        const up = direction === "up" ? above >= h || above > below : below < h && above > below;
+        const top = up ? Math.max(EDGE, r.top - GAP - h) : Math.max(EDGE, Math.min(r.bottom + GAP, vh - EDGE - h));
+        const left = Math.max(EDGE, Math.min(align === "right" ? r.right - w : r.left, vw - EDGE - w));
+        el.style.top = `${Math.round(top)}px`;
+        el.style.left = `${Math.round(left)}px`;
+      };
+      place();
+      window.addEventListener("scroll", place, true);
+      window.addEventListener("resize", place);
+      return () => {
+        window.removeEventListener("scroll", place, true);
+        window.removeEventListener("resize", place);
+      };
+    },
+    [anchor, align, direction],
+  );
 }
 
 /** A panel as a phone bottom sheet: scrim, grabber, sheet corners and the safe area, above the tab bar, the FAB and any open sheet. */
-export function SheetFrame({ frameRef, onClose, children }: { frameRef?: Ref<HTMLDivElement>; onClose: () => void; children: ReactNode }) {
+export function SheetFrame({ onClose, children, ...rest }: { onClose: () => void; children: ReactNode; [data: `data-${string}`]: string }) {
   return (
-    <div ref={frameRef} className="fixed inset-0 z-50 flex items-end">
+    <div className="fixed inset-0 z-50 flex items-end" {...rest}>
       <Scrim onClose={onClose} />
       <div className={cx(SHEET_PANEL, SHEET_RISE, "max-h-[85dvh]")}>
         <Grabber />
@@ -112,7 +116,36 @@ function menuItems(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(ITEMS)).filter((el) => !el.hasAttribute("disabled") && el.getAttribute("aria-disabled") !== "true");
 }
 
-/** What a caller can do to a menu from outside: the row's `.` key opens it, the day picker anchors to its trigger. */
+/** Arrows, Home and End move through a menu's items, a letter jumps to the next item starting with it, Tab leaves. */
+function menuKeys(e: KeyboardEvent<HTMLElement>, onTab: () => void): void {
+  const target = e.target as HTMLElement;
+  if (!target.matches?.(ITEMS) && target !== e.currentTarget) return; // a field inside the menu keeps its keys
+  const items = menuItems(e.currentTarget);
+  if (items.length === 0) return;
+  const at = items.indexOf(target);
+  const go = (i: number) => {
+    e.preventDefault();
+    items[(i + items.length) % items.length]?.focus();
+  };
+  if (e.key === "ArrowDown") return go(at + 1);
+  if (e.key === "ArrowUp") return go(at < 0 ? -1 : at - 1);
+  if (e.key === "Home") return go(0);
+  if (e.key === "End") return go(-1);
+  if (e.key === "Tab") {
+    e.preventDefault();
+    onTab();
+    return;
+  }
+  // A letter never reaches the app's own single-key commands while a menu is open.
+  if (e.key.length === 1 && /\S/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    const key = e.key.toLowerCase();
+    const order = [...items.slice(at + 1), ...items.slice(0, at + 1)];
+    order.find((el) => (el.textContent ?? "").trim().toLowerCase().startsWith(key))?.focus();
+  }
+}
+
+/** What a caller can do to a menu from outside: the row's `.` key opens it, the day picker sits beside its trigger. */
 export interface MenuHandle {
   open: () => void;
   trigger: () => HTMLButtonElement | null;
@@ -149,67 +182,49 @@ export function MenuButton({
   handle?: Ref<MenuHandle>;
 }) {
   const [open, setOpen] = useState<false | "popover" | "sheet">(false);
+  const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const panelId = useId();
-  const trigger = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  /** What counts as inside besides the trigger's own box: the sheet's frame, or the portalled popover. */
-  const away = useRef<HTMLDivElement>(null);
+  /** Everything that is this menu, wherever it is drawn: the panel, and the sheet's frame around it. */
+  const mine = `[data-menu="${panelId}"]`;
 
-  /** Closes; focus goes back to the trigger unless a choice already sent it somewhere else (a field, a dialog). */
-  const finish = useCallback(() => {
-    const at = document.activeElement;
-    if (!at || at === document.body || panel.current?.contains(at) || away.current?.contains(at)) trigger.current?.focus({ preventScroll: true });
-    setOpen(false);
-  }, []);
+  const close = useCallback(() => setOpen(false), []);
   const show = useCallback(() => setOpen(phoneWidth() ? "sheet" : "popover"), []);
-  useImperativeHandle(handle, () => ({ open: show, trigger: () => trigger.current }), [show]);
-  const rootRef = useDismiss(Boolean(open), finish, away);
+  useImperativeHandle(handle, () => ({ open: show, trigger: () => trigger }), [show, trigger]);
+  const rootRef = useDismiss(Boolean(open), close, mine);
 
-  useAnchoredPlacement(panel, trigger, open === "popover" && portal, align, direction);
-
-  // Focus moves in: to the first item, or to the panel while the items are still on their way.
-  useLayoutEffect(() => {
-    const el = panel.current;
-    if (!open || !el) return;
-    (menuItems(el)[0] ?? el).focus({ preventScroll: true });
-  }, [open]);
-
-  const keys = (e: KeyboardEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (!target.matches?.(ITEMS) && target !== e.currentTarget) return; // a field inside the menu keeps its keys
-    const items = menuItems(e.currentTarget);
-    if (items.length === 0) return;
-    const at = items.indexOf(target);
-    const go = (i: number) => {
-      e.preventDefault();
-      items[(i + items.length) % items.length]?.focus();
-    };
-    if (e.key === "ArrowDown") return go(at + 1);
-    if (e.key === "ArrowUp") return go(at < 0 ? -1 : at - 1);
-    if (e.key === "Home") return go(0);
-    if (e.key === "End") return go(-1);
-    if (e.key === "Tab") {
-      e.preventDefault();
-      finish();
+  // Focus goes back to the trigger once the panel has gone, unless a choice sent it somewhere else (a field, a dialog).
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) {
+      wasOpen.current = true;
       return;
     }
-    // A letter jumps to the next item that starts with it, and never reaches the app's own single-key commands.
-    if (e.key.length === 1 && /\S/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      e.preventDefault();
-      const key = e.key.toLowerCase();
-      const order = [...items.slice(at + 1), ...items.slice(0, at + 1)];
-      order.find((el) => (el.textContent ?? "").trim().toLowerCase().startsWith(key))?.focus();
-    }
-  };
+    if (!wasOpen.current) return;
+    wasOpen.current = false;
+    const at = document.activeElement;
+    if (!at || at === document.body) trigger?.focus({ preventScroll: true });
+  }, [open, trigger]);
+
+  const place = useAnchoredPlacement(open === "popover" && portal ? trigger : null, align, direction);
+  // Focus moves in, to the first item (or the panel while the items are on their way); a portalled popover is placed.
+  const panelRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (!el) return;
+      (menuItems(el)[0] ?? el).focus({ preventScroll: true });
+      return place(el);
+    },
+    [place],
+  );
 
   const list = (
     <div
-      ref={panel}
+      ref={panelRef}
       id={panelId}
+      data-menu={panelId}
       role="menu"
       aria-label={label}
       tabIndex={-1}
-      onKeyDown={keys}
+      onKeyDown={(e) => menuKeys(e, close)}
       className={cx(
         "flex flex-col gap-0.5 outline-none",
         open === "sheet"
@@ -221,16 +236,23 @@ export function MenuButton({
             ),
       )}
     >
-      {children(finish)}
+      {children(close)}
+    </div>
+  );
+  // A portalled panel is still inside its trigger's component for React: a tap in it must not reach a row around
+  // the trigger (which would select it, or tick it on a long press).
+  const contained = (node: ReactNode) => (
+    <div className="contents" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+      {node}
     </div>
   );
 
   return (
     <div ref={rootRef} className="relative">
       <button
-        ref={trigger}
+        ref={setTrigger}
         type="button"
-        onClick={() => (open ? finish() : show())}
+        onClick={() => (open ? close() : show())}
         aria-haspopup="menu"
         aria-expanded={Boolean(open)}
         aria-controls={open ? panelId : undefined}
@@ -245,12 +267,14 @@ export function MenuButton({
       </button>
       {open === "sheet" &&
         createPortal(
-          <SheetFrame frameRef={away} onClose={finish}>
-            {list}
-          </SheetFrame>,
+          contained(
+            <SheetFrame data-menu={panelId} onClose={close}>
+              {list}
+            </SheetFrame>,
+          ),
           document.body,
         )}
-      {open === "popover" && (portal ? createPortal(<div ref={away}>{list}</div>, document.body) : list)}
+      {open === "popover" && (portal ? createPortal(contained(list), document.body) : list)}
     </div>
   );
 }
