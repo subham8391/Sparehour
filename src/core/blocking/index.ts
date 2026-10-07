@@ -106,26 +106,7 @@ export function stepZoom(step: ZoomStep, dir: 1 | -1): ZoomStep {
   return ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, i + dir))];
 }
 
-/** The minutes several blocks cover, overlaps counted once (PRODUCT_SPEC.md §10.2 "Multiple blocks per task"). */
-export function coveredMinutes(blocks: readonly Interval[]): number {
-  let total = 0;
-  let reach = -1;
-  for (const b of [...blocks].sort((x, y) => x.start - y.start)) {
-    const from = Math.max(b.start, reach);
-    if (b.end > from) total += b.end - from;
-    reach = Math.max(reach, b.end);
-  }
-  return total;
-}
-
-/**
- * The quiet hint when a task's blocks do not add up to its estimate (PRODUCT_SPEC.md §10.2, "a mismatch shows a
- * hint, never an error"): how far short or over, or null when they match or there is no estimate to compare with.
- */
-export function estimateMismatch(blockedMin: number, estimateMin: number | null): { kind: "short" | "over"; min: number } | null {
-  if (estimateMin == null || blockedMin <= 0 || blockedMin === estimateMin) return null;
-  return blockedMin < estimateMin ? { kind: "short", min: estimateMin - blockedMin } : { kind: "over", min: blockedMin - estimateMin };
-}
+export { coveredMinutes, estimateMismatch } from "./coverage";
 
 /** Blocks that overlap each other, for drawing side by side (a block over a meeting is allowed). */
 export function overlaps(a: Interval, b: Interval): boolean {

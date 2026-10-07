@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { coveredMinutes, estimateMismatch } from "@/core/blocking";
+import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
 import { keyBetween } from "@/core/ordering";
 import { Temporal, formatMinutes, formatTime, instant, timeFromMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
@@ -13,7 +13,6 @@ import { normaliseTimestamp, toTask } from "@/data/mappers";
 import { DAY_PLAN_SQL, DONE_BETWEEN_SQL, monthsBack } from "@/data/queries/shell";
 import { SettingsRepo, type SettingsPatch } from "@/data/repositories/user-settings-repo";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
-import { usePlacing } from "@/features/blocking/use-placing";
 import { useBlockNudgePending } from "@/features/notifications/block-nudge-store";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { useCarryReview } from "@/features/rituals/carry-review-host";
@@ -76,6 +75,7 @@ const EmptyDay = dynamic(() => loadDayStates().then((m) => m.EmptyDay), { ssr: f
 const loadEveningSection = () => import("@/features/today/evening-section");
 const EveningSection = dynamic(() => loadEveningSection().then((m) => m.EveningSection), { ssr: false });
 const SectionDrop = dynamic(() => loadEveningSection().then((m) => m.SectionDrop), { ssr: false });
+const BlockDrop = dynamic(() => loadEveningSection().then((m) => m.BlockDrop), { ssr: false });
 /** Above this many rows Carried over starts folded to one line (SCREENS.md §2.3); unfolding holds for the day. */
 const CARRIED_FOLD_AT = 8;
 const CARRIED_OPEN_KEY = "sparehour:carried-open";
@@ -222,28 +222,20 @@ export default function TodayPage() {
     return z.hour * 60 + z.minute;
   })();
   const findTask = (id: string): Task | undefined => [...model.carried, ...model.todayTasks, ...model.eveningTasks].find((t) => t.id === id);
-  // B, tap-to-schedule ("Block…" on a row, then a tap; Escape lets go), drops, moves, copies and blocks of your own.
-  const placer = usePlacing({
-    day: model.today,
-    zone,
-    blocks: model.blocks,
-    free: model.capacity?.free ?? [],
-    dayStart,
-    dayEnd,
-    nowMinute,
-    defaultEstimateMin: defaultEstimate,
-    findTask,
-    onPlaced: () => setView("day"),
-  });
+  // The selected block, and tap-to-schedule: "Block…" on a row, then a tap on the timeline (Escape lets go). The
+  // placing itself — B, drops, moves, copies, blocks of your own — runs in the day pane's island (use-placing.ts).
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [placingId, setPlacingId] = useState<string | null>(null);
+  const placingTask = placingId ? findTask(placingId) : undefined;
   const startPlacing = (id: string) => {
-    placer.setPlacing(id);
+    setPlacingId(id);
     setView("day");
   };
   // Plan my day (SCREENS.md §2.1, §2.6): the preview shows the Day view with the proposal drawn on it, nothing written until Approve.
   const planning = usePlanPreview(() => {
     setView("day");
-    placer.setSelectedBlockId(null);
-    placer.setPlacing(null);
+    setSelectedBlockId(null);
+    setPlacingId(null);
     detail.close();
   });
   // Once per preview, the first proposed block is brought into view: in the day pane from the wide band, above the sheet on a phone.
@@ -513,7 +505,7 @@ export default function TodayPage() {
 
         <div className={cx("flex-col gap-6", planning.mode && !closedAt ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
           {/* A block dragged off the timeline onto the list is unblocked; its task stays where it is (SCREENS.md §2.6). */}
-          {blockDrag && <SectionDrop accepts="block" label="Drop here to remove the block — the task stays" onDrop={placer.removeBlock} />}
+          {blockDrag && <BlockDrop />}
           {model.carried.length > 0 &&
             (carriedFolded ? (
               // More than eight carried: one summary line until it is opened (SCREENS.md §2.3, PRODUCT_SPEC.md §8.2 rule 10).
@@ -686,9 +678,20 @@ export default function TodayPage() {
             start={dayStart}
             end={dayEnd}
             bufferPct={model.settings?.bufferPct}
-            hint={model.blocks.length === 0 && !placer.placingTask && !planning.mode}
-            placer={placer}
-            findTask={findTask}
+            hint={model.blocks.length === 0 && !placingTask && !planning.mode}
+            placing={{
+              day: model.today,
+              zone,
+              blocks: model.blocks,
+              free: model.capacity.free,
+              dayStart,
+              dayEnd,
+              nowMinute,
+              defaultEstimateMin: defaultEstimate,
+              findTask,
+              onPlaced: () => setView("day"),
+              state: { selectedBlockId, setSelectedBlockId, placing: placingId, setPlacing: setPlacingId },
+            }}
             onOpenTask={detail.open}
             timeline={{
               // While previewing, the gaps are what the proposal leaves; the "done by" marker belongs to the day as it is, so it steps aside.

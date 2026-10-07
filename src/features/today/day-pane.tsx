@@ -6,7 +6,7 @@
 // the shell. The wiring from the shared placing hook to the timeline lives here for the same reason.
 import { formatTime, timeFromMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
-import type { PlacingApi } from "@/features/blocking/use-placing";
+import { usePlacing, type PlacingApi, type PlacingDay } from "@/features/blocking/use-placing";
 import { PlacingBar, Timeline, type TimelineProps } from "./timeline";
 
 /** What the screen draws; the placing hook supplies everything a person can do on it. */
@@ -41,13 +41,15 @@ export interface DayPaneProps {
   bufferPct: number | undefined;
   /** Nothing on the timeline yet, nothing being placed and no preview open: say how blocks get there. */
   hint: boolean;
-  placer: PlacingApi;
-  findTask: (id: string) => Task | undefined;
+  /** The day the placing hook works on, with the selection and the waiting task the page holds. */
+  placing: PlacingDay;
   onOpenTask: (taskId: string) => void;
   timeline: DrawnDay;
 }
 
-export function DayPane({ start, end, bufferPct, hint, placer, findTask, onOpenTask, timeline }: DayPaneProps) {
+export function DayPane({ start, end, bufferPct, hint, placing, onOpenTask, timeline }: DayPaneProps) {
+  // B, drops, moves, copies and blocks of your own: here, so none of it rides in Today's first download.
+  const placer = usePlacing(placing);
   const waiting = placer.placingTask;
   return (
     <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
@@ -57,7 +59,7 @@ export function DayPane({ start, end, bufferPct, hint, placer, findTask, onOpenT
       </p>
       {/* Tap-to-schedule (SCREENS.md §2.8): the task waiting for a time, and how to let go of it. */}
       {waiting && <PlacingBar text={`Tap a time for “${waiting.title}”`} onCancel={() => placer.setPlacing(null)} />}
-      <Timeline {...timeline} {...placerTimeline(placer, findTask, onOpenTask)} />
+      <Timeline {...timeline} {...placerTimeline(placer, placing.findTask, onOpenTask)} />
       {hint && (
         <p className="mt-4 text-body-sm text-pretty text-ink-3">
           <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B. Drag on an empty stretch for a block of your own.</span>

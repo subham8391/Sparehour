@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { eveningBudget } from "@/core/capacity/evening";
 import type { Interval } from "@/core/capacity/intervals";
 import { formatMinutes, type LocalTime } from "@/core/time";
+import { useBlockRepo } from "@/features/blocking/use-block-repo";
 import { CollapsedGroup } from "@/ui/collapsed-group";
 import { cx } from "@/ui/cx";
 import { SectionLabel } from "@/ui/section-label";
@@ -50,6 +51,12 @@ export function SectionDrop({ label, onDrop, accepts = "task" }: { label: string
       {label}
     </div>
   );
+}
+
+/** A block dragged off the timeline onto the list (SCREENS.md §2.6): the block goes, with an undo; the task stays. */
+export function BlockDrop() {
+  const blocks = useBlockRepo();
+  return <SectionDrop accepts="block" label="Drop here to remove the block — the task stays" onDrop={(id) => void blocks.remove(id)} />;
 }
 
 // On a phone This Evening starts collapsed (SCREENS.md §2.8); opening or closing it is remembered on the device.

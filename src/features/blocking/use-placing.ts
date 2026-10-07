@@ -3,7 +3,7 @@
 // is, `B`'s next free gap, tap-to-schedule and the block's own Move… and Duplicate (a tap on the timeline, or a
 // time typed), the ad-hoc blocks drawn on empty space, and the selected block. Shared by Today and the morning
 // plan's last step, and written for any day so the Calendar and day stepping can take it as they are.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useQuery } from "@/data/powersync";
 import { blockLength, chooseSlot, coveredMinutes, placeAt, snapTo } from "@/core/blocking";
 import type { Interval } from "@/core/capacity";
@@ -30,6 +30,18 @@ export interface PlacingDay {
   findTask: (id: string) => Task | undefined;
   /** Whatever the screen does when a block is placed for it by `B` (Today shows its Day view). */
   onPlaced?: () => void;
+  /**
+   * The selected block and the task waiting for a tap, when the screen holds them itself: Today keeps them in its
+   * shell (a row's "Block…" and Plan my day set them) and runs this hook inside the day pane's island.
+   */
+  state?: PlacingState;
+}
+
+export interface PlacingState {
+  selectedBlockId: string | null;
+  setSelectedBlockId: Dispatch<SetStateAction<string | null>>;
+  placing: string | null;
+  setPlacing: Dispatch<SetStateAction<string | null>>;
 }
 
 /**
@@ -51,8 +63,12 @@ export function usePlacing(d: PlacingDay) {
   const repo = useBlockRepo();
   const blocking = useBlocking();
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [placing, setPlacing] = useState<string | null>(null);
+  const [ownSelected, setOwnSelected] = useState<string | null>(null);
+  const [ownPlacing, setOwnPlacing] = useState<string | null>(null);
+  const selectedBlockId = d.state ? d.state.selectedBlockId : ownSelected;
+  const setSelectedBlockId = d.state?.setSelectedBlockId ?? setOwnSelected;
+  const placing = d.state ? d.state.placing : ownPlacing;
+  const setPlacing = d.state?.setPlacing ?? setOwnPlacing;
   const atMinute = useCallback((minute: number) => instantAt(d.day, d.zone, minute), [d.day, d.zone]);
   const blockOf = (id: string) => d.blocks.find((b) => b.id === id);
   const ofTask = (taskId: string) => d.blocks.filter((b) => b.taskId === taskId);
@@ -127,7 +143,7 @@ export function usePlacing(d: PlacingDay) {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [placing]);
+  }, [placing, setPlacing]);
   const tapSlot = (min: number) => {
     const task = placing ? d.findTask(placing) : undefined;
     setPlacing(null);
