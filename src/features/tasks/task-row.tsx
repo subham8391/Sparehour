@@ -283,10 +283,13 @@ export function TaskRow({
   // and the other rows' controls step out of the Tab order, so Tab moves between scopes and J/K within one. The
   // row the selection moves to takes focus while focus is on a row or nowhere, so a screen reader reads it.
   const roving = Boolean(onSelect && sel);
-  const stop = roving && (selected || (!sel?.selectedId && sel?.firstId === task.id));
+  const anySelected = Boolean(sel?.selectedId);
   useEffect(() => {
     const el = ref.current;
     if (!el || !roving) return;
+    // With nothing selected the stop is the view's first row on screen (a folded section's rows are not).
+    const stop = anySelected ? selected : (el.closest("main") ?? document).querySelector("[data-roving]") === el;
+    el.tabIndex = stop ? 0 : -1;
     for (const c of el.querySelectorAll<HTMLElement>("button, input, a[href]")) {
       if (stop && c.dataset.rove) {
         c.removeAttribute("tabindex");
@@ -349,7 +352,7 @@ export function TaskRow({
         "focus-visible:-outline-offset-2",
       )}
       role="row"
-      tabIndex={roving ? (stop ? 0 : -1) : undefined}
+      data-roving={roving || undefined}
       aria-labelledby={`${rowId}t ${rowId}f`}
       aria-selected={multi ? ticked : undefined}
       aria-current={selected ? "true" : undefined}

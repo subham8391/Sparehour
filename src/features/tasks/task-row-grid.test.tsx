@@ -91,6 +91,25 @@ describe("<TaskList> as a grid", () => {
     expect(screen.getByRole("button", { name: "Complete Draft the proposal" })).toHaveAttribute("tabindex", "-1");
   });
 
+  it("with nothing selected the stop is the first row on screen, even when the view's first id is folded away", () => {
+    function Folded() {
+      const sel = useListSelection(["folded", ...tasks.map((t) => t.id)]);
+      return (
+        <TaskList>
+          {tasks.map((t) => (
+            <TaskRow key={t.id} task={t} selected={sel.selectedId === t.id} onSelect={() => sel.select(t.id)} onOpen={vi.fn()} />
+          ))}
+        </TaskList>
+      );
+    }
+    render(
+      <SelectionProvider>
+        <Folded />
+      </SelectionProvider>,
+    );
+    expect(screen.getAllByRole("row").map((r) => r.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
+  });
+
   it("the row the selection moves to takes focus while focus is on a row or nowhere, so it is read out", () => {
     setup();
     act(() => selectFromOutside("t1"));

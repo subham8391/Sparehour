@@ -35,8 +35,6 @@ function reducer(state: SelectionState, action: Action): SelectionState {
 
 interface SelectionApi {
   selectedId: string | null;
-  /** The view's first row: the list's one Tab stop while nothing is selected (roving tabindex, SCREENS.md §1 rule 1). */
-  firstId: string | null;
   /** Rows ticked for a bulk edit, in display order; empty means single-row mode. */
   checkedIds: readonly string[];
   select: (id: string | null) => void;
@@ -68,7 +66,6 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
   const api = useMemo<SelectionApi>(
     () => ({
       selectedId: state.selectedId,
-      firstId: state.ids[0] ?? null,
       checkedIds: state.checked,
       select,
       moveSelection,
@@ -80,7 +77,7 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
       selecting,
       setSelecting,
     }),
-    [state.selectedId, state.ids, state.checked, select, moveSelection, toggle, range, all, clear, register, selecting],
+    [state.selectedId, state.checked, select, moveSelection, toggle, range, all, clear, register, selecting],
   );
   return <SelectionContext.Provider value={api}>{children}</SelectionContext.Provider>;
 }
