@@ -55,7 +55,7 @@ function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathnam
       href={view.href}
       aria-current={active ? "page" : undefined}
       // The rail's name with its count, which a long-press on touch shows beside it (nav-drag-island.tsx; globals.css
-      // keeps the iOS link callout and text selection from covering it).
+      // keeps the iOS link callout from covering it).
       aria-label={rail ? (label ? `${view.label}, ${label}` : view.label) : undefined}
       title={rail ? view.label : undefined}
       className={cx(ITEM, "font-medium", active && ACTIVE, rail && RAIL_ITEM)}
