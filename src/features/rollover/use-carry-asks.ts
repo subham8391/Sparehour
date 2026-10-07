@@ -60,6 +60,10 @@ export function useCarryAsks(carried: readonly Task[], { carryAskAfter, today, z
       const at = instantOf(r.carry_asked_at);
       if (at && Temporal.Instant.compare(at, dayStart) >= 0) askedToday.add(r.id);
     }
+    // The task rows and this query refresh separately after an ask is recorded: a task whose own row already says
+    // "asked today" counts, or for a moment it would look asked this week with the day's two unspent, and the next
+    // two in line would start asking (and be recorded) too.
+    for (const t of carried) if (t.carryAskedAt && Temporal.Instant.compare(t.carryAskedAt, dayStart) >= 0) askedToday.add(t.id);
     const picked = pickAsks(carried, { carryAskAfter }, { askedToday, askedAt: (t) => t.carryAskedAt ?? null, now });
     return { asks: picked as ReadonlySet<string>, fresh: [...picked].filter((id) => !askedToday.has(id)) };
   }, [anyAtThreshold, carryAskAfter, isLoading, rows, dayStart, carried, now]);

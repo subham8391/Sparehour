@@ -25,6 +25,16 @@ describe("useCarryAsks", () => {
     expect(useQuery).toHaveBeenLastCalledWith(expect.stringContaining("carry_asked_at"), ["2026-10-05"]);
   });
 
+  it("counts a task whose own row says it was asked today, before the asked query catches up", () => {
+    useQuery.mockImplementationOnce(() => ({ data: [], isLoading: false, params: [] }));
+    const four = ["a", "b", "c", "d"].map((id) => taskFixture(id, id, { carryCount: 3, doDate: localDate("2026-10-05") }));
+    // a and b were just recorded: their rows carry the stamp, the asked query is still the old (empty) one.
+    const stamped = four.map((t, i) => (i < 2 ? { ...t, carryAskedAt: instant("2026-10-06T08:59:00Z") } : t));
+    const { result } = renderHook(() => useCarryAsks(stamped, { carryAskAfter: 3, today: TODAY, zone: "UTC", now: NOW }));
+    expect([...result.current.asks]).toEqual(["a", "b"]);
+    expect(result.current.fresh).toEqual([]);
+  });
+
   it("reads nothing while no task is at the threshold or the setting is not here", () => {
     useQuery.mockClear();
     const { result } = renderHook(() => useCarryAsks(carried, { carryAskAfter: null, today: TODAY, zone: "UTC", now: NOW }));
