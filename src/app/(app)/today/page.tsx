@@ -45,6 +45,8 @@ import { ListLine } from "@/ui/list-card";
 import { scrollMotion } from "@/ui/reduced-motion";
 import { SectionAction, SectionLabel } from "@/ui/section-label";
 import { Toast } from "@/ui/toast";
+import { PaneBoundary } from "@/ui/pane-boundary";
+import { BUILD_ID } from "@/data/build-id";
 import { Loading } from "../loading-view";
 
 // The once-only expired digest (PRODUCT_SPEC.md §8.2 rule 5): a lazy island, out of the first download.
@@ -510,6 +512,8 @@ export default function TodayPage() {
           <LazyPlanIsland mode={planning.mode} model={model} now={now} layout="dock" onDrawing={planning.setDrawing} onClose={planning.close} />
         )}
 
+        {/* Each pane fails in place (SCREENS.md §21): a list that throws leaves the day pane working, and the other way round. */}
+        <PaneBoundary name="Today’s list" build={BUILD_ID}>
         <div className={cx("flex-col gap-6", planning.mode && !closedAt ? "hidden" : showDay ? "hidden lg:flex" : "flex")}>
           {/* A block dragged off the timeline onto the list is unblocked; its task stays where it is (SCREENS.md §2.6). */}
           {blockDrag && <BlockDrop />}
@@ -662,6 +666,7 @@ export default function TodayPage() {
             </section>
           )}
         </div>
+        </PaneBoundary>
       </div>
 
       {model.capacity && hasDay && (
@@ -681,6 +686,7 @@ export default function TodayPage() {
             planning.mode && "max-sm:pb-[min(62dvh,36rem)]",
           )}
         >
+          <PaneBoundary name="Your day" build={BUILD_ID}>
           <DayPane
             start={dayStart}
             end={dayEnd}
@@ -713,6 +719,7 @@ export default function TodayPage() {
               paneScrolls: true,
             }}
           />
+          </PaneBoundary>
         </aside>
       )}
       {trimOpen && (
