@@ -122,9 +122,10 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
 
 /** Collapse sidebar / Expand sidebar (Cmd+\): one in each nav, the shell shows one nav at a time. */
 function SidebarToggle({ rail }: { rail: boolean }) {
-  const name = rail ? "Expand sidebar" : "Collapse sidebar";
+  const name = `${rail ? "Expand" : "Collapse"} sidebar`;
   return (
-    <button type="button" data-sidebar-toggle aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "hidden md:flex" : "ml-auto")}>
+    // panes.ts finds it by its name to move focus across when the navs swap.
+    <button type="button" aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "hidden md:flex" : "ml-auto")}>
       <Icon name="menu" size={18} />
     </button>
   );

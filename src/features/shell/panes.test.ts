@@ -41,9 +41,9 @@ describe("layout choices", () => {
 
   it("toggleSidebar moves focus from the nav that goes to the other one's toggle", () => {
     document.body.innerHTML = `
-      <nav data-variant="rail"><button data-sidebar-toggle>Expand sidebar</button></nav>
-      <nav data-variant="full"><button data-sidebar-toggle>Collapse sidebar</button><a href="/inbox">Inbox</a></nav>`;
-    const [expand, collapse] = document.querySelectorAll<HTMLElement>("[data-sidebar-toggle]");
+      <nav data-variant="rail"><button title="Expand sidebar">E</button></nav>
+      <nav data-variant="full"><button title="Collapse sidebar">C</button><a href="/inbox">Inbox</a></nav>`;
+    const [expand, collapse] = document.querySelectorAll<HTMLElement>("button");
     collapse.focus();
     toggleSidebar();
     expect(root.dataset.sidebar).toBe("rail");

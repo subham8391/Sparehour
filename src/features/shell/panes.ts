@@ -36,5 +36,5 @@ export function setPref(name: keyof typeof PREFS, on = !prefOn(name)): void {
 export function toggleSidebar(): void {
   const from = document.activeElement?.closest("nav[data-variant]");
   setPref("sidebar");
-  if (from) document.querySelector<HTMLElement>(`nav[data-variant="${prefOn("sidebar") ? "rail" : "full"}"] [data-sidebar-toggle]`)?.focus();
+  if (from) document.querySelector<HTMLElement>(`nav[data-variant="${prefOn("sidebar") ? "rail" : "full"}"] [title$=" sidebar"]`)?.focus();
 }
