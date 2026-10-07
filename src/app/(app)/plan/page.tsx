@@ -79,6 +79,7 @@ export default function PlanPage() {
   // Only what is picked for today: B on a row still waiting in step 2 does not block a task the day does not hold.
   const findTask = (id: string) => onToday.find((t) => t.id === id);
   const { writes } = useCalendarState();
+  const paused = pausedLine(writes.off);
   const placer = usePlacing({
     day: model.today,
     zone,
@@ -134,9 +135,11 @@ export default function PlanPage() {
       onEstimate={(id, minutes) => void model.repo.update(id, { estimateMin: minutes })}
       onAddTask={() => quickAdd.open("today ")}
       blocking={{
-        timeline: placerTimeline(placer, findTask, detail.open, pausedLine(writes.off)),
-        placing: placer.placingTask ? { title: placer.placingTask.title, onCancel: () => placer.setPlacing(null) } : null,
+        timeline: placerTimeline(placer, findTask, detail.open, paused),
+        // Paused: nothing waits for a tap that could not place it; the step says why over the timeline instead.
+        placing: placer.placingTask && !paused ? { title: placer.placingTask.title, onCancel: () => placer.setPlacing(null) } : null,
         onPlace: placer.setPlacing,
+        paused,
       }}
       onDone={() => {
         if (user?.personal_space_id) void dayPlans.upsert(model.today.toString(), { spaceId: user.personal_space_id, userId: user.id }, { plannedAt: new Date().toISOString() });
