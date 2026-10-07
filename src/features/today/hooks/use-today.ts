@@ -2,7 +2,7 @@
 // Composes the local data with the core engines: capacity, carried-over and
 // today's list, all reactive to the local database.
 import { useCallback, useMemo } from "react";
-import { useQuery } from "@/data/powersync";
+import { useQuery, useSyncStream } from "@/data/powersync";
 import { capacityFor, type Capacity, type CapacityBlock } from "@/core/capacity";
 import { carriedOver } from "@/core/rollover/carried"; // not the index: that carries the recurrence engine (§11.6)
 import { Temporal, instant, localDate, todayFor, type Instant, type LocalDate } from "@/core/time";
@@ -162,10 +162,8 @@ export function useToday(now: Temporal.Instant): TodayModel {
   });
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   const { data: removedRows } = useQuery<{ id: string; task_id: string }>(REMOVED_BLOCKS_SQL);
-  // Has this window of the calendar arrived at least once? The same subscription, held until it has synced.
-  const { isLoading: calendarWaiting } = useQuery<{ n: number }>(CALENDAR_ARRIVED_SQL, [], {
-    streams: [{ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24, waitForStream: true }],
-  });
+  // Has this window of the calendar arrived at least once? The same subscription; its status says.
+  const calendarWaiting = useSyncStream({ name: "calendar_window", parameters: { months: monthsAround(today) }, ttl: 60 * 60 * 24 })?.subscription.hasSynced !== true;
   // The same subscription the closed day's summary takes, so a task completed here stays on the device to say its block is done.
   const months = useMemo(() => monthsBack(localDate(todayIso), 1), [todayIso]);
   const { data: blockTaskRows } = useQuery<{ id: string; title: string | null; state: string | null }>(BLOCK_TASKS_SQL, [from, to], {
@@ -254,9 +252,6 @@ export function useToday(now: Temporal.Instant): TodayModel {
     };
   }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, removedRows, calendarWaiting, workRows, settings, today, now, isLoading, repo]);
 }
-
-/** A cheap row for the calendar window's subscription to wait on; its loading state is "not arrived yet". */
-const CALENDAR_ARRIVED_SQL = `select 1 as n`;
 
 /** Today's all-day events by title (private calendars say "Busy"); out-of-office days have their own line on the ribbon. */
 export function allDayTitles(rows: readonly CalendarEventRow[], today: LocalDate, readByCalendar: ReadonlyMap<string, boolean>, privateIds: ReadonlySet<string>): string[] {

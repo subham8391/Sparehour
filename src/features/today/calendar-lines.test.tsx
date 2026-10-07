@@ -35,18 +35,18 @@ afterEach(() => {
 });
 
 const issue = (over: Partial<CalendarIssue>): CalendarIssue => ({ kind: "error", email: "me@gmail.com", lastSyncedAt: "2026-10-07T09:12:00Z", key: "error:acct:t", blocking: false, ...over });
-/** The banner reads the issue itself (useCalendarState); the test hands it one. */
-function Banner({ over }: { over: Partial<CalendarIssue> }) {
+/** The banner reads the issue itself (useCalendarState); the test hands it one before rendering. */
+function banner(over: Partial<CalendarIssue>) {
   h.issue = issue(over);
   return <CalendarBanner />;
 }
 
 describe("CalendarBanner", () => {
   it("revoked access: Reconnect goes back through Google's consent to Today, and says blocking is paused", () => {
-    render(<Banner over={{ kind: "reauth", blocking: true, key: "reauth:acct" }} />);
-    const banner = screen.getByRole("status", { name: "Calendar access" });
-    expect(banner).toHaveTextContent("Google Calendar (me@gmail.com) needs reconnecting.");
-    expect(banner).toHaveTextContent(/Blocking is paused until you reconnect\. Your blocks stay here, marked not synced\./);
+    render(banner({ kind: "reauth", blocking: true, key: "reauth:acct" }));
+    const shown = screen.getByRole("status", { name: "Calendar access" });
+    expect(shown).toHaveTextContent("Google Calendar (me@gmail.com) needs reconnecting.");
+    expect(shown).toHaveTextContent(/Blocking is paused until you reconnect\. Your blocks stay here, marked not synced\./);
     const reconnect = screen.getByRole("link", { name: "Reconnect" });
     expect(reconnect).toHaveAttribute("href", RECONNECT_HREF);
     expect(reconnect).toHaveClass("w-full", "h-11");
@@ -54,7 +54,7 @@ describe("CalendarBanner", () => {
 
   it("write calendar gone: the picker is inline, picking one sets it, and keeping blocks local puts the banner away", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(<Banner over={{ kind: "write_gone", blocking: true, key: "gone:acct:t1" }} />);
+    const { unmount } = render(banner({ kind: "write_gone", blocking: true, key: "gone:acct:t1" }));
     expect(screen.getByRole("status", { name: "Where blocks go" })).toHaveTextContent("The calendar your blocks went to is no longer in Google Calendar.");
     const picker = screen.getByRole("radiogroup", { name: "Write calendar" });
     expect(screen.getAllByRole("radio")).toHaveLength(2); // Work (writable) and Keep blocks in Sparehour only; Team is read-only
@@ -65,13 +65,13 @@ describe("CalendarBanner", () => {
     expect(screen.queryByRole("status", { name: "Where blocks go" })).toBeNull();
     unmount();
     // The choice holds on this device for this issue.
-    render(<Banner over={{ kind: "write_gone", blocking: true, key: "gone:acct:t1" }} />);
+    render(banner({ kind: "write_gone", blocking: true, key: "gone:acct:t1" }));
     expect(screen.queryByRole("status", { name: "Where blocks go" })).toBeNull();
   });
 
   it("unreachable: names the last good sync, Retry syncs now, and it can be dismissed for the session", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(<Banner over={{}} />);
+    const { unmount } = render(banner({}));
     expect(screen.getByRole("status", { name: "Calendar sync" })).toHaveTextContent(/^Couldn't reach Google Calendar\. Showing your last sync from .+\./);
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(h.calendarSyncNow).toHaveBeenCalled();
@@ -79,10 +79,10 @@ describe("CalendarBanner", () => {
     await user.click(screen.getByRole("button", { name: "Dismiss for now" }));
     expect(screen.queryByRole("status", { name: "Calendar sync" })).toBeNull();
     unmount();
-    render(<Banner over={{}} />);
+    render(banner({}));
     expect(screen.queryByRole("status", { name: "Calendar sync" })).toBeNull();
     // A new failure (another last-good time) is a new line.
-    render(<Banner over={{ key: "error:acct:t2" }} />);
+    render(banner({ key: "error:acct:t2" }));
     expect(screen.getByRole("status", { name: "Calendar sync" })).toBeInTheDocument();
   });
 });
