@@ -70,7 +70,8 @@ export function csvExport(s: ExportSnapshot): string {
       t.id,
       t.title,
       t.state,
-      names.areaOfProject(t.project_id),
+      // A loose task names its own area; a project task, its project's.
+      t.area_id ? names.area(t.area_id) : names.areaOfProject(t.project_id),
       names.project(t.project_id),
       names.heading(t.heading_id),
       t.do_date,
