@@ -2,12 +2,23 @@
 // Everything "app-like" (SYSTEM_DESIGN.md §10): whether we are installed and
 // how to install here, storage persistence (asked once, after the first
 // meaningful action), and the update flow — a new version waits until the
-// person chooses to reload.
+// person chooses to reload, unless /api/bootstrap says this build is below the
+// oldest one allowed: then "Update required" blocks the app, lets pending
+// uploads go and moves to the new version (§10.2).
 import { Serwist } from "@serwist/window";
+import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { BUILD_ID } from "@/data/build-id";
 import { Button } from "@/ui/button";
 import { Toast } from "@/ui/toast";
 import { detectInstallSignals, installState, requestPersistence, type InstallState, type PersistenceState } from "./install";
+import { fetchBootstrap, isUpdateRequired } from "./version";
+
+// The blocking screen only ever shows when the gate closes, so it is an island of its own.
+const UpdateRequired = dynamic(() => import("./update-required"), { ssr: false });
+
+/** How often an open, visible app asks /api/bootstrap again. */
+const GATE_EVERY_MS = 30 * 60_000;
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -43,7 +54,9 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   const [standalone, setStandalone] = useState(false);
   const [persistence, setPersistence] = useState<PersistenceState>("unknown");
   const [updateReady, setUpdateReady] = useState(false);
+  const [gate, setGate] = useState<string | null>(null);
   const workerRef = useRef<Serwist | null>(null);
+  const waitingRef = useRef(false);
 
   useEffect(() => {
     const media = window.matchMedia("(display-mode: standalone)");
@@ -74,7 +87,10 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
     const worker = new Serwist("/sw.js", { scope: "/", type: "classic" });
     workerRef.current = worker;
-    worker.addEventListener("waiting", () => setUpdateReady(true));
+    worker.addEventListener("waiting", () => {
+      waitingRef.current = true;
+      setUpdateReady(true);
+    });
     worker.addEventListener("controlling", (event) => {
       if (event.isUpdate) window.location.reload();
     });
@@ -83,6 +99,38 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     return () => {
       workerRef.current = null;
     };
+  }, []);
+
+  // The forced update (§10.2): asked at start and whenever the app comes back into view, at most twice an hour. A
+  // development build ("dev") is never gated, so it does not ask.
+  useEffect(() => {
+    if (!/\d/.test(BUILD_ID)) return;
+    let live = true;
+    let last = 0;
+    const check = () => {
+      if (document.visibilityState === "hidden" || Date.now() - last < GATE_EVERY_MS) return;
+      last = Date.now();
+      void fetchBootstrap().then((b) => {
+        if (live && b && isUpdateRequired(BUILD_ID, b.min_client_version)) setGate(b.min_client_version);
+      });
+    };
+    check();
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      live = false;
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
+
+  // A waiting worker takes over (and `controlling` reloads); without one, a reload fetches the new pages, which are
+  // network-first. The fallback reload covers a worker that never answers.
+  const applyUpdate = useCallback(() => {
+    if (workerRef.current && waitingRef.current) {
+      workerRef.current.messageSkipWaiting();
+      setTimeout(() => window.location.reload(), 4000);
+    } else {
+      window.location.reload();
+    }
   }, []);
 
   const requestPersist = useCallback(() => {
@@ -109,7 +157,8 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   return (
     <PwaContext.Provider value={api}>
       {children}
-      {updateReady && (
+      {gate && <UpdateRequired min={gate} applyUpdate={applyUpdate} />}
+      {updateReady && !gate && (
         // The one toast surface (DESIGN_SYSTEM.md §5): raised on surface-3 with one quiet action.
         <Toast
           action={

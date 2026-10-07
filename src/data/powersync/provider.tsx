@@ -1,9 +1,12 @@
 "use client";
 // The one place the app opens its local database and connects it to sync.
 // Client-only: SQLite lives in a worker; server components render shells.
+// Storage that will not open — a private window, most often — is reported to
+// `failed`, which shows the inline error state instead of a screen that waits
+// forever (SYSTEM_DESIGN.md §10.3; ruled 2026-10-06: no in-memory fallback at M1).
 import { PowerSyncContext } from "@powersync/react";
 import { createConsoleLogger, LogLevels, PowerSyncDatabase, WASQLiteVFS } from "@powersync/web";
-import { Suspense, useMemo, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppSchema } from "../schema.client";
 import { SparehourConnector } from "./connector";
 import { resolvePowerSyncUrl } from "./endpoint";
@@ -26,7 +29,7 @@ export function getDatabase(): PowerSyncDatabase {
     logger,
   });
   // Batch a burst of edits, but flush fast enough that a reload rarely loses the ack (§4.1)
-  void instance.connect(new SparehourConnector(endpoint), { crudUploadThrottleMs: 400 });
+  void instance.connect(new SparehourConnector(endpoint), { crudUploadThrottleMs: 400 }).catch(() => undefined);
   if (process.env.NODE_ENV === "development") {
     // Spike instrumentation (Appendix A1): lets the console time raw local queries.
     (window as unknown as { __sparehourDb?: PowerSyncDatabase }).__sparehourDb = instance;
@@ -34,11 +37,43 @@ export function getDatabase(): PowerSyncDatabase {
   return instance;
 }
 
-export function PowerSyncProvider({ children }: { children: ReactNode }) {
-  const db = useMemo(() => getDatabase(), []);
+type Opened = { db: PowerSyncDatabase; error?: undefined } | { db?: undefined; error: unknown };
+
+function open(): Opened {
+  try {
+    return { db: getDatabase() };
+  } catch (error) {
+    return { error };
+  }
+}
+
+/**
+ * Resolves when this browser will not give the app its storage: the database failed to open, or the origin private
+ * file system it lives in is refused outright (Firefox's private windows). Never resolves while all is well.
+ */
+export function watchStorage(db: Pick<PowerSyncDatabase, "waitForReady">, storage: { getDirectory?: () => Promise<unknown> } | undefined, onFailure: (error: unknown) => void): void {
+  db.waitForReady().catch(onFailure);
+  storage?.getDirectory?.().catch(onFailure);
+}
+
+export function PowerSyncProvider({ children, failed }: { children: ReactNode; failed?: (error: unknown) => ReactNode }) {
+  const opened = useMemo(() => open(), []);
+  const [failure, setFailure] = useState<{ error: unknown } | null>(opened.db ? null : { error: opened.error });
+  useEffect(() => {
+    if (!opened.db) return;
+    let live = true;
+    watchStorage(opened.db, typeof navigator === "undefined" ? undefined : navigator.storage, (error) => {
+      if (live) setFailure((f) => f ?? { error });
+    });
+    return () => {
+      live = false;
+    };
+  }, [opened]);
+  if (failure && failed) return <>{failed(failure.error)}</>;
+  if (!opened.db) return null;
   return (
     <Suspense>
-      <PowerSyncContext.Provider value={db}>{children}</PowerSyncContext.Provider>
+      <PowerSyncContext.Provider value={opened.db}>{children}</PowerSyncContext.Provider>
     </Suspense>
   );
 }
