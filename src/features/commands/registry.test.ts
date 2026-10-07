@@ -249,6 +249,26 @@ describe("command registry", () => {
     expect(ctx.tasks.reopen.mock.calls.map((c) => c[0])).toEqual(["t2", "t4"]);
   });
 
+  it("⌘Enter toggles: a done task reopens, an open one completes", async () => {
+    const done = ctxWith({ taskState: vi.fn(async () => "done") });
+    await byId("task.complete").run(done);
+    expect(done.tasks.reopen).toHaveBeenCalledWith("t1");
+    expect(done.tasks.complete).not.toHaveBeenCalled();
+    const open = ctxWith({ taskState: vi.fn(async () => "active") });
+    await byId("task.complete").run(open);
+    expect(open.tasks.complete).toHaveBeenCalledWith("t1");
+    expect(open.tasks.reopen).not.toHaveBeenCalled();
+  });
+
+  it("⌘Enter with mixed ticked rows toggles each: the done ones reopen, the open ones complete together", async () => {
+    const states: Record<string, string> = { t2: "done", t3: "active", t4: "inbox", t5: "done" };
+    const ctx = ctxWith({ checkedTaskIds: ["t2", "t3", "t4", "t5"], taskState: vi.fn(async (id: string) => states[id] ?? null) });
+    await byId("task.complete").run(ctx);
+    expect(ctx.tasks.reopen.mock.calls.map((c) => c[0])).toEqual(["t2", "t5"]);
+    expect(ctx.tasks.completeMany).toHaveBeenCalledWith(["t3", "t4"]);
+    expect(ctx.tasks.complete).not.toHaveBeenCalled();
+  });
+
   it("N files the new task where the person is: the project's token on a project, today on Today, nothing elsewhere", async () => {
     const onProject = ctxWith({ pathname: "/project/p1", projectName: vi.fn(async () => "Acme") });
     await byId("create.task-here").run(onProject);

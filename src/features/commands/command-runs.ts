@@ -139,6 +139,18 @@ const uncomplete = onTargets(async (ctx, ids) => {
   }
 });
 
+/**
+ * ⌘Enter (SCREENS.md §24 "Complete / un-complete"): a done task reopens (as U does, its own undo entry), anything
+ * else completes, the open ones in one write and one undo (a repeat still rolls on). Mixed ticked rows each toggle.
+ */
+const toggleComplete = onTargets(async (ctx, ids) => {
+  const states = await Promise.all(ids.map((id) => ctx.taskState(id)));
+  const open = ids.filter((_, i) => states[i] !== "done");
+  for (const id of ids.filter((_, i) => states[i] === "done")) await ctx.tasks.reopen(id);
+  if (open.length === 1) await ctx.tasks.complete(open[0]);
+  else if (open.length > 1) await ctx.tasks.completeMany(open);
+});
+
 /** The project a `/project/<id>` path shows, else null. */
 const projectIn = (pathname: string): string | null => {
   const id = /^\/project\/([^/?#]+)/.exec(pathname)?.[1];
@@ -172,7 +184,7 @@ export const RUNS: readonly CommandRun[] = [
   // ---- selected task (or every ticked row)
   { id: "task.open", shortcut: "enter", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
   { id: "task.peek", shortcut: "space", requiresSelection: true, run: onSelected((ctx, id) => ctx.openTask(id)) },
-  { id: "task.complete", shortcut: "mod+enter", requiresSelection: true, run: onTargets((ctx, ids) => (ids.length === 1 ? ctx.tasks.complete(ids[0]) : ctx.tasks.completeMany(ids))) },
+  { id: "task.complete", shortcut: "mod+enter", requiresSelection: true, run: toggleComplete },
   { id: "task.uncomplete", shortcut: "u", requiresSelection: true, run: uncomplete },
   {
     id: "task.today",
