@@ -2,14 +2,15 @@
 // Step 3, "What's on your plate today?" (ONBOARDING.md §Step 3): the production quick-add composer in the page, so
 // what is learnt here is how the app works. Each Enter saves a real task, which joins the rows above the box; a
 // line that names no day of its own goes on today; a pasted list is one task a line with one Undo. After the
-// twentieth a quiet line says so and the rest go to the Inbox. Lazy: it carries the parser, which the first step
-// does not need.
+// twentieth a quiet line says so and the rest go to the Inbox. Either button first saves a line still in the box,
+// so tapping Next after typing (no Enter on the way) loses nothing. Lazy: it carries the parser, which the first
+// step does not need.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TaskDraft } from "@/core/quickadd";
 import { useLocalDatabase } from "@/data/powersync";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import { QuickAddConnected } from "@/features/quickadd/quick-add-connected";
-import type { QuickAddContext, QuickAddSubmission } from "@/features/quickadd/quick-add";
+import type { QuickAddContext, QuickAddFlush, QuickAddSubmission } from "@/features/quickadd/quick-add";
 import { interpret, type Fact } from "@/features/quickadd/interpret";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useUndoSink } from "@/features/undo/undo-provider";
@@ -32,9 +33,11 @@ export interface BrainDumpProps {
   /** "Next — N things" or "I'll add things later": either way the first run is over. */
   onFinish: () => void;
   busy?: boolean;
+  /** Why ending the first run failed; the step stays as it is. */
+  failure?: string | null;
 }
 
-export function BrainDump({ ctx, spaceId, onFinish, busy = false }: BrainDumpProps) {
+export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null }: BrainDumpProps) {
   const db = useLocalDatabase();
   const tasks = useTaskRepo();
   const projects = useMemo(() => new ProjectRepo(db), [db]);
@@ -43,6 +46,9 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false }: BrainDumpPro
   /** How many lines have been handed to the save so far: the next one's place, counted before the list redraws. */
   const committed = useRef(0);
   const placeholder = useCyclingPlaceholder();
+  const flush = useRef<QuickAddFlush>(null);
+  const composer = useRef<HTMLDivElement>(null);
+  const [finishing, setFinishing] = useState(false);
 
   const onSubmit = async (s: QuickAddSubmission): Promise<string> => {
     const sid = spaceId ?? (await db.getOptional<{ personal_space_id: string | null }>(SPACE_SQL))?.personal_space_id ?? null;
@@ -72,21 +78,39 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false }: BrainDumpPro
         committed.current -= ids.length;
         setAdded((list) => list.filter((a) => !ids.includes(a.id)));
       }));
-    undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: true, undo: takeBack });
+    // The composer's own notice carries the Undo; a toast on a phone would sit over the step's buttons.
+    undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: false, undo: takeBack });
     return takeBack;
   };
 
   const count = added.length;
+  // Each row pushes the box down: keep it (and the strip under it) in view above the buttons held at the bottom.
+  useEffect(() => {
+    if (count > 0) composer.current?.scrollIntoView?.({ block: "nearest" });
+  }, [count]);
+
+  // A line still in the box is saved first; if it cannot be (no name yet, or the save failed), the step stays and
+  // the composer says why.
+  const finish = async () => {
+    setFinishing(true);
+    try {
+      if (flush.current && !(await flush.current())) return;
+      onFinish();
+    } finally {
+      setFinishing(false);
+    }
+  };
+
   return (
     <WelcomeFrame
       title="What's on your plate today?"
       lead="One per line. Don't organise anything — just get it out."
       footer={
         <>
-          <Button variant="secondary" size="sheet" className={FOOTER_BUTTON} disabled={busy} onClick={onFinish}>
+          <Button variant="secondary" size="sheet" className={FOOTER_BUTTON} disabled={busy || finishing} onClick={() => void finish()}>
             I&rsquo;ll add things later
           </Button>
-          <Button variant="primary" size="sheet" className={FOOTER_BUTTON} disabled={busy} onClick={onFinish}>
+          <Button variant="primary" size="sheet" className={FOOTER_BUTTON} disabled={busy || finishing} onClick={() => void finish()}>
             {nextLabel(count)}
           </Button>
         </>
@@ -100,21 +124,30 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false }: BrainDumpPro
         </ul>
       )}
       {count >= BRAIN_DUMP_TODAY_LIMIT && <p className="text-body-sm text-pretty text-ink-2">{PLENTY_LINE}</p>}
-      <QuickAddConnected
-        open
-        inline
-        ctx={ctx}
-        placeholder={placeholder}
-        hint={
-          <>
-            Try <Token>3pm</Token>, <Token>~45m</Token>, <Token>#project</Token>, <Token>!1</Token> — we&rsquo;ll pick them up as you type.
-          </>
-        }
-        shape={(draft) => brainDumpDraft(draft, ctx.today, count)}
-        onClose={() => {}}
-        onSubmit={onSubmit}
-        onPasted={onPasted}
-      />
+      {/* On a phone the buttons hold the bottom edge (about 8 rem with the safe area): the box scrolls into view above them. */}
+      <div ref={composer} className="max-sm:scroll-mb-[calc(8.5rem+env(safe-area-inset-bottom))] max-sm:[&_input]:scroll-mb-[calc(8.5rem+env(safe-area-inset-bottom))]">
+        <QuickAddConnected
+          open
+          inline
+          flushRef={flush}
+          ctx={ctx}
+          placeholder={placeholder}
+          hint={
+            <>
+              Try <Token>3pm</Token>, <Token>~45m</Token>, <Token>#project</Token>, <Token>!1</Token> — we&rsquo;ll pick them up as you type.
+            </>
+          }
+          shape={(draft) => brainDumpDraft(draft, ctx.today, count)}
+          onClose={() => {}}
+          onSubmit={onSubmit}
+          onPasted={onPasted}
+        />
+      </div>
+      {failure && (
+        <p role="alert" className="text-body-sm text-pretty text-deadline">
+          {failure}
+        </p>
+      )}
     </WelcomeFrame>
   );
 }

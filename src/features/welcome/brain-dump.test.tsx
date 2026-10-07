@@ -2,16 +2,16 @@
 // Step 3, the brain dump (ONBOARDING.md §Step 3): the production composer in the page; each Enter is a real task
 // on today unless the line names its own day; a paste is one task a line with one Undo; past twenty, the quiet
 // line and the Inbox; either button ends the first run.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskDraft } from "@/core/quickadd";
 import { instant, localDate } from "@/core/time";
 
 const h = vi.hoisted(() => ({
   created: [] as { id: string; draft: TaskDraft; ctx: unknown }[],
   removed: [] as string[][],
-  undo: [] as { label: string; undo: () => Promise<void> }[],
+  undo: [] as { label: string; toast?: boolean; undo: () => Promise<void> }[],
 }));
 vi.mock("@/data/powersync", () => ({
   useQuery: () => ({ data: [] }),
@@ -27,7 +27,7 @@ vi.mock("@/features/tasks/use-task-repo", () => ({
     removeCreated: async (ids: string[]) => void h.removed.push([...ids]),
   }),
 }));
-vi.mock("@/features/undo/undo-provider", () => ({ useUndoSink: () => ({ record: (e: { label: string; undo: () => Promise<void> }) => void h.undo.push(e) }) }));
+vi.mock("@/features/undo/undo-provider", () => ({ useUndoSink: () => ({ record: (e: { label: string; toast?: boolean; undo: () => Promise<void> }) => void h.undo.push(e) }) }));
 
 import { BrainDump } from "./brain-dump";
 
@@ -44,6 +44,10 @@ beforeEach(() => {
   h.created = [];
   h.removed = [];
   h.undo = [];
+});
+afterEach(() => {
+  delete document.documentElement.dataset.motion;
+  vi.useRealTimers();
 });
 
 describe("<BrainDump>", () => {
@@ -92,6 +96,9 @@ describe("<BrainDump>", () => {
     expect(h.created.every((c) => c.draft.doDate?.toString() === "2026-10-07")).toBe(true);
     expect(await screen.findByRole("button", { name: "Next — 3 things" })).toBeInTheDocument();
     expect(h.undo.map((u) => u.label)).toEqual(["3 tasks added"]);
+    // The composer's notice carries the Undo; no toast over the step's buttons on a phone.
+    expect(h.undo[0].toast).toBe(false);
+    expect(screen.getByRole("status")).toHaveTextContent("3 tasks added");
     await h.undo[0].undo();
     expect(h.removed).toEqual([["t1", "t2", "t3"]]);
     await waitFor(() => expect(screen.queryByRole("list", { name: "On your plate" })).not.toBeInTheDocument());
@@ -114,6 +121,44 @@ describe("<BrainDump>", () => {
     const { user, onFinish } = setup();
     await user.click(screen.getByRole("button", { name: "I’ll add things later" }));
     await user.click(screen.getByRole("button", { name: "Next" }));
-    expect(onFinish).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(2));
+    expect(h.created).toHaveLength(0);
+  });
+
+  it("a line still in the box (no Enter) is saved before the first run ends", async () => {
+    const { user, input, onFinish } = setup();
+    await user.type(input, "Call the dentist");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(h.created).toHaveLength(1);
+    expect(h.created[0].draft.title).toBe("Call the dentist");
+    expect(h.created[0].draft.doDate?.toString()).toBe("2026-10-07");
+  });
+
+  it("a line with no name keeps the step on screen and says why", async () => {
+    const { user, input, onFinish } = setup();
+    await user.type(input, "tomorrow ~30m");
+    await user.click(screen.getByRole("button", { name: "I’ll add things later" }));
+    expect(await screen.findByText("Give it a name")).toBeInTheDocument();
+    expect(onFinish).not.toHaveBeenCalled();
+    expect(h.created).toHaveLength(0);
+    expect(input).toHaveValue("tomorrow ~30m");
+  });
+
+  it("the placeholder moves through the three examples, and stays on the first for less motion", () => {
+    vi.useFakeTimers();
+    const first = render(<BrainDump ctx={ctx} spaceId="s1" onFinish={() => {}} />);
+    const box = () => within(first.container).getByRole("textbox", { name: "Task" });
+    expect(box()).toHaveAttribute("placeholder", "Draft the proposal 3pm ~45m");
+    act(() => vi.advanceTimersByTime(2500));
+    expect(box()).toHaveAttribute("placeholder", "Call the plumber");
+    act(() => vi.advanceTimersByTime(2500));
+    expect(box()).toHaveAttribute("placeholder", "Review PRs ~1h #work");
+    first.unmount();
+
+    document.documentElement.dataset.motion = "reduce";
+    const still = render(<BrainDump ctx={ctx} spaceId="s1" onFinish={() => {}} />);
+    act(() => vi.advanceTimersByTime(7500));
+    expect(within(still.container).getByRole("textbox", { name: "Task" })).toHaveAttribute("placeholder", "Draft the proposal 3pm ~45m");
   });
 });

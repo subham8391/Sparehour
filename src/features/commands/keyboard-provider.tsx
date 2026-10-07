@@ -162,6 +162,13 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
         return;
       }
       const chord = chordOf(e, isMac);
+      // The first run stands alone (ONBOARDING.md 1b and step 3): no single-key navigation, quick add or list keys
+      // to wander off with; only the modifier chords (undo, the palette) still answer there.
+      const bare = !showsChrome(contextRef.current().pathname);
+      if (bare && !chord.mod) {
+        pendingRef.current = null;
+        return;
+      }
       const r = resolveKey(chord, pendingRef.current, BINDINGS);
       pendingRef.current = r.pending;
       if (r.match) {
@@ -177,8 +184,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       }
       // Rule 4: an unbound printable key opens quick-add and types itself. No keystroke is lost.
       // Any modifier makes it a chord, not typing: Control+Z on a Mac (where ⌘ is the app's modifier) must not type a "z".
-      // Not on the first run, whose brain dump is the way to add (ONBOARDING.md step 3).
-      if (!chord.mod && !chord.alt && !e.ctrlKey && !e.metaKey && e.key.length === 1 && !/\s/.test(e.key) && showsChrome(contextRef.current().pathname)) {
+      if (!chord.mod && !chord.alt && !e.ctrlKey && !e.metaKey && e.key.length === 1 && !/\s/.test(e.key)) {
         e.preventDefault();
         contextRef.current().quickAdd(e.key);
       }

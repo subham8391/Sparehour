@@ -6,7 +6,7 @@
 // "← Quick add"; from the narrow band up, a dialog under the top edge
 // (DESIGN_SYSTEM.md §5 "Sheet"). Presentational and testable: data arrives as
 // props.
-import { useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { parse, type ParseContext, type ParseResult, type Range, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Button } from "@/ui/button";
@@ -51,6 +51,13 @@ export interface QuickAddSubmission {
 
 /** A save, resolved to the id of the task it created (the paste's undo needs them all). */
 export type QuickAddSave = (submission: QuickAddSubmission) => Promise<string | void>;
+
+/**
+ * Saves the words still in the box as Enter would, after anything still saving: true once everything typed is
+ * saved (or the box was empty), false when it could not be (no name yet, or the save failed and the words are
+ * back in the box with the reason). A page that holds the composer calls it before it moves on, so no line is lost.
+ */
+export type QuickAddFlush = () => Promise<boolean>;
 
 type Parsed = Extract<ParseResult, { ok: true }>;
 
@@ -213,6 +220,8 @@ export interface QuickAddProps {
   hint?: ReactNode;
   /** How the line will be saved when the caller files it its own way (the brain dump puts it on today). */
   shape?: (draft: TaskDraft) => TaskDraft;
+  /** Set to the composer's flush, for a page that moves on while words may still be in the box (the brain dump). */
+  flushRef?: Ref<QuickAddFlush>;
 }
 
 export function QuickAdd({
@@ -229,6 +238,7 @@ export function QuickAdd({
   placeholder,
   hint,
   shape,
+  flushRef,
 }: {
   open: boolean;
   initial?: string;
@@ -245,6 +255,7 @@ export function QuickAdd({
   placeholder?: string;
   hint?: ReactNode;
   shape?: (draft: TaskDraft) => TaskDraft;
+  flushRef?: Ref<QuickAddFlush>;
 }) {
   // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title
   // text while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
@@ -368,8 +379,11 @@ export function QuickAdd({
   // Brain-dump mode (PRODUCT_SPEC.md §5.1 rule 4): Enter clears the box at once and the save runs behind it,
   // one after another in the order asked, so the next line can be typed while the last one is still saving.
   const saves = useRef<Promise<unknown>>(Promise.resolve());
-  const submit = (close: boolean) => {
-    if (!result.ok || busy) return;
+  /** How many of those saves have not settled yet. */
+  const inFlight = useRef(0);
+  /** Resolves true once this line is saved, false when it could not be (its words are back in the box). */
+  const submit = (close: boolean): Promise<boolean> => {
+    if (!result.ok || busy) return Promise.resolve(false);
     const text = value;
     const literal = line.literal;
     const filed = fileLine(text, result, projects, parseCtx, choice, literal);
@@ -377,21 +391,35 @@ export function QuickAdd({
     setCreateProject(false);
     setPicked(null);
     setError(null);
-    saves.current = saves.current
+    inFlight.current += 1;
+    const saved = saves.current
       .then(() => onSubmit(filed.submission))
       .then(
         () => {
           setNotice({ text: addedNotice(filed) });
           if (close) onClose();
+          return true;
         },
         (e: unknown) => {
           setNotice(null);
           setError(`Couldn't save “${filed.title}”: ${reason(e)}`);
           // The words come back unless something new has been typed since.
           setLine((now) => (now.text.trim() === "" ? { text, literal } : now));
+          return false;
         },
-      );
+      )
+      .finally(() => {
+        inFlight.current -= 1;
+      });
+    saves.current = saved;
+    return saved;
   };
+  // Words in the box are saved as Enter would save them; an empty box waits for the saves still under way, and is
+  // false when the last of them failed (its words are back in the box with the reason).
+  useImperativeHandle(flushRef, () => () => {
+    if (value.trim() !== "") return submit(false);
+    return inFlight.current === 0 ? Promise.resolve(true) : saves.current.then((ok) => ok !== false);
+  });
 
   // Closing with words in the box discards them, and offers them back once (§5.1 rule 4); an empty box just closes.
   const dismiss = () => {

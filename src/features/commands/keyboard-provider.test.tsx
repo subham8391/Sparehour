@@ -8,6 +8,7 @@ const push = vi.fn();
 
 // The account's settings row, for the theme tests; every other query answers nothing.
 const account = vi.hoisted(() => ({ rows: [] as { id: string; theme: string | null }[] }));
+const route = vi.hoisted(() => ({ pathname: "/today" }));
 
 vi.mock("@/data/powersync", () => ({
   useQuery: (sql: string) => ({ data: /from user_settings/.test(sql) ? account.rows : [], isLoading: false, isFetching: false, error: undefined }),
@@ -16,7 +17,7 @@ vi.mock("@/data/powersync", () => ({
   useSyncStatus: () => ({ connected: false, dataFlowStatus: { uploading: false, downloading: false } }),
 }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/today",
+  usePathname: () => route.pathname,
   useRouter: () => ({ push, replace: vi.fn() }),
 }));
 
@@ -188,6 +189,27 @@ describe("<KeyboardProvider>", () => {
     await user.keyboard("jt");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("selected: none")).toBeInTheDocument();
+  });
+
+  it("on the first run (/welcome) plain keys neither open quick-add nor navigate; the modifier chords still answer", async () => {
+    route.pathname = "/welcome";
+    try {
+      const { user, onOpenPalette } = setup();
+      await user.keyboard("y");
+      await user.keyboard("q");
+      await user.keyboard("gt");
+      await user.keyboard("j");
+      // Give a code-split sheet the time it would take to arrive.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByRole("textbox", { name: "Task" })).not.toBeInTheDocument();
+      expect(push).not.toHaveBeenCalled();
+      expect(screen.getByText("selected: none")).toBeInTheDocument();
+      await user.keyboard("{Control>}k{/Control}");
+      await user.keyboard("{Meta>}k{/Meta}");
+      expect(onOpenPalette).toHaveBeenCalledTimes(1);
+    } finally {
+      route.pathname = "/today";
+    }
   });
 
   it("X ticks rows, Ctrl+A ticks them all, and T then moves every ticked row in one write", async () => {

@@ -66,7 +66,7 @@ test("a new person signs in with the emailed code, confirms their hours, empties
   await page.getByRole("button", { name: "Next — 2 things" }).click();
 
   await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
-  await expect(page.getByText("E2E Call the plumber")).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "E2E Call the plumber" })).toBeVisible();
 
   // The account is done with the first run; the dateless line is on today (it shows in Today above), active, and
   // the dated one kept its day, the next.

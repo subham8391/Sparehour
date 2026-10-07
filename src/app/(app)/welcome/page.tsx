@@ -89,13 +89,15 @@ export default function WelcomePage() {
   // "Next — N things" and "I'll add things later" both end the first run on Today (steps 4–5 are M2).
   const finish = async () => {
     setBusy(true);
+    setFailure(null);
     try {
       await settingsRepo.finishFirstRun(row.id);
       forgetFirstRun();
       // The end of the first run is the moment to ask the browser to keep our storage (PRODUCT_SPEC.md §19 rule 2).
       pwa?.requestPersist();
       router.replace("/today");
-    } catch {
+    } catch (e) {
+      setFailure(`Couldn't finish: ${reason(e)}`);
       setBusy(false);
     }
   };
@@ -103,5 +105,5 @@ export default function WelcomePage() {
   if (!atBrainDump) {
     return <HoursStep saved={saved} zone={canonicalZone(detectedZone() ?? row.timezone ?? "UTC")} onConfirm={(w, z) => void confirmHours(w, z)} busy={busy} failure={failure} />;
   }
-  return <BrainDump ctx={{ now, zone: accountZone, today, eveningStartsAt: settings?.eveningStartsAt }} spaceId={spaceId} onFinish={() => void finish()} busy={busy} />;
+  return <BrainDump ctx={{ now, zone: accountZone, today, eveningStartsAt: settings?.eveningStartsAt }} spaceId={spaceId} onFinish={() => void finish()} busy={busy} failure={failure} />;
 }
