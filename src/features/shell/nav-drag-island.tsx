@@ -44,7 +44,7 @@ export function SidebarDrag({ areas }: { areas: readonly NavTree[] }) {
   return <RailPeek />;
 }
 
-const RAIL_LINK = 'nav[data-variant="rail"] a[aria-label]';
+const RAIL_LINK = 'nav[data-variant="rail"] :is(a, button)[aria-label]';
 
 /**
  * The rail's names on touch (SCREENS.md §1 "labels on long-press"): a finger held half a second on a rail icon shows

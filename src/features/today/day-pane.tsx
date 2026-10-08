@@ -4,7 +4,7 @@
 // while the local database opens, so it is in memory by the time there is a day to draw — and the timeline's
 // growth (zoom, block editing, the toolbar's Move… and Duplicate, blocks of your own) lands here rather than in
 // the shell. The wiring from the shared placing hook to the timeline lives here for the same reason.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatTime, timeFromMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
@@ -106,25 +106,28 @@ function PlacingPane({ drawn, off, ...p }: DayPaneProps & { drawn: DrawnDay; off
  * Only while the pane shows today; with blocking paused nothing is made, and the pane's line says why.
  */
 function useAddBlock(day: PlacingDay, placer: PlacingApi, off: string | null) {
-  const [renaming, setRenaming] = useState<string | null>(null);
+  // The block waiting to be drawn, selected, so its title can open for renaming.
+  const renaming = useRef<string | null>(null);
   const add = useRef(() => {});
   useEffect(() => {
     add.current = () => {
       if (off || day.nowMinute === null) return;
       day.onPlaced?.();
       const slot = chooseSlot(day.free, Math.max(day.nowMinute, day.dayStart), 30, day.dayEnd);
-      void placer.createAdHoc(slot.start, Math.min(slot.end, slot.start + 30)).then((id) => id && setRenaming(id));
+      void placer.createAdHoc(slot.start, Math.min(slot.end, slot.start + 30)).then((id) => {
+        renaming.current = id;
+      });
     };
   });
   const today = day.nowMinute !== null;
   useEffect(() => (today ? onAddBlock(() => add.current()) : undefined), [today]);
-  // The new block is drawn and selected a beat after the write: then its title opens for renaming.
-  const drawn = Boolean(renaming && placer.selectedBlockId === renaming && day.blocks.some((b) => b.id === renaming));
+  // The new block is drawn and selected a beat after the write: then its title opens (the timeline's own Rename).
   useEffect(() => {
-    if (!drawn) return;
-    setRenaming(null);
+    const id = renaming.current;
+    if (!id || placer.selectedBlockId !== id || !day.blocks.some((b) => b.id === id)) return;
+    renaming.current = null;
     requestTimeline("rename-block");
-  }, [drawn]);
+  });
 }
 
 function PaneFrame({ start, end, bufferPct, hint, note, bar, timeline }: Pick<DayPaneProps, "start" | "end" | "bufferPct" | "hint"> & { note?: string | null; bar?: ReactNode; timeline: ReactNode }) {
