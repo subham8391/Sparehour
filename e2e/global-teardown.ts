@@ -24,7 +24,10 @@ export default async function teardown(): Promise<void> {
       await c.query(`delete from auth.users where id in (${made})`);
       // Tags the detail test attached, and the dev account's day plan a ritual test may have left closed.
       await c.query("delete from public.tags where name like 'e2e%'");
-      await c.query("delete from public.day_plans p using public.users u where u.id = p.user_id and u.email = 'dev@sparehour.local' and p.date >= current_date");
+      // The app's today is the account's (its zone, its rollover hour), not the server's calendar date.
+      await c.query(
+        "delete from public.day_plans p using public.user_settings s, public.users u where s.user_id = p.user_id and u.id = p.user_id and u.email = 'dev@sparehour.local' and p.date >= (timezone(s.timezone, now()) - make_interval(hours => s.day_rollover_hour))::date",
+      );
     });
   } catch (e) {
     console.warn("e2e teardown skipped:", e instanceof Error ? e.message : e);

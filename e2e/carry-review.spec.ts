@@ -3,7 +3,7 @@
 // answer and stamps the day; a fresh device then opens quietly, and the
 // review is still there on demand behind "Review carried".
 import { expect, test } from "./fixtures";
-import { waitForRow, withDb } from "./db";
+import { devAccount, freshMorning, morningBack, waitForRow, withDb, type ClosedDay, type DevAccount } from "./db";
 import { DEV_USER, openApp, uniqueTitle } from "./helpers";
 
 const DIALOG = "Review carried-over tasks";
@@ -19,11 +19,15 @@ const second = uniqueTitle("carried two");
 // RFC 4122-shaped, so the upload route drops that batch as malformed, and moving them would change the
 // account anyway. Starting them tomorrow hides them from Carried over; afterAll puts them back as found.
 let stoodAside: { id: string; start_date: string | null; last_touched_at: string }[] = [];
+let me: DevAccount;
+let closed: ClosedDay[] = [];
 
 test.beforeAll(async () => {
   await withDb(async (c) => {
+    me = await devAccount(c, DEV_USER.email);
     await c.query("update public.user_settings s set carry_review = true from public.users u where u.id = s.user_id and u.email = $1", [DEV_USER.email]);
-    await c.query("delete from public.day_plans p using public.users u where u.id = p.user_id and u.email = $1 and p.date = current_date", [DEV_USER.email]);
+    // Today unplanned and yesterday not shut down: the morning the review asks on.
+    closed = await freshMorning(c, me);
     const { rows } = await c.query<{ sid: string }>("select personal_space_id as sid from public.users where email = $1", [DEV_USER.email]);
     const sid = rows[0].sid;
     stoodAside = (
@@ -55,7 +59,7 @@ test.afterAll(async () => {
     }
     // Off again, and the day left open, for the rest of the suite; the global teardown removes the E2E tasks.
     await c.query("update public.user_settings s set carry_review = false from public.users u where u.id = s.user_id and u.email = $1", [DEV_USER.email]);
-    await c.query("delete from public.day_plans p using public.users u where u.id = p.user_id and u.email = $1 and p.date >= current_date", [DEV_USER.email]);
+    await morningBack(c, me, closed);
   });
 });
 

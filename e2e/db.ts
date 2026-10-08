@@ -330,3 +330,39 @@ export async function restoreDayPlans(c: Client, saved: readonly SavedDayPlan[],
     ),
   );
 }
+
+/** Yesterday's day plan as found when the shutdown closed it, so `morningBack` puts that back exactly. */
+export interface ClosedDay {
+  id: string;
+  shutdown_at: string;
+  updated_at: string;
+}
+
+/**
+ * A morning the review may ask on (features/rituals/carry-review.ts `shouldReview`): the app's today (its zone, its
+ * rollover hour) has no day plan, and yesterday was not closed by the shutdown, since a person who closed it decided
+ * then and is never asked. A shutdown another run left on yesterday (the rituals spec's, one night) would otherwise
+ * keep the review shut. Returns what `morningBack` needs.
+ */
+export async function freshMorning(c: Client, me: DevAccount): Promise<ClosedDay[]> {
+  await c.query("delete from public.day_plans where user_id = $1 and date >= $2::date", [me.uid, me.today]);
+  const { rows } = await c.query<ClosedDay>(
+    "select id, shutdown_at::text, updated_at::text from public.day_plans where user_id = $1 and date = $2::date - 1 and shutdown_at is not null and deleted_at is null",
+    [me.uid, me.today],
+  );
+  if (rows.length > 0) await c.query("update public.day_plans set shutdown_at = null where id = any($1::uuid[])", [rows.map((r) => r.id)]);
+  return rows;
+}
+
+/** Leaves the day open again for the rest of the suite (no plan from today on) and closes yesterday as it was. */
+export async function morningBack(c: Client, me: DevAccount, closed: readonly ClosedDay[]): Promise<void> {
+  await c.query("delete from public.day_plans where user_id = $1 and date >= $2::date", [me.uid, me.today]);
+  if (closed.length === 0) return;
+  await rawWrite(c, () =>
+    c.query("update public.day_plans p set shutdown_at = v.s, updated_at = v.u from unnest($1::uuid[], $2::timestamptz[], $3::timestamptz[]) as v(id, s, u) where p.id = v.id", [
+      closed.map((r) => r.id),
+      closed.map((r) => r.shutdown_at),
+      closed.map((r) => r.updated_at),
+    ]),
+  );
+}

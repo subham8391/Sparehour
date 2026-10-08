@@ -5,11 +5,15 @@ import { expect, test } from "./fixtures";
 import { waitForRow, withDb } from "./db";
 import { DEV_USER, openApp } from "./helpers";
 
-const PLAN = "select planned_at, shutdown_at, day_rating, highlights from public.day_plans p join public.users u on u.id = p.user_id where u.email = $1 and p.date = current_date";
+// The app's today: the account's zone and rollover hour, not the server's calendar date (they differ in the small hours).
+const TODAY = "(timezone(s.timezone, now()) - make_interval(hours => s.day_rollover_hour))::date";
+const PLAN = `select planned_at, shutdown_at, day_rating, highlights from public.day_plans p join public.user_settings s on s.user_id = p.user_id join public.users u on u.id = p.user_id where u.email = $1 and p.date = ${TODAY}`;
 
 test.afterEach(async () => {
-  // Leave the dev account's day open for whoever uses it next.
-  await withDb((c) => c.query("delete from public.day_plans p using public.users u where u.id = p.user_id and u.email = $1 and p.date >= current_date", [DEV_USER.email]));
+  // Leave the dev account's day open for whoever uses it next: a closed day left behind keeps tomorrow's morning review shut.
+  await withDb((c) =>
+    c.query(`delete from public.day_plans p using public.user_settings s, public.users u where s.user_id = p.user_id and u.id = p.user_id and u.email = $1 and p.date >= ${TODAY}`, [DEV_USER.email]),
+  );
 });
 
 test("morning plan: three steps, Done stamps the day plan and lands on Today", async ({ page }) => {

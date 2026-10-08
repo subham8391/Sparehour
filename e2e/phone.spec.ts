@@ -2,7 +2,7 @@
 // instead of the sidebar, the List · Day toggle on Today, quick-add as a sheet,
 // and the morning review as a bottom sheet.
 import { expect, test } from "./fixtures";
-import { waitForRow, withDb } from "./db";
+import { devAccount, freshMorning, morningBack, waitForRow, withDb, type ClosedDay, type DevAccount } from "./db";
 import { DEV_USER, openApp, uniqueTitle } from "./helpers";
 
 test("Today on a phone: tab bar, List · Day toggle, and the FAB adds a task", async ({ page }) => {
@@ -58,17 +58,21 @@ test("an Inbox row's ⋯ sheet starts with Today · Tomorrow · Someday · Proje
 });
 
 test.describe("morning review", () => {
-  // The dev account always has carried-over tasks; the review only needs the switch on and an unreviewed day.
+  // The dev account always has carried-over tasks; the review only needs the switch on, an unreviewed day and a
+  // yesterday the shutdown did not close.
+  let me: DevAccount;
+  let closed: ClosedDay[] = [];
   test.beforeAll(async () => {
     await withDb(async (c) => {
+      me = await devAccount(c, DEV_USER.email);
       await c.query("update public.user_settings s set carry_review = true from public.users u where u.id = s.user_id and u.email = $1", [DEV_USER.email]);
-      await c.query("delete from public.day_plans p using public.users u where u.id = p.user_id and u.email = $1 and p.date = current_date", [DEV_USER.email]);
+      closed = await freshMorning(c, me);
     });
   });
   test.afterAll(async () => {
     await withDb(async (c) => {
       await c.query("update public.user_settings s set carry_review = false from public.users u where u.id = s.user_id and u.email = $1", [DEV_USER.email]);
-      await c.query("delete from public.day_plans p using public.users u where u.id = p.user_id and u.email = $1 and p.date >= current_date", [DEV_USER.email]);
+      await morningBack(c, me, closed);
     });
   });
 
@@ -80,8 +84,8 @@ test.describe("morning review", () => {
     await dialog.getByRole("button", { name: "Not now" }).click();
     await expect(dialog).toHaveCount(0);
     const stamped = await waitForRow<{ id: string }>(
-      "select p.id from public.day_plans p join public.users u on u.id = p.user_id where u.email = $1 and p.date >= current_date - 1 and p.carry_reviewed_at is not null and p.planned_at is null and p.shutdown_at is null",
-      [DEV_USER.email],
+      "select p.id from public.day_plans p where p.user_id = $1 and p.date = $2::date and p.carry_reviewed_at is not null and p.planned_at is null and p.shutdown_at is null",
+      [me.uid, me.today],
     );
     expect(stamped).not.toBeNull();
   });
