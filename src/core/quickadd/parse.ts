@@ -159,7 +159,7 @@ function takeLiterals(scan: Scan, options: ParseOptions | undefined): void {
 }
 
 export function parse(input: string, ctx: ParseContext, options?: ParseOptions): ParseResult {
-  const today = todayFor({ timezone: ctx.zone, dayRolloverHour: 0 }, ctx.now);
+  const today = ctx.today ?? todayFor({ timezone: ctx.zone, dayRolloverHour: 0 }, ctx.now);
   const offsetMinutes = Math.round(ctx.now.toZonedDateTimeISO(ctx.zone).offsetNanoseconds / 60_000_000_000);
   const eveningAt = ctx.eveningStartsAt ?? DEFAULT_EVENING;
   const draft = emptyDraft();
@@ -297,8 +297,12 @@ export function parse(input: string, ctx: ParseContext, options?: ParseOptions):
   // The first day it can happen: today, or tomorrow when a time typed without a date has already passed
   // (PRODUCT_SPEC.md §5.2, A10). A repeat without a date starts at its first occurrence from that day, a bare
   // time lands on it, and `evening` alone means this evening (§5.2 "Alone → today", §8.6).
-  const nowTime = ctx.now.toZonedDateTimeISO(ctx.zone).toPlainTime().round({ smallestUnit: "minute", roundingMode: "floor" });
-  const from = !draft.doDate && draft.doTime && Temporal.PlainTime.compare(draft.doTime, nowTime) < 0 ? today.add({ days: 1 }) : today;
+  // A time "has passed" on a day when that day at that time is before now (to the minute): before the day rolls over,
+  // today is the calendar's yesterday, so 10am then is tomorrow's 10am, and 11pm the coming night's.
+  const nowMinute = ctx.now.toZonedDateTimeISO(ctx.zone).round({ smallestUnit: "minute", roundingMode: "floor" });
+  const passedOn = (d: LocalDate, t: LocalTime) => Temporal.ZonedDateTime.compare(d.toZonedDateTime({ timeZone: ctx.zone, plainTime: t }), nowMinute) < 0;
+  let from = today;
+  if (!draft.doDate && draft.doTime) for (let i = 0; i < 2 && passedOn(from, draft.doTime); i++) from = from.add({ days: 1 });
   let doDateFromRule = false;
   if (draft.recurrenceRule && !draft.doDate) {
     const weekdays = ruleWeekdays(draft.recurrenceRule);

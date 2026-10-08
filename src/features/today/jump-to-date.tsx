@@ -30,7 +30,7 @@ export default function JumpToDate({ today, now, zone, onJump, onClose }: JumpTo
   const [missed, setMissed] = useState(false);
   const hintId = useId();
   // Only a date: a time typed with it ("fri 3pm") still lands on Friday.
-  const typed = text.trim() ? (readTypedDate(text, { now, zone })?.date ?? null) : null;
+  const typed = text.trim() ? (readTypedDate(text, { now, zone, today })?.date ?? null) : null;
   const target = text.trim() ? typed : parseDay(picked);
   const go = () => {
     if (target) onJump(target);

@@ -316,3 +316,32 @@ describe("properties", () => {
     );
   });
 });
+
+// Before the day rolls over (04:00 by default) it is still the person's yesterday (SYSTEM_DESIGN.md §5): with
+// `today` given, words count from that day, so a task added from Today at 01:30 lands on the Today on screen.
+describe("the person's today, before the day rolls over", () => {
+  // 01:30 in London on Thu 8 Oct is still Wed 7 Oct for someone whose day rolls over at four.
+  const late: ParseContext = { now: instant("2026-10-08T00:30:00Z"), zone: "Europe/London", today: localDate("2026-10-07") };
+  const draft = (text: string, c: ParseContext = late): TaskDraft => {
+    const r = parse(text, c);
+    if (!r.ok) throw new Error(`did not parse: ${text}`);
+    return r.draft;
+  };
+
+  it("today, tomorrow and a weekday count from the person's today", () => {
+    expect(draft("Write the notes today").doDate).toEqual(localDate("2026-10-07"));
+    expect(draft("Write the notes tomorrow").doDate).toEqual(localDate("2026-10-08"));
+    expect(draft("Write the notes fri").doDate).toEqual(localDate("2026-10-09"));
+  });
+
+  it("a bare time already passed on that day goes to the next, one still ahead stays", () => {
+    const ten = draft("Call Ana 10am");
+    expect([ten.doDate, ten.doTime]).toEqual([localDate("2026-10-08"), localTime("10:00")]);
+    const late11 = draft("Call Ana 11pm");
+    expect([late11.doDate, late11.doTime]).toEqual([localDate("2026-10-08"), localTime("23:00")]);
+  });
+
+  it("left out, today is the calendar date in the zone", () => {
+    expect(draft("Write the notes today", { now: late.now, zone: late.zone }).doDate).toEqual(localDate("2026-10-08"));
+  });
+});

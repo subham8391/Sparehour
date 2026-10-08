@@ -300,7 +300,7 @@ export function QuickAdd({
     };
   }, [open]);
 
-  const parseCtx = useMemo(() => ({ now: ctx.now, zone: ctx.zone, eveningStartsAt: ctx.eveningStartsAt }), [ctx.now, ctx.zone, ctx.eveningStartsAt]);
+  const parseCtx = useMemo(() => ({ now: ctx.now, zone: ctx.zone, today: ctx.today, eveningStartsAt: ctx.eveningStartsAt }), [ctx.now, ctx.zone, ctx.today, ctx.eveningStartsAt]);
   const result = useMemo(() => parse(value, parseCtx, { literal: line.literal }), [value, parseCtx, line.literal]);
   const draft = result.ok ? result.draft : null;
   const spans = result.ok ? result.spans : [];

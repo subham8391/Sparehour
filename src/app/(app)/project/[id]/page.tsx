@@ -71,7 +71,7 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
   const detail = useTaskDetail();
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);
-  const parseCtx = useMemo(() => ({ now, zone, eveningStartsAt: settings?.eveningStartsAt }), [now, zone, settings?.eveningStartsAt]);
+  const parseCtx = useMemo(() => ({ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }), [now, zone, today, settings?.eveningStartsAt]);
 
   const { data: projectRows, isLoading } = useQuery<ProjectRow>(PROJECT_SQL, [id]);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);

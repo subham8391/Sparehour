@@ -55,7 +55,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
   const detail = useTaskDetail();
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);
-  const parseCtx = useMemo(() => ({ now, zone, eveningStartsAt: settings?.eveningStartsAt }), [now, zone, settings?.eveningStartsAt]);
+  const parseCtx = useMemo(() => ({ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }), [now, zone, today, settings?.eveningStartsAt]);
   // The progress bars count what was finished in the last week, so the logbook's recent months are subscribed.
   const weekAgo = useMemo(() => `${today.subtract({ days: 7 }).toString()}T00:00:00.000Z`, [today]);
   const stream = useMemo(() => ({ ...logbookStream(today), ttl: 60 * 60 }), [today]);

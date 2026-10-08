@@ -7,6 +7,12 @@ export type RecurrenceMode = "fixed" | "after_completion";
 export interface ParseContext {
   now: Instant;
   zone: Zone;
+  /**
+   * The person's today, their day-rollover applied (01:30 still belongs to yesterday by default, SYSTEM_DESIGN.md §5):
+   * "today", "tomorrow", a weekday and a bare time count from it, so what quick-add files lands where Today shows it.
+   * Left out, the calendar date in `zone`.
+   */
+  today?: LocalDate;
   /** A time at or after this counts as "this evening". Default 18:00. */
   eveningStartsAt?: LocalTime;
 }

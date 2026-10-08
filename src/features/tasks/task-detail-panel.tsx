@@ -791,7 +791,7 @@ export function TypedDate({
   const [text, setText] = useState("");
   const [missed, setMissed] = useState(false);
   const hintId = useId();
-  const read = text.trim() ? readTypedDate(text, { now, zone }) : null;
+  const read = text.trim() ? readTypedDate(text, { now, zone, today }) : null;
   const preview = read && `${dayLabel(read.date, today)}${withTime ? (read.time ? ` ${formatTime(read.time)}` : read.evening ? ", evening" : "") : ""}`;
   return (
     <div className="flex flex-col gap-1">
