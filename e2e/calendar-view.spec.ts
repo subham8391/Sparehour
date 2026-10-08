@@ -12,7 +12,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { addAllDayHours, devAccount, isoPlus, putBack, removeOwn, standAside, withDb, type DevAccount, type StoodAside } from "./db";
-import { DEV_USER, openApp, uniqueTitle } from "./helpers";
+import { clickTitle, DEV_USER, openApp, uniqueTitle } from "./helpers";
 import { blockOn, drag, hhmm, pointAt, quietStretch, seedBlock, seedTask, showMinute } from "./timeline-helpers";
 
 let me: DevAccount;
@@ -219,7 +219,7 @@ test("B places the selected rail task in the next free gap of today", async ({ p
   await withDb((c) => seedTask(c, me, title, { estimate: 30 }));
   await openCalendar(page, "week");
   const row = rail(page).getByRole("row").filter({ hasText: title });
-  await row.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: title, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(row).toHaveAttribute("aria-current", "true");

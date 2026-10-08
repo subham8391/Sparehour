@@ -6,7 +6,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, removeOwn, seedKey, withDb } from "./db";
-import { DEV_USER, E2E_PREFIX, openApp } from "./helpers";
+import { clickTitle, DEV_USER, E2E_PREFIX, openApp } from "./helpers";
 
 const n = `s${Date.now().toString(36)}`;
 const T = { today: `${E2E_PREFIX}shell today ${n}`, inbox: `${E2E_PREFIX}shell inbox ${n}` };
@@ -31,7 +31,7 @@ const dayPane = (page: Page) => page.getByRole("complementary", { name: "Your da
 const width = async (page: Page, name: string) => (await page.getByRole("complementary", { name }).boundingBox())!.width;
 /** Opens a task's detail from its row's title, as a click does on a desktop. */
 async function openTask(page: Page, title: string) {
-  await page.getByRole("row").filter({ hasText: title }).getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(page.getByRole("row").filter({ hasText: title }).getByRole("button", { name: title, exact: true }));
   await expect(taskPane(page).getByRole("textbox", { name: "Title" })).toHaveValue(title);
 }
 
