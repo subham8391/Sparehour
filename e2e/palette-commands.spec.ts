@@ -43,7 +43,8 @@ test("the ? overlay is grouped as §24 and searchable by action or key; Esc clea
   await search.fill("evening");
   // Estimate (its note), This evening, `.` then a preset, Evening shutdown.
   await expect(list.getByRole("term")).toHaveCount(4);
-  await expect(list.getByText("This evening")).toBeVisible();
+  // Exactly: the `.` row's term lists the presets, This evening first.
+  await expect(list.getByText("This evening", { exact: true })).toBeVisible();
   await search.fill("shift d");
   await expect(list.getByText("Deadline")).toBeVisible();
   await expect(list.getByText("Do-date picker")).toHaveCount(0);
@@ -177,7 +178,8 @@ test("Sync now runs in the palette and says how it went", async ({ page }) => {
 
 test("off a timeline, Block it is listed off with the reason", async ({ page }) => {
   await openApp(page, "/inbox");
-  const title = uniqueTitle("block off today");
+  // No day word in the title: quick-add would read "today" as the day and file the task on Today, not in the Inbox.
+  const title = uniqueTitle("block off the timeline");
   await quickAdd(page, title);
   await expect(page.getByRole("row").first()).toContainText(title);
   await page.keyboard.press("j");
