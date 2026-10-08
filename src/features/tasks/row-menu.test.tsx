@@ -7,7 +7,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Temporal, localDate } from "@/core/time";
+import { Temporal, localDate, todayFor } from "@/core/time";
 import { RUNS, type CommandContext } from "@/features/commands/command-runs";
 import { taskFixture } from "@/test/fixtures";
 import { moveToDay, pickerDayName, pickerDays } from "./day-picker";
@@ -85,7 +85,9 @@ describe("the row ⋯ menu", () => {
     repo.update.mockClear();
     // The palette, run on the same task at the same moment (the device's zone and day: no settings row here).
     const now = Temporal.Now.instant();
-    const ctx = { selectedTaskId: "t1", checkedTaskIds: [], now, zone: "UTC", today: Temporal.Now.plainDateISO("UTC"), tasks: repo } as unknown as CommandContext;
+    // Today as the app counts it: UTC with the default 04:00 rollover, so a run before four still means yesterday.
+    const today = todayFor({ timezone: "UTC", dayRolloverHour: 4 }, now);
+    const ctx = { selectedTaskId: "t1", checkedTaskIds: [], now, zone: "UTC", today, tasks: repo } as unknown as CommandContext;
     for (const id of ids) await RUNS.find((r) => r.id === `task.${id}`)!.run(ctx);
     const fromPalette = repo.update.mock.calls;
     expect(fromMenu).toHaveLength(5);
@@ -98,7 +100,7 @@ describe("the row ⋯ menu", () => {
       if (ids[i] !== "in4h") expect(patch).toEqual(ppatch);
       else expect(patch.evening).toBe(false);
     });
-    expect(fromMenu[0]).toEqual(["t1", snoozePresets(now, "UTC", Temporal.Now.plainDateISO("UTC"))[0].patch, "Moved {title} to this evening"]);
+    expect(fromMenu[0]).toEqual(["t1", snoozePresets(now, "UTC", today)[0].patch, "Moved {title} to this evening"]);
   });
 
   it("a finished task's menu has no presets and no Move to…", async () => {
@@ -152,7 +154,7 @@ describe("Move to…", () => {
     db.getOptional.mockImplementation(async (sql: string) => (sql.includes("max(day_sort_key)") ? { k: "a3" } : { do_date: "2026-09-14", evening: 0 }));
     await user.click(within(days[1]).getByRole("button"));
     expect(screen.queryByRole("dialog", { name: "Move to…" })).toBeNull();
-    const tomorrow = Temporal.Now.plainDateISO("UTC").add({ days: 1 });
+    const tomorrow = todayFor({ timezone: "UTC", dayRolloverHour: 4 }, Temporal.Now.instant()).add({ days: 1 });
     await waitFor(() => expect(repo.placeInDay).toHaveBeenCalledWith("t1", tomorrow, expect.any(String), false));
     expect(repo.placeInDay.mock.calls[0][2] > "a3").toBe(true);
     // Focus goes back to the row's ⋯.

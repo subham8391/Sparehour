@@ -18,8 +18,15 @@ const rows = async (c: Client, uid: string, kind?: string) =>
     )
   ).rows;
 
-async function localToday(c: Client, uid: string): Promise<string> {
-  const { rows } = await c.query<{ d: string }>("select to_char(timezone(s.timezone, now())::date, 'YYYY-MM-DD') as d from public.user_settings s where s.user_id = $1", [uid]);
+/**
+ * The person's today as the server counts it: their zone, less the day-rollover hour (before four it is still
+ * yesterday). `calendar` gives the plain date in their zone instead, the day a nudge firing now belongs to.
+ */
+async function localToday(c: Client, uid: string, calendar = false): Promise<string> {
+  const { rows } = await c.query<{ d: string }>(
+    "select to_char((timezone(s.timezone, now()) - make_interval(hours => case when $2 then 0 else s.day_rollover_hour end))::date, 'YYYY-MM-DD') as d from public.user_settings s where s.user_id = $1",
+    [uid, calendar],
+  );
   return rows[0].d;
 }
 
@@ -302,7 +309,8 @@ describe.skipIf(admin === null)("claim_due_notifications", () => {
       const sid = await spaceOf(c, uid);
       await isolate(c);
       await quietNow(c, uid, false);
-      const today = await localToday(c, uid);
+      // A nudge belongs to the calendar day it fires on.
+      const today = await localToday(c, uid, true);
       await c.query("insert into public.day_plans (space_id, user_id, date, planned_at, shutdown_at) values ($1, $2, $3::date, now(), now())", [sid, uid, today]);
       const morning = await due(c, uid, "morning");
       const shutdown = await due(c, uid, "shutdown");
