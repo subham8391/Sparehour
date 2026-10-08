@@ -8,15 +8,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "@/data/powersync";
-import { syncNow } from "@/data/powersync/provider";
-import { calendarSyncNow } from "@/features/calendar/sync-now";
 import { InstallCoaching } from "@/features/pwa/install-coaching";
 import { persistenceCopy, type InstallState } from "@/features/pwa/install";
 import { usePwaOptional } from "@/features/pwa/pwa-provider";
 import { Button } from "@/ui/button";
 import type { SyncChipModel } from "./sync-chip";
-
-const CALENDAR_READ_SQL = `select max(last_synced_at) as at, count(*) as n from calendar_connections where deleted_at is null`;
+import { CALENDAR_READ_SQL, syncEverything } from "./sync-everything";
 
 /** "14:02", or "Tue 14:02" when it was not today: the exact time the chip's "12s ago" stands for. */
 export function clockTime(at: Date, now: Date = new Date()): string {
@@ -106,9 +103,7 @@ export default function SyncExtras({ model }: { model: SyncChipModel }) {
     setBusy(true);
     setSaid(null);
     try {
-      await syncNow().catch(() => undefined);
-      const outcome = calendar && calendar.n > 0 ? await calendarSyncNow() : { ok: true, message: "Synced." };
-      setSaid(outcome.message);
+      setSaid((await syncEverything(Boolean(calendar && calendar.n > 0))).message);
     } finally {
       setBusy(false);
     }

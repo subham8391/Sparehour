@@ -8,7 +8,7 @@ import { isTodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { valueEntry } from "@/features/undo/value-entry";
-import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
+import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
@@ -153,28 +153,15 @@ export default function SettingsPage() {
 
   async function signOut(anyway = false) {
     setLeaving(true);
+    if (anyway) setUnsynced(null);
+    // The palette's Sign out runs the same path (features/account/sign-out.ts), loaded only when someone signs out.
+    const { signOutDevice } = await import("@/features/account/sign-out");
     // Clearing the device with changes still queued would lose them without a word: say so and let the person choose.
-    if (!anyway) {
-      const waiting = await waitForUploads(db);
-      if (waiting > 0) {
-        setUnsynced(waiting);
-        setLeaving(false);
-        return;
-      }
+    const waiting = await signOutDevice(db, anyway);
+    if (waiting > 0) {
+      setUnsynced(waiting);
+      setLeaving(false);
     }
-    setUnsynced(null);
-    // A shared device must not keep the last person's data: clear the local database, then the session.
-    // The auth client is loaded here rather than with the page (§11.6 budgets).
-    const { supabaseBrowser } = await import("@/data/supabase-browser");
-    // Deleted rows otherwise stay readable in the database file's free pages (the walkthrough found titles and the
-    // email still in it): zero them as they are deleted, then compact the file. Both are best effort.
-    await db.execute("PRAGMA secure_delete = ON").catch(() => {});
-    await db.disconnectAndClear();
-    await db.execute("VACUUM").catch(() => {});
-    // This device only: a global sign-out also ended every other device's session, leaving a phone retrying a dead token.
-    await supabaseBrowser().auth.signOut({ scope: "local" });
-    // A full load, not a client navigation: the router's cache would otherwise bring the signed-in screens back on Back.
-    window.location.replace("/login");
   }
 
   if (!values) {
@@ -237,17 +224,6 @@ export default function SettingsPage() {
       />
     </main>
   );
-}
-
-/** Changes still waiting to upload. A connection that is up gets a few seconds to send them first. */
-async function waitForUploads(db: LocalDatabase): Promise<number> {
-  const until = Date.now() + 8000;
-  let { count } = await db.getUploadQueueStats();
-  while (count > 0 && navigator.onLine && Date.now() < until) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    ({ count } = await db.getUploadQueueStats());
-  }
-  return count;
 }
 
 /** The form's shape of a patch: a cleared nudge time is "" there, null in the row. */

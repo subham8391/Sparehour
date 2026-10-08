@@ -6,6 +6,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/features/account/avatar";
+import { SIGN_OUT_NOTE, UNSYNCED_NOTE, loseLabel, unsyncedLine } from "@/features/account/sign-out";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
@@ -95,16 +96,14 @@ export function AccountSection(p: SettingsFormProps) {
         {p.unsynced ? (
           // Signing out clears this device; anything not uploaded yet would go with it (PRODUCT_SPEC.md §5.4: offline work is kept).
           <div role="alert" className="flex flex-col gap-3">
-            <p className="text-body text-pretty text-ink">
-              {p.unsynced === 1 ? "1 change hasn’t" : `${p.unsynced} changes haven’t`} reached your account yet. Signing out now loses {p.unsynced === 1 ? "it" : "them"}.
-            </p>
-            <p className={NOTE}>Once you’re back online it syncs by itself, then signing out is safe.</p>
+            <p className="text-body text-pretty text-ink">{unsyncedLine(p.unsynced)}</p>
+            <p className={NOTE}>{UNSYNCED_NOTE}</p>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={p.onStaySignedIn}>
                 Stay signed in
               </Button>
               <Button variant="secondary" tone="destructive" onClick={p.onSignOutAnyway} disabled={p.signingOut}>
-                {p.unsynced === 1 ? "Sign out and lose it" : "Sign out and lose them"}
+                {loseLabel(p.unsynced)}
               </Button>
             </div>
           </div>
@@ -113,7 +112,7 @@ export function AccountSection(p: SettingsFormProps) {
             <Button variant="secondary" onClick={p.onSignOut} disabled={p.signingOut} className="self-start">
               {p.signingOut ? "Signing out…" : "Sign out"}
             </Button>
-            <p className={NOTE}>Signing out removes your data from this device. It stays safe in your account.</p>
+            <p className={NOTE}>{SIGN_OUT_NOTE}</p>
           </>
         )}
       </section>
