@@ -2,11 +2,12 @@
 // Where the task detail appears (SCREENS.md §1, DESIGN_SYSTEM.md §4a): the context pane from the medium band, with
 // its resizable edge; a right-side sheet in the narrow band; a full-height sheet with a grabber on the phone. An
 // island of the shell (task-detail.tsx loads it in idle time), since nothing of it shows until a task is opened.
-// Escape closes it unless a popover inside claimed the key first. The pane appears at once; the sheets slide in from
-// their edge (DESIGN_SYSTEM.md §7 "Sheets"), or simply appear under reduced motion.
+// Escape closes it unless a popover inside claimed the key first (task-detail.tsx listens, so a key pressed while this
+// island is still arriving counts). The pane appears at once; the sheets slide in from their edge (DESIGN_SYSTEM.md §7
+// "Sheets"), or simply appear under reduced motion.
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { PaneResizer } from "@/features/shell/pane-resizer";
 import { cx } from "@/ui/cx";
 import { Grabber, Scrim, trapTab, useDialogFocus } from "@/ui/sheet-parts";
@@ -43,13 +44,6 @@ export function DetailSurface({ id, field, onClose }: { id: string; field: Field
   const view = usePathname().split("/")[1];
   const overlay = useSyncExternalStore(subscribeOverlay, readOverlay, () => false);
   const surface = useDialogFocus<HTMLElement>(overlay);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
   return (
     <>
       <Scrim onClose={onClose} className="fixed z-20 md:hidden" />

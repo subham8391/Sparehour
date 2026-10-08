@@ -68,5 +68,16 @@ export function TaskDetailProvider({ children }: { children: ReactNode }) {
 /** Mounted once by the shell; empty until a task is opened, then the surface (task-detail-surface.tsx). */
 export function TaskDetailPane() {
   const { selectedId, field, close } = useTaskDetail();
+  // Escape closes it unless a popover inside claimed the key first: listened for here, from the moment a task opens,
+  // because the surface is an island that may still be arriving, and an Escape pressed meanwhile must not be lost.
+  const open = selectedId !== null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, close]);
   return selectedId && <DetailSurface id={selectedId} field={field} onClose={close} />;
 }
