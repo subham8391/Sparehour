@@ -550,11 +550,12 @@ export function TaskRow({
                 }}
               </MenuButton>
               {editable && (
-                // The estimate's place, kept clear: an invisible copy of the chip ends the zone where the
+                // The estimate's place, kept clear: an invisible chip as wide as the estimate's ends the zone where the
                 // chip begins (with the zone's own padding, the chip run's 16 px), so the actions sit over the other chips
                 // and the long hint, never over the estimate. Not on touch, where the zone is in the flow beside the chips.
+                // Its words are drawn by CSS from `data-label`, never text: the row says its estimate once.
                 <span aria-hidden="true" data-estimate-place className="invisible hidden pr-2 sm:flex touch:sm:hidden">
-                  {estimateChip}
+                  <Chip tone={guess ? "guess" : "neutral"} size="auto" data-label={guess ? `${estimate}?` : estimate} className="before:content-[attr(data-label)]" />
                 </span>
               )}
             </div>

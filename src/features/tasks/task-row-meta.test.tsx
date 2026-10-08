@@ -163,7 +163,10 @@ describe("the estimate chip", () => {
     const place = document.querySelector("[data-estimate-place]");
     expect(place).toHaveAttribute("aria-hidden", "true");
     expect(place).toHaveClass("invisible");
-    expect(place).toHaveTextContent(/^9h$/);
+    // As wide as the chip, from the same words, drawn by CSS rather than written: the row says its estimate once.
+    expect(place!.firstElementChild).toHaveAttribute("data-label", "9h");
+    expect(place).toHaveTextContent(/^$/);
+    expect(screen.getAllByText("9h")).toHaveLength(1);
     // Last in the zone, after the ⋯: the actions end where the chip begins.
     const zone = place!.parentElement!;
     expect(zone).toContainElement(screen.getByRole("button", { name: "More actions" }));
