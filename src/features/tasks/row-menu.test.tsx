@@ -8,7 +8,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Temporal, localDate } from "@/core/time";
-import { RUNS, type CommandContext } from "@/features/commands/command-runs";
+import type { CommandContext } from "@/features/commands/command-runs";
+import { COMMANDS } from "@/features/commands/registry";
 import { taskFixture } from "@/test/fixtures";
 import { moveToDay, pickerDayName, pickerDays } from "./day-picker";
 import { requestRow } from "./row-request";
@@ -86,7 +87,7 @@ describe("the row ⋯ menu", () => {
     // The palette, run on the same task at the same moment (the device's zone and day: no settings row here).
     const now = Temporal.Now.instant();
     const ctx = { selectedTaskId: "t1", checkedTaskIds: [], now, zone: "UTC", today: Temporal.Now.plainDateISO("UTC"), tasks: repo } as unknown as CommandContext;
-    for (const id of ids) await RUNS.find((r) => r.id === `task.${id}`)!.run(ctx);
+    for (const id of ids) await COMMANDS.find((r) => r.id === `task.${id}`)!.run(ctx);
     const fromPalette = repo.update.mock.calls;
     expect(fromMenu).toHaveLength(5);
     // "In 4 hours" depends on the minute; the others must match exactly, and its note and date shape too.
@@ -128,9 +129,9 @@ describe("the row ⋯ menu", () => {
     render(<Row />);
     const openTask = vi.fn();
     const ctx = { selectedTaskId: "t1", checkedTaskIds: [], openTask } as unknown as CommandContext;
-    RUNS.find((r) => r.id === "task.menu")!.run(ctx);
+    COMMANDS.find((r) => r.id === "task.menu")!.run(ctx);
     expect(openTask).toHaveBeenCalledWith("t1");
-    RUNS.find((r) => r.id === "task.move-day")!.run(ctx);
+    COMMANDS.find((r) => r.id === "task.move-day")!.run(ctx);
     expect(openTask).toHaveBeenLastCalledWith("t1", "do");
     expect(screen.queryByRole("menu")).toBeNull();
   });
