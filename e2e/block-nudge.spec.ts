@@ -10,7 +10,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { addAllDayHours, devAccount, withDb } from "./db";
-import { DEV_USER, openApp, quickAdd, uniqueTitle } from "./helpers";
+import { clickTitle, DEV_USER, openApp, quickAdd, uniqueTitle } from "./helpers";
 
 let addedHours: string[] = [];
 
@@ -34,7 +34,7 @@ async function permission(page: Page, value: NotificationPermission) {
 async function blockOne(page: Page, title: string) {
   await quickAdd(page, `${title} today ~15m`);
   const row = page.getByRole("row").filter({ hasText: title });
-  await row.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: title, exact: true }));
   await page.keyboard.press("Escape");
   await expect(row).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("b");

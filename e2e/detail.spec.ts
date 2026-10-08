@@ -3,7 +3,7 @@
 // step, a tag, notes — and Mark done completes from the panel.
 import { expect, test } from "./fixtures";
 import { waitForRow } from "./db";
-import { openApp, quickAdd, uniqueTitle } from "./helpers";
+import { clickTitle, openApp, quickAdd, uniqueTitle } from "./helpers";
 
 const TASK = "select t.* from public.tasks t where t.title = $1";
 
@@ -12,7 +12,7 @@ test("the detail panel edits every field, and each write lands in Postgres", asy
   const title = uniqueTitle("detail");
   await quickAdd(page, title);
   const row = page.getByRole("row").filter({ hasText: title });
-  await row.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: title, exact: true }));
   const panel = page.getByRole("complementary", { name: "Task" });
   await expect(panel.getByRole("textbox", { name: "Title" })).toHaveValue(title);
 

@@ -3,7 +3,7 @@
 import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { waitForRow } from "./db";
-import { openApp, quickAdd, uniqueTitle } from "./helpers";
+import { clickTitle, openApp, quickAdd, uniqueTitle } from "./helpers";
 
 const ZONE = "Europe/London";
 
@@ -34,7 +34,7 @@ test("tomorrow's task is under tomorrow; T brings it to today", async ({ page })
   // Upcoming rows now carry the same actions as every other list, and on a pointer device that zone
   // sits over the chips on hover — so the row is selected the way today.spec does it: the title opens
   // the detail, Escape closes it, and the selection stays.
-  await row.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: title, exact: true }));
   await page.keyboard.press("Escape");
   await expect(row).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("t");

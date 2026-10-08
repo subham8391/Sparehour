@@ -11,7 +11,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, seedKey, waitForRow, withDb, type DevAccount } from "./db";
-import { DEV_USER, E2E_PREFIX, openApp } from "./helpers";
+import { clickTitle, DEV_USER, E2E_PREFIX, openApp } from "./helpers";
 
 const n = `w${Date.now().toString(36)}`;
 const areaOne = `${E2E_PREFIX}area one ${n}`;
@@ -82,7 +82,7 @@ test.afterAll(async () => {
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {
   const row = page.getByRole("row").filter({ hasText: title });
-  await row.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: title, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(row).toHaveAttribute("aria-current", "true");
@@ -152,7 +152,7 @@ test("Browse's ⋯ moves an area up (⌘Z puts it back) and a project to another
 test("the detail's Project field files a task loose in an area, out of its project", async ({ page }) => {
   await reset();
   await openApp(page, `/project/${ids.loose}`);
-  await page.getByRole("row").filter({ hasText: T.byDetail }).getByRole("button", { name: T.byDetail, exact: true }).click();
+  await clickTitle(page.getByRole("row").filter({ hasText: T.byDetail }).getByRole("button", { name: T.byDetail, exact: true }));
   const panel = page.getByRole("complementary", { name: "Task" });
   await panel.getByRole("button", { name: /^Project/ }).click();
   await page.getByRole("dialog", { name: "Project" }).getByRole("button", { name: `Area ${areaOne}` }).click();

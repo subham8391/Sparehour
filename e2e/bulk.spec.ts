@@ -2,7 +2,7 @@
 // row in one write, and one undo brings them all back.
 import { expect, test } from "./fixtures";
 import { waitForRow } from "./db";
-import { openApp, quickAdd, uniqueTitle } from "./helpers";
+import { clickTitle, openApp, quickAdd, uniqueTitle } from "./helpers";
 
 test("X ticks, the bulk bar moves both to today, one undo puts both back", async ({ page }) => {
   await openApp(page, "/inbox");
@@ -13,7 +13,7 @@ test("X ticks, the bulk bar moves both to today, one undo puts both back", async
   const rowA = page.getByRole("row").filter({ hasText: a });
   const rowB = page.getByRole("row").filter({ hasText: b });
   // The title selects the row and opens the detail; Escape closes the detail and keeps the selection (the chips sit under the hover actions).
-  await rowA.getByRole("button", { name: a, exact: true }).click();
+  await clickTitle(rowA.getByRole("button", { name: a, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await page.keyboard.press("x");

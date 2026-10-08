@@ -1,5 +1,5 @@
 // Shared steps: the dev account, waiting for the first sync, unique titles.
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export const DEV_USER = { email: "dev@sparehour.local", password: "sparehour" };
 
@@ -29,6 +29,15 @@ export async function waitForSync(page: Page): Promise<void> {
 }
 
 /** Quick-add: `Q` opens it, Enter saves and keeps it open, Escape closes it. */
+/**
+ * Clicks a row's title where its words are, as a person does. The title button spans the row, and from `sm` the row's
+ * hover actions sit over its right-hand part (they end where the estimate chip begins), so its centre can be an action.
+ */
+export async function clickTitle(title: Locator): Promise<void> {
+  const box = await title.boundingBox();
+  await title.click(box ? { position: { x: Math.min(12, box.width / 2), y: box.height / 2 } } : undefined);
+}
+
 export async function quickAdd(page: Page, text: string): Promise<void> {
   await page.keyboard.press("q");
   const box = page.getByRole("textbox", { name: "Task" });

@@ -12,7 +12,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, isoPlus, waitForRow, withDb, type DevAccount } from "./db";
-import { DEV_USER, openApp, uniqueTitle } from "./helpers";
+import { clickTitle, DEV_USER, openApp, uniqueTitle } from "./helpers";
 
 const keyed = uniqueTitle("pick keys");
 const bulkOne = uniqueTitle("pick bulk one");
@@ -57,7 +57,7 @@ const TASK = "select t.* from public.tasks t where t.title = $1";
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {
   const row = page.getByRole("row").filter({ hasText: title });
-  await row.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: title, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(row).toHaveAttribute("aria-current", "true");
@@ -180,7 +180,7 @@ test("with two rows ticked, E sets both estimates in one write, and one ⌘Z tak
 test("a deadline before the do-date says so in the detail, and Do it by then moves the day to the deadline", async ({ page }) => {
   await openApp(page, `/project/${projectId}`);
   const row = page.getByRole("row").filter({ hasText: early });
-  await row.getByRole("button", { name: early, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: early, exact: true }));
   const panel = page.getByRole("complementary", { name: "Task" });
   const hint = panel.getByText("Due before you plan to do it");
   await expect(hint).toBeVisible();

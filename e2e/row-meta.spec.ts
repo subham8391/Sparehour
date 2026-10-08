@@ -3,7 +3,7 @@
 // E on the selected row), and a project task not started yet shown dimmed with the day it starts.
 import { expect, test } from "./fixtures";
 import { devAccount, isoPlus, restoreSettings, saveSettings, seedKey, waitForRow, withDb, type DevAccount, type SavedSettings } from "./db";
-import { DEV_USER, E2E_PREFIX, openApp } from "./helpers";
+import { clickTitle, DEV_USER, E2E_PREFIX, openApp } from "./helpers";
 
 const n = `m${Date.now().toString(36)}`;
 const T = { today: `${E2E_PREFIX}meta today ${n}`, keyed: `${E2E_PREFIX}meta keyed ${n}`, later: `${E2E_PREFIX}meta later ${n}` };
@@ -63,7 +63,7 @@ test("a project: E on the selected row opens the same presets; a task not starte
 
   // Select the row the way a pointer does (its title opens the detail too; Escape closes that and keeps the selection).
   const keyed = page.getByRole("row").filter({ hasText: T.keyed });
-  await keyed.getByRole("button", { name: T.keyed, exact: true }).click();
+  await clickTitle(keyed.getByRole("button", { name: T.keyed, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(keyed).toHaveAttribute("aria-current", "true");

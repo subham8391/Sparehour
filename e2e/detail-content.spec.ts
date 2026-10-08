@@ -11,7 +11,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, removeOwn, seedKey, waitForRow, withDb, type DevAccount } from "./db";
-import { DEV_USER, openApp, uniqueTitle } from "./helpers";
+import { clickTitle, DEV_USER, openApp, uniqueTitle } from "./helpers";
 
 const project = uniqueTitle("detail project");
 const headOne = uniqueTitle("heading one");
@@ -47,7 +47,7 @@ const panel = (page: Page) => page.getByRole("complementary", { name: "Task" });
 /** The page's own rows: the sidebar lists a converted task's project by the same name. */
 const rows = (page: Page) => page.getByRole("main").getByRole("row");
 async function openTask(page: Page, title: string): Promise<Locator> {
-  await rows(page).filter({ hasText: title }).getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(rows(page).filter({ hasText: title }).getByRole("button", { name: title, exact: true }));
   const p = panel(page);
   await expect(p.getByRole("textbox", { name: "Title" })).toHaveValue(title);
   return p;

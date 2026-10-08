@@ -16,7 +16,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { addAllDayHours, devAccount, putBack, removeOwn, standAside, withDb, type DevAccount, type StoodAside } from "./db";
-import { DEV_USER, openApp, uniqueTitle, waitForSync } from "./helpers";
+import { clickTitle, DEV_USER, openApp, uniqueTitle, waitForSync } from "./helpers";
 import { blockOn, drag, expectBlockAt, expectOwnBlocks, expectTaskBlocks, hhmm, pointAt, quietStretch, scaleOf, seedBlock, seedTask, showMinute } from "./timeline-helpers";
 
 let me: DevAccount;
@@ -255,7 +255,7 @@ test("a task takes a second block from its row's Block and from B; the chip says
 
   // B on a task half covered: the next free gap gets what the estimate still needs, half an hour.
   const halfRow = page.getByRole("row").filter({ hasText: half });
-  await halfRow.getByRole("button", { name: half, exact: true }).click();
+  await clickTitle(halfRow.getByRole("button", { name: half, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(halfRow).toHaveAttribute("aria-current", "true");
@@ -265,7 +265,7 @@ test("a task takes a second block from its row's Block and from B; the chip says
   await expect(halfRow).toContainText("+1");
 
   // The detail lists each block, says the two hours are an hour over the estimate, and edits them.
-  await row.getByRole("button", { name: twice, exact: true }).click();
+  await clickTitle(row.getByRole("button", { name: twice, exact: true }));
   const detail = page.getByRole("complementary", { name: "Task" });
   await expect(detail).toBeVisible();
   const first = detail.getByRole("button", { name: new RegExp(`^Blocked\\s*${span(S, S + 60)}$`) });

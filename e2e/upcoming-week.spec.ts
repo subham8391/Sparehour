@@ -13,7 +13,7 @@
 // because every check is a difference the move makes, not an absolute figure.
 import { expect, test } from "./fixtures";
 import { addAllDayHours, daysWithMeetings, devAccount, isoPlus, waitForRow, withDb, type DevAccount } from "./db";
-import { DEV_USER, openApp, uniqueTitle } from "./helpers";
+import { clickTitle, DEV_USER, openApp, uniqueTitle } from "./helpers";
 import type { Locator, Page } from "@playwright/test";
 
 const keyed = uniqueTitle("week keys");
@@ -146,7 +146,7 @@ test("← and → move the selected task a day; both days' readouts follow, and 
   const before = { from: await readValue(page, from), to: await readValue(page, to) };
 
   // The title selects the row and opens the detail; Escape closes it and the selection stays.
-  await row(from).getByRole("button", { name: keyed, exact: true }).click();
+  await clickTitle(row(from).getByRole("button", { name: keyed, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(row(from)).toHaveAttribute("aria-current", "true");

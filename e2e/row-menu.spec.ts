@@ -9,7 +9,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, isoPlus, seedKey, waitForRow, withDb, type DevAccount } from "./db";
-import { DEV_USER, openApp, uniqueTitle, weekday } from "./helpers";
+import { clickTitle, DEV_USER, openApp, uniqueTitle, weekday } from "./helpers";
 
 const projectName = uniqueTitle("row menu");
 const keyed = uniqueTitle("menu keys");
@@ -64,7 +64,7 @@ const row = (page: Page, title: string) => page.getByRole("main").getByRole("row
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {
   const r = row(page, title);
-  await r.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(r.getByRole("button", { name: title, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(r).toHaveAttribute("aria-current", "true");

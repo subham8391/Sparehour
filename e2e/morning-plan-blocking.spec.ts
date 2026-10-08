@@ -12,7 +12,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { addAllDayHours, devAccount, isoPlus, putBack, removeOwn, standAside, waitForRow, withDb, type DevAccount, type StoodAside } from "./db";
-import { DEV_USER, openApp, uniqueTitle } from "./helpers";
+import { clickTitle, DEV_USER, openApp, uniqueTitle } from "./helpers";
 import { blockOn, drag, expectTaskBlocks, hhmm, pointAt, quietStretch, seedBlock, seedTask, showMinute } from "./timeline-helpers";
 
 let me: DevAccount;
@@ -180,7 +180,7 @@ test("step 3: the picked tasks without a time sit beside the timeline; a drag, B
 
   // B on the selected one: the next free gap, its estimate long. (A tap on its title selects it and waits for a
   // time; B lets go of the wait and places it.)
-  await rowOf(keyed).getByRole("button", { name: keyed, exact: true }).click();
+  await clickTitle(rowOf(keyed).getByRole("button", { name: keyed, exact: true }));
   await expect(rowOf(keyed)).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("b");
   await expect(page.getByRole("status").filter({ hasText: `Tap a time for “${keyed}”` })).toHaveCount(0);

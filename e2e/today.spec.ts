@@ -2,7 +2,7 @@
 // block from the keyboard — every write proven in Postgres.
 import { expect, test } from "./fixtures";
 import { waitForRow } from "./db";
-import { openApp, quickAdd, uniqueTitle, waitForSync } from "./helpers";
+import { clickTitle, openApp, quickAdd, uniqueTitle, waitForSync } from "./helpers";
 
 const DAY_HEADING = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) \d{1,2} [A-Z][a-z]+$/;
 
@@ -37,7 +37,7 @@ test.describe("Today", () => {
     const row = page.getByRole("row").filter({ hasText: title });
     // The title selects the row and opens the detail (which hides the timeline); Escape closes the detail and keeps the selection.
     // The chips are not a place to click: the hover actions sit over them.
-    await row.getByRole("button", { name: title, exact: true }).click();
+    await clickTitle(row.getByRole("button", { name: title, exact: true }));
     await page.keyboard.press("Escape");
     await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
     await expect(row).toHaveAttribute("aria-current", "true");

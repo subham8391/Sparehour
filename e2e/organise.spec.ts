@@ -10,7 +10,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, seedKey, waitForRow, withDb, type DevAccount } from "./db";
-import { DEV_USER, E2E_PREFIX, openApp } from "./helpers";
+import { clickTitle, DEV_USER, E2E_PREFIX, openApp } from "./helpers";
 
 const n = `o${Date.now().toString(36)}`;
 const home = `${E2E_PREFIX}organise home ${n}`;
@@ -73,7 +73,7 @@ const row = (page: Page, title: string) => page.getByRole("main").getByRole("row
 /** Selects a row the way a person does: its title opens the detail, Esc closes it and the selection stays. */
 async function select(page: Page, title: string) {
   const r = row(page, title);
-  await r.getByRole("button", { name: title, exact: true }).click();
+  await clickTitle(r.getByRole("button", { name: title, exact: true }));
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
   await expect(r).toHaveAttribute("aria-current", "true");
