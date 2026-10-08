@@ -128,9 +128,10 @@ export function Palette(p: PaletteProps) {
   const pointTo = usePointerHighlight(setHighlight);
   const [shown, setShown] = useState<Shown | null>(null);
   const stepRef = useRef<HTMLDivElement>(null);
-  // A question or a result takes focus at its first button, the default.
+  // A question or a result takes focus at its first button, the default; back at the list, the field has it again.
   useEffect(() => {
     if (shown?.step) stepRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    else if (!shown) inputRef.current?.focus();
   }, [shown]);
 
   useEffect(() => {
@@ -176,10 +177,7 @@ export function Palette(p: PaletteProps) {
       () => setShown({ title, step: { text: "That didn’t work. Try again in a moment.", status: true, actions: [{ label: "Done" }] } }),
     );
   };
-  const back = () => {
-    setShown(null);
-    inputRef.current?.focus();
-  };
+  const back = () => setShown(null);
 
   const activate = (row: Row) => {
     switch (row.kind) {

@@ -105,7 +105,7 @@ function PlacingPane({ drawn, off, ...p }: DayPaneProps & { drawn: DrawnDay; off
  * your own in the next free gap from now (`B`'s chooser), selected, with its title open to rename once it is drawn.
  * Only while the pane shows today; with blocking paused nothing is made, and the pane's line says why.
  */
-function useAddBlock(day: PlacingDay, placer: PlacingApi, off: string | null) {
+export function useAddBlock(day: PlacingDay, placer: PlacingApi, off: string | null) {
   // The block waiting to be drawn, selected, so its title can open for renaming.
   const renaming = useRef<string | null>(null);
   const add = useRef(() => {});
