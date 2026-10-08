@@ -26,7 +26,7 @@ describe("<ShortcutsDialog> (the ? overlay)", () => {
     const field = screen.getByRole("searchbox", { name: "Search shortcuts" });
     await user.type(field, "evening");
     const list = screen.getByRole("region", { name: "All shortcuts" });
-    expect(within(list).getAllByRole("term").map((t) => t.firstChild?.textContent)).toEqual(["Estimate", "This evening", "Evening shutdown"]);
+    expect(within(list).getAllByRole("term").map((t) => t.firstChild?.textContent)).toEqual(["Estimate", "This evening", "This evening · Tomorrow · In 4 hours · This weekend · Next week · Move to… (the row’s ⋯ menu)", "Evening shutdown"]);
     await user.clear(field);
     await user.type(field, "shift");
     expect(within(list).getByText("Deadline")).toBeInTheDocument();

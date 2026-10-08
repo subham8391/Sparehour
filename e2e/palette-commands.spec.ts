@@ -41,7 +41,8 @@ test("the ? overlay is grouped as §24 and searchable by action or key; Esc clea
   const search = overlay.getByRole("searchbox", { name: "Search shortcuts" });
   await expect(search).toBeFocused();
   await search.fill("evening");
-  await expect(list.getByRole("term")).toHaveCount(3);
+  // Estimate (its note), This evening, `.` then a preset, Evening shutdown.
+  await expect(list.getByRole("term")).toHaveCount(4);
   await expect(list.getByText("This evening")).toBeVisible();
   await search.fill("shift d");
   await expect(list.getByText("Deadline")).toBeVisible();
@@ -99,8 +100,8 @@ test("Sign out asks inside the palette, and Stay signed in leaves everything as 
   await openApp(page, "/today");
   await runCommand(page, "Sign out");
   const asked = palette(page).getByRole("group", { name: "Sign out" });
-  // Either the question, or — with changes still waiting — the same warning Settings gives.
-  await expect(asked).toContainText(/Sign out of Sparehour on this device\?|reached your account yet/);
+  // The question first; Settings' unsynced warning comes only after a yes, if changes are still waiting by then.
+  await expect(asked).toContainText("Sign out of Sparehour on this device?");
   await expect(asked.getByRole("button", { name: "Stay signed in" })).toBeVisible();
   // Esc is one layer: back to the list.
   await page.keyboard.press("Escape");

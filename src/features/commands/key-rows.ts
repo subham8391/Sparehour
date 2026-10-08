@@ -1,6 +1,6 @@
 // The ? overlay's rows (SCREENS.md §24), built from the registry so the two cannot drift: every keyed command
 // says where the overlay lists it (`keys` in registry.ts), and the keys that are no command — Esc, a block's own
-// keys, "any character" — are the one table below. Rows sharing a place share a row (J, K, ↓ and ↑). Pure.
+// keys, "any character", `.` then a preset — are the one table below. Rows sharing a place share a row (J, K, ↓ and ↑). Pure.
 import { fold } from "./fuzzy";
 import { displayShortcut, parseShortcut, type KeyChord } from "./keys";
 import { COMMANDS, KEY_GROUPS, type Command, type KeyGroup } from "./registry";
@@ -30,6 +30,8 @@ export interface ExtraRow {
 export const EXTRA_ROWS: readonly ExtraRow[] = [
   { group: "Global", at: 7, title: "Unwind one layer", keys: ["escape"] },
   { group: "Global", at: 11, title: "Opens quick-add and types it", keys: [], words: "Any character, nothing focused" },
+  // `.` opens the row's ⋯ menu (List and selection); §24 lists its presets here too, as one row.
+  { group: "Scheduling and snooze", at: 6, title: "This evening · Tomorrow · In 4 hours · This weekend · Next week · Move to… (the row’s ⋯ menu)", keys: ["."], words: "then a preset" },
   { group: "Timeline and calendar", at: 1, title: "Lock / unlock the selected block", keys: ["l"] },
   { group: "Timeline and calendar", at: 3, title: "Duplicate a block", keys: ["alt"], words: "drag" },
   { group: "Timeline and calendar", at: 4, title: "Remove the selected block (the task stays)", keys: ["backspace"] },

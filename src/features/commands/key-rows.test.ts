@@ -61,7 +61,7 @@ describe("the ? overlay's rows (SCREENS.md §24)", () => {
           "Edit the title inline",
           "Complete / un-complete",
           "Toggle multi-select on the row",
-          "Select all in this section",
+          "Select all in the section",
           "Open the row’s ⋯ menu",
           "Drop (with an undo toast)",
           "Un-complete (Logbook)",
@@ -73,7 +73,7 @@ describe("the ? overlay's rows (SCREENS.md §24)", () => {
       ],
       [
         "Scheduling and snooze",
-        ["Move to Today", "Tomorrow", "This evening", "This weekend", "In 4 hours", "Someday", "Block it in the next free gap that fits", "A day earlier · later (Upcoming’s week)"],
+        ["Move to Today", "Tomorrow", "This evening", "This weekend", "In 4 hours", "This evening · Tomorrow · In 4 hours · This weekend · Next week · Move to… (the row’s ⋯ menu)", "Someday", "Block it in the next free gap that fits", "A day earlier · later (Upcoming’s week)"],
       ],
       [
         "Timeline and calendar",
@@ -92,6 +92,7 @@ describe("the ? overlay's rows (SCREENS.md §24)", () => {
     expect(row("Calendar: day · work week · week").keys).toEqual(["⌘1", "⌘2", "⌘3"]);
     expect(row("Duplicate a block")).toMatchObject({ keys: ["⌥"], words: "drag" });
     expect(row("Opens quick-add and types it")).toMatchObject({ keys: [], words: "Any character, nothing focused" });
+    expect(row("This evening · Tomorrow · In 4 hours · This weekend · Next week · Move to… (the row’s ⋯ menu)")).toMatchObject({ keys: ["."], words: "then a preset" });
   });
 
   it("note the four conflicts under the key itself", () => {
@@ -122,7 +123,7 @@ describe("the overlay's search", () => {
   const found = (q: string) => filterSections(sections, q).flatMap((s) => s.rows.map((r) => r.title));
 
   it("matches the action's name and its notes", () => {
-    expect(found("evening")).toEqual(["Estimate", "This evening", "Evening shutdown"]);
+    expect(found("evening")).toEqual(["Estimate", "This evening", "This evening · Tomorrow · In 4 hours · This weekend · Next week · Move to… (the row’s ⋯ menu)", "Evening shutdown"]);
   });
 
   it("matches a key by its name, though a Mac shows a glyph", () => {
