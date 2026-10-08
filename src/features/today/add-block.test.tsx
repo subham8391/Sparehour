@@ -80,3 +80,20 @@ describe("Add time block on today's day pane", () => {
     expect(p.createAdHoc).toHaveBeenCalledWith(660, 690);
   });
 });
+
+describe("a request nobody takes", () => {
+  it("lapses: a day pane that appears long after (a day without working hours, then hours added) makes nothing", async () => {
+    const { ADD_BLOCK_WAIT_MS, onAddBlock } = await import("@/features/blocking/add-block-request");
+    const placed = vi.fn();
+    expect(requestAddBlock(1_000)).toBe(false);
+    onAddBlock(placed, 1_000 + ADD_BLOCK_WAIT_MS + 1)();
+    expect(placed).not.toHaveBeenCalled();
+    // …and it is gone, not waiting for the next pane either.
+    onAddBlock(placed, 1_000 + ADD_BLOCK_WAIT_MS + 2)();
+    expect(placed).not.toHaveBeenCalled();
+    // Within the wait it is taken.
+    expect(requestAddBlock(5_000)).toBe(false);
+    onAddBlock(placed, 5_000 + ADD_BLOCK_WAIT_MS)();
+    expect(placed).toHaveBeenCalledTimes(1);
+  });
+});
