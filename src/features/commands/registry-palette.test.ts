@@ -245,19 +245,27 @@ describe("the new Day and App commands", () => {
     expect(signOutDevice).toHaveBeenCalledWith(db, false);
   });
 
-  it("with changes still waiting, Sign out gives Settings' warning, and only 'Sign out and lose them' goes ahead", async () => {
+  it("with changes still waiting after Settings' few seconds to upload, it gives Settings' warning, and only 'Sign out and lose them' goes ahead", async () => {
     const db = fakeDb({ queued: 2 });
     const step = await byId("app.signout").step!(inPalette(db));
-    expect(step).toMatchObject({ text: "2 changes haven’t reached your account yet. Signing out now loses them.", note: "Once you’re back online it syncs by itself, then signing out is safe." });
-    expect(step!.actions.map((a) => [a.label, a.tone])).toEqual([
+    // Asked first, as with nothing queued: the queue gets its chance to upload before anything is said about losing it.
+    expect(step).toMatchObject({ text: "Sign out of Sparehour on this device?" });
+    signOutDevice.mockResolvedValueOnce(2);
+    const warned = await step!.actions[0].run!();
+    expect(signOutDevice).toHaveBeenLastCalledWith(db, false);
+    expect(warned).toMatchObject({ text: "2 changes haven’t reached your account yet. Signing out now loses them.", note: "Once you’re back online it syncs by itself, then signing out is safe." });
+    expect(warned!.actions.map((a) => [a.label, a.tone])).toEqual([
       ["Stay signed in", undefined],
       ["Sign out and lose them", "destructive"],
     ]);
-    await step!.actions[1].run!();
-    expect(signOutDevice).toHaveBeenCalledWith(db, true);
+    // "Stay signed in" signs nothing out; "lose them" goes ahead without waiting again.
+    expect(warned!.actions[0].run).toBeUndefined();
+    expect(await warned!.actions[1].run!()).toBeNull();
+    expect(signOutDevice).toHaveBeenLastCalledWith(db, true);
+    expect(signOutDevice).toHaveBeenCalledTimes(2);
   });
 
-  it("a change that arrives while it asks still stops the sign-out with the warning", async () => {
+  it("a change that arrives while it asks stops the sign-out with the warning too", async () => {
     signOutDevice.mockResolvedValueOnce(1);
     const step = await byId("app.signout").step!(inPalette(fakeDb()));
     expect(await step!.actions[0].run!()).toMatchObject({ text: "1 change hasn’t reached your account yet. Signing out now loses it.", actions: [{ label: "Stay signed in" }, { label: "Sign out and lose it" }] });

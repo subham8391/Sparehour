@@ -75,7 +75,11 @@ const toSettings = (ctx: CommandContext, section: string) => {
   else ctx.go(`/settings#${section}`);
 };
 
-/** Sign out's confirmation, or the unsynced-changes warning Settings gives (features/account/sign-out.ts). */
+/**
+ * Sign out's confirmation; on yes, Settings' own path (features/account/sign-out.ts): queued changes first get their
+ * few seconds to upload, and only the ones still waiting after that bring Settings' unsynced-changes warning. (Warned
+ * before that wait, a change about to upload would offer "Sign out and lose it" for nothing.)
+ */
 async function signOutStep(db: LocalDatabase): Promise<PaletteStep> {
   const out = await import("@/features/account/sign-out");
   const leave = async (anyway: boolean): Promise<PaletteStep | null> => {
@@ -87,8 +91,6 @@ async function signOutStep(db: LocalDatabase): Promise<PaletteStep> {
     note: out.UNSYNCED_NOTE,
     actions: [{ label: "Stay signed in" }, { label: out.loseLabel(n), tone: "destructive", working: "Signing out…", run: () => leave(true) }],
   });
-  const { count } = await db.getUploadQueueStats();
-  if (count > 0) return warning(count);
   return { text: "Sign out of Sparehour on this device?", note: out.SIGN_OUT_NOTE, actions: [{ label: "Sign out", working: "Signing out…", run: () => leave(false) }, { label: "Stay signed in" }] };
 }
 
