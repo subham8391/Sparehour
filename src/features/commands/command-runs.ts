@@ -1,16 +1,15 @@
-// The keyboard layer's half of the command registry (SCREENS.md §12, §24): every command's id, chord, when it
-// is available and what it runs — all a key needs, so this is what the shell carries. The words the palette and
-// the ? overlay show (title, group, keywords) are registry.ts, which loads with them (SYSTEM_DESIGN.md §11.6).
-// A new command is a run here and its words there, under the same id.
+// The keyboard layer's half of the command registry (SCREENS.md §12, §24): every command with a key — its id,
+// chord, when it is available and what it runs — all a key needs, so this is what the shell carries. Commands the
+// palette alone lists (no key) are palette-runs.ts, and the words the palette and the ? overlay show (title, group,
+// keywords) are registry.ts; both load with the palette and the overlay (SYSTEM_DESIGN.md §11.6). A new command is
+// a run here (or there, without a key) and its words in registry.ts, under the same id.
 import type { Instant, LocalDate } from "@/core/time";
-import { TODAY_SORTS } from "@/core/today/sort-options";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
-import { requestTriageAll } from "@/features/inbox/triage-request";
 import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
-import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
+import type { SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
 import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
@@ -19,7 +18,7 @@ import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
 // Today's day address (`?day=`) loads with Today, or when a Day command first runs: not with every shell.
-const loadDays = () => import("@/features/today/day-address");
+export const loadDays = () => import("@/features/today/day-address");
 
 export type Theme = "light" | "dark" | "system";
 /** `G P` and `G A` open the palette on the open projects or the areas alone (SCREENS.md §24). */
@@ -58,6 +57,8 @@ export interface CommandContext {
   canRedo: boolean;
   /** Places the task in the next free gap that fits its estimate (only where a day is in view). */
   blockTask: (id: string) => void;
+  /** Whether a day on screen takes Block it (Today, the Calendar, the morning plan's last step): elsewhere it is off, with the reason. */
+  canBlock?: boolean;
   /** Opens the Plan my day preview where the day is (Today, or the morning plan's last step); elsewhere it goes to Today first. */
   planDay: (mode: PlanMode) => void;
   /** A task's state as this device has it, or null when the id is not a task here (a repeat's completion row in the Logbook). */
@@ -81,18 +82,18 @@ export interface CommandRun {
   /** The one view the command belongs to (`/today`, or every `/project/…` page): listed elsewhere, but disabled with the reason. */
   onlyOn?: { path: string; reason: string };
   /** Why it cannot run right now (no timeline on screen, no block selected, nothing to redo), or null when it can. */
-  unavailable?: (ctx: Partial<Pick<CommandContext, "canRedo">>) => string | null;
+  unavailable?: (ctx: Partial<Pick<CommandContext, "canRedo" | "canBlock">>) => string | null;
 }
 
 /** Commands that need exactly one task (open, the field pickers) use the keyboard selection. */
-const onSelected =
+export const onSelected =
   (fn: (ctx: CommandContext, id: string) => void | Promise<void>) =>
   (ctx: CommandContext): void | Promise<void> => {
     if (ctx.selectedTaskId) return fn(ctx, ctx.selectedTaskId);
   };
 
 /** A command for one task: the keyboard selection, else the only ticked row. */
-const onOne =
+export const onOne =
   (fn: (ctx: CommandContext, id: string) => void | Promise<void>) =>
   (ctx: CommandContext): void | Promise<void> => {
     const id = ctx.selectedTaskId ?? (ctx.checkedTaskIds.length === 1 ? ctx.checkedTaskIds[0] : null);
@@ -105,27 +106,29 @@ export function targets(ctx: Pick<CommandContext, "selectedTaskId" | "checkedTas
   return ctx.selectedTaskId ? [ctx.selectedTaskId] : [];
 }
 
-const onTargets =
+export const onTargets =
   (fn: (ctx: CommandContext, ids: string[]) => void | Promise<void>) =>
   (ctx: CommandContext): void | Promise<void> => {
     const ids = targets(ctx);
     if (ids.length > 0) return fn(ctx, ids);
   };
 
-const applyPatch = (ctx: CommandContext, ids: string[], patch: TaskPatch, note?: string) => {
+export const applyPatch = (ctx: CommandContext, ids: string[], patch: TaskPatch, note?: string) => {
   if (ids.length === 1) return note === undefined ? ctx.tasks.update(ids[0], patch) : ctx.tasks.update(ids[0], patch, note);
   return note === undefined ? ctx.tasks.updateMany(ids, patch) : ctx.tasks.updateMany(ids, patch, note);
 };
-const applyState = (ctx: CommandContext, ids: string[], state: TaskState) => (ids.length === 1 ? ctx.tasks.setState(ids[0], state) : ctx.tasks.setStateMany(ids, state));
+export const applyState = (ctx: CommandContext, ids: string[], state: TaskState) => (ids.length === 1 ? ctx.tasks.setState(ids[0], state) : ctx.tasks.setStateMany(ids, state));
 
-const snooze = (presetId: SnoozePreset["id"]) =>
-  onTargets((ctx, ids) => {
+// The presets load with the first snooze key (the row ⋯ menu's island has them already), not with the shell.
+export const snooze = (presetId: SnoozePreset["id"]) =>
+  onTargets(async (ctx, ids) => {
+    const { applySnooze, snoozePresets } = await import("@/features/tasks/snooze");
     const preset = snoozePresets(ctx.now, ctx.zone, ctx.today).find((p) => p.id === presetId);
     if (preset) return applySnooze(ctx.tasks, ids, preset);
   });
 
 /** A key the view on screen gives its meaning to (view-keys.ts), handed the selected task. */
-const viewKey = (key: ViewKey) => (ctx: CommandContext) => void runViewKey(key, ctx.selectedTaskId);
+export const viewKey = (key: ViewKey) => (ctx: CommandContext) => void runViewKey(key, ctx.selectedTaskId);
 /** A view key passes on where no view takes it, or (`needsTask`) while no task is selected. */
 const unclaimed = (key: ViewKey, needsTask = false) => (ctx: CommandContext) => !hasViewKey(key) || (needsTask && !ctx.selectedTaskId);
 
@@ -172,7 +175,7 @@ const toggleComplete = onTargets(async (ctx, ids) => {
 });
 
 /** The project a `/project/<id>` path shows, else null. */
-const projectIn = (pathname: string): string | null => {
+export const projectIn = (pathname: string): string | null => {
   const id = /^\/project\/([^/?#]+)/.exec(pathname)?.[1];
   return id ? decodeURIComponent(id) : null;
 };
@@ -197,8 +200,8 @@ export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projec
   return `${projectToken(name)} `;
 }
 
-const ON_TODAY = { path: "/today", reason: "on Today" };
-const ON_PROJECT = { path: "/project/", reason: "on a project" };
+export const ON_TODAY = { path: "/today", reason: "on Today" };
+export const ON_PROJECT = { path: "/project/", reason: "on a project" };
 
 /** `#`, `@` and `M` with nothing selected open quick-add and type themselves, as any unbound key does (§1 rule 4). */
 const typesItself = (key: string) => (ctx: CommandContext) => ctx.quickAdd(key);
@@ -223,7 +226,6 @@ export const RUNS: readonly CommandRun[] = [
   { id: "task.evening", shortcut: "shift+e", requiresSelection: true, run: snooze("evening") },
   { id: "task.weekend", shortcut: "w", requiresSelection: true, run: snooze("weekend") },
   { id: "task.in4h", shortcut: "h", requiresSelection: true, run: snooze("in4h") },
-  { id: "task.nextweek", requiresSelection: true, run: snooze("nextweek") },
   // `.` (SCREENS.md §24): the selected row's ⋯ menu; a row without one (a week column's compact row) opens the task.
   // With nothing selected the key is typing, and opens quick add like any other (SCREENS.md §1 rule 4).
   {
@@ -233,58 +235,25 @@ export const RUNS: readonly CommandRun[] = [
     run: onSelected((ctx, id) => void (requestRow(id, "menu") || ctx.openTask(id))),
     passes: (ctx) => !ctx.selectedTaskId,
   },
-  // Move to… (SCREENS.md §3): the row's day picker; several ticked rows share the bulk date picker, and a row with
-  // no picker of its own opens its detail at the do-date.
-  {
-    id: "task.move-day",
-    requiresSelection: true,
-    run: onTargets((ctx, ids) => {
-      if (ids.length > 1) return ctx.editTicked("do");
-      if (!requestRow(ids[0], "move")) ctx.openTask(ids[0], "do");
-    }),
-  },
   { id: "task.someday", shortcut: "s", requiresSelection: true, run: onTargets((ctx, ids) => applyState(ctx, ids, "someday")) },
   { id: "task.drop", shortcut: "backspace", requiresSelection: true, run: onTargets((ctx, ids) => applyState(ctx, ids, "dropped")) },
   { id: "task.priority1", shortcut: "1", requiresSelection: true, run: priority(3) },
   { id: "task.priority2", shortcut: "2", requiresSelection: true, run: priority(2) },
   { id: "task.priority3", shortcut: "3", requiresSelection: true, run: priority(1) },
   { id: "task.priority0", shortcut: "0", requiresSelection: true, run: priority(0) },
-  { id: "task.block", shortcut: "b", requiresSelection: true, run: onSelected((ctx, id) => ctx.blockTask(id)) },
+  // Off a day that places blocks it is listed off with the reason rather than doing nothing (SCREENS.md §12 rules).
+  { id: "task.block", shortcut: "b", requiresSelection: true, run: onSelected((ctx, id) => ctx.blockTask(id)), unavailable: (ctx) => (ctx.canBlock === false ? "where a timeline is shown" : null) },
   { id: "task.do", shortcut: "d", requiresSelection: true, run: pickField("do") },
   { id: "task.deadline", shortcut: "shift+d", requiresSelection: true, run: pickField("deadline") },
   { id: "task.start", shortcut: "shift+s", requiresSelection: true, run: pickField("start") },
   { id: "task.estimate", shortcut: "e", requiresSelection: true, run: pickField("estimate") },
   // A rule is set one task at a time: R opens the Repeat picker of the selected task, or of the one ticked row.
   { id: "task.repeat", shortcut: "r", requiresSelection: true, run: onOne((ctx, id) => ctx.openTask(id, "repeat")) },
-  // PRODUCT_SPEC.md §6: the task's steps become tasks of a new project, which opens with the cursor in its add row.
-  {
-    id: "task.convert",
-    requiresSelection: true,
-    run: onOne(async (ctx, id) => {
-      const out = await ctx.tasks.convertToProject(id);
-      if (out) ctx.go(`/project/${encodeURIComponent(out.projectId)}?add=1`);
-    }),
-  },
   // Organising (SCREENS.md §24, §12): the pickers, Duplicate and Copy link run in a lazy island (tasks/organize.tsx).
   { id: "task.move-project", shortcut: "#", requiresSelection: true, run: pick("move"), unselected: typesItself("#") },
   { id: "task.add-tag", shortcut: "@", requiresSelection: true, run: pick("tag"), unselected: typesItself("@") },
   // M lists projects and, once a task can sit loose in one, areas (DECISIONS.md "Loose tasks in an area").
   { id: "task.move", shortcut: "m", requiresSelection: true, run: pick("move", true), unselected: typesItself("m") },
-  { id: "task.duplicate", requiresSelection: true, run: onOne((_, id) => requestOrganize({ kind: "duplicate", id })) },
-  { id: "task.copy-link", requiresSelection: true, run: onOne((_, id) => requestOrganize({ kind: "copy-link", id })) },
-  {
-    id: "project.duplicate",
-    onlyOn: ON_PROJECT,
-    run: (ctx) => {
-      const id = projectIn(ctx.pathname);
-      if (id) requestOrganize({ kind: "duplicate-project", id });
-    },
-  },
-  // A repeat's series edits (SYSTEM_DESIGN.md §5.2), one task at a time; they do nothing to a task that does not repeat.
-  // The logic loads with the recurrence engine (TaskRepo.series()), never with the shell.
-  { id: "task.skip-occurrence", requiresSelection: true, run: onOne(async (ctx, id) => (await ctx.tasks.series()).skip(id)) },
-  { id: "task.pause-repeats", requiresSelection: true, run: onOne((ctx, id) => ctx.openTask(id, "pause")) },
-  { id: "task.resume-repeats", requiresSelection: true, run: onOne(async (ctx, id) => (await ctx.tasks.series()).resume(id)) },
   // Where days sit side by side (Upcoming's week); elsewhere the arrows do nothing.
   { id: "task.day-earlier", shortcut: "arrowleft", requiresSelection: true, run: viewKey("earlier"), passes: unclaimed("earlier", true) },
   { id: "task.day-later", shortcut: "arrowright", requiresSelection: true, run: viewKey("later"), passes: unclaimed("later", true) },
@@ -292,34 +261,16 @@ export const RUNS: readonly CommandRun[] = [
   // ---- create
   { id: "create.task", shortcut: "q", run: (ctx) => ctx.quickAdd() },
   { id: "create.task-here", shortcut: "n", run: async (ctx) => ctx.quickAdd(await prefillHere(ctx)) },
-  { id: "create.project", run: (ctx) => ctx.go("/browse?add=project") },
-  { id: "create.area", run: (ctx) => ctx.go("/browse?add=area") },
 
   // ---- go to
-  { id: "go.today", shortcut: "g t", run: (ctx) => ctx.go("/today") },
-  { id: "go.inbox", shortcut: "g i", run: (ctx) => ctx.go("/inbox") },
-  { id: "go.upcoming", shortcut: "g u", run: (ctx) => ctx.go("/upcoming") },
-  { id: "go.calendar", shortcut: "g c", run: (ctx) => ctx.go("/calendar") },
-  { id: "go.someday", shortcut: "g s", run: (ctx) => ctx.go("/someday") },
-  { id: "go.logbook", shortcut: "g l", run: (ctx) => ctx.go("/logbook") },
+  // `G` then the view's first letter.
+  ...["today", "inbox", "upcoming", "calendar", "someday", "logbook"].map((v): CommandRun => ({ id: `go.${v}`, shortcut: `g ${v[0]}`, run: (ctx) => ctx.go(`/${v}`) })),
   { id: "go.project", shortcut: "g p", run: (ctx) => ctx.openPalette("", "projects") },
   { id: "go.area", shortcut: "g a", run: (ctx) => ctx.openPalette("", "areas") },
-  { id: "go.browse", run: (ctx) => ctx.go("/browse") },
   { id: "go.settings", shortcut: "mod+,", run: (ctx) => ctx.go("/settings") },
   { id: "day.plan", shortcut: "mod+shift+m", run: (ctx) => ctx.go("/plan") },
   { id: "day.shutdown", shortcut: "mod+shift+e", run: (ctx) => ctx.go("/shutdown") },
   { id: "day.plan-my-day", shortcut: "mod+shift+p", run: (ctx) => ctx.planDay("plan") },
-  // Trim today (PRODUCT_SPEC.md §9.4): Today opens its panel, at once or as soon as Today is open. The ellipsis says a
-  // panel opens (and keeps "today" finding Go to Today first).
-  { id: "day.trim", run: (ctx) => void (requestToday({ kind: "trim" }) || ctx.go("/today")) },
-  { id: "day.replan", run: (ctx) => ctx.planDay("replan") },
-  // Today on another day (SCREENS.md §12 Day, §2.1): tomorrow and yesterday by name, any day through Jump to date's
-  // typed date, which Today opens at once or as soon as it is open.
-  { id: "day.tomorrow", run: async (ctx) => (await loadDays()).openDay(ctx.today.add({ days: 1 }), ctx.today, ctx) },
-  { id: "day.yesterday", run: async (ctx) => (await loadDays()).openDay(ctx.today.subtract({ days: 1 }), ctx.today, ctx) },
-  { id: "day.jump", run: (ctx) => void (requestToday({ kind: "jump" }) || ctx.go("/today")) },
-  // Triage all (SCREENS.md §5): the Inbox's walk, at once or as soon as the Inbox is open.
-  { id: "inbox.triage-all", run: (ctx) => void (requestTriageAll() || ctx.go("/inbox")) },
 
   // ---- list plumbing
   { id: "list.down", shortcut: "j", run: (ctx) => selectNext(ctx, 1) },
@@ -335,36 +286,19 @@ export const RUNS: readonly CommandRun[] = [
     },
   },
   { id: "list.check-all", shortcut: "mod+a", run: (ctx) => ctx.checkAll() },
-  { id: "list.clear-checks", run: (ctx) => ctx.clearChecks() },
 
   // ---- view
   { id: "view.prev", shortcut: "[", run: viewKey("prev"), passes: unclaimed("prev") },
   { id: "view.next", shortcut: "]", run: viewKey("next"), passes: unclaimed("next") },
-  // Sort and Show completed are Today's view preferences (DECISIONS.md "Sort", 2026-10-06): Today only. "Sort by…"
-  // reopens the palette on the five sorts once the palette has closed behind it.
-  { id: "view.sort", onlyOn: ON_TODAY, run: (ctx) => void setTimeout(() => ctx.openPalette("Sort Today by "), 0) },
-  ...TODAY_SORTS.map(
-    (o): CommandRun => ({
-      id: `view.sort-${o.value}`,
-      onlyOn: ON_TODAY,
-      run: () => void requestToday({ kind: "sort", sort: o.value }),
-    }),
-  ),
-  { id: "view.show-completed", onlyOn: ON_TODAY, run: () => void requestToday({ kind: "completed" }) },
   // The timeline on screen (SCREENS.md §2.6, §24): + and - step its rows; with no timeline the keys type as unbound keys do.
   ...(["zoom-in", "zoom-out"] as const).map(
     (z): CommandRun => ({ id: `view.${z}`, shortcut: z === "zoom-in" ? "+" : "-", run: () => void requestTimeline(z), passes: () => timelineUnavailable(false) !== null, unavailable: () => timelineUnavailable(false) }),
   ),
-  // The selected block's Move to…, Duplicate and Rename: no single key (DECISIONS.md "`M` on the timeline"), the toolbar and here.
-  ...(["move", "duplicate", "rename"] as const).map((b): CommandRun => ({ id: `block.${b}`, run: () => void requestTimeline(`${b}-block`), unavailable: () => timelineUnavailable(true) })),
   // The panes (SCREENS.md §1, §24): Cmd+\ folds the sidebar to the rail from the medium band. Cmd+. is the context
   // pane's: on Today the timeline (the List | Day view below the wide band, DECISIONS.md "Medium and narrow Today"),
   // elsewhere the task detail.
   { id: "view.toggle-sidebar", shortcut: "mod+\\", run: toggleSidebar, unavailable: needsWidth(900) },
   { id: "view.toggle-pane", shortcut: "mod+.", run: (ctx) => void (ctx.pathname === "/today" ? requestToday({ kind: "pane" }) : ctx.toggleDetail?.()), unavailable: needsWidth(640) },
-  { id: "view.theme-light", run: (ctx) => ctx.setTheme("light") },
-  { id: "view.theme-dark", run: (ctx) => ctx.setTheme("dark") },
-  { id: "view.theme-system", run: (ctx) => ctx.setTheme("system") },
 
   // ---- app
   { id: "app.undo", shortcut: "mod+z", run: (ctx) => ctx.undo() },
@@ -374,8 +308,6 @@ export const RUNS: readonly CommandRun[] = [
   { id: "app.redo-y", shortcut: "mod+y", notOnMac: true, run: (ctx) => ctx.redo(), unavailable: (ctx) => (ctx.canRedo === false ? "after an undo" : null) },
   { id: "app.palette", shortcut: "mod+k", run: (ctx) => ctx.openPalette() },
   { id: "app.search", shortcut: "/", run: (ctx) => ctx.go("/search") },
-  { id: "app.export", run: (ctx) => ctx.go("/settings") },
-  { id: "app.connect-calendar", run: (ctx) => ctx.go("/settings#calendar") },
   { id: "app.shortcuts", shortcut: "?", run: (ctx) => ctx.openShortcuts() },
 ];
 
@@ -392,7 +324,7 @@ export interface Availability {
 }
 
 /** Commands that need a selection are listed but disabled with the reason (§12 rules). */
-export function availability(command: CommandRun, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds"> & { pathname?: string; canRedo?: boolean }): Availability {
+export function availability(command: CommandRun, ctx: Pick<CommandContext, "selectedTaskId" | "checkedTaskIds"> & { pathname?: string; canRedo?: boolean; canBlock?: boolean }): Availability {
   const only = command.onlyOn;
   if (only && ctx.pathname !== only.path && !(only.path.endsWith("/") && ctx.pathname?.startsWith(only.path))) return { enabled: false, reason: only.reason };
   if (command.requiresSelection && targets(ctx).length === 0) return { enabled: false, reason: "select a task first" };

@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { readStorageFull, subscribeStorageFull } from "@/data/powersync";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
-import { KeyboardProvider } from "@/features/commands/keyboard-provider";
+import { KeyboardProvider, useCommands } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
 import { PushDeepLink } from "@/features/notifications/push-deep-link";
 import { useAppBadge } from "@/features/notifications/use-app-badge";
@@ -106,6 +106,8 @@ function Frame({ children }: { children: ReactNode }) {
   const { counts, areas } = useNavData();
   const sync = useSyncChip();
   const detail = useTaskDetail();
+  const palette = usePalette();
+  const { isMac, openShortcuts } = useCommands();
   const [viewHidesFab, setViewHidesFab] = useState(false);
   useAppBadge(counts.today);
   const tabs = showsTabBar(pathname);
@@ -116,8 +118,8 @@ function Frame({ children }: { children: ReactNode }) {
     // `data-view` picks the view's own context pane width (SCREENS.md §1; the rules are pane-resizer.tsx's), and
     // keeps the rail and the view clear of a landscape phone's notch and corners (globals.css).
     <div data-view={pathname.split("/")[1]} className="flex min-h-dvh overflow-x-clip sm:h-dvh">
-      <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
-      <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
+      <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} isMac={isMac} onPalette={() => palette.open()} onShortcuts={openShortcuts} className="hidden sm:flex md:hidden" />
+      <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} isMac={isMac} onPalette={() => palette.open()} onShortcuts={openShortcuts} className="hidden md:flex" />
       <SidebarDragIsland areas={areas} />
       <div
         className={cx(

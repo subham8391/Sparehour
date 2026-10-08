@@ -68,3 +68,29 @@ describe("TagRepo undo", () => {
     expect(s.row("task_tags", "old-link")).toMatchObject({ task_id: "t2", tag_id: "urgent", deleted_at: null });
   });
 });
+
+describe("TagRepo.create (the palette's Add tag)", () => {
+  it("makes a tag on its own, with one toast whose undo removes it", async () => {
+    const { s, repo, entry, history } = setup();
+    const out = await repo.create("s1", " @calls ");
+    expect(out).toMatchObject({ name: "calls", created: true });
+    expect(s.rows("select name, space_id from tags where deleted_at is null order by name")).toEqual([
+      { name: "calls", space_id: "s1" },
+      { name: "urgent", space_id: "s1" },
+    ]);
+    // No task gets it: a standalone tag.
+    expect(s.rows("select count(*) as n from task_tags where deleted_at is null")).toEqual([{ n: 1 }]);
+    expect(history.record).toHaveBeenCalledTimes(1);
+    expect(entry()).toMatchObject({ label: "Added tag @calls", toast: true, rows: { tags: [out?.id] } });
+    await entry().undo();
+    expect(s.rows("select name from tags where deleted_at is null")).toEqual([{ name: "urgent" }]);
+  });
+
+  it("a name already taken, in any case, makes nothing and records nothing", async () => {
+    const { s, repo, history } = setup();
+    expect(await repo.create("s1", "URGENT")).toEqual({ id: "urgent", name: "urgent", created: false });
+    expect(await repo.create("s1", "  @ ")).toBeNull();
+    expect(s.rows("select count(*) as n from tags")).toEqual([{ n: 1 }]);
+    expect(history.record).not.toHaveBeenCalled();
+  });
+});

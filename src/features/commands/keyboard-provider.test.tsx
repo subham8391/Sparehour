@@ -27,6 +27,7 @@ import { TaskDetailProvider, useTaskDetail } from "@/features/tasks/task-detail"
 import { listenForRowRequests } from "@/features/tasks/row-request";
 import { UndoProvider, useUndo } from "@/features/undo/undo-provider";
 import { KeyboardProvider, useCommands } from "./keyboard-provider";
+import { COMMANDS } from "./registry";
 import { registerViewKeys } from "./view-keys";
 
 const pressed = vi.fn();
@@ -78,9 +79,9 @@ describe("<KeyboardProvider> theme is an account setting (found by the walkthrou
     delete document.documentElement.dataset.theme;
     account.rows = [{ id: "settings-1", theme: "dark" }];
     function RunLight() {
-      const { commands, run } = useCommands();
+      const { run } = useCommands();
       return (
-        <button type="button" onClick={() => run(commands.find((c) => c.id === "view.theme-light")!)}>
+        <button type="button" onClick={() => run(COMMANDS.find((c) => c.id === "view.theme-light")!)}>
           light
         </button>
       );

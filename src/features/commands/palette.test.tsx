@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
 import type { SpaceId, Task, TaskId } from "@/core/types";
 import { Palette, type PaletteProps } from "./palette";
-import type { Command } from "./registry";
+import type { Command, PaletteStep } from "./registry";
 
 const commands: Command[] = [
   { id: "create.task", title: "Add task", group: "Create", shortcut: "q", run: () => {} },
@@ -146,9 +146,91 @@ describe("<Palette>", () => {
     const { user, input, onAddTask, onQueryChange } = setup();
     await user.type(input, "zzz new thing");
     expect(onQueryChange).toHaveBeenLastCalledWith("zzz new thing");
-    expect(screen.getAllByRole("option")).toHaveLength(1);
+    // Add, then Search for the same words (SCREENS.md §13); Enter takes the top one.
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Add task “zzz new thing”", "Search for “zzz new thing”"]);
     await user.keyboard("{Enter}");
     expect(onAddTask).toHaveBeenCalledWith("zzz new thing");
+  });
+
+  it("Search for “…” opens Search on the same words", async () => {
+    const { user, input, onGo } = setup();
+    await user.type(input, "zzz new thing");
+    await user.click(screen.getByRole("option", { name: "Search for “zzz new thing”" }));
+    expect(onGo).toHaveBeenCalledWith("/search?q=zzz%20new%20thing");
+  });
+
+  it("rows are 48 px on a phone and on touch, 44 under a pointer (SCREENS.md §12 Responsive)", () => {
+    setup();
+    expect(screen.getAllByRole("option")[0].className).toMatch(/\bmin-h-11\b.*\bmax-sm:min-h-12\b.*\btouch:min-h-12\b/);
+  });
+
+  it("a command that asks first shows its question in the palette; Esc goes back to the list", async () => {
+    const leave = vi.fn(async () => null);
+    const signOut: Command = { id: "app.signout", title: "Sign out", group: "App", run: () => {}, step: async () => null };
+    const step: PaletteStep = { text: "Sign out of Sparehour on this device?", note: "Signing out removes your data from this device.", actions: [{ label: "Sign out", working: "Signing out…", run: leave }, { label: "Stay signed in" }] };
+    const onRun = vi.fn(async () => step);
+    const { user, input, onClose } = setup({ commands: [...commands, signOut], onRun });
+    await user.type(input, "sign out{Enter}");
+    const asked = await screen.findByRole("group", { name: "Sign out" });
+    expect(asked).toHaveTextContent("Sign out of Sparehour on this device?");
+    expect(within(asked).getByRole("button", { name: "Sign out" })).toHaveFocus();
+    expect(onClose).not.toHaveBeenCalled();
+    // Esc: one layer, back to the list with the words still in the field.
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group", { name: "Sign out" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Search or run a command" })).toHaveValue("sign out");
+    expect(onClose).not.toHaveBeenCalled();
+    // Again, and this time yes.
+    await user.keyboard("{Enter}");
+    await user.click(await screen.findByRole("button", { name: "Sign out" }));
+    expect(leave).toHaveBeenCalled();
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("a command that answers shows its words while it works, then the result", async () => {
+    let done: (s: PaletteStep) => void = () => {};
+    const sync: Command = { id: "app.sync", title: "Sync now", group: "App", working: "Syncing…", run: () => {}, step: async () => null };
+    const onRun = vi.fn(() => new Promise<PaletteStep>((resolve) => (done = resolve)));
+    const { user, input, onClose } = setup({ commands: [...commands, sync], onRun });
+    await user.type(input, "sync now{Enter}");
+    expect(await screen.findByRole("status")).toHaveTextContent("Syncing…");
+    done({ text: "Synced.", status: true, actions: [{ label: "Done" }] });
+    expect(await screen.findByText("Synced.")).toHaveAttribute("role", "status");
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("while a command works the step holds focus, so Esc still goes back to the list; an answer that comes after is dropped", async () => {
+    let done: (s: PaletteStep) => void = () => {};
+    const sync: Command = { id: "app.sync", title: "Sync now", group: "App", working: "Syncing…", run: () => {}, step: async () => null };
+    const onRun = vi.fn(() => new Promise<PaletteStep>((resolve) => (done = resolve)));
+    const { user, input, onClose } = setup({ commands: [...commands, sync], onRun });
+    await user.type(input, "sync now{Enter}");
+    const working = await screen.findByRole("group", { name: "Sync now" });
+    expect(working).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group", { name: "Sync now" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Search or run a command" })).toHaveFocus();
+    done({ text: "Synced.", status: true, actions: [{ label: "Done" }] });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText("Synced.")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("Add tag… types its words into the field; then 'Add tag \"calls\"' heads the list and makes the tag", async () => {
+    const addTagCommand: Command = { id: "create.tag", title: "Add tag…", group: "Create", fill: "Add tag ", run: () => {} };
+    const onAddTag = vi.fn(async () => null);
+    const { user, input, onRun, onClose } = setup({ commands: [...commands, addTagCommand], onAddTag });
+    await user.type(input, "add tag…");
+    await user.click(screen.getByRole("option", { name: /^Add tag…/ }));
+    expect(onRun).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Add tag ");
+    expect(input).toHaveFocus();
+    await user.type(input, "calls");
+    expect(screen.getAllByRole("option")[0]).toHaveTextContent("Add tag “calls”");
+    await user.keyboard("{Enter}");
+    expect(onAddTag).toHaveBeenCalledWith("calls");
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   it("Escape closes", async () => {

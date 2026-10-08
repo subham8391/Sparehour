@@ -30,6 +30,13 @@ async function localToday(c: Client, uid: string, calendar = false): Promise<str
   return rows[0].d;
 }
 
+/** The person's day as the badge and the day context count it: their zone less the rollover hour (private.local_today),
+ *  so before 04:00 local it is the calendar's yesterday. */
+async function appToday(c: Client, uid: string): Promise<string> {
+  const { rows } = await c.query<{ d: string }>("select to_char(private.local_today($1), 'YYYY-MM-DD') as d", [uid]);
+  return rows[0].d;
+}
+
 async function addTask(c: Client, sid: string, title: string, over: { deadline?: string; doDate?: string | null; estimate?: number; state?: string } = {}): Promise<string> {
   const { rows } = await c.query<{ id: string }>(
     `insert into public.tasks (space_id, title, state, do_date, deadline, estimate_min, sort_key) values ($1, $2, $3, $4::date, $5::date, $6, 'a0') returning id`,
@@ -371,7 +378,7 @@ describe.skipIf(admin === null)("the day at send time: badge and figures", () =>
     inTx(async (c) => {
       const uid = await newUser(c, "badge-a@contract.test");
       const sid = await spaceOf(c, uid);
-      const today = await localToday(c, uid);
+      const today = await appToday(c, uid);
       const yesterday = (await c.query<{ d: string }>("select to_char($1::date - 1, 'YYYY-MM-DD') as d", [today])).rows[0].d;
       const tomorrow = (await c.query<{ d: string }>("select to_char($1::date + 1, 'YYYY-MM-DD') as d", [today])).rows[0].d;
       await addTask(c, sid, "Planned today", { doDate: today });
@@ -395,7 +402,7 @@ describe.skipIf(admin === null)("the day at send time: badge and figures", () =>
     inTx(async (c) => {
       const uid = await newUser(c, "badge-b@contract.test", "Europe/London");
       const sid = await spaceOf(c, uid);
-      const today = await localToday(c, uid);
+      const today = await appToday(c, uid);
       const planned = await addTask(c, sid, "Write", { doDate: today, estimate: 50 });
       await addTask(c, sid, "Elsewhere", { doDate: null });
       const done = await addTask(c, sid, "Shipped", { doDate: today });

@@ -8,7 +8,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Temporal, localDate, todayFor } from "@/core/time";
-import { RUNS, type CommandContext } from "@/features/commands/command-runs";
+import type { CommandContext } from "@/features/commands/command-runs";
+import { COMMANDS } from "@/features/commands/registry";
 import { taskFixture } from "@/test/fixtures";
 import { moveToDay, pickerDayName, pickerDays } from "./day-picker";
 import { requestRow } from "./row-request";
@@ -41,6 +42,9 @@ function Row({ selected = false, actions }: { selected?: boolean; actions?: Reac
     </TaskList>
   );
 }
+
+/** The day the menu works on with no settings row: UTC, rolling over at 4 am (use-local-day.ts), so before 04:00 UTC it is yesterday's date. */
+const appToday = (now = Temporal.Now.instant()) => todayFor({ timezone: "UTC", dayRolloverHour: 4 }, now);
 
 const menuWords = () => within(screen.getByRole("menu")).queryAllByRole("menuitem").map((b) => b.textContent);
 
@@ -85,10 +89,8 @@ describe("the row ⋯ menu", () => {
     repo.update.mockClear();
     // The palette, run on the same task at the same moment (the device's zone and day: no settings row here).
     const now = Temporal.Now.instant();
-    // Today as the app counts it: UTC with the default 04:00 rollover, so a run before four still means yesterday.
-    const today = todayFor({ timezone: "UTC", dayRolloverHour: 4 }, now);
-    const ctx = { selectedTaskId: "t1", checkedTaskIds: [], now, zone: "UTC", today, tasks: repo } as unknown as CommandContext;
-    for (const id of ids) await RUNS.find((r) => r.id === `task.${id}`)!.run(ctx);
+    const ctx = { selectedTaskId: "t1", checkedTaskIds: [], now, zone: "UTC", today: appToday(now), tasks: repo } as unknown as CommandContext;
+    for (const id of ids) await COMMANDS.find((r) => r.id === `task.${id}`)!.run(ctx);
     const fromPalette = repo.update.mock.calls;
     expect(fromMenu).toHaveLength(5);
     // "In 4 hours" depends on the minute; the others must match exactly, and its note and date shape too.
@@ -100,7 +102,7 @@ describe("the row ⋯ menu", () => {
       if (ids[i] !== "in4h") expect(patch).toEqual(ppatch);
       else expect(patch.evening).toBe(false);
     });
-    expect(fromMenu[0]).toEqual(["t1", snoozePresets(now, "UTC", today)[0].patch, "Moved {title} to this evening"]);
+    expect(fromMenu[0]).toEqual(["t1", snoozePresets(now, "UTC", appToday(now))[0].patch, "Moved {title} to this evening"]);
   });
 
   it("a finished task's menu has no presets and no Move to…", async () => {
@@ -130,9 +132,9 @@ describe("the row ⋯ menu", () => {
     render(<Row />);
     const openTask = vi.fn();
     const ctx = { selectedTaskId: "t1", checkedTaskIds: [], openTask } as unknown as CommandContext;
-    RUNS.find((r) => r.id === "task.menu")!.run(ctx);
+    COMMANDS.find((r) => r.id === "task.menu")!.run(ctx);
     expect(openTask).toHaveBeenCalledWith("t1");
-    RUNS.find((r) => r.id === "task.move-day")!.run(ctx);
+    COMMANDS.find((r) => r.id === "task.move-day")!.run(ctx);
     expect(openTask).toHaveBeenLastCalledWith("t1", "do");
     expect(screen.queryByRole("menu")).toBeNull();
   });
@@ -154,7 +156,7 @@ describe("Move to…", () => {
     db.getOptional.mockImplementation(async (sql: string) => (sql.includes("max(day_sort_key)") ? { k: "a3" } : { do_date: "2026-09-14", evening: 0 }));
     await user.click(within(days[1]).getByRole("button"));
     expect(screen.queryByRole("dialog", { name: "Move to…" })).toBeNull();
-    const tomorrow = todayFor({ timezone: "UTC", dayRolloverHour: 4 }, Temporal.Now.instant()).add({ days: 1 });
+    const tomorrow = appToday().add({ days: 1 });
     await waitFor(() => expect(repo.placeInDay).toHaveBeenCalledWith("t1", tomorrow, expect.any(String), false));
     expect(repo.placeInDay.mock.calls[0][2] > "a3").toBe(true);
     // Focus goes back to the row's ⋯.

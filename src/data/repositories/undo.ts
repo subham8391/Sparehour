@@ -11,6 +11,7 @@ export type UndoTable =
   | "projects"
   | "headings"
   | "areas"
+  | "tags"
   | "task_tags"
   | "checklist_items"
   | "recurrence_exceptions"

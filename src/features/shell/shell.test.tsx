@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Sidebar, type NavArea } from "./sidebar";
 import { syncChipModel } from "./sync-chip";
 import { TabBar } from "./tab-bar";
@@ -108,6 +108,42 @@ describe("<Sidebar>", () => {
     render(<Sidebar rail pathname="/inbox" counts={{ inbox: 3, today: 4 }} areas={areas} sync={sync} />);
     expect(screen.getByRole("link", { name: "Today, 4" })).toHaveAttribute("title", "Today");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("title", "Settings");
+  });
+
+  it("carries the pointer's way to the palette, with its ⌘K hint, and the ? overlay beside Settings (SCREENS.md §0, §1)", async () => {
+    const user = userEvent.setup();
+    const onPalette = vi.fn();
+    const onShortcuts = vi.fn();
+    const { unmount } = render(<Sidebar pathname="/today" counts={{ inbox: 0, today: 0 }} areas={areas} sync={sync} isMac onPalette={onPalette} onShortcuts={onShortcuts} />);
+    const search = screen.getByRole("button", { name: "Search and commands" });
+    expect(search).toHaveTextContent("Search⌘K");
+    expect(search).toHaveAttribute("aria-keyshortcuts", "Meta+K");
+    await user.click(search);
+    expect(onPalette).toHaveBeenCalledTimes(1);
+    const help = screen.getByRole("button", { name: "Keyboard shortcuts" });
+    // Beside Settings, in the footer; hidden on a touch device until a hardware keyboard types (`data-keys-only`).
+    expect(help.parentElement).toContainElement(screen.getByRole("link", { name: "Settings" }));
+    expect(help).toHaveAttribute("data-keys-only");
+    await user.click(help);
+    expect(onShortcuts).toHaveBeenCalledTimes(1);
+    unmount();
+
+    // The rail: an icon with the hint in its tooltip, the ? under Settings; every target 44 px on touch.
+    render(<Sidebar rail pathname="/today" counts={{ inbox: 0, today: 0 }} areas={areas} sync={sync} isMac={false} onPalette={onPalette} onShortcuts={onShortcuts} />);
+    const railSearch = screen.getByRole("button", { name: "Search and commands" });
+    expect(railSearch).toHaveAttribute("title", "Search and commands (Ctrl+K)");
+    expect(railSearch.className).toMatch(/\btouch:size-11\b/);
+    await user.click(railSearch);
+    expect(onPalette).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Keyboard shortcuts" }).className).toMatch(/\btouch:size-11\b|\btouch:h-11\b/);
+    // Browse (where Search's field lives on narrow screens) stays on the rail.
+    expect(screen.getByRole("link", { name: "Browse" })).toBeInTheDocument();
+  });
+
+  it("without the palette wired (a bare sidebar) draws no search control", () => {
+    render(<Sidebar pathname="/today" counts={{ inbox: 0, today: 0 }} areas={[]} sync={sync} />);
+    expect(screen.queryByRole("button", { name: "Search and commands" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keyboard shortcuts" })).toBeNull();
   });
 });
 

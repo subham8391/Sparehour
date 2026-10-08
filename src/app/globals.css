@@ -430,10 +430,15 @@
   }
 }
 
-/* Keyboard hints mean nothing on a touch device (DESIGN_SYSTEM.md §4a). Unlayered on purpose: it must beat the utility. */
+/* Keyboard hints mean nothing on a touch device (DESIGN_SYSTEM.md §4a), and neither do focus rings (SCREENS.md §1),
+   until a hardware keyboard sends a keypress, which stamps data-keys on <html> (commands/hardware-keys.ts): kbd, the
+   ? button (`data-keys-only`) and the rings wait for it. Unlayered on purpose: it must beat the utility. */
 @media (hover: none) and (pointer: coarse) {
-  kbd {
+  html:not([data-keys]) :is(kbd, [data-keys-only]) {
     display: none;
+  }
+  html:not([data-keys]) :focus-visible {
+    outline: 0;
   }
 }
 

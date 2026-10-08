@@ -6,12 +6,17 @@
 // with Settings and the sync state is always in reach. From the medium band
 // Cmd+\ or its button folds the full sidebar to the rail (panes.ts); the shell
 // draws both and `data-sidebar` on <html> picks one, so nothing flashes.
+// Both forms carry the pointer's way to the palette (the search control with
+// its ⌘K hint) and, beside Settings, to the ? overlay (SCREENS.md §0 "three
+// interaction paths", §1 Regions).
 import Link from "next/link";
 import { useState } from "react";
 import { iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Mark } from "@/ui/brand";
 import { Icon, type IconName } from "@/ui/icons";
+import { Kbd } from "@/ui/kbd";
+import { displayShortcut } from "@/features/commands/keys";
 import { EYEBROW } from "@/ui/section-label";
 import { SIDEBAR_VIEWS, VIEWS, countLabel, isActive, type NavCounts, type NavView, type ViewId } from "./nav";
 import { toggleSidebar } from "./panes";
@@ -132,6 +137,41 @@ function SidebarToggle({ rail }: { rail: boolean }) {
   );
 }
 
+/** Opens the palette (search, every command): a field-like control with its ⌘K hint, or the rail's icon. */
+function SearchControl({ rail, isMac, onOpen }: { rail: boolean; isMac: boolean; onOpen: () => void }) {
+  const key = displayShortcut("mod+k", isMac);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Search and commands"
+      aria-keyshortcuts={isMac ? "Meta+K" : "Control+K"}
+      title={rail ? `Search and commands (${key})` : undefined}
+      className={
+        rail
+          ? cx(ITEM, RAIL_ITEM)
+          : // A field's look (DESIGN_SYSTEM.md §5 "Keyboard hints": ⌘K sits in the search field), the height of a nav item.
+            "flex h-9 w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 text-body text-ink-3 transition-colors dur-fast hover:border-line-strong active:bg-press touch:h-11"
+      }
+    >
+      <Icon name="search" size={18} className="shrink-0 text-ink-3" />
+      {!rail && <span className="min-w-0 flex-1 truncate text-left">Search</span>}
+      {!rail && <Kbd>{key}</Kbd>}
+    </button>
+  );
+}
+
+/** The ? overlay, beside Settings: on a touch device only once a hardware keyboard has typed (`data-keys-only`, globals.css). */
+function ShortcutsButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-keys-only="" className={cx(iconButtonClass(), "shrink-0")}>
+      <span aria-hidden="true" className="text-body font-medium">
+        ?
+      </span>
+    </button>
+  );
+}
+
 export function Sidebar({
   pathname,
   counts,
@@ -139,6 +179,9 @@ export function Sidebar({
   sync,
   rail = false,
   className = "",
+  isMac = true,
+  onPalette,
+  onShortcuts,
 }: {
   pathname: string;
   counts: NavCounts;
@@ -146,6 +189,12 @@ export function Sidebar({
   sync: SyncChipModel;
   rail?: boolean;
   className?: string;
+  /** How the ⌘K hint reads: ⌘ on a Mac, Ctrl elsewhere. */
+  isMac?: boolean;
+  /** Opens the command palette; without it there is no search control (a test's bare sidebar). */
+  onPalette?: () => void;
+  /** Opens the ? overlay. */
+  onShortcuts?: () => void;
 }) {
   return (
     <nav
@@ -160,6 +209,12 @@ export function Sidebar({
         </Link>
         {!rail && <SidebarToggle rail={false} />}
       </div>
+
+      {onPalette && (
+        <div className={cx("shrink-0 pb-3", rail ? "px-2.5" : "px-3")}>
+          <SearchControl rail={rail} isMac={isMac} onOpen={onPalette} />
+        </div>
+      )}
 
       <div className={cx("min-h-0 flex-1 overflow-y-auto pb-4", rail ? "px-2.5" : "px-3")}>
         <ul className="flex flex-col gap-0.5">
@@ -204,7 +259,13 @@ export function Sidebar({
       <div className={cx("flex shrink-0 flex-col gap-0.5 border-t border-line pt-2.5 pb-4", rail ? "items-center px-2.5" : "px-3")}>
         {/* The rail stands in for the folded sidebar from the medium band; in the narrow band it is all there is. */}
         {rail && <SidebarToggle rail />}
-        <NavItem view={VIEWS.settings} pathname={pathname} rail={rail} icon={VIEW_ICONS.settings} />
+        {/* Settings, and the ? overlay beside it (below it on the rail). */}
+        <div className={cx("flex gap-0.5", rail ? "flex-col items-center" : "items-center")}>
+          <div className={cx(!rail && "min-w-0 flex-1")}>
+            <NavItem view={VIEWS.settings} pathname={pathname} rail={rail} icon={VIEW_ICONS.settings} />
+          </div>
+          {onShortcuts && <ShortcutsButton onOpen={onShortcuts} />}
+        </div>
         <SyncChip model={sync} compact={rail} />
       </div>
     </nav>
