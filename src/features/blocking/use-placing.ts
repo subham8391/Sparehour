@@ -43,6 +43,13 @@ export interface PlacingDay {
    * shell (a row's "Block…" and Plan my day set them) and runs this hook inside the day pane's island.
    */
   state?: PlacingState;
+  /**
+   * A task placed here that is planned for another day moves to this one with its block, as one undo step (the
+   * Calendar's other days, DECISIONS.md "Calendar rail in week modes"). Left out, the task keeps its day.
+   */
+  movesTasks?: boolean;
+  /** Whether `B` places on this day; false where several days are on screen and another one answers it. Default true. */
+  answersB?: boolean;
 }
 
 export interface PlacingState {
@@ -76,18 +83,19 @@ export function usePlacing(d: PlacingDay) {
   const blockOf = (id: string) => d.blocks.find((b) => b.id === id);
   const ofTask = (taskId: string) => d.blocks.filter((b) => b.taskId === taskId);
 
-  const create = async (taskId: string | null, title: string | null, start: number, end: number): Promise<string | null> => {
+  const create = async (task: Task | null, title: string | null, start: number, end: number): Promise<string | null> => {
     if (d.off) return null;
     const user = users?.[0];
     if (!user?.personal_space_id) return null;
-    const id = await repo.create({ spaceId: user.personal_space_id, userId: user.id, taskId, title, startAt: atMinute(start), endAt: atMinute(end) });
+    const block = { spaceId: user.personal_space_id, userId: user.id, taskId: task?.id ?? null, title, startAt: atMinute(start), endAt: atMinute(end) };
+    const id = task && d.movesTasks && !task.doDate?.equals(d.day) ? await repo.createOnTaskDay({ ...block, taskId: task.id }, d.day) : await repo.create(block);
     setSelectedBlockId(id);
     return id;
   };
   /** A new block for the task at `startMin` (several blocks per task are allowed, PRODUCT_SPEC.md §10.2). */
   const placeTask = (task: Task, startMin: number) => {
     const at = placeAt(startMin, nextBlockLength(task, ofTask(task.id), d.defaultEstimateMin));
-    return create(task.id, task.title, at.start, at.end);
+    return create(task, task.title, at.start, at.end);
   };
   /** An ad-hoc block, with no task (a lunch, deep work): drawn on empty space, or "New block here". */
   const createAdHoc = (start: number, end: number) => create(null, "Block", start, end);
@@ -136,7 +144,8 @@ export function usePlacing(d: PlacingDay) {
   useEffect(() => {
     blockRef.current = blockInNextGap;
   });
-  useEffect(() => blocking.register((id) => blockRef.current(id)), [blocking]);
+  const answersB = d.answersB !== false;
+  useEffect(() => (answersB ? blocking.register((id) => blockRef.current(id)) : undefined), [blocking, answersB]);
 
   // Tap-to-schedule (SCREENS.md §2.8): the next tap on the timeline places what is waiting; Escape lets go.
   useEffect(() => {

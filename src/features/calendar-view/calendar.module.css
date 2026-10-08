@@ -1,0 +1,28 @@
+/* The Calendar's own layout pieces. They live here, with the route, rather than as new utilities in the app-wide
+   stylesheet that every shell downloads before its first paint (SYSTEM_DESIGN.md §11.6). */
+
+/* The wide band: the rail of today's tasks, then the grid. */
+.wide {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+/* The grid scrolls both ways in one box: the hours down, the days sideways where only three fit. */
+.scroller {
+  overflow: auto;
+  overscroll-behavior: contain;
+  max-height: 70dvh;
+}
+@media (min-width: 40rem) {
+  .scroller {
+    max-height: calc(100dvh - 14rem);
+    min-height: 24rem;
+  }
+}
+
+/* Each day, and its header, ruled off from the one before. */
+.day {
+  border-left: 1px solid var(--line);
+}

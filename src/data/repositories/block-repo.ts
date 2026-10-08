@@ -3,11 +3,12 @@
 // written to Google once a write calendar exists (SYSTEM_DESIGN.md §6.5);
 // a moved or deleted block is re-queued by a trigger. Removing a block never
 // touches the task.
-import { Temporal, formatTime, instant, timeOf } from "@/core/time";
+import { Temporal, formatTime, instant, timeOf, type LocalDate } from "@/core/time";
+import { formatDay } from "@/core/time/format-day";
 import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
 import { reviveBlocks, type BlockRow } from "./block-revive";
-import type { UndoRecorder } from "./undo";
+import { quoted, restoreRow, type RowSnapshot, type UndoRecorder } from "./undo";
 
 export { reviveBlocks, type BlockRow } from "./block-revive";
 
@@ -59,6 +60,43 @@ export class BlockRepo {
       announce: `${block.title ? `Blocked “${block.title}”` : "Blocked time"} ${await this.span(block.startAt, block.endAt)}`.trim(),
       undo: () => this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [new Date().toISOString(), new Date().toISOString(), id]).then(() => undefined),
     });
+    return id;
+  }
+
+  /**
+   * A task's block on a day that is not the task's own (the Calendar's rail, DECISIONS.md "Calendar rail in week
+   * modes"): the task's do-date moves to `day` and the block is made there, in one transaction and one undo step that
+   * puts the task back on its day and takes the block away. An Inbox or Someday task becomes active, as any dated
+   * task does; its time and its other blocks stay where the person put them.
+   */
+  async createOnTaskDay(block: NewBlock & { taskId: string }, day: LocalDate): Promise<string> {
+    const id = crypto.randomUUID();
+    const before = this.history ? await this.db.getOptional<RowSnapshot>(`select * from tasks where id = ?`, [block.taskId]) : null;
+    const now = new Date().toISOString();
+    await this.db.writeTransaction(async (tx) => {
+      await tx.execute(`update tasks set do_date = ?, state = case when state in ('inbox', 'someday') then 'active' else state end, updated_at = ? where id = ?`, [day.toString(), now, block.taskId]);
+      await tx.execute(
+        `insert into time_blocks (id, space_id, user_id, task_id, title, start_at, end_at, locked, source, push_state, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?, ?, 0, 'manual', 'local', ?, ?)`,
+        [id, block.spaceId, block.userId, block.taskId, block.title, block.startAt, block.endAt, now, now],
+      );
+    });
+    if (before) {
+      const what = quoted(block.title ?? before.title);
+      const on = formatDay(day);
+      this.history?.record({
+        label: `Blocked ${what} on ${on}`,
+        toast: true,
+        rows: { tasks: [block.taskId], time_blocks: [id] },
+        announce: `Blocked ${what} on ${on} ${await this.span(block.startAt, block.endAt)}`.trim(),
+        undo: () =>
+          this.db.writeTransaction(async (tx) => {
+            const at = new Date().toISOString();
+            await restoreRow(tx, "tasks", { ...before, id: block.taskId }, ["do_date", "state"], at);
+            await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [at, at, id]);
+          }),
+      });
+    }
     return id;
   }
 

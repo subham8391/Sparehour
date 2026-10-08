@@ -10,25 +10,38 @@ interface Handler {
   hasBlock: () => boolean;
 }
 
-let current: Handler | null = null;
+/** Every timeline mounted, in the order they registered: the Calendar's grid has one per day. */
+const mounted: Handler[] = [];
+
+/**
+ * The timeline a request goes to: the one holding the selected block (the latest such, should two), else the
+ * latest mounted. Asked at the moment of the request, so which column registered last never decides it.
+ */
+function current(): Handler | null {
+  for (let i = mounted.length - 1; i >= 0; i--) if (mounted[i].hasBlock()) return mounted[i];
+  return mounted[mounted.length - 1] ?? null;
+}
 
 /** The timeline's handler while it is mounted; returns the cleanup. */
 export function registerTimeline(handler: Handler): () => void {
-  current = handler;
+  mounted.push(handler);
   return () => {
-    if (current === handler) current = null;
+    const at = mounted.indexOf(handler);
+    if (at >= 0) mounted.splice(at, 1);
   };
 }
 
 /** Hands the request to the timeline on screen; false when there is none. */
 export function requestTimeline(request: TimelineRequest): boolean {
-  if (!current) return false;
-  current.run(request);
+  const to = current();
+  if (!to) return false;
+  to.run(request);
   return true;
 }
 
 /** Why a timeline command is off right now, or null when it can run. */
 export function timelineUnavailable(needsBlock: boolean): string | null {
-  if (!current) return "where a timeline is shown";
-  return needsBlock && !current.hasBlock() ? "select a block first" : null;
+  const to = current();
+  if (!to) return "where a timeline is shown";
+  return needsBlock && !to.hasBlock() ? "select a block first" : null;
 }

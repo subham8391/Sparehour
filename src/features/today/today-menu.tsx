@@ -23,6 +23,8 @@ export interface TodayMenuProps {
   text?: TodayTextInput;
   /** A short confirmation for the page to show ("Copied today as text"). */
   onNotice: (message: string) => void;
+  /** The wide band's day pane beside the list (Cmd+.): shown or put away. */
+  timeline?: { shown: boolean; onToggle: () => void };
 }
 
 const SUB = "text-body-sm text-ink-2";
@@ -84,6 +86,12 @@ export default function TodayMenu(p: TodayMenuProps) {
         Show completed
         {p.showCompleted && <Icon name="check" size={16} className="text-ink" />}
       </button>
+      {p.timeline && (
+        <button type="button" role="menuitemcheckbox" aria-checked={p.timeline.shown} className={cx(MENU_ITEM, "justify-between gap-3")} onClick={run(p.timeline.onToggle)}>
+          Show timeline
+          {p.timeline.shown && <Icon name="check" size={16} className="text-ink" />}
+        </button>
+      )}
       {p.onClearSlate && (
         <button type="button" role="menuitem" aria-haspopup="dialog" className={MENU_ITEM} onClick={run(p.onClearSlate)}>
           Clear the slate…

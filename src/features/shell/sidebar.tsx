@@ -3,14 +3,18 @@
 // its 56 px icon-rail form for the narrow band. Presentational: everything it
 // shows arrives as props, so it renders the same in a test as in the app.
 // It is viewport-high and sticky; the list scrolls inside it so the footer
-// with Settings and the sync state is always in reach.
+// with Settings and the sync state is always in reach. From the medium band
+// Cmd+\ or its button folds the full sidebar to the rail (panes.ts); the shell
+// draws both and `data-sidebar` on <html> picks one, so nothing flashes.
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
+import { iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Mark } from "@/ui/brand";
 import { Icon, type IconName } from "@/ui/icons";
 import { EYEBROW } from "@/ui/section-label";
 import { SIDEBAR_VIEWS, VIEWS, countLabel, isActive, type NavCounts, type NavView, type ViewId } from "./nav";
+import { toggleSidebar } from "./panes";
 import { SyncChip, type SyncChipModel } from "./sync-chip";
 
 export const VIEW_ICONS: Record<ViewId, IconName> = {
@@ -50,6 +54,8 @@ function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathnam
     <Link
       href={view.href}
       aria-current={active ? "page" : undefined}
+      // The rail's name with its count, which a long-press on touch shows beside it (nav-drag-island.tsx; globals.css
+      // keeps the iOS link callout from covering it).
       aria-label={rail ? (label ? `${view.label}, ${label}` : view.label) : undefined}
       title={rail ? view.label : undefined}
       className={cx(ITEM, "font-medium", active && ACTIVE, rail && RAIL_ITEM)}
@@ -114,6 +120,18 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
   );
 }
 
+/** Collapse sidebar / Expand sidebar (Cmd+\): one in each nav, the shell shows one nav at a time. */
+function SidebarToggle({ rail }: { rail: boolean }) {
+  const name = `${rail ? "Expand" : "Collapse"} sidebar`;
+  return (
+    // panes.ts finds it by its name to move focus across when the navs swap. The rail's only from the medium band:
+    // `max-md:hidden`, since a plain `hidden` loses to the button's own `inline-flex` (same layer, later rule).
+    <button type="button" aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "max-md:hidden" : "ml-auto")}>
+      <Icon name="menu" size={18} />
+    </button>
+  );
+}
+
 export function Sidebar({
   pathname,
   counts,
@@ -121,7 +139,6 @@ export function Sidebar({
   sync,
   rail = false,
   className = "",
-  footer,
 }: {
   pathname: string;
   counts: NavCounts;
@@ -129,7 +146,6 @@ export function Sidebar({
   sync: SyncChipModel;
   rail?: boolean;
   className?: string;
-  footer?: ReactNode;
 }) {
   return (
     <nav
@@ -137,11 +153,12 @@ export function Sidebar({
       data-variant={rail ? "rail" : "full"}
       className={cx("sticky top-0 h-dvh shrink-0 flex-col border-r border-line bg-paper", rail ? "w-14 items-center" : "w-66", className)}
     >
-      <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "px-6")}>
+      <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "pr-3 pl-6")}>
         <Link href="/today" aria-label="Sparehour — Today" className="flex items-center gap-2.5 rounded-lg touch:min-h-11 touch:min-w-11 touch:justify-center">
           <Mark size={22} />
           {!rail && <span className="font-display text-pane font-medium leading-none text-ink">Sparehour</span>}
         </Link>
+        {!rail && <SidebarToggle rail={false} />}
       </div>
 
       <div className={cx("min-h-0 flex-1 overflow-y-auto pb-4", rail ? "px-2.5" : "px-3")}>
@@ -185,7 +202,8 @@ export function Sidebar({
       </div>
 
       <div className={cx("flex shrink-0 flex-col gap-0.5 border-t border-line pt-2.5 pb-4", rail ? "items-center px-2.5" : "px-3")}>
-        {footer}
+        {/* The rail stands in for the folded sidebar from the medium band; in the narrow band it is all there is. */}
+        {rail && <SidebarToggle rail />}
         <NavItem view={VIEWS.settings} pathname={pathname} rail={rail} icon={VIEW_ICONS.settings} />
         <SyncChip model={sync} compact={rail} />
       </div>

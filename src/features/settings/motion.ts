@@ -1,7 +1,7 @@
 // Settings › Appearance › Reduce motion (SCREENS.md §18; M1 gap rulings): a
 // per-device choice like the theme, System (the default, the OS decides) or
 // Reduce. Kept in localStorage and stamped on <html> as data-motion="reduce"
-// before the first paint by the head script (features/commands/theme.ts
+// before the first paint by the head script (features/commands/theme-bootstrap.ts
 // THEME_BOOTSTRAP); globals.css and the motion-safe / motion-reduce variants
 // read the attribute. Only Settings writes it, so this lives outside the shell.
 import { MOTION_KEY } from "@/features/commands/theme";
