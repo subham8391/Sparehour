@@ -174,7 +174,7 @@ export function Palette(p: PaletteProps) {
     setShown({ title, step: null, working });
     Promise.resolve(out).then(
       (next) => (next ? setShown({ title, step: next }) : p.onClose()),
-      () => setShown({ title, step: { text: "That didn’t work. Try again in a moment.", status: true, actions: [{ label: "Done" }] } }),
+      () => setShown({ title, step: { text: "That didn’t work. Try again in a moment.", status: true, error: true, actions: [{ label: "Done" }] } }),
     );
   };
   const back = () => setShown(null);
@@ -260,7 +260,7 @@ export function Palette(p: PaletteProps) {
           <h3 className={EYEBROW}>{shown.title}</h3>
           {shown.step ? (
             <>
-              <p role={shown.step.status ? "status" : undefined} className="text-body text-pretty text-ink">
+              <p role={shown.step.status ? "status" : undefined} className={cx("text-body text-pretty", shown.step.error ? "text-deadline" : "text-ink")}>
                 {shown.step.text}
               </p>
               {shown.step.note && <p className="text-body-sm text-pretty text-ink-2">{shown.step.note}</p>}

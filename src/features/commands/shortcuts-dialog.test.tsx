@@ -36,6 +36,25 @@ describe("<ShortcutsDialog> (the ? overlay)", () => {
     expect(within(list).getByRole("status")).toHaveTextContent("No shortcut matches “zebra”.");
   });
 
+  it("on a touch device with no hardware keyboard yet it says why instead of listing keys; after a keypress it lists them", () => {
+    const was = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q.includes("hover: none"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+    try {
+      const { unmount } = render(<ShortcutsDialog isMac onClose={() => {}} />);
+      expect(screen.getByText(/These need a keyboard/)).toBeInTheDocument();
+      expect(screen.queryByRole("searchbox")).toBeNull();
+      expect(screen.queryByText("Command palette")).toBeNull();
+      unmount();
+      document.documentElement.dataset.keys = "";
+      render(<ShortcutsDialog isMac onClose={() => {}} />);
+      expect(screen.queryByText(/These need a keyboard/)).toBeNull();
+      expect(screen.getByRole("searchbox", { name: "Search shortcuts" })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = was;
+      delete document.documentElement.dataset.keys;
+    }
+  });
+
   it("Esc clears the search first, then closes", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

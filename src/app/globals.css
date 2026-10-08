@@ -431,21 +431,14 @@
 }
 
 /* Keyboard hints mean nothing on a touch device (DESIGN_SYSTEM.md §4a), and neither do focus rings (SCREENS.md §1),
-   until a hardware keyboard sends a keypress, which stamps data-keys on <html> (commands/hardware-keys.ts): kbd,
-   whatever is marked `data-keys-only` (the ? button, the ? overlay's key table) and the rings wait for it, and what is
-   marked `data-keyless` (the overlay's sentence) shows only until then. Unlayered on purpose: it must beat the utility. */
-[data-keyless] {
-  display: none;
-}
+   until a hardware keyboard sends a keypress, which stamps data-keys on <html> (commands/hardware-keys.ts): kbd, the
+   ? button (`data-keys-only`) and the rings wait for it. Unlayered on purpose: it must beat the utility. */
 @media (hover: none) and (pointer: coarse) {
-  :root:not([data-keys]) :is(kbd, [data-keys-only]) {
+  html:not([data-keys]) :is(kbd, [data-keys-only]) {
     display: none;
   }
-  :root:not([data-keys]) [data-keyless] {
-    display: block;
-  }
-  :root:not([data-keys]) :focus-visible {
-    outline-color: transparent;
+  html:not([data-keys]) :focus-visible {
+    outline: 0;
   }
 }
 

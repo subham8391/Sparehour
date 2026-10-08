@@ -37,6 +37,8 @@ export interface PaletteStep {
   note?: string;
   /** A result (Sync now's), read out politely; a question is not. */
   status?: boolean;
+  /** Something went wrong: said in the deadline role (DESIGN_SYSTEM.md R1). */
+  error?: boolean;
   actions: readonly StepAction[];
 }
 
@@ -62,7 +64,7 @@ const SPACE_SQL = `select personal_space_id from users limit 1`;
 /** 'Add tag "calls"': a tag on its own, which then shows in the @ suggestions and Search's filters; one undo. */
 export async function addTag(ctx: Pick<PaletteContext, "db" | "history">, name: string): Promise<PaletteStep | null> {
   const space = (await ctx.db.getOptional<{ personal_space_id: string | null }>(SPACE_SQL))?.personal_space_id;
-  if (!space) return { text: "Your account is still loading — try again in a moment.", actions: [{ label: "Done" }] };
+  if (!space) return { text: "Your account is still loading — try again in a moment.", error: true, actions: [{ label: "Done" }] };
   const out = await new TagRepo(ctx.db, ctx.history ?? undefined).create(space, name);
   return out && !out.created ? { text: `@${out.name} is already a tag.`, actions: [{ label: "Done" }] } : null;
 }
@@ -199,7 +201,7 @@ export const PALETTE_RUNS: readonly PaletteRun[] = [
       const { syncEverything } = await import("@/features/shell/sync-everything");
       const calendars = (await ctx.db.getOptional<{ n: number }>(CALENDARS_SQL))?.n ?? 0;
       const outcome = await syncEverything(calendars > 0);
-      return { text: outcome.message, status: true, actions: [{ label: "Done" }] };
+      return { text: outcome.message, status: true, error: !outcome.ok, actions: [{ label: "Done" }] };
     },
   },
   // Export data: Settings › Data, whose first row is the export.
