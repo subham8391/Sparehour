@@ -200,6 +200,23 @@ describe("<Palette>", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("while a command works the step holds focus, so Esc still goes back to the list; an answer that comes after is dropped", async () => {
+    let done: (s: PaletteStep) => void = () => {};
+    const sync: Command = { id: "app.sync", title: "Sync now", group: "App", working: "Syncing…", run: () => {}, step: async () => null };
+    const onRun = vi.fn(() => new Promise<PaletteStep>((resolve) => (done = resolve)));
+    const { user, input, onClose } = setup({ commands: [...commands, sync], onRun });
+    await user.type(input, "sync now{Enter}");
+    const working = await screen.findByRole("group", { name: "Sync now" });
+    expect(working).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group", { name: "Sync now" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Search or run a command" })).toHaveFocus();
+    done({ text: "Synced.", status: true, actions: [{ label: "Done" }] });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText("Synced.")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("Add tag… types its words into the field; then 'Add tag \"calls\"' heads the list and makes the tag", async () => {
     const addTagCommand: Command = { id: "create.tag", title: "Add tag…", group: "Create", fill: "Add tag ", run: () => {} };
     const onAddTag = vi.fn(async () => null);

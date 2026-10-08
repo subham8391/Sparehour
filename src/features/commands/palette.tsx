@@ -128,10 +128,14 @@ export function Palette(p: PaletteProps) {
   const pointTo = usePointerHighlight(setHighlight);
   const [shown, setShown] = useState<Shown | null>(null);
   const stepRef = useRef<HTMLDivElement>(null);
-  // A question or a result takes focus at its first button, the default; back at the list, the field has it again.
+  // Which answer is current: one that arrives after Esc went back to the list (or after a later command) is dropped.
+  const answering = useRef(0);
+  // A question or a result takes focus at its first button, the default; while a command works the step itself holds
+  // it (the field is gone, and focus left on <body> would take Esc away from the sheet); back at the list, the field.
   useEffect(() => {
     if (shown?.step) stepRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    else if (!shown) inputRef.current?.focus();
+    else if (shown) stepRef.current?.focus();
+    else inputRef.current?.focus();
   }, [shown]);
 
   useEffect(() => {
@@ -171,13 +175,23 @@ export function Palette(p: PaletteProps) {
 
   /** Shows what a command answers: its words while it works (when it has some), then its step, or closes when there is none. */
   const answer = (title: string, out: void | null | PaletteStep | Promise<PaletteStep | null | void>, working?: string) => {
+    const mine = ++answering.current;
     if (working) setShown({ title, step: null, working });
     Promise.resolve(out).then(
-      (next) => (next ? setShown({ title, step: next }) : p.onClose()),
-      () => setShown({ title, step: { text: "That didn’t work. Try again in a moment.", status: true, error: true, actions: [{ label: "Done" }] } }),
+      (next) => {
+        if (mine !== answering.current) return;
+        if (next) setShown({ title, step: next });
+        else p.onClose();
+      },
+      () => {
+        if (mine === answering.current) setShown({ title, step: { text: "That didn’t work. Try again in a moment.", status: true, error: true, actions: [{ label: "Done" }] } });
+      },
     );
   };
-  const back = () => setShown(null);
+  const back = () => {
+    answering.current++;
+    setShown(null);
+  };
 
   const activate = (row: Row) => {
     switch (row.kind) {
@@ -249,13 +263,14 @@ export function Palette(p: PaletteProps) {
           ref={stepRef}
           role="group"
           aria-label={shown.title}
+          tabIndex={-1}
           // Esc goes back to the list, one layer (SCREENS.md §1 rule 3); the sheet closes on the next one.
           onKeyDown={(e) => {
             if (e.key !== "Escape") return;
             e.preventDefault();
             back();
           }}
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pt-4 pb-5"
+          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pt-4 pb-5 outline-none"
         >
           <h3 className={EYEBROW}>{shown.title}</h3>
           {shown.step ? (
