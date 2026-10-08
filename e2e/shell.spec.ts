@@ -6,7 +6,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, removeOwn, seedKey, withDb } from "./db";
-import { clickTitle, DEV_USER, E2E_PREFIX, openApp } from "./helpers";
+import { clickTitle, DEV_USER, E2E_PREFIX, openApp, waitForSync } from "./helpers";
 
 const n = `s${Date.now().toString(36)}`;
 const T = { today: `${E2E_PREFIX}shell today ${n}`, inbox: `${E2E_PREFIX}shell inbox ${n}` };
@@ -78,6 +78,8 @@ test("Cmd+. on Today puts the day pane away and back, remembered; with a task op
   await page.keyboard.press("ControlOrMeta+Period");
   await expect(day).toBeHidden();
   await page.reload();
+  // A reload opens the local database and syncs again (pwa.spec.ts): the list is drawn after that.
+  await waitForSync(page);
   await expect(page.getByRole("row").filter({ hasText: T.today })).toBeVisible();
   await expect(dayPane(page)).toBeHidden();
   await page.keyboard.press("ControlOrMeta+Period");
@@ -137,15 +139,19 @@ test("the task pane's edge resizes it from the keyboard and with a drag, kept pe
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 
   await page.reload();
+  await waitForSync(page);
   await openTask(page, T.inbox);
   expect(Math.round(await width(page, "Task"))).toBe(560);
 
-  // Another view keeps its own width.
+  // Another view keeps its own width. The frame that carries the view is drawn once the local database is open.
   await page.goto("/someday");
-  expect(await page.evaluate(() => getComputedStyle(document.querySelector("[data-view]")!).getPropertyValue("--pane-w"))).toBe("");
+  const someday = page.locator('[data-view="someday"]');
+  await expect(someday).toBeAttached();
+  expect(await someday.evaluate((el) => getComputedStyle(el).getPropertyValue("--pane-w"))).toBe("");
 
   // Enter puts the default back.
   await page.goto("/inbox");
+  await waitForSync(page);
   await openTask(page, T.inbox);
   await page.getByRole("separator", { name: "Resize the task pane" }).focus();
   await page.keyboard.press("Enter");
