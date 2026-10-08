@@ -2,7 +2,7 @@
 // says where the overlay lists it (`keys` in registry.ts), and the keys that are no command — Esc, a block's own
 // keys, "any character" — are the one table below. Rows sharing a place share a row (J, K, ↓ and ↑). Pure.
 import { fold } from "./fuzzy";
-import { displayShortcut } from "./keys";
+import { displayShortcut, parseShortcut, type KeyChord } from "./keys";
 import { COMMANDS, KEY_GROUPS, type Command, type KeyGroup } from "./registry";
 
 export interface KeyRow {
@@ -13,8 +13,8 @@ export interface KeyRow {
   words?: string;
   /** Said under the row: where the key works, or how it differs from its neighbour (§24 "Conflicts resolved"). */
   note?: string;
-  /** What the search field matches: the name, the note and every key spelled out (⇧ is "shift"). */
-  match: string;
+  /** The keys as the registry writes them ("shift+d", "g t"), which the search reads a typed key against. */
+  specs: string[];
 }
 
 export interface ExtraRow {
@@ -47,16 +47,6 @@ export const KEY_GROUP_LABEL: Record<KeyGroup, string> = {
   "Rituals and the day": "Rituals and the day",
 };
 
-const SPOKEN: Record<string, string> = { mod: "cmd command ctrl control", alt: "alt option", arrowup: "up arrow", arrowdown: "down arrow", arrowleft: "left arrow", arrowright: "right arrow", escape: "esc escape" };
-
-/** A spec as words a person might type to find it: "mod+shift+m" → "cmd command ctrl control shift m". */
-function spoken(spec: string): string {
-  return spec
-    .split(/[\s+]+/)
-    .map((part) => SPOKEN[part] ?? part)
-    .join(" ");
-}
-
 function shown(spec: string, isMac: boolean): string {
   return spec === "alt" ? (isMac ? "⌥" : "Alt") : displayShortcut(spec, isMac);
 }
@@ -73,15 +63,14 @@ export function keySections(isMac: boolean, commands: readonly Command[] = COMMA
   const put = (group: KeyGroup, at: number, title: string, specs: readonly string[], words?: string, note?: string) => {
     const id = `${group}:${at}`;
     const keys = specs.map((k) => shown(k, isMac));
-    const said = specs.map(spoken).join(" ");
     const was = placed.get(id);
     if (was) {
       was.row.keys.push(...keys);
-      was.row.match += ` ${keys.join(" ")} ${said}`;
+      was.row.specs.push(...specs);
       if (note && !was.row.note) was.row.note = note;
       return;
     }
-    placed.set(id, { at, row: { title, keys, words, note, match: `${title} ${note ?? ""} ${words ?? ""} ${keys.join(" ")} ${said}` } });
+    placed.set(id, { at, row: { title, keys, words, note, specs: [...specs] } });
   };
   for (const c of commands) {
     if (!c.shortcut || !c.keys || (isMac && c.notOnMac)) continue;
@@ -99,14 +88,60 @@ export function keySections(isMac: boolean, commands: readonly Command[] = COMMA
   })).filter((s) => s.rows.length > 0);
 }
 
-/** The sections with only the rows the search matches: every word of it, in the name, the note or the keys. */
-export function filterSections(sections: readonly KeySection[], query: string): KeySection[] {
+// ---- search: by name ("evening") or by key ("shift", "shift d", "⇧D", "cmd k", "g t")
+
+const GLYPHS: [RegExp, string][] = [
+  [/⌘/g, " mod "],
+  [/⇧/g, " shift "],
+  [/⌥/g, " alt "],
+  [/⏎/g, " enter "],
+  [/⌫/g, " backspace "],
+  [/↑/g, " arrowup "],
+  [/↓/g, " arrowdown "],
+  [/←/g, " arrowleft "],
+  [/→/g, " arrowright "],
+];
+const ALIASES: Record<string, string> = { cmd: "mod", command: "mod", ctrl: "mod", control: "mod", option: "alt", esc: "escape", return: "enter", delete: "backspace", up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
+const MODS = ["mod", "shift", "alt"] as const;
+
+/** A typed key as chords: "shift d", "⇧D" and "Shift+D" are one chord; "g t" two. Null when it reads as words. */
+function typedKey(query: string): { mods: Set<string>; keys: string[] } | null {
+  let q = query.toLocaleLowerCase();
+  for (const [glyph, word] of GLYPHS) q = q.replace(glyph, word);
+  const tokens = q
+    .split(/[\s+]+/)
+    .filter(Boolean)
+    .map((t) => ALIASES[t] ?? t);
+  const mods = new Set(tokens.filter((t) => (MODS as readonly string[]).includes(t)));
+  const keys = tokens.filter((t) => !mods.has(t));
+  // A key is one character or a named key; longer words are a name ("evening"), not a key.
+  if (tokens.length === 0 || keys.some((k) => k.length > 1 && !/^(?:enter|escape|backspace|space|arrow(?:up|down|left|right))$/.test(k))) return null;
+  return { mods, keys };
+}
+
+const chordMods = (c: KeyChord) => MODS.filter((m) => c[m]);
+
+/** Whether a row's key is the typed one: the same chords, or, for modifiers alone, any key that holds them all. */
+function keyMatches(spec: string, typed: { mods: Set<string>; keys: string[] }): boolean {
+  if (spec === "alt") return typed.keys.length === 0 && [...typed.mods].every((m) => m === "alt");
+  const chords = parseShortcut(spec);
+  if (typed.keys.length === 0) return chords.some((c) => [...typed.mods].every((m) => chordMods(c).includes(m as (typeof MODS)[number])));
+  if (typed.keys.length !== chords.length) return false;
+  return chords.every((c, i) => c.key === typed.keys[i] && (i < chords.length - 1 || (chordMods(c).length === typed.mods.size && chordMods(c).every((m) => typed.mods.has(m)))));
+}
+
+/** Every word of the search starts a word of the row's name or note, or the search is one of its keys. */
+export function rowMatches(row: KeyRow, query: string): boolean {
   const words = fold(query).split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [...sections];
-  return sections
-    .map((s) => ({ ...s, rows: s.rows.filter((r) => {
-      const text = fold(`${r.match} ${s.label}`);
-      return words.every((w) => text.includes(w));
-    }) }))
-    .filter((s) => s.rows.length > 0);
+  if (words.length === 0) return true;
+  const text = fold(`${row.title} ${row.note ?? ""} ${row.words ?? ""}`).split(/[\s+/·(),:]+/);
+  if (words.every((w) => text.some((t) => t.startsWith(w)))) return true;
+  const typed = typedKey(query);
+  return Boolean(typed && row.specs.some((spec) => keyMatches(spec, typed)));
+}
+
+/** The sections with only the rows the search matches. */
+export function filterSections(sections: readonly KeySection[], query: string): KeySection[] {
+  if (!fold(query)) return [...sections];
+  return sections.map((s) => ({ ...s, rows: s.rows.filter((r) => rowMatches(r, query)) })).filter((s) => s.rows.length > 0);
 }
