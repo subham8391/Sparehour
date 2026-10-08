@@ -121,9 +121,9 @@ describe("<Sidebar>", () => {
     await user.click(search);
     expect(onPalette).toHaveBeenCalledTimes(1);
     const help = screen.getByRole("button", { name: "Keyboard shortcuts" });
-    // Beside Settings, in the footer; hidden on a touch device until a hardware keyboard types (`keyless:`).
+    // Beside Settings, in the footer; hidden on a touch device until a hardware keyboard types (`data-keys-only`).
     expect(help.parentElement).toContainElement(screen.getByRole("link", { name: "Settings" }));
-    expect(help.className).toMatch(/\bkeyless:hidden\b/);
+    expect(help).toHaveAttribute("data-keys-only");
     await user.click(help);
     expect(onShortcuts).toHaveBeenCalledTimes(1);
     unmount();

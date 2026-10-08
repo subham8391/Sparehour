@@ -1,7 +1,7 @@
 // A hardware keyboard on a touch device (SCREENS.md §24 "Touch", §1 "Responsive"): the kbd hints, the ? overlay's
 // key table and focus rings stay hidden on touch until a real key is pressed. An on-screen keyboard only ever types
 // into a field, so the first key pressed outside one is a hardware keypress: it stamps `data-keys` on <html> for the
-// rest of the visit (this tab's session), which globals.css reads (`keyless:` and the kbd and focus rules). On a
+// rest of the visit (this tab's session), which globals.css reads (kbd, `data-keys-only`, `data-keyless` and the focus rule). On a
 // device that can hover the stamp changes nothing.
 
 /** A field the keys type into: an on-screen keyboard's keys arrive here and nowhere else. */

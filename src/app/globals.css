@@ -288,16 +288,6 @@
 /* A device that cannot hover: the swipe-and-tap band, whatever its width. `touch:static`, `touch:hidden`. */
 @custom-variant touch (@media (hover: none));
 
-/* A touch device no hardware keyboard has typed on yet (SCREENS.md §24 "Touch"): the ? overlay's key table, the ?
-   button and kbd hints wait for the first real keypress, which stamps data-keys on <html> (commands/hardware-keys.ts). */
-@custom-variant keyless {
-  @media (hover: none) {
-    &:not(:where([data-keys], [data-keys] *)) {
-      @slot;
-    }
-  }
-}
-
 /* Reduce motion (SCREENS.md §18 Appearance): the system's setting, or this device's choice, which the head script
    stamps on <html> as data-motion="reduce" before the first paint. The built-in motion variants are redefined so
    `motion-safe:` and `motion-reduce:` follow both. */
@@ -441,11 +431,18 @@
 }
 
 /* Keyboard hints mean nothing on a touch device (DESIGN_SYSTEM.md §4a), and neither do focus rings (SCREENS.md §1),
-   until a hardware keyboard sends a keypress (data-keys, commands/hardware-keys.ts). Unlayered on purpose: it must
-   beat the utility. */
+   until a hardware keyboard sends a keypress, which stamps data-keys on <html> (commands/hardware-keys.ts): kbd,
+   whatever is marked `data-keys-only` (the ? button, the ? overlay's key table) and the rings wait for it, and what is
+   marked `data-keyless` (the overlay's sentence) shows only until then. Unlayered on purpose: it must beat the utility. */
+[data-keyless] {
+  display: none;
+}
 @media (hover: none) and (pointer: coarse) {
-  :root:not([data-keys]) kbd {
+  :root:not([data-keys]) :is(kbd, [data-keys-only]) {
     display: none;
+  }
+  :root:not([data-keys]) [data-keyless] {
+    display: block;
   }
   :root:not([data-keys]) :focus-visible {
     outline-color: transparent;

@@ -9,7 +9,7 @@ import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-re
 import type { PlanMode } from "@/features/planning/drawing";
 import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
-import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
+import type { SnoozePreset } from "@/features/tasks/snooze";
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
 import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
@@ -119,8 +119,10 @@ export const applyPatch = (ctx: CommandContext, ids: string[], patch: TaskPatch,
 };
 export const applyState = (ctx: CommandContext, ids: string[], state: TaskState) => (ids.length === 1 ? ctx.tasks.setState(ids[0], state) : ctx.tasks.setStateMany(ids, state));
 
+// The presets load with the first snooze key (the row ⋯ menu's island has them already), not with the shell.
 export const snooze = (presetId: SnoozePreset["id"]) =>
-  onTargets((ctx, ids) => {
+  onTargets(async (ctx, ids) => {
+    const { applySnooze, snoozePresets } = await import("@/features/tasks/snooze");
     const preset = snoozePresets(ctx.now, ctx.zone, ctx.today).find((p) => p.id === presetId);
     if (preset) return applySnooze(ctx.tasks, ids, preset);
   });
@@ -261,12 +263,8 @@ export const RUNS: readonly CommandRun[] = [
   { id: "create.task-here", shortcut: "n", run: async (ctx) => ctx.quickAdd(await prefillHere(ctx)) },
 
   // ---- go to
-  { id: "go.today", shortcut: "g t", run: (ctx) => ctx.go("/today") },
-  { id: "go.inbox", shortcut: "g i", run: (ctx) => ctx.go("/inbox") },
-  { id: "go.upcoming", shortcut: "g u", run: (ctx) => ctx.go("/upcoming") },
-  { id: "go.calendar", shortcut: "g c", run: (ctx) => ctx.go("/calendar") },
-  { id: "go.someday", shortcut: "g s", run: (ctx) => ctx.go("/someday") },
-  { id: "go.logbook", shortcut: "g l", run: (ctx) => ctx.go("/logbook") },
+  // `G` then the view's first letter.
+  ...["today", "inbox", "upcoming", "calendar", "someday", "logbook"].map((v): CommandRun => ({ id: `go.${v}`, shortcut: `g ${v[0]}`, run: (ctx) => ctx.go(`/${v}`) })),
   { id: "go.project", shortcut: "g p", run: (ctx) => ctx.openPalette("", "projects") },
   { id: "go.area", shortcut: "g a", run: (ctx) => ctx.openPalette("", "areas") },
   { id: "go.settings", shortcut: "mod+,", run: (ctx) => ctx.go("/settings") },

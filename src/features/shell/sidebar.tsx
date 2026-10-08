@@ -161,10 +161,10 @@ function SearchControl({ rail, isMac, onOpen }: { rail: boolean; isMac: boolean;
   );
 }
 
-/** The ? overlay, beside Settings: on a touch device only once a hardware keyboard has typed (`keyless:`). */
+/** The ? overlay, beside Settings: on a touch device only once a hardware keyboard has typed (`data-keys-only`, globals.css). */
 function ShortcutsButton({ onOpen }: { onOpen: () => void }) {
   return (
-    <button type="button" onClick={onOpen} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" className={cx(iconButtonClass(), "shrink-0 keyless:hidden")}>
+    <button type="button" onClick={onOpen} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-keys-only="" className={cx(iconButtonClass(), "shrink-0")}>
       <span aria-hidden="true" className="text-body font-medium">
         ?
       </span>
