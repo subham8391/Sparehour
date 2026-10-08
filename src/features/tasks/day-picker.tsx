@@ -54,10 +54,13 @@ export function pickerDayName(day: LocalDate, today: LocalDate): string {
   return ahead === 0 ? "Today" : ahead === 1 ? "Tomorrow" : `${weekdayName(day)} ${day.day}`;
 }
 
-/** The person's next seven days and each one's readout, from the capacity engine Upcoming uses. */
-export function usePickerDays(): { today: LocalDate; days: readonly LocalDate[]; readouts: ReadonlyMap<string, DayReadout> } {
+/**
+ * The person's next seven days and each one's readout, from the capacity engine Upcoming uses. `ready` once the
+ * settings row has been read: until then the day is UTC's, which is another date in the small hours.
+ */
+export function usePickerDays(): { today: LocalDate; days: readonly LocalDate[]; readouts: ReadonlyMap<string, DayReadout>; ready: boolean } {
   const now = useNow();
-  const { settings, today: day } = useLocalDay(now);
+  const { settings, today: day, ready } = useLocalDay(now);
   const todayIso = day.toString();
   const days = useMemo(() => pickerDays(localDate(todayIso)), [todayIso]);
   const today = days[0];
@@ -67,7 +70,7 @@ export function usePickerDays(): { today: LocalDate; days: readonly LocalDate[];
     for (const [iso, c] of capacity.byDay) out.set(iso, dayReadout(c, iso === todayIso));
     return out;
   }, [capacity, todayIso]);
-  return { today, days, readouts };
+  return { today, days, readouts, ready };
 }
 
 /**
@@ -145,7 +148,7 @@ export interface DayPickerProps {
 export function DayPicker({ taskId, title, current, label = "Move to…", anchor, onClose }: DayPickerProps) {
   const db = useLocalDatabase();
   const repo = useTaskRepo();
-  const { today, days, readouts } = usePickerDays();
+  const { today, days, readouts, ready } = usePickerDays();
   const [sheet] = useState(phoneWidth);
   // Whichever way it closes, focus goes back to what opened it (the row's ⋯), unless it has gone somewhere already.
   useEffect(
@@ -159,6 +162,9 @@ export function DayPicker({ taskId, title, current, label = "Move to…", anchor
     onClose();
     void moveToDay(db, repo, taskId, day);
   };
+  // Opened before the settings row has been read (a few milliseconds), it waits: in UTC the days would be another
+  // week's in the small hours, and when the zone came the list would be redrawn under the focused day, dropping focus.
+  if (!ready) return null;
   const body = <DayChoices title={title} current={current} today={today} days={days} readouts={readouts} onPick={pick} />;
   // At the end of the document, so no row, card or sheet around the opener clips or shifts it; a click inside does
   // not reach the row it came from (which would select it, or tick it on a long press).

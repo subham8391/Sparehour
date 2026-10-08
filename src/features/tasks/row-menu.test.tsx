@@ -163,6 +163,22 @@ describe("Move to…", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "More actions" })).toHaveFocus());
   });
 
+  it("waits for the account's settings row, so its days are never UTC's and focus lands on the first for good", async () => {
+    // In the small hours UTC's day is another date: the list drawn in UTC was redrawn when the zone came, under the
+    // focused day, and focus fell to the page (e2e row-menu.spec.ts between 04:00 and 05:00 in London).
+    const user = userEvent.setup();
+    settingsQuery = { data: [], isLoading: true };
+    const { rerender } = render(<Row />);
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move to…" }));
+    expect(screen.queryByRole("dialog", { name: "Move to…" })).toBeNull();
+    settingsQuery = { data: [], isLoading: false };
+    rerender(<Row />);
+    const picker = await screen.findByRole("dialog", { name: "Move to…" });
+    await waitFor(() => expect(within(picker).getAllByRole("button")[0]).toHaveFocus());
+    expect(within(picker).getAllByRole("button")[0]).toHaveTextContent(/^Today/);
+  });
+
   it("the palette's Move to… opens the selected row's picker", async () => {
     render(<Row selected />);
     let answered = false;
