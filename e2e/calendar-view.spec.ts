@@ -11,7 +11,7 @@
 // evening clear of the account's own blocks and meetings on the day used. Each test's rows are removed as it ends.
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { addAllDayHours, devAccount, isoPlus, putBack, removeOwn, standAside, withDb, type DevAccount, type StoodAside } from "./db";
+import { addAllDayHours, daysWithMeetings, devAccount, isoPlus, putBack, removeOwn, standAside, withDb, type DevAccount, type StoodAside } from "./db";
 import { clickTitle, DEV_USER, openApp, uniqueTitle } from "./helpers";
 import { blockOn, drag, hhmm, pointAt, quietStretch, seedBlock, seedTask, showMinute } from "./timeline-helpers";
 
@@ -112,9 +112,14 @@ test("Day, Work week and Week from the control and the palette; Cmd/Ctrl+1–3 s
 
 test("each day's header readout is Upcoming's figure for that day", async ({ page }) => {
   await openCalendar(page, "day");
+  // The calendar mirror reaches a fresh device on its own stream, after the first sync: until today's meetings are
+  // drawn its readout is not final, so a day with meetings is read only once they are on its column (and on Upcoming's bar).
+  const meets = (await withDb((c) => daysWithMeetings(c, me, [me.today]))).has(me.today);
+  if (meets) await expect(page.locator(`[data-calendar-grid] [data-day="${me.today}"] [data-meeting]`).first()).toBeAttached({ timeout: 30_000 });
   const readout = (await page.locator(`[data-day-header="${me.today}"]`).innerText()).match(/\d+h(?: \d+m)? (?:spare|over)|\d+m (?:spare|over)|no working hours|out of office/)?.[0];
   expect(readout).toBeTruthy();
   await page.goto("/upcoming");
+  if (meets) await expect(page.locator(`[data-day="${me.today}"] [data-segment="meeting"]`).first()).toBeAttached({ timeout: 30_000 });
   await expect(page.locator(`[data-column="${me.today}"]`).first()).toContainText(readout!);
 });
 
@@ -130,7 +135,7 @@ test("[ and ] step a day in the Day mode and a week in the Week mode; T comes ba
   await expect(page).toHaveURL(/\/calendar$/);
   await expect(columns(page).first()).toHaveAttribute("data-day", me.today);
 
-  await page.getByRole("radio", { name: "Week" }).click();
+  await page.getByRole("radio", { name: "Week", exact: true }).click();
   const first = await columns(page).first().getAttribute("data-day");
   await page.keyboard.press("]");
   await expect(columns(page).first()).toHaveAttribute("data-day", isoPlus(first!, 7));
@@ -139,7 +144,16 @@ test("[ and ] step a day in the Day mode and a week in the Week mode; T comes ba
 });
 
 test("a range with nothing on says how blocks get there", async ({ page }) => {
-  await openCalendar(page, "day", isoPlus(me.today, 400));
+  // A day past every meeting and block the account has: the seeded calendar has a meeting on every day for well over
+  // a year ahead, so no fixed distance from today is sure to be empty.
+  const empty = await withDb(async (c) => {
+    const { rows } = await c.query<{ d: string }>(
+      `select ((greatest(now(), (select max(end_at) from public.calendar_events where user_id = $1), (select max(end_at) from public.time_blocks where user_id = $1)) at time zone $2)::date + 1)::text as d`,
+      [me.uid, me.timezone],
+    );
+    return rows[0].d;
+  });
+  await openCalendar(page, "day", empty);
   await expect(page.getByText("Nothing on. Drag a task in, or drag on the grid to block time.")).toBeVisible();
 });
 
