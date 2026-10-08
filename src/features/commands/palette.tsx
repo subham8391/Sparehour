@@ -169,9 +169,9 @@ export function Palette(p: PaletteProps) {
     p.onQueryChange(q);
   };
 
-  /** Shows what a command answers: its words while it works, then its step, or closes when there is none. */
+  /** Shows what a command answers: its words while it works (when it has some), then its step, or closes when there is none. */
   const answer = (title: string, out: void | null | PaletteStep | Promise<PaletteStep | null | void>, working?: string) => {
-    setShown({ title, step: null, working });
+    if (working) setShown({ title, step: null, working });
     Promise.resolve(out).then(
       (next) => (next ? setShown({ title, step: next }) : p.onClose()),
       () => setShown({ title, step: { text: "That didn’t work. Try again in a moment.", status: true, error: true, actions: [{ label: "Done" }] } }),

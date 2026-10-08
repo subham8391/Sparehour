@@ -13,9 +13,9 @@ import { RUNS } from "./command-runs";
 import { PALETTE_RUNS, addTag, tagFromQuery, type PaletteContext } from "./palette-runs";
 import { COMMANDS, availability, keyBindings, type CommandContext } from "./registry";
 
-const signOutDevice = vi.fn(async (_db: unknown, _anyway?: boolean) => 0);
+const signOutDevice = vi.fn<(db: unknown, anyway?: boolean) => Promise<number>>(async () => 0);
 vi.mock("@/features/account/sign-out", async (load) => ({ ...(await load<typeof import("@/features/account/sign-out")>()), signOutDevice: (db: unknown, anyway?: boolean) => signOutDevice(db, anyway) }));
-const syncEverything = vi.fn(async (_calendar: boolean) => ({ ok: true, message: "Synced." }));
+const syncEverything = vi.fn<(calendar: boolean) => Promise<{ ok: boolean; message: string }>>(async () => ({ ok: true, message: "Synced." }));
 vi.mock("@/features/shell/sync-everything", () => ({ syncEverything: (calendar: boolean) => syncEverything(calendar) }));
 
 const byId = (id: string) => {

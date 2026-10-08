@@ -2,8 +2,8 @@
 // palette and the overlay, and a sample of the palette's newer commands — Export data, Sign out's confirmation in the
 // palette, Add tag, Add time block, Clear the slate, Sync now, and Block it off Today.
 import { expect, test } from "./fixtures";
-import { waitForRow, withDb } from "./db";
-import { E2E_PREFIX, openApp, quickAdd, uniqueTitle } from "./helpers";
+import { addAllDayHours, devAccount, waitForRow, withDb } from "./db";
+import { DEV_USER, E2E_PREFIX, openApp, quickAdd, uniqueTitle } from "./helpers";
 import type { Page } from "@playwright/test";
 
 const palette = (page: Page) => page.getByRole("dialog", { name: "Command palette" });
@@ -129,21 +129,30 @@ test("Add tag makes a tag on its own, which the @ picker then offers", async ({ 
   await withDb(async (c) => expect((await c.query("select count(*)::int as n from public.task_tags l join public.tags t on t.id = l.tag_id where t.name = $1", [name])).rows[0].n).toBe(0));
 });
 
-test("Add time block places a block of your own on today's timeline, ready to rename", async ({ page }) => {
-  const title = uniqueTitle("palette block");
-  await openApp(page, "/inbox");
-  await runCommand(page, "Add time block");
-  await expect(page).toHaveURL(/\/today/);
-  const day = page.getByRole("complementary", { name: "Your day" });
-  test.skip((await day.count()) === 0, "not a working day: no timeline today");
-  const name = day.getByRole("textbox", { name: "Block name" });
-  await expect(name).toBeFocused();
-  await name.fill(title);
-  await name.press("Enter");
-  const row = await waitForRow<{ start_at: string; end_at: string; task_id: string | null }>("select start_at, end_at, task_id from public.time_blocks where title = $1 and deleted_at is null", [title]);
-  expect(row).not.toBeNull();
-  expect(row!.task_id).toBeNull();
-  expect(new Date(row!.end_at).getTime() - new Date(row!.start_at).getTime()).toBe(30 * 60_000);
+test.describe("Add time block", () => {
+  // Working hours over the whole day, so the spec does not depend on today being a working day.
+  let added: string[] = [];
+  test.beforeAll(async () => {
+    added = await withDb(async (c) => addAllDayHours(c, await devAccount(c, DEV_USER.email)));
+  });
+  test.afterAll(async () => {
+    await withDb((c) => c.query("delete from public.work_hours where id = any($1)", [added]));
+  });
+
+  test("places a block of your own on today's timeline, 30 minutes, ready to rename", async ({ page }) => {
+    const title = uniqueTitle("palette block");
+    await openApp(page, "/inbox");
+    await runCommand(page, "Add time block");
+    await expect(page).toHaveURL(/\/today/);
+    const name = page.getByRole("complementary", { name: "Your day" }).getByRole("textbox", { name: "Block name" });
+    await expect(name).toBeFocused({ timeout: 15_000 });
+    await name.fill(title);
+    await name.press("Enter");
+    const row = await waitForRow<{ start_at: string; end_at: string; task_id: string | null }>("select start_at, end_at, task_id from public.time_blocks where title = $1 and deleted_at is null", [title]);
+    expect(row).not.toBeNull();
+    expect(row!.task_id).toBeNull();
+    expect(new Date(row!.end_at).getTime() - new Date(row!.start_at).getTime()).toBe(30 * 60_000);
+  });
 });
 
 test("Clear the slate opens Today's own confirmation", async ({ page }) => {
