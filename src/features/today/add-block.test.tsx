@@ -35,7 +35,7 @@ function day(over: Partial<PlacingDay> = {}): PlacingDay {
   };
 }
 
-const placer = (over: Partial<PlacingApi> = {}) => ({ createAdHoc: vi.fn(async () => "b9"), selectedBlockId: null, ...over }) as unknown as PlacingApi;
+const placer = (over: Partial<PlacingApi> = {}) => ({ createAdHoc: vi.fn(async () => "b9"), selectedBlockId: null, ready: true, ...over }) as unknown as PlacingApi;
 const drawn: TimelineBlock = { id: "b9", taskId: null, title: "Block", start: 660, end: 690, locked: false };
 
 afterEach(() => resetAddBlock());
@@ -78,6 +78,17 @@ describe("Add time block on today's day pane", () => {
     const p = placer();
     renderHook(() => useAddBlock(day(), p, null));
     expect(p.createAdHoc).toHaveBeenCalledWith(660, 690);
+  });
+
+  it("asked for elsewhere, waits for the pane to be able to write, rather than spending the request on nothing", () => {
+    // The pane mounts with the account's row still being read (palette-commands.spec.ts from the Inbox): taken then,
+    // the write had no space to go to and no block was ever made.
+    expect(requestAddBlock()).toBe(false);
+    const createAdHoc = vi.fn(async () => "b9");
+    const { rerender } = renderHook(({ pp }) => useAddBlock(day(), pp, null), { initialProps: { pp: placer({ ready: false, createAdHoc }) } });
+    expect(createAdHoc).not.toHaveBeenCalled();
+    rerender({ pp: placer({ ready: true, createAdHoc }) });
+    expect(createAdHoc).toHaveBeenCalledWith(660, 690);
   });
 });
 

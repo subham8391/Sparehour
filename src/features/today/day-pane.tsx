@@ -120,7 +120,10 @@ export function useAddBlock(day: PlacingDay, placer: PlacingApi, off: string | n
     };
   });
   const today = day.nowMinute !== null;
-  useEffect(() => (today ? onAddBlock(() => add.current()) : undefined), [today]);
+  // A request made elsewhere waits for the pane, which mounts with the account's row still being read: it is taken once
+  // a block can be written, or the write would have nowhere to go and the request would be spent on nothing.
+  const ready = placer.ready;
+  useEffect(() => (today && ready ? onAddBlock(() => add.current()) : undefined), [today, ready]);
   // The new block is drawn and selected a beat after the write: then its title opens (the timeline's own Rename).
   useEffect(() => {
     const id = renaming.current;

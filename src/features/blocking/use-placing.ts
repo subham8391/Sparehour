@@ -168,6 +168,8 @@ export function usePlacing(d: PlacingDay) {
 
   return {
     repo,
+    /** Whether a block can be written yet: the account's row has been read (a pane just mounted has not). */
+    ready: Boolean(users?.[0]?.personal_space_id),
     atMinute,
     selectedBlockId,
     setSelectedBlockId,
