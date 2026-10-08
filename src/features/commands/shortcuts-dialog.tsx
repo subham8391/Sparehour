@@ -16,6 +16,8 @@ import { COMMANDS, GROUP_ORDER, type Command } from "./registry";
 interface KeyRow {
   title: string;
   keys: string[];
+  /** Where the keys work, when not everywhere ("installed app"). */
+  note?: string;
 }
 
 /** One row per action: the same title in a group lists all of its keys together. */
@@ -26,7 +28,7 @@ function keyRows(commands: readonly Command[], isMac: boolean): KeyRow[] {
     const key = displayShortcut(c.shortcut, isMac);
     const row = rows.find((r) => r.title === c.title);
     if (row) row.keys.push(key);
-    else rows.push({ title: c.title, keys: [key] });
+    else rows.push({ title: c.title, keys: [key], note: c.keyNote });
   }
   return rows;
 }
@@ -71,7 +73,10 @@ export function ShortcutsDialog({ isMac, onClose }: { isMac: boolean; onClose: (
               <dl>
                 {g.rows.map((r) => (
                   <div key={r.title} className="flex min-h-8 items-center justify-between gap-3 text-body">
-                    <dt className="text-ink">{r.title}</dt>
+                    <dt className="text-ink">
+                      {r.title}
+                      {r.note && <span className="ml-1.5 text-body-sm text-ink-3">· {r.note}</span>}
+                    </dt>
                     <dd className="flex shrink-0 items-center gap-1">
                       {r.keys.map((k) => (
                         <Kbd key={k}>{k}</Kbd>

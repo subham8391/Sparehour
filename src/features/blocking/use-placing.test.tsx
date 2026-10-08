@@ -8,7 +8,7 @@ import type { TimelineBlock } from "@/features/today/hooks/use-today";
 import { BlockingProvider, useBlocking } from "./blocking-provider";
 import { nextBlockLength, usePlacing, type PlacingDay } from "./use-placing";
 
-const repo = { create: vi.fn(async () => "new"), move: vi.fn(), duplicate: vi.fn(async () => "copy"), remove: vi.fn(), setLocked: vi.fn(), rename: vi.fn() };
+const repo = { create: vi.fn(async () => "new"), createOnTaskDay: vi.fn(async () => "moved"), move: vi.fn(), duplicate: vi.fn(async () => "copy"), remove: vi.fn(), setLocked: vi.fn(), rename: vi.fn() };
 vi.mock("@/data/powersync", () => ({ useQuery: () => ({ data: [{ id: "u1", personal_space_id: "s1" }] }) }));
 vi.mock("./use-block-repo", () => ({ useBlockRepo: () => repo }));
 
@@ -97,5 +97,52 @@ describe("usePlacing", () => {
     act(() => result.current.placer.setPlacing("t2"));
     act(() => void window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
     expect(result.current.placer.placingTask).toBeUndefined();
+  });
+});
+
+describe("usePlacing on the Calendar's days (DECISIONS.md \"Calendar rail in week modes\")", () => {
+  const dated = (id: string, doDate: string): Task => ({ id: id as TaskId, title: `Task ${id}`, estimateMin: 60, doDate: localDate(doDate) }) as unknown as Task;
+  const today = [dated("r1", "2026-10-06"), dated("r2", "2026-10-07")];
+
+  it("a task planned for another day moves here with its block, as one write; one already here just gets the block", async () => {
+    const { result } = setup({ movesTasks: true, findTask: (id) => today.find((t) => t.id === id) });
+    await act(async () => void (await result.current.placer.placeTask(today[0], 840)));
+    expect(repo.createOnTaskDay).toHaveBeenCalledWith(
+      { spaceId: "s1", userId: "u1", taskId: "r1", title: "Task r1", startAt: "2026-10-07T14:00:00Z", endAt: "2026-10-07T15:00:00Z" },
+      localDate("2026-10-07"),
+    );
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(result.current.placer.selectedBlockId).toBe("moved");
+    await act(async () => void (await result.current.placer.placeTask(today[1], 900)));
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ taskId: "r2", startAt: "2026-10-07T15:00:00Z" }));
+  });
+
+  it("tap-to-schedule on another day moves the task there too", async () => {
+    const { result } = setup({ movesTasks: true, findTask: (id) => today.find((t) => t.id === id) });
+    act(() => result.current.placer.setPlacing("r1"));
+    await act(async () => result.current.placer.tapSlot(600));
+    expect(repo.createOnTaskDay).toHaveBeenCalledWith(expect.objectContaining({ taskId: "r1", startAt: "2026-10-07T10:00:00Z" }), localDate("2026-10-07"));
+  });
+
+  it("without movesTasks (Today, the morning plan) a task keeps its day", async () => {
+    const { result } = setup({ findTask: (id) => today.find((t) => t.id === id) });
+    await act(async () => void (await result.current.placer.placeTask(today[0], 840)));
+    expect(repo.createOnTaskDay).not.toHaveBeenCalled();
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ taskId: "r1" }));
+  });
+
+  it("only the day that answers B registers it; the others leave it to that one", async () => {
+    const quiet = setup({ answersB: false });
+    expect(quiet.result.current.blocking.available).toBe(false);
+    const { result } = setup({ answersB: true });
+    expect(result.current.blocking.available).toBe(true);
+  });
+
+  it("blocking paused: nothing new lands, on any day", async () => {
+    const { result } = setup({ movesTasks: true, off: "Blocking is paused", findTask: (id) => today.find((t) => t.id === id) });
+    await act(async () => void (await result.current.placer.placeTask(today[0], 840)));
+    await act(async () => result.current.blocking.blockTask("r1"));
+    expect(repo.createOnTaskDay).not.toHaveBeenCalled();
+    expect(repo.create).not.toHaveBeenCalled();
   });
 });
