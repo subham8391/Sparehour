@@ -1,4 +1,14 @@
 @import "tailwindcss";
+/* Only the app's own sources make utilities: words in the docs, the end-to-end specs, the unit tests and the SQL are
+   not class names, and each one Tailwind took for one was a rule in every shell's stylesheet. */
+@source not "../../*.md";
+@source not "../../docs";
+@source not "../../e2e";
+@source not "../../supabase";
+@source not "../../scripts";
+@source not "../../powersync";
+@source not "../../public";
+@source not "../**/*.test.{ts,tsx}";
 
 /* Refined Daylight tokens (docs/design/DESIGN_SYSTEM.md §2, DECISIONS.md Q26).
    Light is the base; the dark set applies to the un-stamped system theme and
@@ -424,6 +434,53 @@
 @media (hover: none) and (pointer: coarse) {
   kbd {
     display: none;
+  }
+}
+
+/* The shell's frame keeps the rail and the view clear of a landscape phone's notch and rounded corners (DESIGN_SYSTEM.md
+   §4a "Safe areas"); in portrait the side insets are zero. A held finger on a rail icon shows its name (SCREENS.md §1),
+   so the link's iOS callout stays out of the way (the icons have no text to select), and so does iPadOS lifting the
+   held link to drag it, which would cancel the press. */
+[data-view] {
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+nav[data-variant="rail"] a {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+
+/* The per-device layout choices on <html>, stamped before the first paint (features/shell/panes.ts). Unlayered: they
+   must beat the panes' own band utilities. From the medium band the rail stands in for the folded sidebar (Cmd+\);
+   from the wide band Today's day pane and its edge can be put away (Cmd+.). */
+@media (min-width: 900px) {
+  [data-sidebar="rail"] nav[data-variant="full"] {
+    display: none;
+  }
+  [data-sidebar="rail"] nav[data-variant="rail"] {
+    display: flex;
+  }
+}
+@media (min-width: 1180px) {
+  [data-day-pane="hidden"] [data-today-pane] {
+    display: none;
+  }
+}
+/* Today on a phone (SCREENS.md §2.8, §22): the ribbon card and the ritual row stay under the top edge while the lists
+   scroll, on paper so the rows pass beneath. A wrapper with no box of its own from the narrow band up. */
+[data-hero] {
+  display: contents;
+}
+@media (max-width: 639px) {
+  [data-hero="sticky"]:not(:empty) {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 6);
+    margin: calc(var(--spacing) * -3) calc(var(--spacing) * -5);
+    padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
+    background: var(--paper);
   }
 }
 

@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { localTime } from "@/core/time";
-import { RitualRow, type RitualRowProps } from "./ritual-row";
+import { RitualActions, RitualRow, type RitualRowProps } from "./ritual-row";
 
 function setup(over: Partial<RitualRowProps> = {}) {
   const props: RitualRowProps = {
@@ -19,7 +19,13 @@ function setup(over: Partial<RitualRowProps> = {}) {
     onView: vi.fn(),
     ...over,
   };
-  render(<RitualRow {...props} />);
+  // Two siblings on the page: the row sticks under the top edge on a phone, the actions line scrolls with the lists.
+  render(
+    <>
+      <RitualRow {...props} />
+      <RitualActions {...props} />
+    </>,
+  );
   return props;
 }
 

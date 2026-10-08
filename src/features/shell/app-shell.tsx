@@ -113,7 +113,9 @@ function Frame({ children }: { children: ReactNode }) {
   // The first run is the whole screen: no navigation to wander off into, nothing beside it.
   if (!showsChrome(pathname)) return <div className="flex min-h-dvh flex-col overflow-x-clip">{children}</div>;
   return (
-    <div className="flex min-h-dvh overflow-x-clip sm:h-dvh">
+    // `data-view` picks the view's own context pane width (SCREENS.md §1; the rules are pane-resizer.tsx's), and
+    // keeps the rail and the view clear of a landscape phone's notch and corners (globals.css).
+    <div data-view={pathname.split("/")[1]} className="flex min-h-dvh overflow-x-clip sm:h-dvh">
       <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden sm:flex md:hidden" />
       <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} className="hidden md:flex" />
       <SidebarDragIsland areas={areas} />

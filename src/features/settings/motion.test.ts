@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MOTION_KEY, THEME_BOOTSTRAP } from "@/features/commands/theme";
+import { MOTION_KEY } from "@/features/commands/theme";
+import { THEME_BOOTSTRAP } from "@/features/commands/theme-bootstrap";
 import { applyMotion, readMotion, subscribeMotion } from "./motion";
 
 afterEach(() => {

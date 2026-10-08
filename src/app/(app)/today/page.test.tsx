@@ -12,6 +12,7 @@ import { formatDay } from "@/core/time/format-day";
 import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { runViewKey } from "@/features/commands/view-keys";
+import { requestToday } from "@/features/today/today-request";
 import { SelectionProvider, useSelection } from "@/features/selection/selection-provider";
 import { localSqlite, type Row } from "@/test/local-sqlite";
 
@@ -221,5 +222,60 @@ describe("what the merged units draw on a stepped day", () => {
     } finally {
       delete w.__sparehourFail;
     }
+  });
+});
+
+describe("Today's panes (SCREENS.md §1 Context pane, §2.8; DECISIONS.md “Medium and narrow Today”)", () => {
+  const wide = (on: boolean) => vi.stubGlobal("matchMedia", (q: string) => ({ matches: on && q.includes("min-width"), addEventListener() {}, removeEventListener() {} }));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete document.documentElement.dataset.dayPane;
+    localStorage.clear();
+  });
+
+  it("below the wide band Cmd+. switches List | Day in place, and back", async () => {
+    wide(false);
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    const day = await screen.findByRole("button", { name: "Day" });
+    expect(day).toHaveAttribute("aria-pressed", "false");
+    act(() => void requestToday({ kind: "pane" }));
+    expect(day).toHaveAttribute("aria-pressed", "true");
+    act(() => void requestToday({ kind: "pane" }));
+    expect(day).toHaveAttribute("aria-pressed", "false");
+    expect(document.documentElement.dataset.dayPane).toBeUndefined();
+  });
+
+  it("from the wide band Cmd+. puts the day pane away and brings it back, remembered on this device", async () => {
+    wide(true);
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    expect(screen.getByRole("complementary", { name: "Your day" })).toHaveAttribute("data-today-pane");
+    act(() => void requestToday({ kind: "pane" }));
+    expect(document.documentElement.dataset.dayPane).toBe("hidden");
+    expect(localStorage.getItem("sparehour.dayPane")).toBe("hidden");
+    act(() => void requestToday({ kind: "pane" }));
+    expect(document.documentElement.dataset.dayPane).toBeUndefined();
+  });
+
+  it("Plan my day brings a put-away day pane back, so its proposal shows (SCREENS.md §2.6a)", async () => {
+    wide(true);
+    document.documentElement.dataset.dayPane = "hidden";
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    await userEvent.click(screen.getAllByRole("button", { name: "Plan my day" })[0]);
+    expect(document.documentElement.dataset.dayPane).toBeUndefined();
+  });
+
+  it("on a phone the ribbon card and the List | Day row stick together; Plan my day scrolls with the lists", async () => {
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    const hero = document.querySelector('[data-hero="sticky"]') as HTMLElement;
+    expect(within(hero).getByRole("region", { name: "Spare time today" })).toBeInTheDocument();
+    expect(within(hero).getByTestId("ritual-line")).toBeInTheDocument();
+    // One live region in it: the ribbon's own, not a copy.
+    expect(hero.querySelectorAll("[aria-live]")).toHaveLength(1);
+    expect(within(hero).queryByTestId("ritual-actions")).toBeNull();
+    expect(screen.getByTestId("ritual-actions")).toHaveTextContent("Plan my day");
   });
 });

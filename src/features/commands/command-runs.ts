@@ -14,6 +14,7 @@ import { applySnooze, snoozePresets, type SnoozePreset } from "@/features/tasks/
 import type { DetailField } from "@/features/tasks/task-detail";
 import { requestToday } from "@/features/today/today-request";
 import { requestTimeline, timelineUnavailable } from "@/features/today/timeline-request";
+import { needsWidth, toggleSidebar } from "@/features/shell/panes";
 import type { Binding } from "./keys";
 import { hasViewKey, runViewKey, type ViewKey } from "./view-keys";
 
@@ -42,6 +43,8 @@ export interface CommandContext {
   openTask: (id: string, field?: DetailField) => void;
   /** The task whose detail is open, if any: E there opens the panel's own Estimate field. */
   detailId?: string | null;
+  /** Cmd+. away from Today: closes the open detail, or opens the last one again (else the selected task's). */
+  toggleDetail?: () => void;
   /** One picker for every ticked row: the choice is one write and one undo; the ticks clear after. */
   editTicked: (field: DetailField) => void;
   moveSelection: (delta: 1 | -1) => void;
@@ -354,6 +357,11 @@ export const RUNS: readonly CommandRun[] = [
   ),
   // The selected block's Move to…, Duplicate and Rename: no single key (DECISIONS.md "`M` on the timeline"), the toolbar and here.
   ...(["move", "duplicate", "rename"] as const).map((b): CommandRun => ({ id: `block.${b}`, run: () => void requestTimeline(`${b}-block`), unavailable: () => timelineUnavailable(true) })),
+  // The panes (SCREENS.md §1, §24): Cmd+\ folds the sidebar to the rail from the medium band. Cmd+. is the context
+  // pane's: on Today the timeline (the List | Day view below the wide band, DECISIONS.md "Medium and narrow Today"),
+  // elsewhere the task detail.
+  { id: "view.toggle-sidebar", shortcut: "mod+\\", run: toggleSidebar, unavailable: needsWidth(900) },
+  { id: "view.toggle-pane", shortcut: "mod+.", run: (ctx) => void (ctx.pathname === "/today" ? requestToday({ kind: "pane" }) : ctx.toggleDetail?.()), unavailable: needsWidth(640) },
   { id: "view.theme-light", run: (ctx) => ctx.setTheme("light") },
   { id: "view.theme-dark", run: (ctx) => ctx.setTheme("dark") },
   { id: "view.theme-system", run: (ctx) => ctx.setTheme("system") },

@@ -79,6 +79,36 @@ describe("<Sidebar>", () => {
     expect(within(nav).getByRole("link", { name: "Browse" })).toHaveAttribute("href", "/browse");
     expect(within(nav).getByRole("button", { name: "Synced 10s ago" })).toBeInTheDocument();
   });
+
+  it("Collapse sidebar folds the full sidebar to the rail and Expand sidebar opens it again, focus following (Cmd+\\)", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Sidebar rail pathname="/today" counts={{ inbox: 0, today: 0 }} areas={areas} sync={sync} />
+        <Sidebar pathname="/today" counts={{ inbox: 0, today: 0 }} areas={areas} sync={sync} />
+      </>,
+    );
+    const collapse = screen.getByRole("button", { name: "Collapse sidebar" });
+    const expand = screen.getByRole("button", { name: "Expand sidebar" });
+    // Each nav carries one: the rail's only from the medium band, where it stands in for the folded sidebar.
+    expect(collapse.closest("nav")).toHaveAttribute("data-variant", "full");
+    expect(expand.closest("nav")).toHaveAttribute("data-variant", "rail");
+    expect(expand).toHaveClass("max-md:hidden");
+    expect(expand).not.toHaveClass("hidden");
+    await user.click(collapse);
+    expect(document.documentElement.dataset.sidebar).toBe("rail");
+    expect(localStorage.getItem("sparehour.sidebar")).toBe("rail");
+    expect(expand).toHaveFocus();
+    await user.click(expand);
+    expect(document.documentElement.dataset.sidebar).toBeUndefined();
+    expect(collapse).toHaveFocus();
+  });
+
+  it("the rail's names carry the count and a tooltip, Settings included", () => {
+    render(<Sidebar rail pathname="/inbox" counts={{ inbox: 3, today: 4 }} areas={areas} sync={sync} />);
+    expect(screen.getByRole("link", { name: "Today, 4" })).toHaveAttribute("title", "Today");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("title", "Settings");
+  });
 });
 
 describe("<TabBar>", () => {

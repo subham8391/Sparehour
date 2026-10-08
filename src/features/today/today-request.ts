@@ -4,7 +4,8 @@
 // does (features/planning/plan-request.ts).
 import type { TodaySort } from "@/core/today/sort-options";
 
-export type TodayRequest = { kind: "trim" } | { kind: "sort"; sort: TodaySort } | { kind: "completed" } | { kind: "jump" };
+/** `pane`: Cmd+. — the timeline beside the list from the wide band, the List | Day view below it. */
+export type TodayRequest = { kind: "trim" } | { kind: "sort"; sort: TodaySort } | { kind: "completed" } | { kind: "jump" } | { kind: "pane" };
 type Handler = (request: TodayRequest) => void;
 
 let handler: Handler | null = null;
