@@ -1,8 +1,8 @@
 "use client";
-// The keyboard layer: one listener, the command registry, the `G` chords,
-// and the rule that any unbound printable key opens quick-add and types
-// itself (SCREENS.md §1 focus model, rule 4). Also owns the `?` overlay
-// and the theme.
+// The keyboard layer: one listener, the command registry's keyed half, the
+// `G` chords, and the rule that any unbound printable key opens quick-add and
+// types itself (SCREENS.md §1 focus model, rule 4). Also owns the `?` overlay,
+// the theme, and noticing a hardware keyboard on a touch device.
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
@@ -26,11 +26,11 @@ import { RUNS, availability, keyBindings, type CommandContext, type CommandRun, 
 import dynamic from "next/dynamic";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { applyTheme, readTheme } from "./theme";
+import { isTypingTarget, watchHardwareKeys } from "./hardware-keys";
 
 const BINDINGS = keyBindings(RUNS);
 
 interface CommandsApi {
-  commands: readonly CommandRun[];
   run: (command: CommandRun) => void;
   context: () => CommandContext;
   isMac: boolean;
@@ -53,12 +53,6 @@ export function useCommandsOptional(): CommandsApi | null {
 // The ? overlay loads on idle rather than with every page (the shells' 320 KB budget).
 const loadShortcuts = () => import("./shortcuts-dialog");
 const ShortcutsDialog = dynamic(() => loadShortcuts().then((m) => m.ShortcutsDialog), { ssr: false });
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  if (!el || typeof el.closest !== "function") return false;
-  return Boolean(el.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']"));
-}
 
 /** A focused control that Enter or Space already presses (a button, a link, a menu item, a switch…). */
 function isActivatable(target: EventTarget | null): boolean {
@@ -92,6 +86,8 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
     applyTheme(readTheme());
   }, []);
   useEffect(() => preloadOnIdle(loadShortcuts), []);
+  // kbd hints, the ? overlay's keys and focus rings come back on a touch device once a hardware key is pressed.
+  useEffect(() => watchHardwareKeys(), []);
   // Appearance is an account setting (SCREENS.md §18): the stored choice follows the person to every device. This
   // device's copy (localStorage, read before paint) catches up once the settings row is here.
   const { data: settingsRows } = useQuery<{ id: string; theme: string | null }>(SETTINGS_SQL);
@@ -132,6 +128,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       redo: () => void undoApi?.redo(),
       canRedo: undoApi?.canRedo ?? false,
       blockTask: (id) => blocking?.blockTask(id),
+      canBlock: blocking ? blocking.available : undefined,
       planDay: (mode) => {
         // Today and the morning plan take the request where they are; anywhere else it waits for Today to open.
         if (!requestPlan(mode)) router.push("/today");
@@ -226,7 +223,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
     return () => window.removeEventListener("keydown", onKey);
   }, [isMac, run, unwind]);
 
-  const api = useMemo<CommandsApi>(() => ({ commands: RUNS, run, context: () => contextRef.current(), isMac, openShortcuts: () => setShortcutsOpen(true) }), [run, isMac]);
+  const api = useMemo<CommandsApi>(() => ({ run, context: () => contextRef.current(), isMac, openShortcuts: () => setShortcutsOpen(true) }), [run, isMac]);
 
   return (
     <CommandsContext.Provider value={api}>

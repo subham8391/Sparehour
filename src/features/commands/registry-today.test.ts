@@ -76,14 +76,10 @@ describe("Today's view commands", () => {
     ]);
   });
 
-  it("Sort by… reopens the palette on the five sorts once it has closed", () => {
-    vi.useFakeTimers();
-    const c = ctx();
-    void byId("view.sort").run(c);
-    expect(c.openPalette).not.toHaveBeenCalled();
-    vi.runAllTimers();
-    expect(c.openPalette).toHaveBeenCalledWith("Sort Today by ");
-    vi.useRealTimers();
+  it("Sort by… types the five sorts' prefix into the palette, which stays open on them", () => {
+    expect(byId("view.sort").fill).toBe("Sort Today by ");
+    const sorts = COMMANDS.filter((c) => c.title.startsWith(byId("view.sort").fill!));
+    expect(sorts).toHaveLength(5);
   });
 
   it("a sort and Show completed go to Today", () => {

@@ -4,7 +4,9 @@
 // command shows its shortcut, which is how shortcuts get learned. Enter
 // runs the highlighted row (the top one by default). On open with nothing
 // selected the task actions stay out of the way (brief D12); they are still
-// found by name, greyed, with the reason. Presentational.
+// found by name, greyed, with the reason. A command that asks first (Sign
+// out) or answers (Sync now) shows its step in place of the list, in the same
+// palette (§12 rules); Esc goes back to the list. Presentational.
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Task } from "@/core/types";
 import { Button } from "@/ui/button";
@@ -19,7 +21,8 @@ import { DayChipTag } from "@/features/tasks/day-chip-tag";
 import type { LocalDate } from "@/core/time";
 import { displayShortcut } from "./keys";
 import { rankCommands, rankNamed, rankScoped } from "./palette-rank";
-import type { Availability, Command, CommandGroup, PaletteScope } from "./registry";
+import { tagFromQuery } from "./palette-runs";
+import type { Availability, Command, CommandGroup, PaletteScope, PaletteStep } from "./registry";
 
 export interface PaletteNamed {
   id: string;
@@ -44,7 +47,10 @@ export interface PaletteProps {
   today: LocalDate;
   isMac: boolean;
   onQueryChange: (query: string) => void;
-  onRun: (command: Command) => void;
+  /** Runs the command; one that answers in the palette (`step`) resolves to what to show next, or null to close. */
+  onRun: (command: Command) => void | null | Promise<PaletteStep | null>;
+  /** 'Add tag "calls"': makes the tag; resolves to a step to show (it was taken already), or null to close. */
+  onAddTag?: (name: string) => Promise<PaletteStep | null>;
   onOpenTask: (id: string) => void;
   onGo: (href: string) => void;
   onAddTask: (title: string) => void;
@@ -55,7 +61,16 @@ type Row =
   | { kind: "command"; key: string; command: Command; availability: Availability }
   | { kind: "task"; key: string; task: Task }
   | { kind: "named"; key: string; item: PaletteNamed; icon: IconName; label: string }
+  | { kind: "tag"; key: string; name: string }
+  | { kind: "search"; key: string; query: string }
   | { kind: "add"; key: string; title: string };
+
+/** A step on screen: the command's name, and its question or result (null while it works, with the words for that). */
+interface Shown {
+  title: string;
+  step: PaletteStep | null;
+  working?: string;
+}
 
 // The icon column (DESIGN_SYSTEM.md §6): a glyph per command where one fits, the group's otherwise.
 const COMMAND_ICON: Record<string, IconName> = {
@@ -88,6 +103,10 @@ const COMMAND_ICON: Record<string, IconName> = {
   "app.search": "search",
   "app.connect-calendar": "calendar",
   "app.export": "arrow-down",
+  "app.sync": "cloud-check",
+  "create.inbox": "inbox",
+  "create.block": "clock",
+  "day.clear-slate": "check",
 };
 const GROUP_ICON: Record<CommandGroup, IconName> = {
   Create: "plus",
@@ -107,6 +126,12 @@ export function Palette(p: PaletteProps) {
   const listId = useId();
   // The highlight follows the pointer only while it moves (a resting pointer never takes it from the best match).
   const pointTo = usePointerHighlight(setHighlight);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const stepRef = useRef<HTMLDivElement>(null);
+  // A question or a result takes focus at its first button, the default.
+  useEffect(() => {
+    if (shown?.step) stepRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, [shown]);
 
   useEffect(() => {
     if (p.open) inputRef.current?.focus();
@@ -128,6 +153,12 @@ export function Palette(p: PaletteProps) {
     for (const item of rankNamed(query, areas, 3)) out.push({ kind: "named", key: `a:${item.id}`, item, icon: "grid", label: "Area" });
     for (const task of tasks.slice(0, 8)) out.push({ kind: "task", key: `t:${task.id}`, task });
     if (trimmed) out.push({ kind: "add", key: "add", title: trimmed });
+    // Search proper (SCREENS.md §13), with its filters, for the same words: after Add, so Enter on words nothing
+    // matched still adds them as a task.
+    if (trimmed) out.push({ kind: "search", key: "search", query: trimmed });
+    // 'add tag calls' offers to make the tag first (DECISIONS.md "Palette Add tag and Add time block").
+    const tag = tagFromQuery(query);
+    if (tag) out.unshift({ kind: "tag", key: "tag", name: tag });
     return out;
   }, [query, commands, recents, projects, areas, tasks, avail, scope, places]);
 
@@ -137,11 +168,38 @@ export function Palette(p: PaletteProps) {
     p.onQueryChange(q);
   };
 
+  /** Shows what a command answers: its words while it works, then its step, or closes when there is none. */
+  const answer = (title: string, out: void | null | PaletteStep | Promise<PaletteStep | null | void>, working?: string) => {
+    setShown({ title, step: null, working });
+    Promise.resolve(out).then(
+      (next) => (next ? setShown({ title, step: next }) : p.onClose()),
+      () => setShown({ title, step: { text: "That didn’t work. Try again in a moment.", status: true, actions: [{ label: "Done" }] } }),
+    );
+  };
+  const back = () => {
+    setShown(null);
+    inputRef.current?.focus();
+  };
+
   const activate = (row: Row) => {
     switch (row.kind) {
-      case "command":
+      case "command": {
+        const c = row.command;
         if (!row.availability.enabled) return;
-        p.onRun(row.command);
+        // Add tag…, Sort by…: the words go into the field and the palette waits for the rest.
+        if (c.fill) {
+          setQ(c.fill);
+          inputRef.current?.focus();
+          return;
+        }
+        const out = p.onRun(c);
+        if (c.step) return answer(c.title, out, c.working);
+        break;
+      }
+      case "tag":
+        return answer("Add tag", p.onAddTag?.(row.name) ?? null);
+      case "search":
+        p.onGo(`/search?q=${encodeURIComponent(row.query)}`);
         break;
       case "task":
         p.onOpenTask(row.task.id);
@@ -176,10 +234,11 @@ export function Palette(p: PaletteProps) {
   if (!p.open) return null;
 
   const sections: { label: string; rows: Row[] }[] = [
-    { label: "Actions", rows: rows.filter((r) => r.kind === "command") },
+    { label: "Actions", rows: rows.filter((r) => r.kind === "command" || r.kind === "tag") },
     { label: scope === "projects" ? "Projects" : scope === "areas" ? "Areas" : "Go to", rows: rows.filter((r) => r.kind === "named") },
     { label: "Tasks", rows: rows.filter((r) => r.kind === "task") },
     { label: "Add", rows: rows.filter((r) => r.kind === "add") },
+    { label: "Search", rows: rows.filter((r) => r.kind === "search") },
   ].filter((s) => s.rows.length > 0);
   const highlighted = rows[highlight];
   const prompt = scope === "projects" ? "Go to project…" : scope === "areas" ? "Go to area…" : "Search or run a command…";
@@ -187,6 +246,51 @@ export function Palette(p: PaletteProps) {
   return (
     // A fixed height on the phone so the sheet does not grow and shrink as the results change under the keyboard.
     <Sheet label={scope ? prompt.slice(0, -1) : "Command palette"} onClose={p.onClose} width="lg" className="max-sm:h-[80dvh] sm:max-h-[70vh]">
+      {shown ? (
+        <div
+          ref={stepRef}
+          role="group"
+          aria-label={shown.title}
+          // Esc goes back to the list, one layer (SCREENS.md §1 rule 3); the sheet closes on the next one.
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            e.preventDefault();
+            back();
+          }}
+          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pt-4 pb-5"
+        >
+          <h3 className={EYEBROW}>{shown.title}</h3>
+          {shown.step ? (
+            <>
+              <p role={shown.step.status ? "status" : undefined} className="text-body text-pretty text-ink">
+                {shown.step.text}
+              </p>
+              {shown.step.note && <p className="text-body-sm text-pretty text-ink-2">{shown.step.note}</p>}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {shown.step.actions.map((a, i) => (
+                  <Button
+                    key={a.label}
+                    variant={i === 0 && !a.tone ? "primary" : "secondary"}
+                    tone={a.tone}
+                    onClick={() => {
+                      const run = a.run;
+                      if (run) answer(shown.title, run(), a.working);
+                      else p.onClose();
+                    }}
+                  >
+                    {a.label}
+                  </Button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p role="status" className="text-body text-ink-2">
+              {shown.working ?? ""}
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
       {/* The search box has no border of its own, so the header row is its edge: it switches to ink while the field has focus, and there is no ring (DESIGN_SYSTEM.md §5 "Buttons"). */}
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 transition-colors dur-fast has-[input:focus]:border-ink">
         <Icon name="search" size={18} className="shrink-0 text-ink-3" />
@@ -232,7 +336,8 @@ export function Palette(p: PaletteProps) {
                     aria-disabled={disabled || undefined}
                     onMouseMove={(e) => pointTo(e, index)}
                     onClick={() => activate(row)}
-                    className={cx("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 text-body", active && "bg-surface-2", disabled ? "text-ink-3" : "text-ink")}
+                    // 48 px on a phone and on touch (SCREENS.md §12 "Responsive"), 44 px under a pointer.
+                    className={cx("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 text-body max-sm:min-h-12 touch:min-h-12", active && "bg-surface-2", disabled ? "text-ink-3" : "text-ink")}
                   >
                     {row.kind === "command" && (
                       <>
@@ -256,6 +361,18 @@ export function Palette(p: PaletteProps) {
                         <DayChipTag chip={dayChip(row.task, p.today)} />
                       </>
                     )}
+                    {row.kind === "tag" && (
+                      <>
+                        <Icon name="plus" size={16} className="shrink-0 text-ink-3" />
+                        <span className="min-w-0 flex-1 truncate">Add tag “{row.name}”</span>
+                      </>
+                    )}
+                    {row.kind === "search" && (
+                      <>
+                        <Icon name="search" size={16} className="shrink-0 text-ink-3" />
+                        <span className="min-w-0 flex-1 truncate">Search for “{row.query}”</span>
+                      </>
+                    )}
                     {row.kind === "add" && (
                       <>
                         <Icon name="plus" size={16} className="shrink-0 text-ink-3" />
@@ -269,6 +386,8 @@ export function Palette(p: PaletteProps) {
           </section>
         ))}
       </div>
+        </>
+      )}
     </Sheet>
   );
 }

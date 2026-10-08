@@ -83,8 +83,9 @@ describe("Calendar: Day · Work week · Week", () => {
 
   it("the ? overlay marks them as the installed app's", () => {
     render(<ShortcutsDialog isMac onClose={() => {}} />);
-    const row = screen.getByText("Calendar: Week").closest("div")!;
-    expect(row).toHaveTextContent("installed app");
-    expect(within(row).getByText("⌘3")).toBeInTheDocument();
+    // One row for the three, as SCREENS.md §24 has it.
+    const row = screen.getByText("Calendar: day · work week · week").closest("div")!;
+    expect(row).toHaveTextContent("In the installed app; a browser tab keeps these keys");
+    expect(["⌘1", "⌘2", "⌘3"].map((k) => within(row).getByText(k))).toHaveLength(3);
   });
 });

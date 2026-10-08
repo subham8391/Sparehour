@@ -146,9 +146,17 @@ describe("<Palette>", () => {
     const { user, input, onAddTask, onQueryChange } = setup();
     await user.type(input, "zzz new thing");
     expect(onQueryChange).toHaveBeenLastCalledWith("zzz new thing");
-    expect(screen.getAllByRole("option")).toHaveLength(1);
+    // Add, then Search for the same words (SCREENS.md §13); Enter takes the top one.
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Add task “zzz new thing”", "Search for “zzz new thing”"]);
     await user.keyboard("{Enter}");
     expect(onAddTask).toHaveBeenCalledWith("zzz new thing");
+  });
+
+  it("Search for “…” opens Search on the same words", async () => {
+    const { user, input, onGo } = setup();
+    await user.type(input, "zzz new thing");
+    await user.click(screen.getByRole("option", { name: "Search for “zzz new thing”" }));
+    expect(onGo).toHaveBeenCalledWith("/search?q=zzz%20new%20thing");
   });
 
   it("Escape closes", async () => {

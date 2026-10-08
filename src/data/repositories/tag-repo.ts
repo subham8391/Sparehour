@@ -11,6 +11,36 @@ export class TagRepo {
     private readonly history?: UndoRecorder,
   ) {}
 
+  /**
+   * A tag on its own, with no task yet (the palette's 'Add tag "calls"', DECISIONS.md "Palette Add tag and Add time
+   * block"): it then shows in the @ suggestions and Search's filters. A name already taken (any case) makes nothing and
+   * resolves `created: false`; a new one is one undo entry with a toast, whose undo removes the tag again.
+   */
+  async create(spaceId: string, name: string): Promise<{ id: string; name: string; created: boolean } | null> {
+    const clean = name.trim().replace(/^@/, "").trim();
+    if (!clean) return null;
+    const now = new Date().toISOString();
+    const out = await this.db.writeTransaction(async (tx) => {
+      const taken = await tx.getOptional<{ id: string; name: string | null }>(`select id, name from tags where deleted_at is null and lower(name) = lower(?) limit 1`, [clean]);
+      if (taken) return { id: taken.id, name: taken.name ?? clean, created: false };
+      const id = crypto.randomUUID();
+      await tx.execute(`insert into tags (id, space_id, name, created_at, updated_at) values (?, ?, ?, ?, ?)`, [id, spaceId, clean, now, now]);
+      return { id, name: clean, created: true };
+    });
+    if (this.history && out.created) {
+      this.history.record({
+        label: `Added tag @${clean}`,
+        toast: true,
+        rows: { tags: [out.id] },
+        undo: async () => {
+          const at = new Date().toISOString();
+          await this.db.execute(`update tags set deleted_at = ?, updated_at = ? where id = ?`, [at, at, out.id]);
+        },
+      });
+    }
+    return out;
+  }
+
   /** Attaches the named tag to the task, creating the tag if it is new. Idempotent; a silent undo entry. */
   async attach(taskId: string, spaceId: string, name: string): Promise<void> {
     await this.attachMany([taskId], spaceId, name, { toast: false });

@@ -1,12 +1,14 @@
 "use client";
 // The palette wired to the app: projects, areas and a task search from the
 // local database, recents from this browser, and the commands with the
-// registry's words, run through the keyboard layer. An island with the
-// palette itself (palette-provider.tsx mounts it in idle time, or at the
+// registry's words, run through the keyboard layer. A command that answers in
+// the palette (Sign out's confirmation, Sync now's result) is run here with the
+// database and the undo stack beside the keyboard's context. An island with
+// the palette itself (palette-provider.tsx mounts it in idle time, or at the
 // first ⌘K), so none of it rides in the shell's first download.
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@/data/powersync";
+import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { toTask } from "@/data/mappers";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
 import { TASK_SEARCH_SQL } from "@/data/queries/views";
@@ -14,11 +16,13 @@ import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
+import { useUndoSink } from "@/features/undo/undo-provider";
 import { useCommands } from "./keyboard-provider";
 import { Palette } from "./palette";
 import { PaletteStateContext, usePalette } from "./palette-provider";
 import { pushRecent } from "./palette-rank";
-import { COMMANDS, availability, type Command } from "./registry";
+import { addTag } from "./palette-runs";
+import { COMMANDS, availability, type Command, type PaletteContext } from "./registry";
 
 const RECENTS_KEY = "sparehour.recent-commands";
 /** The projects and areas opened lately, newest first: `G P` and `G A` list them first. */
@@ -41,6 +45,8 @@ export function PaletteHost() {
   const state = useContext(PaletteStateContext);
   const { close } = usePalette();
   const { run, context, isMac } = useCommands();
+  const db = useLocalDatabase();
+  const undo = useUndoSink();
   const router = useRouter();
   const quickAdd = useQuickAdd();
   const detail = useTaskDetail();
@@ -80,15 +86,20 @@ export function PaletteHost() {
   const tasks = useMemo(() => (taskRows ?? []).map(toTask), [taskRows]);
   const avail = useCallback((c: Command) => availability(c, context()), [context]);
 
-  const onRun = (command: Command) => {
-    const next = pushRecent(recents, command.id);
+  const remember = (id: string) => {
+    const next = pushRecent(recents, id);
     setRecents(next);
     try {
       localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
     } catch {
       // storage unavailable: recents just don't persist
     }
-    run(command);
+  };
+  const onRun = (command: Command) => {
+    remember(command.id);
+    if (!command.step) return run(command);
+    const ctx: PaletteContext = { ...context(), db, history: undo };
+    return availability(command, ctx).enabled ? command.step(ctx) : null;
   };
 
   if (!state.open) return null;
@@ -112,6 +123,7 @@ export function PaletteHost() {
       onOpenTask={(id) => detail.open(id)}
       onGo={(href) => router.push(href)}
       onAddTask={(title) => quickAdd.open(title)}
+      onAddTag={(name) => addTag({ db, history: undo }, name)}
       onClose={close}
     />
   );

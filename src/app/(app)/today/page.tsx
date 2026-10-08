@@ -216,7 +216,7 @@ export default function TodayPage() {
 
   const [view, setView] = useState<TodayView>("list");
 
-  // The palette's Trim today, Sort by…, Show completed, Jump to date and Cmd+. (features/today/today-request.ts).
+  // The palette's Trim today, Clear the slate, Sort by…, Show completed, Jump to date and Cmd+. (features/today/today-request.ts).
   const onRequest = useRef<(r: TodayRequest) => void>(() => undefined);
   useEffect(() => {
     onRequest.current = (r) => {
@@ -233,6 +233,10 @@ export default function TodayPage() {
         // Trimming is today's: from another day it comes home first.
         goHome();
         setTrimOpen(true);
+      } else if (r.kind === "slate") {
+        // Clear the slate (the palette's, PRODUCT_SPEC.md §8.5): the same confirmation as the ⋯ menu's, on today's page.
+        goHome();
+        setSlateOpen(true);
       } else if (r.kind === "sort") savePref({ todaySort: r.sort });
       else if (r.kind === "jump") setJumping(true);
       else savePref({ showCompleted: !showCompleted });
