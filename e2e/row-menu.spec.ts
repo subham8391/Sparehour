@@ -161,8 +161,9 @@ test("Move to… opens the day picker beside the ⋯: the next seven days, then 
   await expect(days.nth(1)).toHaveText(/^Tomorrow/);
   const target = isoPlus(me.today, 3);
   const name = `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday(target)]} ${Number(target.slice(8))}`;
-  // The name, then the day's readout ("Sat 10" and "3h spare", or "no working hours").
-  await expect(days.nth(3)).toHaveText(new RegExp(`^${name}(?!\\d)`));
+  // The name, then the day's readout ("Sat 10" and "3h spare", or "no working hours"): the name is the button's first
+  // part on its own, since the raw text runs the two together ("Sat 103h spare") whenever the readout starts with a figure.
+  await expect(days.nth(3).locator("span").first()).toHaveText(name);
   await days.nth(3).click();
   await expect(picker).toHaveCount(0);
   expect(await waitForRow("select 1 from public.tasks where title = $1 and do_date = $2::date", [picked, target])).not.toBeNull();
