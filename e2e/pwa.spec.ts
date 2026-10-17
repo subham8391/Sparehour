@@ -1,9 +1,13 @@
 // The installable shell (SYSTEM_DESIGN.md §10): manifest, a registered service
 // worker in the production build, and the offline page; the forced update
 // (§10.2) and the storage error state (§10.3).
+import fs from "node:fs/promises";
+import path from "node:path";
 import { expect, test } from "./fixtures";
 import { waitForRow, withDb } from "./db";
 import { openApp, quickAdd, uniqueTitle, waitForSync } from "./helpers";
+
+const SW = path.join(process.cwd(), "public", "sw.js");
 
 test("manifest, service worker and the offline page", async ({ page }) => {
   await openApp(page, "/today");
@@ -37,6 +41,52 @@ test("after the service worker takes over, a reload opens the local database and
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   }
   expect(errors).toEqual([]);
+});
+
+// The update flow (SYSTEM_DESIGN.md §10.2). Found on a production build: after a rebuild the toast came up but
+// Reload did nothing, the new version stayed waiting. Any byte changed in sw.js is a new version to the browser.
+test("a new version waits for Reload on its toast, which activates it and reloads onto it", async ({ page }) => {
+  await openApp(page, "/today");
+  await expect.poll(async () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)), { timeout: 30_000 }).toBe(true);
+  const original = await fs.readFile(SW, "utf8");
+  await fs.writeFile(SW, `${original}\n// e2e: the next version, ${Date.now()}\n`);
+  try {
+    await page.reload();
+    await waitForSync(page);
+    const toast = page.getByRole("status").filter({ hasText: "A new version is ready." });
+    await expect(toast).toBeVisible({ timeout: 60_000 });
+    const reloaded = page.waitForEvent("load", { timeout: 30_000 });
+    await toast.getByRole("button", { name: "Reload" }).click();
+    await reloaded;
+    await expect
+      .poll(async () => page.evaluate(async () => {
+        const r = await navigator.serviceWorker.getRegistration("/");
+        return { waiting: Boolean(r?.waiting), active: r?.active?.state, controlled: Boolean(navigator.serviceWorker.controller) };
+      }))
+      .toEqual({ waiting: false, active: "activated", controlled: true });
+    await waitForSync(page);
+    await expect(toast).toHaveCount(0);
+  } finally {
+    await fs.writeFile(SW, original);
+  }
+});
+
+// The worker caches the shell, never data (SYSTEM_DESIGN.md §10.1): the five-minute sync token, /api/bootstrap,
+// the sync service and Supabase's auth used to land in Serwist's "apis" and "cross-origin" caches.
+test("the service worker keeps no route handler's, sync service's or other origin's response", async ({ page }) => {
+  await openApp(page, "/today");
+  await expect.poll(async () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)), { timeout: 30_000 }).toBe(true);
+  // Controlled from the start this time: the token, the bootstrap and the stream all go out under the worker.
+  await page.reload();
+  await waitForSync(page);
+  const cached = await page.evaluate(async () => {
+    const urls: string[] = [];
+    for (const name of await caches.keys()) for (const request of await (await caches.open(name)).keys()) urls.push(request.url);
+    return urls;
+  });
+  expect(cached.length).toBeGreaterThan(0);
+  const origin = new URL(page.url()).origin;
+  expect(cached.filter((u) => new URL(u).origin !== origin || /^\/(?:api|powersync|auth)(?:\/|$)/.test(new URL(u).pathname))).toEqual([]);
 });
 
 // The forced update (SYSTEM_DESIGN.md §10.2): private.app_config's min_client_version above this build closes

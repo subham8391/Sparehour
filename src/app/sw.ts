@@ -6,6 +6,7 @@
 import { defaultCache } from "@serwist/next/worker";
 import { CacheFirst, NetworkFirst, Serwist, type PrecacheEntry, type SerwistGlobalConfig } from "serwist";
 import { ACTION_LABELS, isPushAction, supportsActions, withAction } from "../features/notifications/actions";
+import { bypassesWorker, isWorkerBootstrap } from "../features/pwa/worker-bypass";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -15,22 +16,15 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
-/**
- * Turbopack starts a web worker through a small bootstrap script that reads its chunk list from the script
- * URL's #fragment. A response handed over by a service worker carries no fragment, so the worker started
- * without its config ("Missing worker bootstrap config"), PowerSync's database worker never opened, and every
- * visit after the first stayed on "Opening…" (found by the end-to-end walkthrough). These scripts are left to
- * the browser: the hashed file sits in its HTTP cache for a year, which also covers an offline start.
- */
-const isWorkerBootstrap = (url: string) => /\/_next\/static\/chunks\/turbopack-worker-[^/]*\.js$/.test(new URL(url, self.location.origin).pathname);
-
-// Registered before Serwist's own listener, so for these requests that one never runs and nothing answers them.
+// Registered before Serwist's own listener, so for these requests that one never runs, nothing answers them and the
+// browser fetches them itself: other origins, the sync service, route handlers and auth, streams, Turbopack's worker
+// bootstrap (./worker-bypass says why each).
 self.addEventListener("fetch", (event) => {
-  if (isWorkerBootstrap(event.request.url)) event.stopImmediatePropagation();
+  if (bypassesWorker(event.request, self.location.origin)) event.stopImmediatePropagation();
 });
 
 const serwist = new Serwist({
-  precacheEntries: self.__SW_MANIFEST?.filter((entry) => !isWorkerBootstrap(typeof entry === "string" ? entry : entry.url)),
+  precacheEntries: self.__SW_MANIFEST?.filter((entry) => !isWorkerBootstrap(new URL(typeof entry === "string" ? entry : entry.url, self.location.origin).pathname)),
   skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,
@@ -47,6 +41,7 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.pathname.endsWith(".wasm"),
       handler: new CacheFirst({ cacheName: "wasm" }),
     },
+    // Its "apis" and "cross-origin" caches stay empty: those requests never reach Serwist (above).
     ...defaultCache,
   ],
   fallbacks: {
