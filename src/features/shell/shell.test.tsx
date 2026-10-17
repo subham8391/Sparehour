@@ -104,6 +104,22 @@ describe("<Sidebar>", () => {
     expect(collapse).toHaveFocus();
   });
 
+  it("on the rail the mark is Expand sidebar from the medium band, turning into the sidebar glyph on hover or focus; below it the mark links to Today", () => {
+    render(<Sidebar rail pathname="/today" counts={{ inbox: 0, today: 0 }} areas={areas} sync={sync} />);
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    // One way to open the sidebar again, at the top: nothing in the footer any more.
+    const expand = within(nav).getAllByRole("button", { name: "Expand sidebar" });
+    expect(expand).toHaveLength(1);
+    expect(nav.firstElementChild).toContainElement(expand[0]);
+    expect(expand[0]).toHaveClass("max-md:hidden");
+    // It shows the mark, and swaps it for the glyph under a pointer or keyboard focus.
+    const [mark, glyph] = Array.from(expand[0].querySelectorAll("svg"));
+    expect(mark).toHaveClass("group-hover/expand:hidden", "group-focus-visible/expand:hidden");
+    expect(glyph).toHaveClass("hidden", "group-hover/expand:block", "group-focus-visible/expand:block");
+    // Below the medium band the rail cannot open, so the mark stays the link to Today there.
+    expect(within(nav).getByRole("link", { name: "Sparehour — Today" })).toHaveClass("md:hidden");
+  });
+
   it("the rail's names carry the count and a tooltip, Settings included", () => {
     render(<Sidebar rail pathname="/inbox" counts={{ inbox: 3, today: 4 }} areas={areas} sync={sync} />);
     expect(screen.getByRole("link", { name: "Today, 4" })).toHaveAttribute("title", "Today");

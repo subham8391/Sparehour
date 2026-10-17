@@ -26,6 +26,7 @@ export type IconName =
   | "close"
   | "alert"
   | "menu"
+  | "sidebar"
   | "more"
   | "arrow-up"
   | "arrow-down"
@@ -58,6 +59,8 @@ const PATHS: Record<IconName, string> = {
   close: "M5 5l10 10M15 5L5 15",
   alert: "M10 3.5l7 12.5H3z M10 8.5v3.5M10 14v.01",
   menu: "M4 6h12M4 10h12M4 14h12",
+  // A window with its side panel: the sidebar's own fold and unfold.
+  sidebar: "M4.5 3.5h11A1.5 1.5 0 0 1 17 5v10a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15V5a1.5 1.5 0 0 1 1.5-1.5z M8 3.5v13",
   // Three dots: the caps do the drawing, so pass a heavier strokeWidth where it must read at 16 px.
   more: "M5 10h.01M10 10h.01M15 10h.01",
   "arrow-up": "M10 16V4M5.5 8.5 10 4l4.5 4.5",

@@ -125,14 +125,25 @@ function AreaGroup({ area, pathname }: { area: NavArea; pathname: string }) {
   );
 }
 
-/** Collapse sidebar / Expand sidebar (Cmd+\): one in each nav, the shell shows one nav at a time. */
+/**
+ * Collapse sidebar / Expand sidebar (Cmd+\): one in each nav, the shell shows one nav at a time. The full sidebar's
+ * sits at the end of its brand row. The folded rail's is the mark itself, which turns into the sidebar glyph under a
+ * pointer or keyboard focus, so a click or a tap on the logo opens the sidebar again.
+ */
 function SidebarToggle({ rail }: { rail: boolean }) {
   const name = `${rail ? "Expand" : "Collapse"} sidebar`;
   return (
     // panes.ts finds it by its name to move focus across when the navs swap. The rail's only from the medium band:
     // `max-md:hidden`, since a plain `hidden` loses to the button's own `inline-flex` (same layer, later rule).
-    <button type="button" aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "max-md:hidden" : "ml-auto")}>
-      <Icon name="menu" size={18} />
+    <button type="button" aria-label={name} title={name} onClick={toggleSidebar} className={cx(iconButtonClass(), rail ? "group/expand max-md:hidden" : "ml-auto")}>
+      {rail ? (
+        <>
+          <Mark size={22} className="text-ink group-hover/expand:hidden group-focus-visible/expand:hidden" />
+          <Icon name="sidebar" size={18} className="hidden group-hover/expand:block group-focus-visible/expand:block" />
+        </>
+      ) : (
+        <Icon name="sidebar" size={18} />
+      )}
     </button>
   );
 }
@@ -203,11 +214,17 @@ export function Sidebar({
       className={cx("sticky top-0 h-dvh shrink-0 flex-col border-r border-line bg-paper", rail ? "w-14 items-center" : "w-66", className)}
     >
       <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "pr-3 pl-6")}>
-        <Link href="/today" aria-label="Sparehour — Today" className="flex items-center gap-2.5 rounded-lg touch:min-h-11 touch:min-w-11 touch:justify-center">
+        {/* On the rail from the medium band the mark is the Expand sidebar button; below it, where the rail is all
+            there is, the mark stays the way to Today. */}
+        <Link
+          href="/today"
+          aria-label="Sparehour — Today"
+          className={cx("flex items-center gap-2.5 rounded-lg touch:min-h-11 touch:min-w-11 touch:justify-center", rail && "md:hidden")}
+        >
           <Mark size={22} />
           {!rail && <span className="font-display text-pane font-medium leading-none text-ink">Sparehour</span>}
         </Link>
-        {!rail && <SidebarToggle rail={false} />}
+        <SidebarToggle rail={rail} />
       </div>
 
       {onPalette && (
@@ -257,8 +274,6 @@ export function Sidebar({
       </div>
 
       <div className={cx("flex shrink-0 flex-col gap-0.5 border-t border-line pt-2.5 pb-4", rail ? "items-center px-2.5" : "px-3")}>
-        {/* The rail stands in for the folded sidebar from the medium band; in the narrow band it is all there is. */}
-        {rail && <SidebarToggle rail />}
         {/* Settings, and the ? overlay beside it (below it on the rail). */}
         <div className={cx("flex gap-0.5", rail ? "flex-col items-center" : "items-center")}>
           <div className={cx(!rail && "min-w-0 flex-1")}>
