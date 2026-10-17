@@ -1,7 +1,8 @@
 // The shell's panes as data attributes (SCREENS.md §1 "Sidebar", "Context pane"): per-device layout choices that
 // live on <html> — `data-sidebar="rail"` (Cmd+\ folds the full sidebar to the icon rail from the medium band) and
 // `data-day-pane="hidden"` (Cmd+. puts Today's day pane away on the wide band). The theme bootstrap stamps them from
-// storage before the first paint and globals.css reads them, so nothing flashes and no React state is involved. The
+// storage before the first paint and globals.css reads them, so nothing flashes and no React state is involved
+// (`data-sidebar-moving` marks the few hundred milliseconds of a fold or an opening, which move). The
 // context pane's width per view lives with its handle (pane-resizer.tsx, an island).
 
 /** Each choice and the value it stamps; stored as `sparehour.<name>`. */
@@ -29,12 +30,48 @@ export function setPref(name: keyof typeof PREFS, on = !prefOn(name)): void {
   }
 }
 
+/** The toggle in progress: a later toggle supersedes it, so an earlier move's end does nothing. */
+let move = 0;
+
 /**
- * Folds the full sidebar to the rail, or opens it again. Focus inside the nav that just went away moves to the
- * other one's toggle, so a keyboard user is never dropped on the page.
+ * Folds the full sidebar to the rail, or opens it again, and moves while it does (DESIGN_SYSTEM.md §7 "Sidebar";
+ * globals.css draws it). `data-sidebar-moving` on <html> marks this change alone, so nothing else ever animates the
+ * sidebar: "fold" runs the full sidebar's width down to the rail's and only then swaps the rail in, so the two are
+ * never side by side; "open" swaps the full sidebar in at the rail's width and runs it out. Where nothing moves
+ * (reduced motion, a browser without the transition, a test) the swap is immediate. A second toggle mid-way turns the
+ * move round from where it is. Focus inside the nav that goes moves to the other one's toggle as it is drawn, so a
+ * keyboard user is never dropped on the page.
  */
 export function toggleSidebar(): void {
+  const root = document.documentElement;
+  const full = document.querySelector('nav[data-variant="full"]');
   const from = document.activeElement?.closest("nav[data-variant]");
-  setPref("sidebar");
-  if (from) document.querySelector<HTMLElement>(`nav[data-variant="${prefOn("sidebar") ? "rail" : "full"}"] [title$=" sidebar"]`)?.focus();
+  const focusToggle = (variant: "rail" | "full") => {
+    if (from) document.querySelector<HTMLElement>(`nav[data-variant="${variant}"] [title$=" sidebar"]`)?.focus();
+  };
+  const seq = ++move;
+  if (!prefOn("sidebar") && root.dataset.sidebarMoving !== "fold") {
+    root.dataset.sidebarMoving = "fold";
+    afterMove(full, () => {
+      if (seq !== move) return;
+      setPref("sidebar", true);
+      delete root.dataset.sidebarMoving;
+      focusToggle("rail");
+    });
+  } else {
+    root.dataset.sidebarMoving = "open";
+    setPref("sidebar", false);
+    focusToggle("full");
+    afterMove(full, () => {
+      if (seq === move) delete root.dataset.sidebarMoving;
+    });
+  }
+}
+
+/** Runs `then` once the element's transitions have finished (or been turned round), or at once if none is running. */
+function afterMove(el: Element | null, then: () => void): void {
+  // Reading the animations brings the styles up to date, so a transition the change just started is among them.
+  const moves = el?.getAnimations?.() ?? [];
+  if (moves.length === 0) return then();
+  void Promise.all(moves.map((a) => a.finished.catch(() => undefined))).then(then);
 }

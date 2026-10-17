@@ -62,6 +62,84 @@ describe("layout choices", () => {
     expect(link).toBeTruthy();
   });
 
+  describe("the fold moves (DESIGN_SYSTEM.md §7 \"Sidebar\")", () => {
+    /** A width transition on the full sidebar that the test finishes, or cancels as a turned-round move does. */
+    function transitionOn(nav: Element) {
+      let finish!: () => void;
+      let cancel!: () => void;
+      const finished = new Promise<void>((resolve, reject) => {
+        finish = resolve;
+        cancel = () => reject(new DOMException("turned round", "AbortError"));
+      });
+      Object.defineProperty(nav, "getAnimations", { configurable: true, value: () => [{ finished }] });
+      return { finish, cancel };
+    }
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const navs = () => {
+      document.body.innerHTML = `
+        <nav data-variant="rail"><button title="Expand sidebar">E</button></nav>
+        <nav data-variant="full"><button title="Collapse sidebar">C</button></nav>`;
+      const [expand, collapse] = document.querySelectorAll<HTMLElement>("button");
+      return { full: document.querySelector('nav[data-variant="full"]') as Element, expand, collapse };
+    };
+
+    afterEach(() => {
+      delete root.dataset.sidebarMoving;
+    });
+
+    it("a fold runs the full sidebar down first and only then swaps the rail in, focus with it", async () => {
+      const { full, expand, collapse } = navs();
+      const move = transitionOn(full);
+      collapse.focus();
+      toggleSidebar();
+      expect(root.dataset.sidebarMoving).toBe("fold");
+      expect(root.dataset.sidebar).toBeUndefined();
+      expect(document.activeElement).toBe(collapse);
+      move.finish();
+      await settle();
+      expect(root.dataset.sidebar).toBe("rail");
+      expect(root.dataset.sidebarMoving).toBeUndefined();
+      expect(document.activeElement).toBe(expand);
+    });
+
+    it("an opening swaps the full sidebar in at once and marks the move until it ends", async () => {
+      const { full } = navs();
+      setPref("sidebar", true);
+      const move = transitionOn(full);
+      toggleSidebar();
+      expect(root.dataset.sidebar).toBeUndefined();
+      expect(root.dataset.sidebarMoving).toBe("open");
+      move.finish();
+      await settle();
+      expect(root.dataset.sidebarMoving).toBeUndefined();
+    });
+
+    it("a second toggle mid-fold turns it round: the rail never comes in", async () => {
+      const { full } = navs();
+      const fold = transitionOn(full);
+      toggleSidebar();
+      const open = transitionOn(full);
+      toggleSidebar();
+      expect(root.dataset.sidebarMoving).toBe("open");
+      fold.cancel();
+      await settle();
+      expect(root.dataset.sidebar).toBeUndefined();
+      expect(root.dataset.sidebarMoving).toBe("open");
+      open.finish();
+      await settle();
+      expect(root.dataset.sidebar).toBeUndefined();
+      expect(root.dataset.sidebarMoving).toBeUndefined();
+      expect(localStorage.getItem("sparehour.sidebar")).toBeNull();
+    });
+
+    it("with nothing moving (reduced motion) the swap is immediate", () => {
+      navs();
+      toggleSidebar();
+      expect(root.dataset.sidebar).toBe("rail");
+      expect(root.dataset.sidebarMoving).toBeUndefined();
+    });
+  });
+
   it("the head script stamps the stored choices and the panes' widths before the first paint", () => {
     localStorage.setItem("sparehour.sidebar", "rail");
     localStorage.setItem("sparehour.dayPane", "hidden");

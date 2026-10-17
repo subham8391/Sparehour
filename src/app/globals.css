@@ -464,6 +464,38 @@ nav[data-variant="rail"] a {
   [data-sidebar="rail"] nav[data-variant="rail"] {
     display: flex;
   }
+  /* Folding and opening it moves (DESIGN_SYSTEM.md §7 "Sidebar"), only while panes.ts marks the person's toggle with
+     `data-sidebar-moving`, so a load, a reload or a resize across the band stays still. The full sidebar's width runs
+     between its own and the rail's on the drawer curve, its contents held at their full width (less the 1 px border)
+     and clipped rather than squeezed. At the rail's width what is left is the rail's icon column: a fold swaps the
+     rail in there once the move has finished, an opening starts there (`@starting-style`) as the rail goes. Reduced
+     motion drops width from every transition (below), so the two swap at once as they always did. */
+  [data-sidebar-moving] nav[data-variant="full"] {
+    overflow: clip;
+    transition: width var(--dur-slow) var(--ease-drawer);
+  }
+  [data-sidebar-moving] nav[data-variant="full"] > * {
+    min-width: calc(var(--spacing) * 66 - 1px);
+  }
+  [data-sidebar-moving="fold"] nav[data-variant="full"] {
+    width: calc(var(--spacing) * 14);
+  }
+  /* Its words (labels, counts, the wordmark, search, the areas tree, the sync line) fade as the edge reaches them, so
+     what meets the rail is the icon column alone; the icons themselves stay put. */
+  [data-sidebar-moving] nav[data-variant="full"] :is(a > span, button > span, kbd, section) {
+    transition: opacity var(--dur-fast) var(--ease-out-quart);
+  }
+  [data-sidebar-moving="fold"] nav[data-variant="full"] :is(a > span, button > span, kbd, section) {
+    opacity: 0;
+  }
+  @starting-style {
+    [data-sidebar-moving="open"] nav[data-variant="full"] {
+      width: calc(var(--spacing) * 14);
+    }
+    [data-sidebar-moving="open"] nav[data-variant="full"] :is(a > span, button > span, kbd, section) {
+      opacity: 0;
+    }
+  }
 }
 @media (min-width: 1180px) {
   [data-day-pane="hidden"] [data-today-pane] {

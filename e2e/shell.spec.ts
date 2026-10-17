@@ -69,6 +69,64 @@ test("Cmd+\\ folds the sidebar to the rail and opens it again; the button does t
   expect(await page.evaluate(() => localStorage.getItem("sparehour.sidebar"))).toBeNull();
 });
 
+// The fold moves (DESIGN_SYSTEM.md §7 "Sidebar"): the full sidebar's width runs down to the rail's and the rail comes
+// in only then, so the two are never side by side and the view's edge moves one way; opening runs it back out. With
+// reduced motion the two swap at once, and a load never animates the sidebar.
+test("folding and opening the sidebar moves the view's edge one way, never draws both navs, and is instant with reduced motion", async ({ page }) => {
+  await openApp(page, "/inbox");
+  await expect(fullNav(page)).toBeVisible();
+  // Every frame of one toggle, read in the page so a slow runner cannot miss the move.
+  const run = (name: string) =>
+    page.evaluate(async (name) => {
+      const full = document.querySelector('nav[data-variant="full"]') as HTMLElement;
+      const rail = document.querySelector('nav[data-variant="rail"]') as HTMLElement;
+      const region = document.querySelector('[role="region"][aria-label="Content"]') as HTMLElement;
+      const drawn = (el: Element) => getComputedStyle(el).display !== "none";
+      // Focused first, as a keyboard user's toggle is, so focus has somewhere to move from.
+      const toggle = document.querySelector(`nav [aria-label="${name}"]`) as HTMLElement;
+      toggle.focus();
+      toggle.click();
+      const moves = full.getAnimations().some((a) => (a as CSSTransition).transitionProperty === "width");
+      const edges: number[] = [];
+      let both = false;
+      const start = performance.now();
+      while (performance.now() - start < 600) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        edges.push(Math.round(region.getBoundingClientRect().left));
+        both ||= drawn(full) && drawn(rail);
+      }
+      return { moves, edges, both, sidebar: document.documentElement.dataset.sidebar ?? null };
+    }, name);
+  const oneWay = (edges: number[], down: boolean) => edges.every((e, i) => i === 0 || (down ? e <= edges[i - 1] : e >= edges[i - 1]));
+
+  const fold = await run("Collapse sidebar");
+  expect(fold.moves).toBe(true);
+  expect(fold.both).toBe(false);
+  expect(oneWay(fold.edges, true)).toBe(true);
+  expect(fold.edges.at(-1)).toBeLessThan(fold.edges[0]);
+  expect(fold.sidebar).toBe("rail");
+  await expect(railNav(page).getByRole("button", { name: "Expand sidebar" })).toBeFocused();
+
+  const open = await run("Expand sidebar");
+  expect(open.moves).toBe(true);
+  expect(open.both).toBe(false);
+  expect(oneWay(open.edges, false)).toBe(true);
+  expect(open.edges.at(-1)).toBe(fold.edges[0]);
+  expect(open.sidebar).toBeNull();
+
+  // A load draws the open sidebar still.
+  await page.reload();
+  await expect(fullNav(page)).toBeVisible();
+  expect(await fullNav(page).evaluate((nav) => nav.getAnimations().length)).toBe(0);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const instant = await run("Collapse sidebar");
+  expect(instant.moves).toBe(false);
+  expect(new Set(instant.edges).size).toBe(1);
+  expect(instant.sidebar).toBe("rail");
+  await page.evaluate(() => localStorage.removeItem("sparehour.sidebar"));
+});
+
 test("Cmd+. on Today puts the day pane away and back, remembered; with a task open it closes the task first", async ({ page }) => {
   await openApp(page, "/today");
   const day = dayPane(page);
