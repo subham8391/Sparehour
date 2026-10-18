@@ -2,13 +2,13 @@
 
 Two hosted environments, each a full copy of the stack with its own secrets, plus the local stack for coding. This
 replaces the per-PR preview of SYSTEM_DESIGN.md §2.4 and §12.4 (a Supabase branch database behind a shared PowerSync
-instance) with one persistent dev environment, which the free tiers cover. Nothing is deployed yet: dev comes first,
-prod is built from this checklist once dev has run cleanly.
+instance) with one persistent dev environment, which the free tiers cover. Dev is live since 2026-10-18 (below, "As
+built"); prod is built from this checklist once dev has run cleanly.
 
 | | Local | **Dev** | **Prod** |
 |---|---|---|---|
-| App | `npm run dev`, or a local production build | Vercel, Preview deployments of `main`, on a fixed domain | Vercel, Production deployments of `production` |
-| Database and auth | `supabase start` (Docker) | Supabase project `sparehour-dev` | Supabase project `sparehour-prod` |
+| App | `npm run dev`, or a local production build | Vercel project `sparehour-dev`, whose production branch is `main`: `sparehour-dev.vercel.app` | Vercel project `sparehour`, whose production branch is `production` |
+| Database and auth | `supabase start` (Docker) | Supabase project `sparehour` (dev) | Supabase project `sparehour-prod` |
 | Sync | PowerSync in Docker | PowerSync Cloud instance → the dev database | PowerSync Cloud instance → the prod database |
 | Data | `seed.sql`, the dev account | real sign-ups (you, testers); never `seed.sql` | real people only; never seeded |
 | Secrets | `.env.local` from `dev-stack.sh` | `node scripts/new-env.mjs --name dev …` | `node scripts/new-env.mjs --name prod …` |
@@ -27,6 +27,13 @@ on dev, and prod gets exactly that. Prod never receives anything dev has not run
   stress rows.
 - Keep the three services of one environment in one region: a cross-region hop is the difference between a 60 ms and
   a 300 ms sync acknowledgement (§2.4).
+- One Vercel project per environment, each deploying its own branch as Production: a project's production domain is
+  not behind Vercel's preview login wall (the timers' calls get through) and each has its own variables.
+- In Vercel, every `NEXT_PUBLIC_*` variable is type **Config** (Vercel refuses a public prefix as Secret; those values
+  reach every browser anyway) and every other one is **Secret**.
+- Vercel's Hobby plan builds a private repo only for commits authored by the owner's GitHub account; anything else is
+  "Blocked". This repo commits as `Subham Das <104473763+subham8391@users.noreply.github.com>` (repo-local
+  `git config`, set 2026-10-18); a commit made as another identity will not deploy until it is re-authored.
 
 ## First deploy: dev
 
@@ -50,12 +57,18 @@ Vercel's functions.
    npx supabase link --project-ref <project-ref>
    npx supabase db push
    ```
-   Not `--include-seed`. Don't use `supabase config push` either: it would send `config.toml`'s local URLs.
+   Not `--include-seed`. Don't use `supabase config push` either: it would send `config.toml`'s local URLs. Run these
+   yourself in Terminal: the CLI hides `link` and `db push` when it detects an AI agent. The first deploy instead ran
+   every migration in one transaction in the SQL editor, each followed by its `supabase_migrations.schema_migrations`
+   row (version and name from the file name), so a later `db push` sees them as applied.
 4. **Authentication → URL Configuration**: Site URL is the dev address; add `<dev address>/auth/callback` to the
    redirect URLs.
-5. **Authentication → Email Templates → Magic Link**: paste `supabase/templates/magic_link.html` (it carries both the
-   six-digit code and the link). The built-in mailer sends only a few emails an hour and only to your Supabase team's
-   own addresses: enough for dev. Prod needs an SMTP provider.
+5. **Email.** The built-in mailer sends **2 emails an hour for the whole project** (not adjustable) and only to your
+   Supabase team's own addresses, and its templates cannot be edited, so its sign-in email has the link but no
+   six-digit code. A second device signing in hits the limit at once, and an installed iPhone app needs the code.
+   Connect an SMTP provider (Resend's free plan; host `smtp.resend.com`, port 465, user `resend`, the API key as the
+   password), then raise **Authentication → Rate Limits** and paste `supabase/templates/magic_link.html` into
+   **Authentication → Emails → Magic link or OTP** (it carries both the code and the link).
 6. Keep the project URL, the anon key and the service-role key for step 2.
 
 ### 2. Secrets (2 minutes)
@@ -77,30 +90,38 @@ Run the script's block 3 in the SQL editor: it gives `powersync_role` its own pa
 `powersync_local` is for the local stack) and writes `private.app_config`'s `app_url` and `push_tick_secret`, which the
 timers present to `/api/push/tick` and `/api/calendar/tick`. PowerSync connects with that password in the next step.
 
+Then make `pg_cron` load the jobs the migrations registered: it may not notice jobs created right after the extension
+was turned on. Save one again unchanged and check, a minute later, that jobs run:
+
+```sql
+select cron.schedule('sparehour_push_tick', '* * * * *', 'select private.push_tick()');
+select status, count(*) from cron.job_run_details group by status;  -- rows with "succeeded"
+```
+
 ### 4. PowerSync Cloud (about 15 minutes)
 
-1. Create an instance `sparehour-dev` in the chosen region.
-2. **Database connection**: the Supabase project's direct connection (not the pooler: replication needs it), user
-   `powersync_role`, the password from the script's block 2 (set in step 3). Follow PowerSync's Supabase guide for the host details.
-3. **Client auth**: an HS256 key with the script's `kid` (`sparehour-sync-v1`), `k` and audience `powersync`. Leave
-   PowerSync's built-in Supabase auth off: the app signs its own five-minute tokens (`/api/sync/token`).
-4. **Sync streams**: deploy `supabase/powersync/streams.yaml`.
+1. Create a project with an instance in the chosen region (the region cannot change later).
+2. **Database connection**: use **Connect Postgres Manually**, not "Set Up with Supabase" (that creates its own
+   `powersync` publication and role, and the first migration's `create publication powersync` then fails). Host
+   `db.<ref>.supabase.co` (the direct connection: replication needs it; IPv6-only on Supabase's free plan, which
+   PowerSync Cloud reaches), port 5432, database `postgres`, user `powersync_role`, the password from the script's
+   block 2 (set in step 3), SSL `verify-full` (PowerSync carries Supabase's certificate).
+3. **Client auth**: under **HS256 authentication tokens (advanced)**, KID `sparehour-sync-v1` and Secret = the script's
+   `k` (already base64url); under **JWT Audience**, `powersync`; then Save and Deploy. The JWKS box refuses symmetric
+   keys. Leave PowerSync's built-in Supabase auth off: the app signs its own five-minute tokens (`/api/sync/token`).
+4. **Sync streams**: paste `supabase/powersync/streams.yaml`, Validate, Deploy.
 5. Copy the instance URL: it is `NEXT_PUBLIC_POWERSYNC_URL` (add it with `--powersync-url`, or by hand in Vercel).
 
 ### 5. Vercel (about 15 minutes)
 
-1. Import `subham8391/Sparehour`. The build is `npm run build`, which also builds the service worker
-   (`serwist build` after `next build`).
-2. **Settings → Git**: Production Branch `production`. Until that branch exists nothing deploys to prod, and pushes to
-   `main` become Preview deployments.
-3. **Settings → Domains**: give the `main` branch a fixed address, such as `sparehour-dev.vercel.app` (the address the
-   script was given).
-4. **Settings → Environment Variables**, scope **Preview**: paste the script's block 1, plus any dashboard value it
-   listed as missing.
-5. **Settings → Deployment Protection**: turn Vercel Authentication off for previews. With it on, the database's timer
-   calls get a login wall (401), and so does anyone you share the address with.
-6. **Settings → Functions**: the region chosen in step 0.
-7. Redeploy `main` so the build sees the variables.
+1. Import `subham8391/Sparehour` as the project `sparehour-dev` (its address is `<project>.vercel.app`; for prod,
+   `sparehour` with Production Branch `production`). The build is `npm run build`, which also builds the service worker
+   (`serwist build` after `next build`; Vercel serves the resulting `/sw.js`). Create the project without deploying.
+2. **Settings → Environment Variables**, scope **Production**: the script's block 1 (paste it into the Key box), the
+   anon and service_role keys from Supabase → Project Settings → API Keys → Legacy, and `NEXT_PUBLIC_POWERSYNC_URL`.
+   `NEXT_PUBLIC_*` as Config, the rest as Secret (Rules). Thirteen in all.
+3. **Settings → Functions**: the region nearest the database (one region on Hobby: tick the new one, untick the old).
+4. Deploy: push to the branch, or Deployments → ⋯ → Create Deployment → the branch → Deploy to Production.
 
 ### 6. Check it
 
@@ -113,6 +134,17 @@ timers present to `/api/push/tick` and `/api/calendar/tick`. PowerSync connects 
   the SQL editor shows 200s once a minute (a 401 means the secret or the deployment protection).
 
 Write down every fix the first deploy needed, here, before building prod.
+
+**As built (dev, 2026-10-18).** Supabase `sparehour` in Tokyo (`ap-northeast-1`), PowerSync instance in India (`IN`),
+Vercel `sparehour-dev` with functions in Tokyo (`hnd1`); the sync hop between India and Tokyo is acceptable for dev and
+worth avoiding for prod. Fixes the first deploy needed: the Serwist update fix had to ship first (9764872); the
+migrations went in through the SQL editor (step 1); the PowerSync form and key placement above; `NEXT_PUBLIC_*` as
+Config; the commit author for Hobby; and the app forced `enableMultiTabs: true`, which opens the database through a
+shared worker that Chrome on Android lacks, so an Android phone sat on "Restoring your data…" until it was left to the
+SDK. And `pg_cron` had registered all eight jobs, with its scheduler running, but ran none for two hours (no rows in
+`cron.job_run_details`; the dashboard's Cron page said "Job has not been run yet") until one job was saved again with
+`cron.schedule` under the same name, schedule and command, which makes it reload its job list; every job has run
+since, and the minute tick gets 200 from the app.
 
 ## Prod, later
 

@@ -3063,7 +3063,7 @@ Exception: if `/api/bootstrap` reports `min_client_version > BUILD_ID`, the upda
 |---|---|---|
 | VFS | `WASQLiteVFS.OPFSCoopSyncVFS` | The only VFS that supports **multi-tab on Safari/iOS**. The default `IDBBatchAtomicVFS` does not. |
 | Headers | none required | Cross-origin isolation (COOP/COEP) is **not** needed for the JS SDK's OPFS VFSs — that requirement belongs to the Dart/Flutter SDK and to the experimental shared-memory pool, neither of which we use. |
-| Multi-tab | `enableMultiTabs: true` (SDK default) | Shared worker where available; BroadcastChannel fallback on Safari/iOS/Android. We do not depend on its guarantees (§4.6). |
+| Multi-tab | `enableMultiTabs` left to the SDK (not set) | The SDK turns it on where a shared worker works (desktop Chrome, Edge, Firefox) and off on Android, iOS and Safari, where each tab opens the database itself. We do not depend on its guarantees (§4.6). *As built (2026-10-18):* it was forced to `true`, which opened the database through `new SharedWorker`; Chrome on Android has none, so the first dev deploy sat on "Restoring your data…" on an Android phone. |
 | Encryption | `encryptionKey` — opt-in, off by default | T8. Off by default because a forgotten key means a full resync, and the threat is modest for most users. |
 | Private browsing | OPFS is unavailable in Safari/Firefox private tabs and has known issues in Safari incognito | Detect at boot and fall back to `InMemoryVFS` with a banner: "Private browsing — your data won't be saved on this device." |
 

@@ -26,7 +26,9 @@ export function getDatabase(): PowerSyncDatabase {
       dbFilename: "sparehour.db",
       // OPFS with cooperative sync locking: the VFS that works in an installed iOS PWA (Appendix A4)
       vfs: WASQLiteVFS.OPFSCoopSyncVFS,
-      enableMultiTabs: true,
+      // Multi-tab stays the SDK's call: on where a shared worker is supported (desktop Chrome, Edge, Firefox), off on
+      // Android, iOS and Safari. Forcing it on opened the database through `new SharedWorker`, which Chrome on Android
+      // does not have: the app sat on "Restoring your data…" with no error and never asked for a sync token.
       disableSSRWarning: true,
     },
     logger,
