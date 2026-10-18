@@ -6,7 +6,8 @@ export default defineConfig({
     alias: { "@": path.resolve(import.meta.dirname, "src") },
   },
   test: {
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // The repo's own scripts keep their tests beside them (scripts/new-env.test.mjs).
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "scripts/**/*.test.mjs"],
     // Component tests opt into the DOM per file with `// @vitest-environment jsdom`.
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
