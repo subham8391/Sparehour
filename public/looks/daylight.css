@@ -59,7 +59,10 @@
   --r-fab: 18px;
   --track: var(--spare-soft);
   --track-image: radial-gradient(circle at 2px 2px, var(--spare-fill) 0.9px, transparent 1.15px);
+  --track-size: 6px 6px;
+  --track-pos: 2px 4px;
   --track-r: var(--r-xs);
+  --glass-image: none;
   --glass-blur: none;
 }
 

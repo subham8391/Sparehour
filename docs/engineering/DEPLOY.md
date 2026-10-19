@@ -184,6 +184,11 @@ step 1, item 5 and step 7 were done: Gmail SMTP from the owner's Gmail, the OTP 
 of 8 to 6, 100 emails an hour, the code template in both emails, and Google sign-in through the Google Cloud project
 `sparehour` (published, External).
 
+**Looks (dev, 2026-10-20).** Migration `20261020000100_user_look.sql` (`user_settings.look`) goes in before the app
+that writes it: an app that saves a look to a database without the column has its settings upload refused. The look
+faces are copied from the `@fontsource` packages into `public/fonts/` by the `prebuild` script, so a Vercel build needs
+the dev dependencies installed (its default).
+
 ## Prod, later
 
 The same steps with `--name prod`, a new run of the script, the projects `sparehour-prod`, the Production scope in

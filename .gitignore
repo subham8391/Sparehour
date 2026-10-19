@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Task worktrees the desktop app creates while agents run
 .claude/worktrees/
+
+# look faces, copied from the @fontsource packages at build and dev start (scripts/looks.mjs fonts)
+/public/fonts/
