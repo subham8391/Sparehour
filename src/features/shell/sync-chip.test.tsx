@@ -95,6 +95,36 @@ describe("<SyncChip>", () => {
     await vi.waitFor(() => expect(screen.getByRole("region", { name: "Sync status" })).toHaveTextContent(/saved on this device/));
   });
 
+  it("draws the detail at the end of the document, beside the chip, and a click outside or Escape closes it", async () => {
+    const user = userEvent.setup();
+    // The sidebar is sticky, a layer of its own: a detail drawn inside it went under the main column's add bar.
+    const { container } = render(
+      <div>
+        <nav aria-label="Main" style={{ position: "sticky" }}>
+          <SyncChip model={syncChipModel({ ...base, persisted: false })} compact />
+        </nav>
+        <p>Main column</p>
+      </div>,
+    );
+    const chip = screen.getByRole("button", { name: "Storage not protected" });
+    await user.click(chip);
+    const panel = await screen.findByRole("region", { name: "Sync status" });
+    expect(container).not.toContainElement(panel);
+    expect(panel.parentElement).toBe(document.body);
+    expect(panel).toHaveClass("fixed");
+    expect(chip).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(panel); // inside the detail: stays open
+    expect(screen.getByRole("region", { name: "Sync status" })).toBeInTheDocument();
+    await user.click(screen.getByText("Main column"));
+    expect(screen.queryByRole("region", { name: "Sync status" })).not.toBeInTheDocument();
+
+    await user.click(chip);
+    await screen.findByRole("region", { name: "Sync status" });
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Sync status" })).not.toBeInTheDocument();
+  });
+
   it("compact keeps the label for assistive tech", () => {
     render(<SyncChip model={syncChipModel(base)} compact />);
     expect(screen.getByRole("button", { name: "Synced 12s ago" })).toBeInTheDocument();

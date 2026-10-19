@@ -4,6 +4,8 @@
 // feeds it from PowerSync lives in use-sync-chip.ts.
 import dynamic from "next/dynamic";
 import { createContext, useContext, useId, useState } from "react";
+import { createPortal } from "react-dom";
+import { useAnchoredPlacement, useDismiss } from "@/ui/anchor";
 import { Icon, type IconName } from "@/ui/icons";
 import { RAISED } from "@/ui/sheet-parts";
 
@@ -209,7 +211,10 @@ export function syncAttention(state: SyncChipState): "offline" | "look" | null {
  * The chip itself; click expands the plain-words detail. `compact` shows the
  * icon only (the icon rail) in a 44 px target that drops to 36 px there.
  * `placement` says where the detail opens: above in the sidebar footer, below
- * for a trigger near the top of the screen.
+ * for a trigger near the top of the screen. The detail is drawn at the end of
+ * the document beside the chip: inside the sidebar, which is sticky and so a
+ * layer of its own, the main column's add bar covered the rail's detail where
+ * it reached over it. A click outside or Escape closes it.
  */
 export function SyncChip({
   model,
@@ -223,14 +228,18 @@ export function SyncChip({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const panelId = useId();
+  const rootRef = useDismiss(open, () => setOpen(false), `[data-sync-panel="${panelId}"]`);
+  const place = useAnchoredPlacement(open ? trigger : null, placement === "above" ? "left" : "right", placement === "above" ? "up" : "down");
   return (
-    <div className={`relative ${className}`}>
+    <div ref={rootRef} className={`relative ${className}`}>
       {/* Only a change of state is worth announcing; the label's "12s ago" re-renders every twelve seconds and would talk over everything. */}
       <span aria-live="polite" className="sr-only">
         {STATE_WORDING[model.state]}
       </span>
       <button
+        ref={setTrigger}
         type="button"
         onClick={() => setOpen((o) => !o)}
         onPointerEnter={() => void preloadSyncPanel().catch(() => undefined)}
@@ -246,16 +255,20 @@ export function SyncChip({
         {compact ? <Icon name={model.icon} size={18} /> : <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${DOT[model.state]}`} />}
         {!compact && <span className="truncate num">{model.label}</span>}
       </button>
-      {open && (
-        <div
-          id={panelId}
-          role="region"
-          aria-label="Sync status"
-          className={`${RAISED} absolute z-30 w-64 rounded-xl p-3 text-body-sm text-ink-2 ${placement === "above" ? "bottom-full left-0 mb-1" : "top-full right-0 mt-1"}`}
-        >
-          <SyncDetail model={model} />
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={place}
+            id={panelId}
+            data-sync-panel={panelId}
+            role="region"
+            aria-label="Sync status"
+            className={`${RAISED} fixed z-50 w-64 rounded-xl p-3 text-body-sm text-ink-2`}
+          >
+            <SyncDetail model={model} />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

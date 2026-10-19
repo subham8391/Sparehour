@@ -69,6 +69,36 @@ test("Cmd+\\ folds the sidebar to the rail and opens it again; the button does t
   expect(await page.evaluate(() => localStorage.getItem("sparehour.sidebar"))).toBeNull();
 });
 
+// The sync chip's detail on the rail reaches over the main column; drawn inside the sidebar (sticky, a layer of its
+// own) its lower half went under the add bar ("Storage not protected" lost its install steps).
+test("the rail's sync detail is drawn over the main column, add bar included, and Escape closes it", async ({ page }) => {
+  await openApp(page, "/inbox");
+  await page.keyboard.press("ControlOrMeta+Backslash");
+  await expect(railNav(page)).toBeVisible();
+
+  await railNav(page).locator("button[data-state]").click();
+  const panel = page.getByRole("region", { name: "Sync status" });
+  await expect(panel).toBeVisible();
+  const box = (await panel.boundingBox())!;
+  const rail = (await railNav(page).boundingBox())!;
+  expect(box.x + box.width).toBeGreaterThan(rail.x + rail.width + 100); // it does reach over the main column
+  // Whatever is drawn topmost at each corner of the detail (the lower ones over the add bar's footer) is the detail itself.
+  const points = [
+    [box.x + 8, box.y + 8],
+    [box.x + box.width - 8, box.y + 8],
+    [box.x + 8, box.y + box.height - 8],
+    [box.x + box.width - 8, box.y + box.height - 8],
+  ];
+  for (const [x, y] of points) {
+    expect(await page.evaluate(([px, py]) => Boolean(document.elementFromPoint(px, py)?.closest('[aria-label="Sync status"]')), [x, y]), `${x},${y}`).toBe(true);
+  }
+
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await page.keyboard.press("ControlOrMeta+Backslash");
+  await expect(fullNav(page)).toBeVisible();
+});
+
 // The fold moves (DESIGN_SYSTEM.md §7 "Sidebar"): the full sidebar's width runs down to the rail's and the rail comes
 // in only then, so the two are never side by side and the view's edge moves one way; opening runs it back out. With
 // reduced motion the two swap at once, and a load never animates the sidebar.
