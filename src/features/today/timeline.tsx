@@ -290,8 +290,9 @@ export function Timeline(p: TimelineProps) {
 
   // Opening on the working day, and keeping the now line (or else the minute at the top) in view when the zoom
   // changes. The first time the timeline has a size (a phone's Day view may be hidden at first), its scroller
-  // is turned to the morning.
-  const scrolledFor = useRef<number | null>(null);
+  // is turned to the morning, and again whenever the scroller is another element: a window narrowed below the wide
+  // band moves the scrolling from the day pane to the card's own box, which started at midnight.
+  const scrolledFor = useRef<{ scale: number; scroller: HTMLElement } | null>(null);
   const openAt = nowShown && nowMin > opening.start + 6 * 60 ? nowMin - 90 : opening.start;
   // A grid column leaves this to the grid, which scrolls every day at once.
   const column = Boolean(p.column);
@@ -300,13 +301,14 @@ export function Timeline(p: TimelineProps) {
     const root = rootRef.current;
     if (!box || !root || column) return;
     const turn = () => {
-      if (scrolledFor.current === scale || root.offsetHeight === 0) return;
+      if (root.offsetHeight === 0) return;
       const scroller = scrollerOf(box);
       if (!scroller) return;
-      const offset = scroller.getBoundingClientRect().top - root.getBoundingClientRect().top;
       const prev = scrolledFor.current;
-      scrolledFor.current = scale;
-      const target = prev === null ? openAt : nowShown ? nowMin - scroller.clientHeight / scale / 3 : offset / prev;
+      if (prev?.scale === scale && prev.scroller === scroller) return;
+      const offset = scroller.getBoundingClientRect().top - root.getBoundingClientRect().top;
+      scrolledFor.current = { scale, scroller };
+      const target = prev?.scroller !== scroller ? openAt : nowShown ? nowMin - scroller.clientHeight / scale / 3 : offset / prev.scale;
       scroller.scrollTop += Math.max(0, target) * scale - offset;
     };
     turn();
@@ -484,7 +486,8 @@ export function Timeline(p: TimelineProps) {
       {bar && !column && <PlacingBar text={bar} onCancel={() => setArmed(null)} />}
       {/* The zoom (SCREENS.md §2.6): + and - from the keyboard, this on every screen, the phone's tap path. */}
       {!column && <ZoomControl zoom={zoom} />}
-      <div ref={boxRef} className={cx(!column && "max-h-[70dvh] overflow-y-auto overscroll-contain", p.paneScrolls && "lg:max-h-none lg:overflow-visible")}>
+      {/* Room above the first hour: its label sits half above its line, and the box cut midnight's in two. */}
+      <div ref={boxRef} className={cx(!column && "max-h-[70dvh] overflow-y-auto overscroll-contain pt-2", p.paneScrolls && "lg:max-h-none lg:overflow-visible lg:pt-0")}>
         <div
           ref={rootRef}
           className={cx("relative select-none", waiting && "cursor-crosshair")}

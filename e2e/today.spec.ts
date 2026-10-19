@@ -16,6 +16,35 @@ test.describe("Today", () => {
     await expect(ribbon).toBeVisible();
   });
 
+  // Found on a laptop window narrowed beside another: the Day view opened at midnight with "00:00" cut in half, and the
+  // List | Day control sat over the top edge of the "Your day" card.
+  test("narrowed below the wide band, the Day view opens on the day, whole, below its List | Day control", async ({ page }) => {
+    await openApp(page, "/today");
+    const timeline = page.getByTestId("timeline");
+    test.skip((await timeline.count()) === 0, "not a working day: no timeline");
+    await expect(timeline).toBeVisible();
+
+    await page.setViewportSize({ width: 650, height: 900 });
+    const day = page.getByRole("button", { name: "Day", exact: true });
+    await day.click();
+    const box = timeline.locator("xpath=..");
+    // The card's own box scrolls now, and it was turned to the working day (or the now line), not left at midnight.
+    await expect.poll(() => box.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+    const control = (await day.locator("xpath=..").boundingBox())!;
+    const card = (await page.getByRole("complementary", { name: "Your day" }).boundingBox())!;
+    expect(card.y).toBeGreaterThanOrEqual(control.y + control.height);
+
+    // Scrolled to the top, the first hour's label is drawn whole inside the box.
+    const clipped = await box.evaluate((el) => {
+      el.scrollTop = 0;
+      const top = el.getBoundingClientRect().top;
+      const first = [...el.querySelectorAll("span")].filter((s) => /\d:\d\d/.test(s.textContent ?? "")).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+      return first ? top - first.getBoundingClientRect().top : null;
+    });
+    expect(clipped ?? 0).toBeLessThanOrEqual(0);
+  });
+
   test("quick-add puts a task on today's list and it reaches Postgres", async ({ page }) => {
     await openApp(page, "/today");
     const title = uniqueTitle("quick add");

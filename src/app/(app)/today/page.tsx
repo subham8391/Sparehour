@@ -513,7 +513,9 @@ export default function TodayPage() {
     // Below that the day pane takes the list's place when "Day" is chosen, and the page (or the shell's region) scrolls.
     <main data-print="today" className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
       {/* Below the wide band the Day view replaces only the lists: the header, the hero and the ritual row (with the List/Day control) stay. */}
-      <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible", showDay ? "pb-0 lg:pb-7" : "flex-1")}>
+      {/* In the Day view the column keeps its bottom padding: the ritual row's negative margin (ritual-row.tsx) reaches
+          12 px past its end, and with none the List | Day control sat over the top edge of the "Your day" card below. */}
+      <div className={cx("flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6 md:max-w-210 md:px-10 md:py-7 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible", !showDay && "flex-1")}>
         <ViewHeader
           // Off today the eyebrow names the day and the way back: "Tomorrow · ← back to today" (SCREENS.md §2.1).
           eyebrow={onToday ? `Today · ${partOfDay(nowMinute, eveningAt)}` : <OffDayEyebrow label={daysAway(day, model.today)} onBack={backHome} />}
