@@ -37,9 +37,9 @@ on dev, and prod gets exactly that. Prod never receives anything dev has not run
 
 ## First deploy: dev
 
-What it needs: a Supabase project, a PowerSync Cloud instance, the Vercel project, a set of secrets, and two rows in
-the database. What can wait: Google sign-in and Calendar (they need an OAuth client; the emailed code works without
-one), a custom domain, an SMTP provider, the deploy workflow, Sentry, paid plans. Plan on one to two hours.
+What it needs: a Supabase project, a PowerSync Cloud instance, the Vercel project, a set of secrets, two rows in
+the database, and a mailer (step 1, item 5: the built-in one cannot sign in a second device). What can wait: Google sign-in
+(step 7) and Calendar, a custom domain, the deploy workflow, Sentry, paid plans. Plan on one to two hours.
 
 ### 0. Region
 
@@ -66,9 +66,19 @@ Vercel's functions.
 5. **Email.** The built-in mailer sends **2 emails an hour for the whole project** (not adjustable) and only to your
    Supabase team's own addresses, and its templates cannot be edited, so its sign-in email has the link but no
    six-digit code. A second device signing in hits the limit at once, and an installed iPhone app needs the code.
-   Connect an SMTP provider (Resend's free plan; host `smtp.resend.com`, port 465, user `resend`, the API key as the
-   password), then raise **Authentication → Rate Limits** and paste `supabase/templates/magic_link.html` into
-   **Authentication → Emails → Magic link or OTP** (it carries both the code and the link).
+   - **Authentication → Emails → SMTP Settings**: a Gmail account (free, about 500 a day): host `smtp.gmail.com`,
+     port 465, the Gmail address as username and sender, sender name `Sparehour`, and a Google **App Password**
+     (myaccount.google.com/apppasswords; needs 2-Step Verification) as the password, typed without its spaces.
+     Supabase warns that Gmail is for personal mail; at this size it delivers fine. Resend's free plan sends only to
+     your own address until you verify a domain you own.
+   - **Authentication → Sign In / Providers → Email**: **Email OTP length 6**. A new hosted project defaults to 8,
+     which the app's code field (six digits) refuses.
+   - **Authentication → Rate Limits**: emails per hour 100 (custom SMTP starts it at 30); the 60-second minimum
+     interval per person stays.
+   - **Authentication → Emails → Templates**: paste `supabase/templates/magic_link.html`, subject "Your Sparehour
+     sign-in code", into both **Magic link or OTP** and **Confirm sign up**. With "Confirm email" on (keep it: off,
+     anyone could create an account under someone else's address with a password), a first sign-in by email gets the
+     Confirm sign up email, and only later ones get Magic link.
 6. Keep the project URL, the anon key and the service-role key for step 2.
 
 ### 2. Secrets (2 minutes)
@@ -133,6 +143,27 @@ select status, count(*) from cron.job_run_details group by status;  -- rows with
 - The timers reach the app: `select status_code, created from net._http_response order by created desc limit 5;` in
   the SQL editor shows 200s once a minute (a 401 means the secret or the deployment protection).
 
+### 7. Google sign-in (about 20 minutes)
+
+No email at all, so no limit; the emailed code stays for people without Google and for the installed iPhone app. The
+login page shows "Continue with Google" by itself once the provider is on (it asks the auth server).
+
+1. **Google Cloud console**, with the account that will own it: a new project, then **Google Auth Platform → Get
+   started**: app name `Sparehour`, support and contact email, audience **External**, accept the user data policy.
+2. **Clients → Create client**, type **Web application**: authorised JavaScript origin `https://<app address>`,
+   authorised redirect URI `https://<ref>.supabase.co/auth/v1/callback` (Supabase shows it in its Google panel).
+   Google shows the client secret only in the dialog that follows; copy it before closing (a lost one is replaced
+   with "Add secret" on the client).
+3. **Branding**: application home page `https://<app address>` and privacy policy `https://<app address>/privacy`;
+   Google will not publish without them. Then **Audience → Publish app**. Sign-in asks only for name and email, so no
+   review; left in Testing, only listed test users can sign in.
+4. **Supabase → Authentication → Sign In / Providers → Google**: on, the client ID under Client IDs, the secret under
+   Client Secret (for OAuth), Save. The redirect back to the app is allowed because it is on the Site URL's host.
+5. Check: the login page has the button, and signing in with an account whose email matches an existing one lands on
+   that account (Supabase links them; a different address starts a new account).
+
+Google's screen says "continue to `<ref>.supabase.co`" until the auth server has a custom domain (a paid add-on).
+
 Write down every fix the first deploy needed, here, before building prod.
 
 **As built (dev, 2026-10-18).** Supabase `sparehour` in Tokyo (`ap-northeast-1`), PowerSync instance in India (`IN`),
@@ -144,7 +175,14 @@ shared worker that Chrome on Android lacks, so an Android phone sat on "Restorin
 SDK. And `pg_cron` had registered all eight jobs, with its scheduler running, but ran none for two hours (no rows in
 `cron.job_run_details`; the dashboard's Cron page said "Job has not been run yet") until one job was saved again with
 `cron.schedule` under the same name, schedule and command, which makes it reload its job list; every job has run
-since, and the minute tick gets 200 from the app.
+since, and the minute tick gets 200 from the app. After the worker took over, every load sat on "Opening…" (laptop
+and Android): Vercel serves the hashed chunks from `/_next/static/immutable/chunks/`, which the worker's bypass for
+Turbopack's worker bootstrap did not match until d26c656.
+
+**Sign-in (dev, 2026-10-19).** The built-in mailer's two emails an hour stopped a second device from signing in, so
+step 1, item 5 and step 7 were done: Gmail SMTP from the owner's Gmail, the OTP length moved from the hosted default
+of 8 to 6, 100 emails an hour, the code template in both emails, and Google sign-in through the Google Cloud project
+`sparehour` (published, External).
 
 ## Prod, later
 

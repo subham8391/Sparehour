@@ -60,6 +60,25 @@ describe("<LoginForm>", () => {
     expect(replace).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Send another" }));
     expect(auth.signInWithOtp).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("status")).toHaveTextContent("Sent a new code. Use the newest email.");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("says how long to wait before another code, and tells the hourly email limit apart from a minute's wait", async () => {
+    const user = userEvent.setup();
+    render(<LoginForm next={null} />);
+    await user.type(screen.getByLabelText("Email"), "sam@example.com");
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    await screen.findByLabelText("Code");
+
+    auth.signInWithOtp.mockResolvedValueOnce({ error: { message: "For security purposes, you can only request this after 42 seconds." } } as never);
+    await user.click(screen.getByRole("button", { name: "Send another" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("You can send another code in 42 seconds.");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    auth.signInWithOtp.mockResolvedValueOnce({ error: { message: "email rate limit exceeded" } } as never);
+    await user.click(screen.getByRole("button", { name: "Send another" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("We've sent too many emails for now. Use the code from the last one, or try again later."));
   });
 
   it("offers Google only when the auth server has it, and sends the person there with the callback", async () => {

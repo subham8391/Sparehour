@@ -21,6 +21,11 @@ const TAIL = "flex flex-col gap-4 max-sm:mt-auto max-sm:pt-4";
 /** Supabase's messages in the app's voice; anything unknown is shown as it came. */
 function plain(message: string): string {
   if (/expired|invalid/i.test(message) && /token|otp|code/i.test(message)) return "That code didn't match. Check the newest email, or send another.";
+  // The auth server's per-address wait between emails ("For security purposes, you can only request this after 42 seconds.").
+  const wait = /after (\d+) seconds?/i.exec(message);
+  if (wait) return `You can send another code in ${wait[1]} seconds.`;
+  // The project's hourly email allowance, not this person's tries: a minute won't fix it.
+  if (/email rate limit/i.test(message)) return "We've sent too many emails for now. Use the code from the last one, or try again later.";
   if (/rate limit|too many/i.test(message)) return "Too many tries for now. Give it a minute.";
   if (/invalid login credentials/i.test(message)) return "That email and password don't match.";
   return message;
@@ -35,6 +40,8 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
   const [step, setStep] = useState<"email" | "code" | "password">("email");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initialError);
+  /** Confirms "Send another": without it the screen looked the same whether or not a new email went out. */
+  const [notice, setNotice] = useState<string | null>(null);
   const [google, setGoogle] = useState(false);
 
   useEffect(() => {
@@ -52,6 +59,7 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
   const run = async (work: () => Promise<{ error: { message: string } | null }>, then?: () => void) => {
     setBusy(true);
     setError(null);
+    setNotice(null);
     const { error } = await work();
     setBusy(false);
     if (error) {
@@ -73,7 +81,10 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
             data: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
           },
         }),
-      () => setStep("code"),
+      () => {
+        if (step === "code") setNotice("Sent a new code. Use the newest email.");
+        setStep("code");
+      },
     );
   };
 
@@ -115,6 +126,11 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
           <Input className="tracking-[0.3em] num" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus required />
         </label>
         {alert}
+        {notice && (
+          <p role="status" className="text-body-sm text-pretty text-ink-2">
+            {notice}
+          </p>
+        )}
         <div className={TAIL}>
           <Button type="submit" variant="primary" block disabled={busy || code.length < 6}>
             {busy ? "Signing in…" : "Sign in"}
@@ -130,6 +146,7 @@ export function LoginForm({ next, initialError = null }: { next: string | null; 
                 setStep("email");
                 setCode("");
                 setError(null);
+                setNotice(null);
               }}
             >
               Use a different email
