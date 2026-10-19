@@ -211,7 +211,7 @@ export function Sidebar({
     <nav
       aria-label="Main"
       data-variant={rail ? "rail" : "full"}
-      className={cx("sticky top-0 h-dvh shrink-0 flex-col border-r border-line bg-paper", rail ? "w-14 items-center" : "w-66", className)}
+      className={cx("sticky top-0 h-dvh shrink-0 flex-col border-r border-line bg-(--chrome)", rail ? "w-14 items-center" : "w-66", className)}
     >
       <div className={cx("flex h-16 shrink-0 items-center", rail ? "justify-center" : "pr-3 pl-6")}>
         {/* On the rail from the medium band the mark is the Expand sidebar button; below it, where the rail is all

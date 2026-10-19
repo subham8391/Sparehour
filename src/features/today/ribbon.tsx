@@ -176,8 +176,8 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   return (
     <div aria-hidden="true" className={cx("@container relative", className)}>
       <div data-ribbon-day className="relative" style={tail ? { width: `calc(100% - ${tail})` } : undefined}>
-        <div className="relative h-4 rounded-xs ribbon-track sm:h-6">
-          <div className="absolute inset-0 overflow-hidden rounded-xs">
+        <div className="relative h-4 rounded-(--track-r) ribbon-track sm:h-6">
+          <div className="absolute inset-0 overflow-hidden rounded-(--track-r)">
             {c.busy.map((b, i) => (
               <span key={`m${i}`} className="absolute inset-y-0 rounded-[3px] bg-meet-fill" style={{ left: `${pct(b.start)}%`, width: w(b.start, b.end) }} />
             ))}
@@ -251,7 +251,7 @@ export function Ribbon({ c, nowMin, compact = false, connected = true, plannedCo
   const empty = c.committedMin + c.unscheduledMin === 0 && !finished;
 
   return (
-    <section aria-label={otherDay ? "Spare time" : "Spare time today"} className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
+    <section aria-label={otherDay ? "Spare time" : "Spare time today"} data-glass="" className={cx("rounded-xl border border-line bg-surface", compact ? "p-4" : "px-4 py-4 sm:px-7 sm:py-5.5")}>
       {/* Capacity changes are announced politely (DESIGN_SYSTEM.md §9): one region that stays and only changes its words. */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {`${spokenMinutes(h.min)} ${h.over ? "over" : "spare"}`}

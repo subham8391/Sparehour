@@ -213,6 +213,17 @@ describe("Settings sections", () => {
     expect(onChange).toHaveBeenLastCalledWith({ showCompleted: true });
   });
 
+  it("Appearance offers the looks, Sky checked by default, each with a preview and a line on how it feels", async () => {
+    const { user, onChange } = setup();
+    const looks = screen.getByRole("group", { name: "Look" });
+    const sky = within(looks).getByRole("radio", { name: /Sky/ });
+    expect(sky).toBeChecked();
+    expect(sky).toHaveAccessibleDescription("Frosted glass over the sky at this hour");
+    await user.click(within(looks).getByRole("radio", { name: /Daylight/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ look: "daylight" });
+    expect(screen.getAllByRole("status").some((s) => s.textContent?.includes("Saved"))).toBe(true);
+  });
+
   it("Appearance offers System or Reduce for motion, kept on this device", async () => {
     const onMotion = vi.fn();
     const { user, onChange } = setup({ motion: { value: "system", onChange: onMotion } });

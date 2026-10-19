@@ -9,4 +9,6 @@ export default serwist.withNextConfig(() => ({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
   precachePrerendered: true,
+  // Looks other than Sky and their faces load when chosen and are cached at run time (src/app/sw.ts), not precached.
+  globIgnores: ["public/looks/**/*", "public/fonts/**/*"],
 }));

@@ -17,7 +17,7 @@ import { DEV_USER, openApp, quickAdd, uniqueTitle } from "./helpers";
 const SETTING = (column: string) => `select ${column} as v from public.user_settings s join public.users u on u.id = s.user_id where u.email = $1 and s.${column} = $2`;
 
 /** The user_settings columns these tests write. */
-const COLUMNS = ["default_estimate_min", "default_miss_policy", "block_start_lead_min", "badge_enabled"] as const;
+const COLUMNS = ["default_estimate_min", "default_miss_policy", "block_start_lead_min", "badge_enabled", "look"] as const;
 interface HoursRow {
   id: string;
   start_time: string;
@@ -99,6 +99,32 @@ test("a planning default saves immediately, reaches Postgres, and the device pan
   await expect(page.getByRole("button", { name: "JSON" })).toBeVisible();
   await section(page, "Account");
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+});
+
+// The look (DECISIONS.md, amendment 2026-10-20): picked in Appearance, saved to the account, drawn at once with its own
+// stylesheet, held over a reload before the first paint, and Sky again needs no sheet at all.
+test("a look is picked in Appearance, reaches Postgres, holds over a reload, and Sky needs no stylesheet", async ({ page }) => {
+  await openApp(page, "/settings");
+  await section(page, "Appearance");
+  const looks = page.getByRole("group", { name: "Look" });
+  await expect(looks.getByRole("radio", { name: /Sky/ })).toBeChecked();
+  await looks.getByText("Daylight", { exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-look", "daylight");
+  await expect(page.locator("#look-css")).toHaveAttribute("href", /\/looks\/daylight\.css/);
+  expect(await waitForRow(SETTING("look"), [DEV_USER.email, "daylight"])).not.toBeNull();
+  const paper = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--paper").trim());
+  expect(await paper()).toBe("#f4f8f6");
+
+  // Before any script of the app runs, the head script has stamped the look and its sheet.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("html")).toHaveAttribute("data-look", "daylight");
+  await expect(page.locator("#look-css")).toHaveAttribute("blocking", "render");
+
+  await section(page, "Appearance");
+  await looks.getByText("Sky", { exact: true }).click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-look", /.+/);
+  await expect(page.locator("#look-css")).toHaveCount(0);
+  expect(await waitForRow(SETTING("look"), [DEV_USER.email, "sky"])).not.toBeNull();
 });
 
 test("Account shows the initials and how the account signs in; Delete account waits for the typed word, and Cancel keeps it", async ({ page }) => {

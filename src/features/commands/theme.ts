@@ -8,8 +8,8 @@ import type { Theme } from "./command-runs";
 
 export const THEME_KEY = "sparehour.theme";
 
-/** The two paper values (globals.css). The manifest and the theme-color metas read these, nothing else does. */
-export const PAPER = { light: "#f4f8f6", dark: "#0c110f" } as const;
+/** Sky's two paper values (globals.css). The manifest and the theme-color metas read these, nothing else does. */
+export const PAPER = { light: "#e8f0fa", dark: "#101b3a" } as const;
 
 /** Reduce motion is a per-device choice like the theme (M1 gap rulings: System, the default, or Reduce). */
 export const MOTION_KEY = "sparehour.motion";

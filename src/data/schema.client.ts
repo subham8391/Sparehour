@@ -58,6 +58,8 @@ export const user_settings = new Table({
   notify_morning: column.integer,
   notify_shutdown: column.integer,
   theme: column.text,
+  /** Settings › Appearance › Look: the look's id ('sky' by default; features/looks/catalog.ts). */
+  look: column.text,
   evening_starts_at: column.text,
   /** Settings › Working hours: This Evening's budget ends here ("22:00"; "00:00" is midnight). */
   evening_ends_at: column.text,

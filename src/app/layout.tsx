@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { Instrument_Sans, Newsreader } from "next/font/google";
+import { Instrument_Sans, Newsreader, Plus_Jakarta_Sans } from "next/font/google";
 import { PAPER } from "@/features/commands/theme";
 import { THEME_BOOTSTRAP } from "@/features/commands/theme-bootstrap";
 import "./globals.css";
 
-// Faces (DESIGN_SYSTEM.md §3). Newsreader carries the optical-size axis so the
-// same voice holds at 56 px on the hero and 22 px on a pane title; its italic
-// is a separate static file that only the qualifier word needs, so it is not
-// preloaded. Instrument Sans is the UI face and every numeral. No mono is
-// loaded: kbd uses the system stack.
-const newsreader = Newsreader({ variable: "--font-newsreader", axes: ["opsz"], style: "normal", subsets: ["latin"], display: "swap" });
+// Faces (DESIGN_SYSTEM.md §3). Plus Jakarta Sans is Sky's, the default look, for everything: preloaded. The Daylight
+// look's faces (Newsreader with its optical-size axis and its italic for the qualifier word, Instrument Sans for the
+// UI) stay declared here because that look's stylesheet names them, but nothing preloads them: a browser fetches a
+// face only when a page uses it. Every other look brings its own faces (public/fonts/). No mono is loaded: kbd uses
+// the system stack.
+const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"], display: "swap" });
+const newsreader = Newsreader({ variable: "--font-newsreader", axes: ["opsz"], style: "normal", subsets: ["latin"], display: "swap", preload: false });
 const newsreaderItalic = Newsreader({ variable: "--font-newsreader-italic", weight: "400", style: "italic", subsets: ["latin"], display: "swap", preload: false });
-const instrumentSans = Instrument_Sans({ variable: "--font-instrument-sans", subsets: ["latin"], display: "swap" });
+const instrumentSans = Instrument_Sans({ variable: "--font-instrument-sans", subsets: ["latin"], display: "swap", preload: false });
 
 export const metadata: Metadata = {
   appleWebApp: { title: "Sparehour", capable: true, statusBarStyle: "default" },
@@ -33,7 +34,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // suppressHydrationWarning: the bootstrap script stamps data-theme before React hydrates.
-    <html lang="en" className={`${newsreader.variable} ${newsreaderItalic.variable} ${instrumentSans.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className={`${jakarta.variable} ${newsreader.variable} ${newsreaderItalic.variable} ${instrumentSans.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>

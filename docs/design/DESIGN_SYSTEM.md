@@ -1,4 +1,12 @@
-# Sparehour design system — "Daylight"
+# Sparehour design system
+
+**Looks (2026-10-20, DECISIONS.md amendment).** The app wears one *look* at a time and the person chooses it in Settings › Appearance › Look; the choice follows them to every device (`user_settings.look`). **Sky** is the default: Plus Jakarta Sans for everything, frosted surfaces over a sky that follows the time of day (`data-daypart`: morning, afternoon, evening, night; the night sky in dark), navy ink, aqua for spare time, 20 px card corners. **Daylight**, the original look described below, is kept as a choice, and the directions A–Z from the "Sparehour Looks" page join as their stylesheets are built (`src/features/looks/catalog.ts`).
+
+How it works: Sky's tokens live in `src/app/globals.css`; every other look is one sheet, `public/looks/<id>.css`, that redefines the same names under `:root[data-look="<id>"]` (light, then the dark set under the media query and under `[data-theme="dark"]`), with its own faces under `public/fonts/`. Beyond colour, a look sets `--face-display`, `--face-qualifier`, `--face-sans`, `--qualifier-style`/`-weight`, `--weight-display`, `--tracking-display`, the radius scale `--r-*`, the ribbon's `--track`, `--track-image`, `--track-r` and `--elapsed`, and the backdrop and glass (`--backdrop`, `--glass`, `--glass-blur`, `--bar`, `--chrome`). Elements marked `data-glass` (the hero card) take the glass. Every look keeps the semantic roles, a light and a dark set and WCAG AA for text (`src/features/looks/contrast.test.ts`). The rest of this document is Daylight's, and its rules (roles, motion, targets, copy) hold for every look; only the values change.
+
+---
+
+## Daylight
 
 The working day as a strip of light. Everything on screen serves one number: how much time you actually have to spare. Calm by default, precise when you look closely, never a wall of red.
 

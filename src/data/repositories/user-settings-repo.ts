@@ -21,6 +21,8 @@ export interface SettingsPatch {
   /** The evening cut-off, "22:00" (This Evening's budget). */
   eveningEndsAt?: string;
   theme?: "system" | "light" | "dark";
+  /** Settings › Appearance › Look (features/looks/catalog.ts). */
+  look?: string;
   // notifications (SYSTEM_DESIGN.md §7.1); a null nudge time means "derived from working hours"
   notifyBlockStart?: boolean;
   notifyDeadline?: boolean;
@@ -55,6 +57,7 @@ const COLUMNS: Record<keyof SettingsPatch, string> = {
   eveningStartsAt: "evening_starts_at",
   eveningEndsAt: "evening_ends_at",
   theme: "theme",
+  look: "look",
   notifyBlockStart: "notify_block_start",
   notifyDeadline: "notify_deadline",
   notifyMorning: "notify_morning",

@@ -26,6 +26,7 @@ import { RUNS, availability, keyBindings, type CommandContext, type CommandRun, 
 import dynamic from "next/dynamic";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { applyTheme, readTheme } from "./theme";
+import { applyLook, dayPart, DEFAULT_LOOK, isLookId, readLook } from "@/features/looks/look";
 import { isTypingTarget, watchHardwareKeys } from "./hardware-keys";
 
 const BINDINGS = keyBindings(RUNS);
@@ -90,12 +91,22 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
   useEffect(() => watchHardwareKeys(), []);
   // Appearance is an account setting (SCREENS.md §18): the stored choice follows the person to every device. This
   // device's copy (localStorage, read before paint) catches up once the settings row is here.
-  const { data: settingsRows } = useQuery<{ id: string; theme: string | null }>(SETTINGS_SQL);
+  const { data: settingsRows } = useQuery<{ id: string; theme: string | null; look: string | null }>(SETTINGS_SQL);
   const account = settingsRows?.[0];
   const accountTheme: Theme | null = account ? (account.theme === "light" || account.theme === "dark" ? account.theme : "system") : null;
   useEffect(() => {
     if (accountTheme && accountTheme !== readTheme()) applyTheme(accountTheme);
   }, [accountTheme]);
+  // The look follows the person the same way (DECISIONS.md, amendment 2026-10-20).
+  const accountLook = account ? (isLookId(account.look) ? account.look : DEFAULT_LOOK) : null;
+  useEffect(() => {
+    if (accountLook && accountLook !== readLook()) applyLook(accountLook);
+  }, [accountLook]);
+  // The sky behind the looks that paint one follows the hour; the head script stamped it at load.
+  const hour = new Date(now.epochMilliseconds).getHours();
+  useEffect(() => {
+    document.documentElement.dataset.daypart = dayPart(hour);
+  }, [hour]);
   const accountId = account?.id ?? null;
 
   const context = useCallback(

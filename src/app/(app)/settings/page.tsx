@@ -13,6 +13,7 @@ import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo, type OpenTo, type SettingsPatch } from "@/data/repositories/settings-repo";
 import type { UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { applyTheme } from "@/features/commands/theme";
+import { applyLook, DEFAULT_LOOK, isLookId } from "@/features/looks/look";
 import { BUILD_ID } from "@/data/build-id";
 import { useCalendar } from "@/features/calendar/use-calendar";
 import { useExport } from "@/features/export/use-export";
@@ -72,6 +73,7 @@ export default function SettingsPage() {
         eveningStartsAt: (s.evening_starts_at ?? "18:00").slice(0, 5),
         eveningEndsAt: (s.evening_ends_at ?? "22:00").slice(0, 5),
         theme: (s.theme === "light" || s.theme === "dark" ? s.theme : "system") as SettingsValues["theme"],
+        look: isLookId(s.look) ? s.look : DEFAULT_LOOK,
         notifyBlockStart: (s.notify_block_start ?? 1) === 1,
         notifyDeadline: (s.notify_deadline ?? 1) === 1,
         notifyMorning: (s.notify_morning ?? 1) === 1,
@@ -124,6 +126,7 @@ export default function SettingsPage() {
   const write = (id: string, patch: SettingsPatch) => {
     setPending((p) => ({ ...p, ...patch }));
     if (patch.theme) applyTheme(patch.theme);
+    if (patch.look) applyLook(patch.look);
     return settingsRepo.update(id, patch);
   };
   const onChange = (patch: SettingsPatch) => {

@@ -39,6 +39,7 @@ export const SETTINGS_VALUES: SettingsValues = {
   eveningStartsAt: "18:00",
   eveningEndsAt: "22:00",
   theme: "system",
+  look: "sky",
   notifyBlockStart: true,
   notifyDeadline: true,
   notifyMorning: true,

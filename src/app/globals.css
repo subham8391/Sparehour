@@ -10,153 +10,211 @@
 @source not "../../public";
 @source not "../**/*.test.{ts,tsx}";
 
-/* Refined Daylight tokens (docs/design/DESIGN_SYSTEM.md §2, DECISIONS.md Q26).
-   Light is the base; the dark set applies to the un-stamped system theme and
-   to an explicit choice. Every colour a component uses is one of these names;
-   the three blocks are kept in step by hand. Green means spare time only. */
+/* Sky, the default look (DECISIONS.md, amendment 2026-10-20; docs/design/DESIGN_SYSTEM.md). Every other look is
+   one stylesheet in public/looks/ that redefines these names under :root[data-look="…"] (features/looks/look.ts).
+   Light is the base; the dark set applies to the un-stamped system theme and to an explicit choice. Every colour a
+   component uses is one of these names; the three blocks are kept in step by hand. Aqua means spare time only. */
 :root {
   color-scheme: light;
-  --paper: #f4f8f6;
-  --surface: #ffffff;
-  --surface-2: #edf1ef;
+  --paper: #e8f0fa;
+  --surface: #fbfdff;
+  --surface-2: #edf3fa;
   --surface-3: #ffffff;
-  --hover: rgb(22 28 25 / 0.05);
-  --press: rgb(22 28 25 / 0.08);
-  --scrim: rgb(25 37 31 / 0.32);
-  --line: #d9e0dd;
-  --line-strong: #bec6c2;
-  --line-control: #7f8683;
-  --ink: #161c19;
-  --ink-2: #555b58;
-  /* Text tokens hold WCAG AA (4.5:1 or better) on paper, surface and their soft tints; axe checks the real pages in e2e. */
-  --ink-3: #5f6663;
-  /* Placeholders and disabled text only: 3.6:1, never the sole carrier of anything essential. */
-  --ink-4: #818885;
+  --hover: rgb(14 34 64 / 0.05);
+  --press: rgb(14 34 64 / 0.08);
+  --scrim: rgb(14 30 60 / 0.32);
+  --line: #d3dfed;
+  --line-strong: #b4c4d8;
+  --line-control: #6c7f9c;
+  --ink: #0e2240;
+  --ink-2: #34496b;
+  /* Text tokens hold WCAG AA (4.5:1 or better) on paper, surface and the sky behind them (looks.test.ts). */
+  --ink-3: #435775;
+  /* Placeholders and disabled text only, never the sole carrier of anything essential. */
+  --ink-4: #6b7f9e;
   --ink-inverse: var(--paper);
-  --spare: #1a7455;
-  --spare-fill: #19966e;
-  --spare-soft: #d7f3e5;
-  --spare-line: #7fd2ae;
-  --meet: #43629c;
-  --meet-fill: #5f80bc;
-  --meet-soft: #e0ecff;
-  --meet-line: #a2bef2;
-  --over: #875814;
-  --over-fill: #aa732b;
-  --over-soft: #feebd6;
-  --over-line: #e3b47f;
-  --deadline: #a8493d;
-  --deadline-fill: #c15e4f;
-  --deadline-soft: #ffe3de;
-  --deadline-line: #f9a496;
+  --spare: #087a70;
+  --spare-fill: #14b8a6;
+  --spare-soft: #cff5ef;
+  --spare-line: #7fded2;
+  --meet: #3d4fc0;
+  --meet-fill: #6f80ff;
+  --meet-soft: #e3e7ff;
+  --meet-line: #aab4ff;
+  --over: #8a5a00;
+  --over-fill: #d48a1e;
+  --over-soft: #fdeccc;
+  --over-line: #f0c27a;
+  --deadline: #b23a2e;
+  --deadline-fill: #d9544a;
+  --deadline-soft: #ffe2dd;
+  --deadline-line: #f5a39a;
   /* Planned time on the ribbon is a neutral, never ink, so the number stays the darkest thing on the card. */
-  --block-fill: #292f2c;
+  --block-fill: #1f3357;
   --block-soft: var(--surface-2);
-  --hatch: rgb(22 28 25 / 0.16);
+  --hatch: rgb(14 34 64 / 0.16);
   /* An hour that has already gone: the soft tint let down towards the surface. Defined once — the mix
      re-resolves against whichever theme's tokens the element inherits. */
   --meet-soft-past: color-mix(in oklab, var(--meet-soft) 55%, var(--surface));
   --block-soft-past: color-mix(in oklab, var(--block-soft) 55%, var(--surface));
   /* Elevation: cards are flat; only raised popovers, the phone sheet and the FAB cast an ink-tinted shadow. */
-  --shadow-tint: 25 37 31;
+  --shadow-tint: 14 34 64;
   --shadow-2: 0 1px 2px rgb(var(--shadow-tint) / 0.05), 0 4px 10px rgb(var(--shadow-tint) / 0.07), 0 12px 28px rgb(var(--shadow-tint) / 0.08);
   --shadow-float: 0 -12px 40px rgb(var(--shadow-tint) / 0.18);
   --shadow-fab: 0 8px 20px rgb(var(--shadow-tint) / 0.22);
   --shadow-active: 0 1px 2px rgb(var(--shadow-tint) / 0.06), 0 0 0 1px var(--line);
   --raised-border: transparent;
-  /* The one gradient in the product: cool at the start of the day, warm at the end, behind the timeline only. */
-  --daylight: linear-gradient(180deg, oklch(96% 0.012 235 / 0.7) 0%, transparent 42%, oklch(96.5% 0.018 75 / 0.75) 100%);
+  /* The timeline pane's wash: a little light at the top of the day and a little warmth at its end. */
+  --daylight: linear-gradient(180deg, rgb(255 255 255 / 0.35) 0%, transparent 45%, rgb(255 228 210 / 0.35) 100%);
+  /* Behind everything: the sky at this hour (data-daypart, stamped before paint). */
+  --backdrop: var(--sky-day);
+  /* Frosted glass: the hero card and the sticky bars, over the sky. */
+  --glass: rgb(255 255 255 / 0.62);
+  --bar: rgb(232 240 250 / 0.8);
+  /* The sidebar: a light veil over the sky. */
+  --chrome: rgb(255 255 255 / 0.3);
+  /* The part of the day that has gone, washed over the ribbon's spare track. */
+  --elapsed: rgb(255 255 255 / 0.62);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --paper: #0c110f;
-    --surface: #151917;
-    --surface-2: #1e2320;
-    --surface-3: #282d2a;
+    --paper: #101b3a;
+    --surface: #16224a;
+    --surface-2: #1e2b57;
+    --surface-3: #22305e;
     --hover: rgb(255 255 255 / 0.06);
     --press: rgb(255 255 255 / 0.1);
     --scrim: rgb(0 0 0 / 0.55);
-    --line: #343937;
-    --line-strong: #4f5451;
-    --line-control: #7a817e;
-    --ink: #e8ecea;
-    --ink-2: #afb8b4;
-    --ink-3: #98a19d;
-    --ink-4: #808884;
+    --line: #2a3a66;
+    --line-strong: #3d4f84;
+    --line-control: #8090b8;
+    --ink: #f1f5ff;
+    --ink-2: #c3cde4;
+    --ink-3: #a6b2cd;
+    --ink-4: #7f8db0;
     --ink-inverse: var(--paper);
-    --spare: #7cd2ae;
-    --spare-fill: #46b68c;
-    --spare-soft: #1c3329;
-    --spare-line: #0a6548;
-    --meet: #9bbeff;
-    --meet-fill: #7c9edd;
-    --meet-soft: #262e3d;
-    --meet-line: #3c5582;
-    --over: #e7b375;
-    --over-fill: #ca924c;
-    --over-soft: #392b1a;
-    --over-line: #744b13;
-    --deadline: #fda293;
-    --deadline-fill: #e47d6d;
-    --deadline-soft: #3c2824;
-    --deadline-line: #853b31;
-    --block-fill: #7b827f;
+    --spare: #5ce6d7;
+    --spare-fill: #2dd4bf;
+    --spare-soft: #12363f;
+    --spare-line: #1f7f78;
+    --meet: #aab6ff;
+    --meet-fill: #7b8cff;
+    --meet-soft: #232b5a;
+    --meet-line: #3f4c96;
+    --over: #f2c27a;
+    --over-fill: #d9a04a;
+    --over-soft: #3a2e1a;
+    --over-line: #7a5a22;
+    --deadline: #ff9d8f;
+    --deadline-fill: #e6766a;
+    --deadline-soft: #3e2626;
+    --deadline-line: #8a3d34;
+    --block-fill: #8a9ac2;
     --block-soft: var(--surface-2);
-    --hatch: rgb(232 236 234 / 0.16);
+    --hatch: rgb(241 245 255 / 0.16);
     /* Dark elevates by tone and a hairline, not by shadow. */
     --shadow-2: none;
     --shadow-float: 0 -12px 40px rgb(0 0 0 / 0.5);
     --shadow-fab: 0 8px 20px rgb(0 0 0 / 0.45);
     --shadow-active: 0 0 0 1px var(--line);
     --raised-border: var(--line-strong);
-    --daylight: linear-gradient(180deg, oklch(26% 0.014 235 / 0.55) 0%, transparent 42%, oklch(26% 0.016 70 / 0.6) 100%);
+    --daylight: linear-gradient(180deg, rgb(255 255 255 / 0.04) 0%, transparent 45%, rgb(120 100 200 / 0.08) 100%);
+    --backdrop: var(--sky-night);
+    --glass: rgb(255 255 255 / 0.07);
+    --bar: rgb(16 27 58 / 0.78);
+    --chrome: rgb(255 255 255 / 0.03);
+    --elapsed: rgb(16 27 58 / 0.62);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #0c110f;
-  --surface: #151917;
-  --surface-2: #1e2320;
-  --surface-3: #282d2a;
+  --paper: #101b3a;
+  --surface: #16224a;
+  --surface-2: #1e2b57;
+  --surface-3: #22305e;
   --hover: rgb(255 255 255 / 0.06);
   --press: rgb(255 255 255 / 0.1);
   --scrim: rgb(0 0 0 / 0.55);
-  --line: #343937;
-  --line-strong: #4f5451;
-  --line-control: #7a817e;
-  --ink: #e8ecea;
-  --ink-2: #afb8b4;
-  --ink-3: #98a19d;
-  --ink-4: #808884;
+  --line: #2a3a66;
+  --line-strong: #3d4f84;
+  --line-control: #8090b8;
+  --ink: #f1f5ff;
+  --ink-2: #c3cde4;
+  --ink-3: #a6b2cd;
+  --ink-4: #7f8db0;
   --ink-inverse: var(--paper);
-  --spare: #7cd2ae;
-  --spare-fill: #46b68c;
-  --spare-soft: #1c3329;
-  --spare-line: #0a6548;
-  --meet: #9bbeff;
-  --meet-fill: #7c9edd;
-  --meet-soft: #262e3d;
-  --meet-line: #3c5582;
-  --over: #e7b375;
-  --over-fill: #ca924c;
-  --over-soft: #392b1a;
-  --over-line: #744b13;
-  --deadline: #fda293;
-  --deadline-fill: #e47d6d;
-  --deadline-soft: #3c2824;
-  --deadline-line: #853b31;
-  --block-fill: #7b827f;
+  --spare: #5ce6d7;
+  --spare-fill: #2dd4bf;
+  --spare-soft: #12363f;
+  --spare-line: #1f7f78;
+  --meet: #aab6ff;
+  --meet-fill: #7b8cff;
+  --meet-soft: #232b5a;
+  --meet-line: #3f4c96;
+  --over: #f2c27a;
+  --over-fill: #d9a04a;
+  --over-soft: #3a2e1a;
+  --over-line: #7a5a22;
+  --deadline: #ff9d8f;
+  --deadline-fill: #e6766a;
+  --deadline-soft: #3e2626;
+  --deadline-line: #8a3d34;
+  --block-fill: #8a9ac2;
   --block-soft: var(--surface-2);
-  --hatch: rgb(232 236 234 / 0.16);
+  --hatch: rgb(241 245 255 / 0.16);
+  /* Dark elevates by tone and a hairline, not by shadow. */
   --shadow-2: none;
   --shadow-float: 0 -12px 40px rgb(0 0 0 / 0.5);
   --shadow-fab: 0 8px 20px rgb(0 0 0 / 0.45);
   --shadow-active: 0 0 0 1px var(--line);
   --raised-border: var(--line-strong);
-  --daylight: linear-gradient(180deg, oklch(26% 0.014 235 / 0.55) 0%, transparent 42%, oklch(26% 0.016 70 / 0.6) 100%);
+  --daylight: linear-gradient(180deg, rgb(255 255 255 / 0.04) 0%, transparent 45%, rgb(120 100 200 / 0.08) 100%);
+  --backdrop: var(--sky-night);
+  --glass: rgb(255 255 255 / 0.07);
+  --bar: rgb(16 27 58 / 0.78);
+  --chrome: rgb(255 255 255 / 0.03);
+  --elapsed: rgb(16 27 58 / 0.62);
+}
+
+/* The sky at each part of the day (light themes; dark is the night sky). */
+:root {
+  --sky-day: linear-gradient(180deg, #c3defd 0%, #e6f0fb 45%, #fbeadf 100%);
+  --sky-night: linear-gradient(180deg, #0a1430 0%, #111d40 50%, #1e1d47 100%);
+}
+:root[data-daypart="morning"] {
+  --sky-day: linear-gradient(180deg, #cfe5ff 0%, #e9f2fc 45%, #fbf3e6 100%);
+}
+:root[data-daypart="evening"] {
+  --sky-day: linear-gradient(180deg, #d9d3fb 0%, #ece9f8 45%, #fce3d8 100%);
+}
+:root[data-daypart="night"] {
+  --sky-day: linear-gradient(180deg, #d3dcef 0%, #e7ecf5 50%, #efecf4 100%);
+}
+
+/* The look's faces, weights and shapes: theme-independent, redefined by each look. */
+:root {
+  --face-display: var(--font-jakarta), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --face-qualifier: var(--font-jakarta), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --face-sans: var(--font-jakarta), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --qualifier-style: normal;
+  --qualifier-weight: 700;
+  /* The hero number and screen titles (`font-book`), and how tight they set. */
+  --weight-display: 750;
+  --tracking-display: -0.025em;
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-sheet: 26px;
+  --r-fab: 20px;
+  /* The ribbon's spare track: solid aqua here, Daylight's dot grid elsewhere. */
+  --track: var(--spare-fill);
+  --track-image: none;
+  --track-r: 999px;
+  --glass-blur: blur(16px) saturate(1.3);
 }
 
 /* Theme-independent values: durations (DESIGN_SYSTEM.md §7) and the ribbon's span. */
@@ -217,14 +275,15 @@
   --color-block-soft-past: var(--block-soft-past);
   --color-raised-border: var(--raised-border);
 
-  /* Faces (DESIGN_SYSTEM.md §3): Newsreader for the few emotional moments, its italic for the one qualifier
-     word, Instrument Sans for everything else including every numeral. Mono is the system stack, kbd only. */
-  --font-display: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
-  --font-display-italic: var(--font-newsreader-italic), "Iowan Old Style", Georgia, serif;
-  --font-sans: var(--font-instrument-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* Faces come from the look (the block above): the display face for the few big moments, the qualifier's face
+     for the one word beside the hero ("spare" / "over"), the UI face for everything else including every numeral.
+     Mono is the system stack, kbd only. */
+  --font-display: var(--face-display);
+  --font-display-italic: var(--face-qualifier);
+  --font-sans: var(--face-sans);
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  /* Newsreader's display weight; `font-book` on the hero and titles. */
-  --font-weight-book: 450;
+  /* The look's display weight; `font-book` on the hero and titles. */
+  --font-weight-book: var(--weight-display);
 
   /* Type scale: display steps are fluid (phone value at 360, desktop value at 1440), UI steps are fixed. */
   --text-hero: clamp(2.5rem, 2.167rem + 1.481vw, 3.5rem);
@@ -249,13 +308,13 @@
   --tracking-eyebrow: 0.07em;
 
   /* Radii. `--radius-md` is deprecated: one site is left (search-view's filter remove) and moves to `sm` with the lists pass. */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
-  --radius-sheet: 20px;
-  --radius-fab: 18px;
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-sm);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-sheet: var(--r-sheet);
+  --radius-fab: var(--r-fab);
 
   /* Shadows: the three the design has, named for what they lift. Tailwind's own `shadow-sm`/`-lg`
      scale is deliberately not aliased — a shadow that is not one of these is a mistake. */
@@ -307,6 +366,18 @@
   }
 }
 
+/* Frosted glass (Sky): an element marked data-glass takes the look's translucent fill and blur over the backdrop; a look
+   without glass sets --glass to its surface and --glass-blur to none. Outside the utilities layer, so it wins. */
+[data-glass] {
+  background-color: var(--glass);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* The display face sets as tight as the look wants it (Sky's heavy sans tighter than Daylight's serif). */
+.font-display {
+  letter-spacing: var(--tracking-display);
+}
+
 /* Durations as utilities: `transition-colors dur-fast`. */
 @utility dur-reveal {
   transition-duration: var(--dur-reveal);
@@ -322,15 +393,16 @@
 }
 
 /* The ribbon's instruments (DESIGN_SYSTEM.md §5), reusable by the hero, the morning plan and the week bars. */
-/* Spare track: spare-soft with a 6 px dot grid in spare-fill. */
+/* Spare track: the look's (Sky: solid aqua; Daylight: spare-soft with a 6 px dot grid in spare-fill). */
 @utility ribbon-track {
-  background-color: var(--spare-soft);
-  background-image: radial-gradient(circle at 2px 2px, var(--spare-fill) 0.9px, transparent 1.15px);
+  background-color: var(--track);
+  background-image: var(--track-image);
   background-size: 6px 6px;
   background-position: 2px 4px;
 }
-/* The elapsed part of the day: a 135 degree hatch laid over the track. */
+/* The elapsed part of the day, laid over the track: the look's wash, then a 135 degree hatch. */
 @utility ribbon-elapsed {
+  background-color: var(--elapsed);
   background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1.2px, transparent 1.2px 5px);
 }
 /* An unanswered invitation (SYSTEM_DESIGN.md §5.4): still busy, so it keeps the meeting's fill, with a 45 degree
@@ -402,6 +474,15 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     font-optical-sizing: auto;
+  }
+  /* The look's backdrop (Sky: the sky at this hour), fixed behind everything; a look without one sets it to none. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--backdrop);
   }
   /* Times and keys always line up. */
   time,
@@ -517,7 +598,9 @@ nav[data-variant="rail"] a {
     gap: calc(var(--spacing) * 6);
     margin: calc(var(--spacing) * -3) calc(var(--spacing) * -5);
     padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
-    background: var(--paper);
+    /* Frosted over the sky in looks that paint one; the plain paper in the rest (--bar defaults to it). */
+    background: var(--bar);
+    backdrop-filter: var(--glass-blur);
   }
 }
 
@@ -556,7 +639,8 @@ nav[data-variant="rail"] a {
    ask for the italic style, or the roman answers. */
 @utility font-display-italic {
   font-family: var(--font-display-italic);
-  font-style: italic;
+  font-style: var(--qualifier-style);
+  font-weight: var(--qualifier-weight);
 }
 
 /* Today's ⋯ Print (SCREENS.md §2.1): the day list and the ribbon's summary on paper, without the app around it.

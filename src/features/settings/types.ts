@@ -24,6 +24,8 @@ export interface SettingsValues {
   eveningStartsAt: string;
   eveningEndsAt: string;
   theme: "system" | "light" | "dark";
+  /** The look's id (features/looks/catalog.ts). */
+  look: string;
   notifyBlockStart: boolean;
   notifyDeadline: boolean;
   notifyMorning: boolean;

@@ -4,7 +4,7 @@
 // the same payload Safari renders declaratively is shown here with buttons
 // where the platform has them; a tap or a button opens the deep link.
 import { defaultCache } from "@serwist/next/worker";
-import { CacheFirst, NetworkFirst, Serwist, type PrecacheEntry, type SerwistGlobalConfig } from "serwist";
+import { CacheFirst, ExpirationPlugin, NetworkFirst, Serwist, StaleWhileRevalidate, type PrecacheEntry, type SerwistGlobalConfig } from "serwist";
 import { ACTION_LABELS, isPushAction, supportsActions, withAction } from "../features/notifications/actions";
 import { bypassesWorker, isWorkerBootstrap } from "../features/pwa/worker-bypass";
 
@@ -40,6 +40,17 @@ const serwist = new Serwist({
     {
       matcher: ({ url }) => url.pathname.endsWith(".wasm"),
       handler: new CacheFirst({ cacheName: "wasm" }),
+    },
+    // A look other than Sky and its faces (DECISIONS.md, amendment 2026-10-20): not precached, so an install never
+    // downloads every look; kept once used, so the chosen look still draws offline. The stylesheet revalidates (its
+    // ?v= follows the build), the faces never change.
+    {
+      matcher: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/looks/"),
+      handler: new StaleWhileRevalidate({ cacheName: "looks", plugins: [new ExpirationPlugin({ maxEntries: 8 })] }),
+    },
+    {
+      matcher: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/fonts/"),
+      handler: new CacheFirst({ cacheName: "look-fonts", plugins: [new ExpirationPlugin({ maxEntries: 24 })] }),
     },
     // Its "apis" and "cross-origin" caches stay empty: those requests never reach Serwist (above).
     ...defaultCache,

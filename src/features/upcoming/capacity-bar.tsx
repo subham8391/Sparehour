@@ -21,7 +21,7 @@ export function DayBar({ c, readout, className }: { c: Capacity; readout: DayRea
   return (
     <div aria-hidden="true" data-bar={readout.kind} className={cx("flex h-1.5", className)}>
       {/* The dot grid sits on the bar's middle line: at 6 px the hero's offset would cut every dot in half. */}
-      <div className="relative min-w-0 flex-1 overflow-hidden rounded-xs ribbon-track" style={{ backgroundPosition: "2px 1px" }}>
+      <div className="relative min-w-0 flex-1 overflow-hidden rounded-(--track-r) ribbon-track" style={{ backgroundPosition: "2px 1px" }}>
         {c.busy.map((b, i) => (
           <span key={`m${i}`} data-segment="meeting" className="absolute inset-y-0 rounded-[3px] bg-meet-fill" style={{ left: left(b.start), width: width(b.start, b.end) }} />
         ))}

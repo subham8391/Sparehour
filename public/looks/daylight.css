@@ -1,0 +1,152 @@
+/* Daylight, the original look (Refined Daylight, DECISIONS.md Q26; kept selectable by the 2026-10-20 amendment).
+   Loaded only when chosen (features/looks/look.ts); redefines Sky's names from src/app/globals.css. Its faces are
+   declared by the root layout (next/font), so this sheet only names them. */
+:root[data-look="daylight"] {
+  color-scheme: light;
+  --paper: #f4f8f6;
+  --surface: #ffffff;
+  --surface-2: #edf1ef;
+  --surface-3: #ffffff;
+  --hover: rgb(22 28 25 / 0.05);
+  --press: rgb(22 28 25 / 0.08);
+  --scrim: rgb(25 37 31 / 0.32);
+  --line: #d9e0dd;
+  --line-strong: #bec6c2;
+  --line-control: #7f8683;
+  --ink: #161c19;
+  --ink-2: #555b58;
+  --ink-3: #5f6663;
+  --ink-4: #818885;
+  --spare: #1a7455;
+  --spare-fill: #19966e;
+  --spare-soft: #d7f3e5;
+  --spare-line: #7fd2ae;
+  --meet: #43629c;
+  --meet-fill: #5f80bc;
+  --meet-soft: #e0ecff;
+  --meet-line: #a2bef2;
+  --over: #875814;
+  --over-fill: #aa732b;
+  --over-soft: #feebd6;
+  --over-line: #e3b47f;
+  --deadline: #a8493d;
+  --deadline-fill: #c15e4f;
+  --deadline-soft: #ffe3de;
+  --deadline-line: #f9a496;
+  --block-fill: #292f2c;
+  --hatch: rgb(22 28 25 / 0.16);
+  --shadow-tint: 25 37 31;
+  --raised-border: transparent;
+  --daylight: linear-gradient(180deg, oklch(96% 0.012 235 / 0.7) 0%, transparent 42%, oklch(96.5% 0.018 75 / 0.75) 100%);
+  --backdrop: none;
+  --glass: var(--surface);
+  --bar: var(--paper);
+  --chrome: var(--paper);
+  --elapsed: transparent;
+
+  --face-display: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --face-qualifier: var(--font-newsreader-italic), "Iowan Old Style", Georgia, serif;
+  --face-sans: var(--font-instrument-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --qualifier-style: italic;
+  --qualifier-weight: 400;
+  --weight-display: 450;
+  --tracking-display: normal;
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-sheet: 20px;
+  --r-fab: 18px;
+  --track: var(--spare-soft);
+  --track-image: radial-gradient(circle at 2px 2px, var(--spare-fill) 0.9px, transparent 1.15px);
+  --track-r: var(--r-xs);
+  --glass-blur: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-look="daylight"]:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0c110f;
+    --surface: #151917;
+    --surface-2: #1e2320;
+    --surface-3: #282d2a;
+    --hover: rgb(255 255 255 / 0.06);
+    --press: rgb(255 255 255 / 0.1);
+    --scrim: rgb(0 0 0 / 0.55);
+    --line: #343937;
+    --line-strong: #4f5451;
+    --line-control: #7a817e;
+    --ink: #e8ecea;
+    --ink-2: #afb8b4;
+    --ink-3: #98a19d;
+    --ink-4: #808884;
+    --spare: #7cd2ae;
+    --spare-fill: #46b68c;
+    --spare-soft: #1c3329;
+    --spare-line: #0a6548;
+    --meet: #9bbeff;
+    --meet-fill: #7c9edd;
+    --meet-soft: #262e3d;
+    --meet-line: #3c5582;
+    --over: #e7b375;
+    --over-fill: #ca924c;
+    --over-soft: #392b1a;
+    --over-line: #744b13;
+    --deadline: #fda293;
+    --deadline-fill: #e47d6d;
+    --deadline-soft: #3c2824;
+    --deadline-line: #853b31;
+    --block-fill: #7b827f;
+    --hatch: rgb(232 236 234 / 0.16);
+    --raised-border: var(--line-strong);
+    --daylight: linear-gradient(180deg, oklch(26% 0.014 235 / 0.55) 0%, transparent 42%, oklch(26% 0.016 70 / 0.6) 100%);
+    --backdrop: none;
+    --glass: var(--surface);
+    --bar: var(--paper);
+    --chrome: var(--paper);
+    --elapsed: transparent;
+  }
+}
+
+:root[data-look="daylight"][data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0c110f;
+  --surface: #151917;
+  --surface-2: #1e2320;
+  --surface-3: #282d2a;
+  --hover: rgb(255 255 255 / 0.06);
+  --press: rgb(255 255 255 / 0.1);
+  --scrim: rgb(0 0 0 / 0.55);
+  --line: #343937;
+  --line-strong: #4f5451;
+  --line-control: #7a817e;
+  --ink: #e8ecea;
+  --ink-2: #afb8b4;
+  --ink-3: #98a19d;
+  --ink-4: #808884;
+  --spare: #7cd2ae;
+  --spare-fill: #46b68c;
+  --spare-soft: #1c3329;
+  --spare-line: #0a6548;
+  --meet: #9bbeff;
+  --meet-fill: #7c9edd;
+  --meet-soft: #262e3d;
+  --meet-line: #3c5582;
+  --over: #e7b375;
+  --over-fill: #ca924c;
+  --over-soft: #392b1a;
+  --over-line: #744b13;
+  --deadline: #fda293;
+  --deadline-fill: #e47d6d;
+  --deadline-soft: #3c2824;
+  --deadline-line: #853b31;
+  --block-fill: #7b827f;
+  --hatch: rgb(232 236 234 / 0.16);
+  --raised-border: var(--line-strong);
+  --daylight: linear-gradient(180deg, oklch(26% 0.014 235 / 0.55) 0%, transparent 42%, oklch(26% 0.016 70 / 0.6) 100%);
+  --backdrop: none;
+  --glass: var(--surface);
+  --bar: var(--paper);
+  --chrome: var(--paper);
+  --elapsed: transparent;
+}

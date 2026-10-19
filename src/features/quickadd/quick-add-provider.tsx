@@ -141,7 +141,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 export function QuickAddBar() {
   const { open } = useQuickAdd();
   return (
-    <div className="hidden w-full max-w-210 shrink-0 bg-paper px-6 sm:block md:px-10">
+    <div className="hidden w-full max-w-210 shrink-0 bg-(--bar) px-6 backdrop-blur-md sm:block md:px-10">
       <div className="border-t border-line pt-3 pb-4">
         <button
           type="button"
