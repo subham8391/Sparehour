@@ -30,6 +30,8 @@ export function bypassesWorker(request: Pick<Request, "url" | "headers">, origin
  * URL's #fragment. A response handed over by a service worker carries no fragment, so the worker started
  * without its config ("Missing worker bootstrap config"), PowerSync's database worker never opened, and every
  * visit after the first stayed on "Opening…" (found by the end-to-end walkthrough). These scripts are left to
- * the browser: the hashed file sits in its HTTP cache for a year, which also covers an offline start.
+ * the browser: the hashed file sits in its HTTP cache for a year, which also covers an offline start. Any folder under
+ * `/_next/static/`: Vercel serves the chunks from `/_next/static/immutable/chunks/`, and matching only `chunks/` sent
+ * the first hosted deploy back to "Opening…" on every load after the worker took over (laptop and Android alike).
  */
-export const isWorkerBootstrap = (pathname: string) => /\/_next\/static\/chunks\/turbopack-worker-[^/]*\.js$/.test(pathname);
+export const isWorkerBootstrap = (pathname: string) => /^\/_next\/static\/(?:[^?#]*\/)?turbopack-worker-[^/]*\.js$/.test(pathname);

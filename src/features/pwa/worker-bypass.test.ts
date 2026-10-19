@@ -30,6 +30,11 @@ describe("bypassesWorker", () => {
 
   it("leaves Turbopack's worker bootstrap alone", () => {
     expect(bypassesWorker(req("/_next/static/chunks/turbopack-worker-2ru9m5gbh1na6.js?params=x"), ORIGIN)).toBe(true);
+    // Where Vercel serves the hashed chunks: missing it put the hosted app on "Opening…" after the worker took over.
+    expect(bypassesWorker(req("/_next/static/immutable/chunks/turbopack-worker-2g80pj3ycf14_.js"), ORIGIN)).toBe(true);
+    expect(isWorkerBootstrap("/_next/static/immutable/chunks/turbopack-worker-2g80pj3ycf14_.js")).toBe(true);
+    expect(isWorkerBootstrap("/_next/static/immutable/chunks/turbopack-1snxt-h9gfxyc.js")).toBe(false);
+    expect(isWorkerBootstrap("/static/chunks/turbopack-worker-x.js")).toBe(false);
     expect(isWorkerBootstrap("/_next/static/chunks/turbopack-3yn6gz2ry9_io.js")).toBe(false);
   });
 
