@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
 import type { Capacity } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
+import { useRibbonShape } from "@/features/looks/look-shape";
 import { cx } from "@/ui/cx";
 import type { RibbonOverlayProps } from "./ribbon-overlay";
 
@@ -148,12 +149,65 @@ export function ribbonLabels(day: number, end: number, nowMin?: number, finishMi
   return labels;
 }
 
+/** Engraved ticks under a horizontal day: whole hours only, so a half-hour start keeps the tile on the clock. */
+export function RibbonTicks({ day, end }: { day: number; end: number }) {
+  const span = end - day;
+  const firstHour = Math.ceil(day / 60) * 60;
+  const lastHour = Math.floor(end / 60) * 60;
+  if (lastHour <= firstHour) return null;
+  return (
+    <div className="relative mt-0.5 h-2">
+      <span
+        className="absolute inset-y-0 ribbon-ticks"
+        style={{ left: `${((firstHour - day) / span) * 100}%`, width: `${((lastHour - firstHour) / span) * 100}%`, "--ribbon-hours": (lastHour - firstHour) / 60 } as CSSProperties}
+      />
+    </div>
+  );
+}
+
+/** The one label row under a horizontal day: the hours, and the now and finish times in their place (ribbonLabels). */
+export function RibbonLabelRow({ day, end, nowMin, finishMin }: { day: number; end: number; nowMin?: number; finishMin?: number }) {
+  const span = end - day;
+  const pct = (m: number) => ((m - day) / span) * 100;
+  // The first label sits flush left and the last flush right, so nothing pokes out of the card.
+  const align = (p: number) => (p < 4 ? "" : p > 96 ? "-translate-x-full" : "-translate-x-1/2");
+  return (
+    <div className="relative mt-0.5 h-3.5 text-micro font-medium text-ink-3 num">
+      {ribbonLabels(day, end, nowMin, finishMin).map((l) => (
+        <span
+          key={`${l.kind}${l.min}`}
+          className={cx(
+            "absolute top-0 whitespace-nowrap",
+            align(pct(l.min)),
+            l.kind === "now" && "font-semibold text-ink",
+            l.kind === "finish" && "font-semibold text-spare",
+            l.hide === "always" && "hidden",
+            l.hide === "narrow" && "hidden @min-[340px]:block",
+          )}
+          style={{ left: `${pct(l.min)}%` }}
+        >
+          {l.text}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// The four looks drawn with another shape (look-shape.ts) get it from an island, fetched only when such a look is on:
+// every other look, and the shell's size, keep the standard ribbon. A placeholder holds the bar's height meanwhile.
+const loadRibbonShapes = () => import("./ribbon-shapes");
+const RibbonShapes = dynamic(loadRibbonShapes, { ssr: false, loading: () => <div aria-hidden="true" className="h-[42px] sm:h-[50px]" /> });
+
 /**
  * The instrument itself: track, segments, elapsed hatch, the two cursors, the
  * engraved ticks, the one label row and the over-tail. Everything it says is
- * in the prose beside it, so assistive tech skips the drawing.
+ * in the prose beside it, so assistive tech skips the drawing. A look with its
+ * own shape (Pulse's ring, Tide's wave, Sundial's arc, Metro's line) draws the
+ * same day that way instead.
  */
 export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: number; className?: string }) {
+  const shape = useRibbonShape();
+  if (shape !== "bar") return <RibbonShapes shape={shape} c={c} nowMin={nowMin} className={className} />;
   const day = c.windows[0].start;
   const end = c.windows[c.windows.length - 1].end;
   const span = end - day;
@@ -166,12 +220,6 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
   // overrun reads as a small overrun rather than as a fixed amber block.
   const tailPct = c.overflowMin > 0 ? Math.min((c.overflowMin / span) * 100, TAIL_MAX_PCT) : 0;
   const tail = tailPct > 0 ? `max(3px, ${tailPct}%)` : null;
-  // Whole hours only under the ticks: a half-hour start keeps the tile aligned to the clock, not to the window's edge.
-  const firstHour = Math.ceil(day / 60) * 60;
-  const lastHour = Math.floor(end / 60) * 60;
-  const labels = ribbonLabels(day, end, nowMin, finishMin);
-  // The first label sits flush left and the last flush right, so nothing pokes out of the card.
-  const align = (p: number) => (p < 4 ? "" : p > 96 ? "-translate-x-full" : "-translate-x-1/2");
 
   return (
     <div aria-hidden="true" className={cx("@container relative", className)}>
@@ -196,32 +244,8 @@ export function RibbonTrack({ c, nowMin, className }: { c: Capacity; nowMin?: nu
           )}
           {now !== undefined && <span className="absolute -top-1 -bottom-1 z-2 w-0.5 -translate-x-px rounded-[1px] bg-ink shadow-[0_0_0_1px_var(--surface)]" style={{ left: `${pct(now)}%` }} />}
         </div>
-        {lastHour > firstHour && (
-          <div className="relative mt-0.5 h-2">
-            <span
-              className="absolute inset-y-0 ribbon-ticks"
-              style={{ left: `${pct(firstHour)}%`, width: `${((lastHour - firstHour) / span) * 100}%`, "--ribbon-hours": (lastHour - firstHour) / 60 } as CSSProperties}
-            />
-          </div>
-        )}
-        <div className="relative mt-0.5 h-3.5 text-micro font-medium text-ink-3 num">
-          {labels.map((l) => (
-            <span
-              key={`${l.kind}${l.min}`}
-              className={cx(
-                "absolute top-0 whitespace-nowrap",
-                align(pct(l.min)),
-                l.kind === "now" && "font-semibold text-ink",
-                l.kind === "finish" && "font-semibold text-spare",
-                l.hide === "always" && "hidden",
-                l.hide === "narrow" && "hidden @min-[340px]:block",
-              )}
-              style={{ left: `${pct(l.min)}%` }}
-            >
-              {l.text}
-            </span>
-          ))}
-        </div>
+        <RibbonTicks day={day} end={end} />
+        <RibbonLabelRow day={day} end={end} nowMin={nowMin} finishMin={finishMin} />
       </div>
       {tail && <span className="absolute top-0 right-0 h-4 rounded-r-xs border border-l-0 border-over-line ribbon-over sm:h-6" style={{ width: tail }} />}
     </div>

@@ -101,6 +101,18 @@ export function breakdownSentence(c: Capacity, bufferPct: number, connected: boo
   return `${terms.join(" − ")} = ${result}`;
 }
 
+/**
+ * The minute at a point on a ring drawn clockwise from its top (Pulse's day): `dx`, `dy` from the centre, `radius` the
+ * ring's outer edge. Inside the hole or outside the ring is no minute.
+ */
+export function ringMinute(dx: number, dy: number, radius: number, start: number, span: number): number | null {
+  const r = Math.hypot(dx, dy);
+  if (r > radius || r < radius * 0.45) return null;
+  let a = Math.atan2(dx, -dy);
+  if (a < 0) a += 2 * Math.PI;
+  return start + (a / (2 * Math.PI)) * span;
+}
+
 export default function RibbonOverlay({ c, connected, bufferPct, meetings, blocks, onAdd, onMeeting, addFor = "today" }: RibbonOverlayProps) {
   const [open, setOpen] = useState<"hover" | "pinned" | null>(null);
   const [seg, setSeg] = useState<RibbonSegment | null>(null);
@@ -112,16 +124,24 @@ export default function RibbonOverlay({ c, connected, bufferPct, meetings, block
   const { terms, result } = breakdownTerms(c, bufferPct, connected);
   const sentence = `${terms.join(" − ")} = ${result}`;
 
-  /** The minute of the day under a pointer, measured on the drawn day (the over-tail sits past its right edge). */
-  const minuteAt = (clientX: number): number | null => {
-    const day = rootRef.current?.parentElement?.querySelector("[data-ribbon-day]")?.getBoundingClientRect();
-    if (!day || day.width === 0 || c.windows.length === 0) return null;
+  /**
+   * The minute of the day under a pointer, measured on the drawn day (the over-tail sits past its right edge). A look
+   * whose day is a ring (ribbon-shapes.tsx) tells it by the angle from the ring's top, clockwise; a point off the ring
+   * names nothing.
+   */
+  const minuteAt = (clientX: number, clientY: number): number | null => {
+    if (c.windows.length === 0) return null;
     const start = c.windows[0].start;
     const span = c.windows[c.windows.length - 1].end - start;
+    const drawing = rootRef.current?.parentElement;
+    const ring = drawing?.querySelector("[data-ribbon-ring]")?.getBoundingClientRect();
+    if (ring && ring.width > 0) return ringMinute(clientX - (ring.left + ring.width / 2), clientY - (ring.top + ring.height / 2), ring.width / 2, start, span);
+    const day = drawing?.querySelector("[data-ribbon-day]")?.getBoundingClientRect();
+    if (!day || day.width === 0) return null;
     return start + Math.max(0, ((clientX - day.left) / day.width) * span);
   };
-  const segAt = (clientX: number) => {
-    const m = minuteAt(clientX);
+  const segAt = (clientX: number, clientY: number) => {
+    const m = minuteAt(clientX, clientY);
     return m === null ? null : segmentAt(segs, c, m);
   };
   const act = (s: RibbonSegment | null) => {
@@ -134,7 +154,7 @@ export default function RibbonOverlay({ c, connected, bufferPct, meetings, block
 
   const onMove = (e: PointerEvent) => {
     if (e.pointerType !== "mouse" || open === "pinned") return;
-    setSeg(segAt(e.clientX));
+    setSeg(segAt(e.clientX, e.clientY));
     setOpen("hover");
   };
   const onClick = (e: MouseEvent) => {
@@ -144,7 +164,7 @@ export default function RibbonOverlay({ c, connected, bufferPct, meetings, block
       setOpen((o) => (o === "pinned" ? null : "pinned"));
       return;
     }
-    const s = segAt(e.clientX);
+    const s = segAt(e.clientX, e.clientY);
     if (pointer.current === "mouse" && act(s)) return;
     // A tap: the panel for what was tapped; tapping the same thing again closes it.
     const same = open === "pinned" && s?.start === seg?.start && s?.kind === seg?.kind;
