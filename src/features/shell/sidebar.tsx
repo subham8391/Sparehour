@@ -228,12 +228,14 @@ export function Sidebar({
       </div>
 
       {onPalette && (
-        <div className={cx("shrink-0 pb-3", rail ? "px-2.5" : "px-3")}>
+        <div className={cx("shrink-0 pb-2", rail ? "px-2.5" : "px-3")}>
           <SearchControl rail={rail} isMac={isMac} onOpen={onPalette} />
         </div>
       )}
 
-      <div className={cx("min-h-0 flex-1 overflow-y-auto pb-4", rail ? "px-2.5" : "px-3")}>
+      {/* A scroller clips what is drawn outside its items, so its own 4 px at the top keep the first item's active
+          ring and keyboard focus ring whole (the search block gives up the same 4 px, so the gap is unchanged). */}
+      <div className={cx("min-h-0 flex-1 overflow-y-auto pt-1 pb-4", rail ? "px-2.5" : "px-3")}>
         <ul className="flex flex-col gap-0.5">
           {SIDEBAR_VIEWS.map((v) => (
             <li key={v.id}>
