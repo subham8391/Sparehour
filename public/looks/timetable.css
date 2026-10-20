@@ -73,6 +73,22 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: var(--paper);
+  --r-control: 2px;
+  --r-pill: 2px;
+  --r-check: 2px;
+  --bw-control: 2px;
+  --bw-check: 2px;
+  --control-weight: 700;
+  --control-case: uppercase;
+  --control-tracking: 0.06em;
+  --seg-bw: 2px;
+  --btn-2-line: var(--ink);
+  --check-line: var(--ink);
+  --seg: transparent;
+  --seg-line: var(--ink);
+  --seg-on: var(--ink);
+  --seg-on-ink: var(--paper);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -112,6 +128,13 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --btn-2-line: var(--ink);
+    --check-line: var(--ink);
+    --seg: transparent;
+    --seg-line: var(--ink);
+    --seg-on: var(--ink);
+    --seg-on-ink: var(--paper);
+    --seg-on-shadow: 0 0 #0000;
   }
 }
 
@@ -151,6 +174,13 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --btn-2-line: var(--ink);
+  --check-line: var(--ink);
+  --seg: transparent;
+  --seg-line: var(--ink);
+  --seg-on: var(--ink);
+  --seg-on-ink: var(--paper);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 :root[data-look="timetable"] .font-display-italic { text-transform: uppercase; letter-spacing: 0.08em; }

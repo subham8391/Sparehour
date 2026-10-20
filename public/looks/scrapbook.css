@@ -80,6 +80,21 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: var(--paper);
+  --r-control: 4px;
+  --r-pill: 4px;
+  --r-chip: 3px;
+  --control-weight: 600;
+  --control-case: none;
+  --control-tracking: normal;
+  --r-seg-on: 2px;
+  --btn: var(--spare-fill);
+  --btn-ink: var(--ink);
+  --btn-shadow: 0 3px 6px -3px rgb(0 0 0 / 0.35);
+  --seg: transparent;
+  --seg-ink: var(--ink-3);
+  --seg-on: var(--spare-fill);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: 0 2px 4px -2px rgb(0 0 0 / 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -119,6 +134,14 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --btn: var(--spare-fill);
+    --btn-ink: var(--paper);
+    --btn-shadow: 0 3px 6px -3px rgb(0 0 0 / 0.35);
+    --seg: transparent;
+    --seg-ink: var(--ink-3);
+    --seg-on: var(--spare-fill);
+    --seg-on-ink: var(--paper);
+    --seg-on-shadow: 0 2px 4px -2px rgb(0 0 0 / 0.3);
   }
 }
 
@@ -158,6 +181,14 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --btn: var(--spare-fill);
+  --btn-ink: var(--paper);
+  --btn-shadow: 0 3px 6px -3px rgb(0 0 0 / 0.35);
+  --seg: transparent;
+  --seg-ink: var(--ink-3);
+  --seg-on: var(--spare-fill);
+  --seg-on-ink: var(--paper);
+  --seg-on-shadow: 0 2px 4px -2px rgb(0 0 0 / 0.3);
 }
 
 :root[data-look="scrapbook"] [data-glass] { position: relative; border-color: transparent; transform: rotate(-0.6deg); box-shadow: 0 6px 14px -8px rgb(0 0 0 / 0.35); }

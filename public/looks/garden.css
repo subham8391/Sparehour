@@ -72,6 +72,20 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: var(--paper);
+  --r-control: 22px 14px 22px 14px;
+  --r-check: 60% 40% 55% 45%;
+  --bw-check: 2px;
+  --control-weight: 700;
+  --control-case: none;
+  --control-tracking: normal;
+  --r-seg: 999px;
+  --btn: var(--spare);
+  --btn-ink: var(--surface);
+  --check-line: var(--spare);
+  --seg: var(--surface);
+  --seg-on: var(--meet-soft);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -111,6 +125,13 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --btn: var(--spare);
+    --btn-ink: var(--paper);
+    --check-line: var(--spare);
+    --seg: var(--surface);
+    --seg-on: var(--meet-soft);
+    --seg-on-ink: var(--ink);
+    --seg-on-shadow: 0 0 #0000;
   }
 }
 
@@ -150,6 +171,13 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --btn: var(--spare);
+  --btn-ink: var(--paper);
+  --check-line: var(--spare);
+  --seg: var(--surface);
+  --seg-on: var(--meet-soft);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 :root[data-look="garden"] [data-glass] { border-radius: 38px 26px 40px 24px / 30px 40px 26px 38px; border-color: transparent; box-shadow: 0 12px 26px -18px rgb(35 48 31 / 0.45); }

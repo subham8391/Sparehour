@@ -12,7 +12,7 @@ export type ChipTone = "neutral" | "time" | "deadline" | "near" | "meet" | "over
 export type ChipSize = "md" | "sm" | "auto";
 
 // Every tone sets its own border colour: a shared transparent default would outrank the guess chip's dashed line.
-const BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border font-medium num";
+const BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap border font-medium num";
 
 const SIZE: Record<ChipSize, string> = {
   md: "h-5.5 px-2 text-body-sm",
@@ -29,7 +29,8 @@ const TONE: Record<ChipTone, string> = {
   near: "border-transparent bg-deadline-soft text-deadline [&_svg]:text-deadline-fill",
   meet: "border-transparent bg-meet-soft text-meet",
   over: "border-over-line bg-over-soft text-over",
-  spare: "rounded-full border-spare-line bg-spare-soft text-spare font-semibold",
+  // A pill in Sky; the look may square it (Material's 8 px, Noir's 2 px).
+  spare: "border-spare-line bg-spare-soft text-spare font-semibold",
   guess: "border-dashed border-line-control text-ink-2",
   block: "border-transparent bg-surface-2 text-ink font-semibold",
 };
@@ -38,7 +39,7 @@ const TONE: Record<ChipTone, string> = {
 const TONE_ICON: Partial<Record<ChipTone, IconName>> = { time: "clock", deadline: "flag", near: "flag" };
 
 export function chipClass({ tone = "neutral", size = "md" }: { tone?: ChipTone; size?: ChipSize } = {}): string {
-  return cx(BASE, SIZE[size], TONE[tone]);
+  return cx(BASE, tone === "spare" ? "rounded-chip" : "rounded-sm", SIZE[size], TONE[tone]);
 }
 
 /**

@@ -138,8 +138,8 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
               <Link href={`/project/${p.id}`} className={cx(PROJECT_CARD, "transition-colors dur-fast hover:border-line-strong active:bg-press")}>
                 <span className="text-body-lg font-medium text-ink">{p.name ?? "Untitled project"}</span>
                 {/* One static line (DESIGN_SYSTEM.md §8: progress bars do not animate); the words beside it carry the figures. */}
-                <span aria-hidden="true" data-testid="project-progress" className="h-1 w-full overflow-hidden rounded-full bg-line">
-                  <span className="block h-full rounded-full bg-ink-3" style={{ width: `${Math.round(share * 100)}%` }} />
+                <span aria-hidden="true" data-testid="project-progress" className="h-1 w-full overflow-hidden rounded-pill bg-line">
+                  <span className="block h-full rounded-pill bg-ink-3" style={{ width: `${Math.round(share * 100)}%` }} />
                 </span>
                 <span className="flex flex-wrap items-center gap-2 text-body-sm text-ink-2 num">
                   <span>

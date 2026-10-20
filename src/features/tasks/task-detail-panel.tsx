@@ -377,9 +377,9 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           aria-label={done ? "Mark not done" : "Mark done"}
           aria-pressed={done}
           onClick={done ? p.onReopen : p.onComplete}
-          className="-ml-3 flex size-11 shrink-0 items-center justify-center rounded-full hover:[&>span]:border-ink motion-safe:active:[&>span]:scale-90"
+          className="-ml-3 flex size-11 shrink-0 items-center justify-center rounded-check hover:[&>span]:border-ink motion-safe:active:[&>span]:scale-90"
         >
-          <span className={cx("flex size-[22px] items-center justify-center rounded-full border-[1.5px] transition-[background-color,border-color,transform] dur-fast", done ? "border-ink bg-ink text-ink-inverse" : "border-line-control")}>
+          <span className={cx("flex size-[22px] items-center justify-center task-check transition-[background-color,border-color,transform] dur-fast", done ? "border-ink bg-ink text-ink-inverse" : "border-check")}>
             {done && <Icon name="check" size={13} strokeWidth={2.2} />}
           </span>
         </button>

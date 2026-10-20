@@ -73,6 +73,27 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: var(--paper);
+  --r-control: 999px;
+  --bw-control: 3px;
+  --bw-check: 2px;
+  --control-weight: 600;
+  --control-case: none;
+  --control-tracking: normal;
+  --r-seg: 999px;
+  --seg-bw: 3px;
+  --btn: var(--spare-fill);
+  --btn-ink: var(--ink);
+  --btn-line: var(--outline);
+  --btn-shadow: 0 4px 0 rgb(59 42 74 / 0.14);
+  --btn-2-line: var(--outline);
+  --btn-2-shadow: 0 3px 0 rgb(59 42 74 / 0.1);
+  --check-line: var(--spare);
+  --seg: var(--surface);
+  --seg-on: var(--meet-soft);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: 0 0 #0000;
+  --seg-line: var(--outline);
+  --seg-shadow: 0 3px 0 rgb(59 42 74 / 0.1);
   --outline: #ffffff;
 }
 
@@ -113,6 +134,19 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --btn: var(--spare-fill);
+    --btn-ink: var(--paper);
+    --btn-line: var(--outline);
+    --btn-shadow: 0 4px 0 rgb(0 0 0 / 0.3);
+    --btn-2-line: var(--outline);
+    --btn-2-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
+    --check-line: var(--spare);
+    --seg: var(--surface);
+    --seg-on: var(--meet-soft);
+    --seg-on-ink: var(--ink);
+    --seg-on-shadow: 0 0 #0000;
+    --seg-line: var(--outline);
+    --seg-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
     --outline: #3e3152;
   }
 }
@@ -153,6 +187,19 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --btn: var(--spare-fill);
+  --btn-ink: var(--paper);
+  --btn-line: var(--outline);
+  --btn-shadow: 0 4px 0 rgb(0 0 0 / 0.3);
+  --btn-2-line: var(--outline);
+  --btn-2-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
+  --check-line: var(--spare);
+  --seg: var(--surface);
+  --seg-on: var(--meet-soft);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: 0 0 #0000;
+  --seg-line: var(--outline);
+  --seg-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
   --outline: #3e3152;
 }
 

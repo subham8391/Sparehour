@@ -164,9 +164,9 @@ export function CompactRow({
               setCompleting(true);
               onDone();
             }}
-            className={cx("flex shrink-0 items-center justify-center rounded-full hover:[&>span]:border-ink", s.check)}
+            className={cx("flex shrink-0 items-center justify-center rounded-check hover:[&>span]:border-ink", s.check)}
           >
-            <span className={cx("flex size-4 items-center justify-center rounded-full border-[1.5px] transition-colors dur-fast", done ? "border-ink bg-ink text-ink-inverse" : "border-line-control")}>
+            <span className={cx("flex size-4 items-center justify-center task-check transition-colors dur-fast", done ? "border-ink bg-ink text-ink-inverse" : "border-check")}>
               {done && <Icon name="check" size={11} strokeWidth={2.4} />}
             </span>
           </button>

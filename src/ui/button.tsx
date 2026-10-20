@@ -1,7 +1,11 @@
 // Buttons (DESIGN_SYSTEM.md §5): one scale, 36 px on desktop and 44 px on the
-// phone and on any touch device (`touch:`, a pointer that cannot hover), five looks. Primary is ink, never green. Pressed scales to .97 only
+// phone and on any touch device (`touch:`, a pointer that cannot hover), five looks. Primary is ink in Sky, never green. Pressed scales to .97 only
 // for people who have not asked for reduced motion. The focus ring is the
-// global one and follows the radius.
+// global one and follows the radius. Corners, edges, the primary's colours and
+// shadow, and the type follow the look (globals.css, "Controls"; DECISIONS.md):
+// Studio's outlined green with a hard shadow, Material's tonal pill, Bauhaus's
+// square blue. The destructive tone restates the colours rather than adding
+// classes, so it wins whatever the look.
 import type { ButtonHTMLAttributes } from "react";
 import { cx } from "./cx";
 
@@ -12,16 +16,17 @@ export type ButtonSize = "auto" | "touch" | "desktop" | "compact" | "sheet";
 export type ButtonTone = "default" | "destructive";
 
 const BASE =
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-body font-medium transition-[background-color,color,border-color,transform] dur-fast motion-safe:active:scale-97 disabled:pointer-events-none disabled:opacity-60";
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-body font-control transition-[background-color,color,border-color,transform] dur-fast motion-safe:active:scale-97 disabled:pointer-events-none disabled:opacity-60";
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-ink px-3.5 text-ink-inverse hover:bg-ink/90",
-  secondary: "border border-line-strong bg-surface px-3.5 text-ink hover:bg-hover",
-  quiet: "px-3.5 text-ink-2 hover:bg-hover hover:text-ink",
+  // `btn-fill` and `btn-line` (globals.css) draw the look's two buttons; `control-type` sets its face, case and tracking.
+  primary: "btn-fill control-type rounded-control px-3.5",
+  secondary: "btn-line control-type rounded-control px-3.5 hover:bg-hover",
+  quiet: "rounded-control px-3.5 text-ink-2 hover:bg-hover hover:text-ink",
   // The text button: ink, no border, a hover wash. Pair with `text-ink-2` for the quieter one.
   link: "rounded-sm px-2 text-ink hover:bg-hover",
   // A glyph on its own: a square target with no label and the quiet wash. The size comes from the scale, so it is 44 px on touch.
-  icon: "aspect-square text-ink-2 hover:bg-hover hover:text-ink",
+  icon: "aspect-square rounded-control text-ink-2 hover:bg-hover hover:text-ink",
 };
 
 const SIZE: Record<ButtonSize, string> = {
@@ -33,10 +38,11 @@ const SIZE: Record<ButtonSize, string> = {
   sheet: "h-12 w-full text-body-lg",
 };
 
-// Deadline text with a deadline-soft wash; the tokens are declared after the neutrals, so these win over the variant's colours.
+// Deadline text with a deadline-soft wash. Primary and secondary restate the look's button variables (`btn-danger`);
+// the others' tokens are declared after the neutrals, so they win over the variant's colours.
 const DESTRUCTIVE: Record<ButtonVariant, string> = {
-  primary: "bg-deadline text-ink-inverse hover:bg-deadline/90",
-  secondary: "border-deadline-line text-deadline hover:bg-deadline-soft",
+  primary: "btn-danger",
+  secondary: "btn-danger hover:bg-deadline-soft",
   quiet: "text-deadline hover:bg-deadline-soft hover:text-deadline",
   link: "text-deadline hover:bg-deadline-soft",
   icon: "text-deadline hover:bg-deadline-soft hover:text-deadline",

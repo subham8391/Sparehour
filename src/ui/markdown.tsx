@@ -223,7 +223,7 @@ function renderBlocks(blocks: readonly Block[], key: string): ReactNode[] {
         return <p key={k}>{lines(b.lines, k)}</p>;
       case "code":
         return (
-          <pre key={k} className="overflow-x-auto rounded-md bg-surface-2 px-3 py-2 font-mono text-body-sm">
+          <pre key={k} className="overflow-x-auto rounded-sm bg-surface-2 px-3 py-2 font-mono text-body-sm">
             <code>{b.text}</code>
           </pre>
         );

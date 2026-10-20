@@ -306,7 +306,8 @@ describe("Settings sections", () => {
     const user = userEvent.setup();
     render(<AccountSection {...base()} data={{ onExport, busy: null, error: null, lastFile: null }} />);
     const button = screen.getByRole("button", { name: "Delete account" });
-    expect(button).toHaveClass("h-11", "text-deadline");
+    // The destructive tone restates the button's colours as the deadline role, whatever the look draws it with.
+    expect(button).toHaveClass("h-11", "btn-danger");
     expect(screen.getByText("Everything in your account goes, after 30 days to change your mind.")).toBeInTheDocument();
     await user.click(button);
     const dialog = await screen.findByRole("dialog", { name: "Delete your account?" });

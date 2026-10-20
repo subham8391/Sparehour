@@ -75,6 +75,26 @@
   --chrome: rgb(255 255 255 / 0.3);
   /* The part of the day that has gone, washed over the ribbon's spare track. */
   --elapsed: rgb(255 255 255 / 0.62);
+  /* Controls (DECISIONS.md, amendment 2026-10-20: controls follow the look): the primary and secondary buttons, the
+     segmented rail and its chosen tile, the task's check. A look restates the ones it draws its own way; dark
+     restates the rail. Left unset, and so none: --btn-line, --btn-image, --btn-shadow, --btn-2-shadow, --seg-line,
+     --seg-shadow (a border whose colour is unset is not drawn) and --btn-hover (the fill lets a tenth through). */
+  --btn: var(--ink);
+  --btn-ink: var(--ink-inverse);
+  --btn-2-ink: var(--ink);
+  --btn-2-line: var(--line-strong);
+  --seg: var(--surface-2);
+  --seg-ink: var(--ink-2);
+  --seg-hover: var(--ink);
+  --seg-on: var(--surface-3);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: var(--shadow-active);
+  --check-line: var(--line-control);
+  /* A switch that is off. Its own name for the looks whose control ring is their ink, where off would read as on. */
+  --switch-off: var(--line-control);
+  /* The phone's add button wears the primary colours unless a look's primary is only an outline. */
+  --fab: var(--btn);
+  --fab-ink: var(--btn-ink);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -126,6 +146,10 @@
     --bar: rgb(16 27 58 / 0.78);
     --chrome: rgb(255 255 255 / 0.03);
     --elapsed: rgb(16 27 58 / 0.62);
+    /* The rail is sunk into whatever it sits on, the page or a card, and the chosen tile rises out of it. */
+    --seg: rgb(0 0 0 / 0.22);
+    --seg-on: var(--surface-3);
+    --seg-on-shadow: 0 0 0 1px var(--line-strong);
   }
 }
 
@@ -177,6 +201,10 @@
   --bar: rgb(16 27 58 / 0.78);
   --chrome: rgb(255 255 255 / 0.03);
   --elapsed: rgb(16 27 58 / 0.62);
+  /* The rail is sunk into whatever it sits on, the page or a card, and the chosen tile rises out of it. */
+  --seg: rgb(0 0 0 / 0.22);
+  --seg-on: var(--surface-3);
+  --seg-on-shadow: 0 0 0 1px var(--line-strong);
 }
 
 /* The sky at each part of the day (light themes; dark is the night sky). */
@@ -210,6 +238,22 @@
   --r-xl: 20px;
   --r-sheet: 26px;
   --r-fab: 20px;
+  /* The controls' shapes and type (their colours are with each theme above). Buttons take `control`; the segmented
+     rail `seg` (one value, so the tile's can be worked out: it sits 4 px inside the rail and its edge); switches,
+     count badges and bars `pill`; the spare chip `chip`; the task's check `check`. */
+  --r-control: var(--r-lg);
+  --r-seg: var(--r-control);
+  --r-seg-on: max(0px, calc(var(--r-seg) - 4px - var(--seg-bw)));
+  --r-pill: 999px;
+  --r-chip: var(--r-pill);
+  --r-check: 999px;
+  --bw-control: 1px;
+  --bw-check: 1.5px;
+  --seg-bw: 0px;
+  --face-control: var(--face-sans);
+  --control-weight: 500;
+  --control-case: none;
+  --control-tracking: normal;
   /* The ribbon's spare track: solid aqua here, Daylight's dot grid elsewhere. */
   --track: var(--spare-fill);
   --track-image: none;
@@ -256,6 +300,8 @@
   --color-ink-3: var(--ink-3);
   --color-ink-4: var(--ink-4);
   --color-ink-inverse: var(--ink-inverse);
+  --color-check: var(--check-line);
+  --color-switch-off: var(--switch-off);
   --color-spare: var(--spare);
   --color-spare-fill: var(--spare-fill);
   --color-spare-soft: var(--spare-soft);
@@ -287,6 +333,7 @@
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   /* The look's display weight; `font-book` on the hero and titles. */
   --font-weight-book: var(--weight-display);
+  --font-weight-control: var(--control-weight);
 
   /* Type scale: display steps are fluid (phone value at 360, desktop value at 1440), UI steps are fixed. */
   --text-hero: clamp(2.5rem, 2.167rem + 1.481vw, 3.5rem);
@@ -318,6 +365,10 @@
   --radius-xl: var(--r-xl);
   --radius-sheet: var(--r-sheet);
   --radius-fab: var(--r-fab);
+  --radius-control: var(--r-control);
+  --radius-pill: var(--r-pill);
+  --radius-chip: var(--r-chip);
+  --radius-check: var(--r-check);
 
   /* Shadows: the three the design has, named for what they lift. Tailwind's own `shadow-sm`/`-lg`
      scale is deliberately not aliased — a shadow that is not one of these is a mistake. */
@@ -440,6 +491,88 @@
 @utility bg-daylight {
   background-image: var(--daylight);
 }
+/* The controls the look draws (the "Controls" tokens above; DECISIONS.md, amendment 2026-10-20). Rules of their own
+   rather than a string of arbitrary utilities: the shell carries one short name for each. */
+@utility control-type {
+  font-family: var(--face-control);
+  text-transform: var(--control-case);
+  letter-spacing: var(--control-tracking);
+}
+/* The task's check: the look's corner and edge (its colour is `border-check`, or ink once done). */
+@utility task-check {
+  border-radius: var(--r-check);
+  border-width: var(--bw-check);
+}
+/* The primary button (button.tsx). The destructive tone restates the variables, so it needs no rule of its own. */
+@utility btn-fill {
+  border: var(--bw-control) solid var(--btn-line);
+  background-color: var(--btn);
+  background-image: var(--btn-image);
+  color: var(--btn-ink);
+  box-shadow: var(--btn-shadow);
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--btn-hover, color-mix(in oklab, var(--btn) 90%, transparent));
+    }
+  }
+}
+/* The destructive tone (Delete, Disconnect): the deadline role in either button, whatever the look draws them with. */
+@utility btn-danger {
+  --btn: var(--deadline);
+  --btn-ink: var(--ink-inverse);
+  --btn-line: transparent;
+  --btn-image: none;
+  --btn-shadow: none;
+  --btn-hover: color-mix(in oklab, var(--deadline) 90%, transparent);
+  --btn-2-line: var(--deadline-line);
+  --btn-2-ink: var(--deadline);
+}
+/* The phone's add button: the primary's rule in the FAB's colours, lifted by its own shadow. */
+@utility btn-fab {
+  --btn: var(--fab);
+  --btn-ink: var(--fab-ink);
+  --btn-shadow: var(--shadow-fab);
+}
+/* The secondary button; its hover wash stays a utility so the destructive one can replace it. */
+@utility btn-line {
+  border: var(--bw-control) solid var(--btn-2-line);
+  background-color: var(--surface);
+  color: var(--btn-2-ink);
+  box-shadow: var(--btn-2-shadow);
+}
+/* The segmented rail and a segment with its tile (segmented.tsx): the tile is the ::before, inset by the frame. */
+@utility seg-rail {
+  border: var(--seg-bw) solid var(--seg-line);
+  border-radius: var(--r-seg);
+  background-color: var(--seg);
+  box-shadow: var(--seg-shadow);
+}
+@utility seg-tile {
+  border-radius: var(--r-seg-on);
+  color: var(--seg-ink);
+  &::before {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    border-radius: var(--r-seg-on);
+    transition: background-color var(--dur-fast), box-shadow var(--dur-fast);
+  }
+  &[aria-pressed="true"],
+  &[aria-checked="true"] {
+    color: var(--seg-on-ink);
+  }
+  &[aria-pressed="true"]::before,
+  &[aria-checked="true"]::before {
+    background-color: var(--seg-on);
+    box-shadow: var(--seg-on-shadow);
+  }
+  @media (hover: hover) {
+    &:not([aria-pressed="true"], [aria-checked="true"]):hover {
+      color: var(--seg-hover);
+    }
+  }
+}
+
 /* A control drawn smaller than a finger (a row's estimate chip, a chip's ×) still takes a 44 × 44 px target on a touch
    device: an invisible box centred on it (SCREENS.md §0, DESIGN_SYSTEM.md §5). Mouse and trackpad keep the drawn size. */
 @utility hit-touch {

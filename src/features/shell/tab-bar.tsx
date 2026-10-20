@@ -39,7 +39,7 @@ export function TabBar({ pathname, counts, sync, className = "" }: { pathname: s
             <Icon name={VIEW_ICONS[v.id]} size={24} strokeWidth={current ? 2 : 1.6} />
             <span>{v.tabLabel}</span>
             {badge && (
-              <span aria-hidden="true" className="absolute top-1.5 left-[calc(50%+4px)] flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-micro font-semibold text-ink-inverse num">
+              <span aria-hidden="true" className="absolute top-1.5 left-[calc(50%+4px)] flex h-4 min-w-4 items-center justify-center rounded-pill bg-ink px-1 text-micro font-semibold text-ink-inverse num">
                 {badge}
               </span>
             )}

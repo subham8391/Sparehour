@@ -157,7 +157,7 @@ export function QuickAddBar() {
   );
 }
 
-/** The phone FAB: 56 px, ink, a rounded square, 16 px above the tab bar. `hidden` while a sheet owns the screen. */
+/** The phone FAB: 56 px, the look's primary colours (ink in Sky), a rounded square, 16 px above the tab bar. `hidden` while a sheet owns the screen. */
 export function QuickAddFab({ hidden = false }: { hidden?: boolean }) {
   const { open } = useQuickAdd();
   return (
@@ -166,7 +166,7 @@ export function QuickAddFab({ hidden = false }: { hidden?: boolean }) {
       onClick={() => open()}
       aria-label="Add a task"
       hidden={hidden}
-      className="fixed right-5 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center rounded-fab bg-ink text-ink-inverse shadow-lift transition-transform dur-fast motion-safe:active:scale-94 sm:hidden"
+      className="fixed right-5 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center btn-fill btn-fab rounded-fab transition-transform dur-fast motion-safe:active:scale-94 sm:hidden"
     >
       <Icon name="plus" size={24} strokeWidth={1.8} />
     </button>

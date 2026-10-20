@@ -88,6 +88,25 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: var(--paper);
+  --r-control: 2px;
+  --r-pill: 2px;
+  --r-check: 0px;
+  --bw-check: 1px;
+  --control-weight: 600;
+  --control-case: uppercase;
+  --control-tracking: 0.14em;
+  --btn: transparent;
+  --btn-hover: var(--hover);
+  --btn-ink: var(--spare);
+  --btn-line: var(--spare-fill);
+  --fab: var(--ink);
+  --fab-ink: var(--paper);
+  --check-line: var(--spare);
+  --seg: transparent;
+  --seg-ink: var(--ink-3);
+  --seg-on: transparent;
+  --seg-on-shadow: inset 0 -1px 0 var(--spare-fill);
+  --seg-on-ink: var(--spare);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -127,6 +146,18 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --btn: transparent;
+    --btn-hover: var(--hover);
+    --btn-ink: var(--spare);
+    --btn-line: var(--spare-fill);
+    --fab: var(--ink);
+    --fab-ink: var(--paper);
+    --check-line: var(--spare);
+    --seg: transparent;
+    --seg-ink: var(--ink-3);
+    --seg-on: transparent;
+    --seg-on-shadow: inset 0 -1px 0 var(--spare-fill);
+    --seg-on-ink: var(--spare);
   }
 }
 
@@ -166,6 +197,18 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --btn: transparent;
+  --btn-hover: var(--hover);
+  --btn-ink: var(--spare);
+  --btn-line: var(--spare-fill);
+  --fab: var(--ink);
+  --fab-ink: var(--paper);
+  --check-line: var(--spare);
+  --seg: transparent;
+  --seg-ink: var(--ink-3);
+  --seg-on: transparent;
+  --seg-on-shadow: inset 0 -1px 0 var(--spare-fill);
+  --seg-on-ink: var(--spare);
 }
 
 :root[data-look="noir"] .font-display-italic { text-transform: uppercase; letter-spacing: 0.3em; font-size: 0.5em; }

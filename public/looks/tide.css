@@ -72,6 +72,17 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: var(--paper);
+  --r-control: 999px;
+  --bw-check: 2px;
+  --control-weight: 500;
+  --control-case: none;
+  --control-tracking: normal;
+  --r-seg: 999px;
+  --check-line: var(--spare);
+  --seg: var(--surface);
+  --seg-on: var(--spare-soft);
+  --seg-on-ink: var(--spare);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -111,6 +122,11 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --check-line: var(--spare);
+    --seg: var(--surface);
+    --seg-on: var(--spare-soft);
+    --seg-on-ink: var(--spare);
+    --seg-on-shadow: 0 0 #0000;
   }
 }
 
@@ -150,6 +166,11 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --check-line: var(--spare);
+  --seg: var(--surface);
+  --seg-on: var(--spare-soft);
+  --seg-on-ink: var(--spare);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 :root[data-look="tide"] [data-glass] { border-color: transparent; box-shadow: 0 8px 24px -16px rgb(11 42 58 / 0.4); }

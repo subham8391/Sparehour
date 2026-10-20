@@ -369,7 +369,7 @@ export function Palette(p: PaletteProps) {
                     )}
                     {row.kind === "task" && (
                       <>
-                        <span className="size-4 shrink-0 rounded-full border-[1.5px] border-line-control" aria-hidden="true" />
+                        <span className="size-4 shrink-0 task-check border-check" aria-hidden="true" />
                         <span className="min-w-0 flex-1 truncate">{row.task.title}</span>
                         <DayChipTag chip={dayChip(row.task, p.today)} />
                       </>

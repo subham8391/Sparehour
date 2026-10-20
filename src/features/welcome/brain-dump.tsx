@@ -184,7 +184,7 @@ function AddedRow({ draft, ctx }: { draft: TaskDraft; ctx: QuickAddContext }) {
   return (
     <li className="flex min-h-11 flex-col justify-center gap-0.5 border-t border-line px-3.5 py-2 first:border-t-0">
       <span className="flex min-w-0 items-center gap-2.5">
-        <span aria-hidden="true" className="size-4 shrink-0 rounded-full border-[1.5px] border-line-control" />
+        <span aria-hidden="true" className="size-4 shrink-0 task-check border-check" />
         <span className="min-w-0 flex-1 truncate text-body text-ink">{draft.title}</span>
         <span className="flex shrink-0 items-center gap-1 max-sm:hidden">
           {facts.map((f, i) => (

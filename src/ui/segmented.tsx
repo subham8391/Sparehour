@@ -4,6 +4,11 @@
 // ruling R7); from `sm` the control is 36 px and the tile fills the padding.
 // With a `label` it is a radiogroup; without one the segments are toggle
 // buttons with aria-pressed, which is what the Today view's tests expect.
+// The look draws it (globals.css, "Controls"; DECISIONS.md): the rail's fill,
+// edge and corner, the tile's fill, text and shadow. Sky sinks the rail and
+// raises the tile; Studio outlines the rail and fills the tile ink; Indigo,
+// Noir and Zero drop the rail and underline the choice. The tile's corner is
+// the rail's less the 4 px between them, so the two stay concentric.
 import { cx } from "./cx";
 
 export interface SegmentOption<T extends string> {
@@ -12,11 +17,8 @@ export interface SegmentOption<T extends string> {
 }
 
 // The tile is a pseudo-element so the target can be taller than the thing that looks raised;
-// the label sits in its own positioned span, which paints over it.
-const SEGMENT =
-  "relative h-full rounded-[7px] px-3.5 text-body font-medium text-ink-2 transition-colors dur-fast hover:text-ink focus-visible:-outline-offset-2 aria-pressed:text-ink aria-checked:text-ink" +
-  " before:pointer-events-none before:absolute before:rounded-[7px] before:transition-[background-color,box-shadow] before:dur-fast" +
-  " aria-pressed:before:bg-surface aria-pressed:before:shadow-nav aria-checked:before:bg-surface aria-checked:before:shadow-nav";
+// the label sits in its own positioned span, which paints over it. `seg-tile` and `seg-rail` are in globals.css.
+const SEGMENT = "seg-tile control-type relative h-full px-3.5 text-body font-control transition-colors dur-fast focus-visible:-outline-offset-2";
 
 /** Rail padding and tile inset per size: 44 px targets with a 36 px tile on touch, a 28 px tile in a 36 px rail above. */
 const FRAME: Record<"auto" | "touch" | "desktop", { rail: string; tile: string }> = {
@@ -44,7 +46,7 @@ export function Segmented<T extends string>({
   const radio = label !== undefined;
   const frame = FRAME[size];
   return (
-    <div role={radio ? "radiogroup" : undefined} aria-label={label} data-segmented className={cx("inline-flex gap-0.5 rounded-lg bg-surface-2", frame.rail, className)}>
+    <div role={radio ? "radiogroup" : undefined} aria-label={label} data-segmented className={cx("seg-rail inline-flex gap-0.5", frame.rail, className)}>
       {options.map((o) => (
         <button
           key={o.value}

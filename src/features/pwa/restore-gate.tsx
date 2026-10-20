@@ -29,8 +29,8 @@ export function RestoreGate({ children }: { children: ReactNode }) {
       {/* Progress is ink, never green: green is spare time. Until a fraction is known the bar rests at a fifth — a
           bar that pulsed while nothing was known said "busy" on every load, which is the one thing that must not move
           (DESIGN_SYSTEM.md §7). */}
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined} aria-label="Restore progress">
-        <div className={`h-full rounded-full bg-ink transition-[width] dur-slow ease-out-quart ${pct === null ? "w-1/5" : ""}`} style={pct === null ? undefined : { width: `${pct}%` }} />
+      <div className="h-1.5 w-full overflow-hidden rounded-pill bg-surface-2" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined} aria-label="Restore progress">
+        <div className={`h-full rounded-pill bg-ink transition-[width] dur-slow ease-out-quart ${pct === null ? "w-1/5" : ""}`} style={pct === null ? undefined : { width: `${pct}%` }} />
       </div>
       {pct !== null && <p className="text-label text-ink-3 num">{pct}%</p>}
     </main>

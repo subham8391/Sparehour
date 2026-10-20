@@ -95,6 +95,21 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: transparent;
+  --r-pill: 0px;
+  --r-check: 0px;
+  --bw-check: 1px;
+  --control-weight: 500;
+  --control-case: uppercase;
+  --control-tracking: 0.08em;
+  --seg-bw: 1px;
+  --switch-off: var(--ink-4);
+  --btn-2-line: var(--ink-2);
+  --check-line: var(--ink);
+  --seg: transparent;
+  --seg-line: var(--ink);
+  --seg-on: var(--ink);
+  --seg-on-ink: var(--paper);
+  --seg-on-shadow: 0 0 #0000;
   --grid: rgb(255 255 255 / 0.08);
 }
 
@@ -135,6 +150,14 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --switch-off: var(--ink-4);
+    --btn-2-line: var(--ink-2);
+    --check-line: var(--ink);
+    --seg: transparent;
+    --seg-line: var(--ink);
+    --seg-on: var(--ink);
+    --seg-on-ink: var(--paper);
+    --seg-on-shadow: 0 0 #0000;
   }
 }
 
@@ -174,6 +197,14 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --switch-off: var(--ink-4);
+  --btn-2-line: var(--ink-2);
+  --check-line: var(--ink);
+  --seg: transparent;
+  --seg-line: var(--ink);
+  --seg-on: var(--ink);
+  --seg-on-ink: var(--paper);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 :root[data-look="blueprint"] [data-glass] { border: 1px solid var(--ink); }

@@ -73,6 +73,23 @@
   --glass-blur: none;
   --bar: var(--paper);
   --chrome: var(--paper);
+  --r-control: 999px;
+  --r-chip: 8px;
+  --r-check: 4px;
+  --bw-check: 2px;
+  --control-weight: 600;
+  --control-case: none;
+  --control-tracking: normal;
+  --seg-bw: 1px;
+  --btn: var(--spare-soft);
+  --btn-ink: var(--ink);
+  --btn-2-line: var(--line-control);
+  --check-line: var(--ink-2);
+  --seg: transparent;
+  --seg-line: var(--line-control);
+  --seg-on: var(--spare-soft);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -112,6 +129,15 @@
     --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
     --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
     --block-soft: var(--surface-2);
+    --btn: var(--spare-soft);
+    --btn-ink: var(--ink);
+    --btn-2-line: var(--line-control);
+    --check-line: var(--ink-2);
+    --seg: transparent;
+    --seg-line: var(--line-control);
+    --seg-on: var(--spare-soft);
+    --seg-on-ink: var(--ink);
+    --seg-on-shadow: 0 0 #0000;
   }
 }
 
@@ -151,6 +177,15 @@
   --over-line: color-mix(in oklab, var(--over-fill) 50%, var(--surface));
   --deadline-line: color-mix(in oklab, var(--deadline-fill) 50%, var(--surface));
   --block-soft: var(--surface-2);
+  --btn: var(--spare-soft);
+  --btn-ink: var(--ink);
+  --btn-2-line: var(--line-control);
+  --check-line: var(--ink-2);
+  --seg: transparent;
+  --seg-line: var(--line-control);
+  --seg-on: var(--spare-soft);
+  --seg-on-ink: var(--ink);
+  --seg-on-shadow: 0 0 #0000;
 }
 
 :root[data-look="material"] [data-glass] { border-color: transparent; }
