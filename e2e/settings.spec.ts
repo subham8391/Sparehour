@@ -104,6 +104,8 @@ test("a planning default saves immediately, reaches Postgres, and the device pan
 // The look (DECISIONS.md, amendment 2026-10-20): picked in Appearance, saved to the account, drawn at once with its own
 // stylesheet, held over a reload before the first paint, and Sky again needs no sheet at all.
 test("a look is picked in Appearance, reaches Postgres, holds over a reload, and Sky needs no stylesheet", async ({ page }) => {
+  // Start from Sky whatever an earlier run left (afterAll puts the account's own look back).
+  await withDb((c) => c.query("update public.user_settings set look = 'sky' where user_id = $1", [me.uid]));
   await openApp(page, "/settings");
   await section(page, "Appearance");
   const looks = page.getByRole("group", { name: "Look" });
@@ -113,7 +115,8 @@ test("a look is picked in Appearance, reaches Postgres, holds over a reload, and
   await expect(page.locator("#look-css")).toHaveAttribute("href", /\/looks\/daylight\.css/);
   expect(await waitForRow(SETTING("look"), [DEV_USER.email, "daylight"])).not.toBeNull();
   const paper = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--paper").trim());
-  expect(await paper()).toBe("#f4f8f6");
+  // Daylight's paper, light or dark as the account's theme has it.
+  expect(["#f4f8f6", "#0c110f"]).toContain(await paper());
 
   // Before any script of the app runs, the head script has stamped the look and its sheet.
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -125,6 +128,18 @@ test("a look is picked in Appearance, reaches Postgres, holds over a reload, and
   await expect(page.locator("html")).not.toHaveAttribute("data-look", /.+/);
   await expect(page.locator("#look-css")).toHaveCount(0);
   expect(await waitForRow(SETTING("look"), [DEV_USER.email, "sky"])).not.toBeNull();
+});
+
+// The head script asks for a look's sheet before anyone is signed in (the sign-in page wears the look too): a redirect
+// to /login there handed it an HTML page, as the first hosted deploy of the looks found.
+test("a look's stylesheet and faces are public files, served without a session", async ({ playwright, baseURL }) => {
+  const api = await playwright.request.newContext({ baseURL });
+  const css = await api.get("/looks/timetable.css", { maxRedirects: 0 });
+  expect(css.status()).toBe(200);
+  expect(css.headers()["content-type"]).toContain("text/css");
+  const font = await api.get("/fonts/archivo-latin-standard-normal.woff2", { maxRedirects: 0 });
+  expect(font.status()).toBe(200);
+  await api.dispose();
 });
 
 test("Account shows the initials and how the account signs in; Delete account waits for the typed word, and Cancel keeps it", async ({ page }) => {

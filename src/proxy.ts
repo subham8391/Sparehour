@@ -58,6 +58,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // /powersync/* is the sync service behind a rewrite (next.config.ts): it authenticates its own
-  // bearer token, and a redirect to /login would hand the sync worker an HTML page instead.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|powersync/|.*\\.(?:png|svg|ico|wasm|js)$).*)"],
+  // bearer token, and a redirect to /login would hand the sync worker an HTML page instead. /looks/* and /fonts/* are
+  // a look's stylesheet and faces (features/looks/look.ts): public files the head script asks for before anyone is
+  // signed in, which a redirect would turn into an HTML page where a stylesheet belongs.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|powersync/|looks/|fonts/|.*\\.(?:png|svg|ico|wasm|js|css|woff2)$).*)"],
 };
