@@ -136,12 +136,15 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
  * The bar at the foot of the list column (narrow band and up): a real footer
  * under the column's scroll region (the shell's `Frame`), so it never sits
  * over a row; the width of the column and no wider, a hairline above the
- * button. On a phone the FAB does this job.
+ * button. On a phone the FAB does this job. No backdrop of its own: nothing
+ * scrolls beneath it, and a painted one ended partway across a wide window
+ * with no context pane (and wore the root paper on Color Field's per-view
+ * pages), so the page simply runs on under it.
  */
 export function QuickAddBar() {
   const { open } = useQuickAdd();
   return (
-    <div className="hidden w-full max-w-210 shrink-0 bg-(--bar) px-6 backdrop-blur-md sm:block md:px-10">
+    <div className="hidden w-full max-w-210 shrink-0 px-6 sm:block md:px-10">
       <div className="border-t border-line pt-3 pb-4">
         <button
           type="button"
