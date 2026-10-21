@@ -102,7 +102,7 @@ test("a list holds lists and items: paste many, status, rating, link, tag, to a 
   await expect(page).toHaveURL(/\/lists$/);
   expect(await waitForRow("select 1 from public.list_items where title = $1 and deleted_at is not null", [titles[1]])).not.toBeNull();
   await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByRole("link", { name: new RegExp(parent) })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("link", { name: new RegExp(parent) })).toBeVisible();
   expect(await waitForRow("select 1 from public.list_items where title = $1 and deleted_at is null", [titles[1]])).not.toBeNull();
 });
 
@@ -138,7 +138,7 @@ test("quick-add saves a line to a list; search finds the item and opens it; a sh
   // A share from another app: the words become the name, the link the item's link, in the list picked.
   const shared = `${E2E_PREFIX}Shared article ${n}`;
   await page.goto(`/share?text=${encodeURIComponent(`${shared} https://example.com/${n}`)}`);
-  await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(shared);
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(shared);
   await page.getByRole("combobox", { name: "List" }).selectOption({ label: reading });
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("heading", { name: reading })).toBeVisible();
