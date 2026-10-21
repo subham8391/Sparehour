@@ -352,6 +352,8 @@ export default function ListPage({ params }: PageProps<"/list/[id]">) {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onPaste={paste}
+                // An empty list (one just made) takes the typing straight into its add row, as an empty project does.
+                autoFocus={all.length === 0 && (childRows?.length ?? 0) === 0}
                 enterKeyHint="done"
                 className="h-12 w-full bg-transparent pr-4 text-base text-ink outline-none placeholder:text-ink-4 sm:text-body-lg"
               />

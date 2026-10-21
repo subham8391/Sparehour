@@ -50,6 +50,16 @@ describe("<QuickAdd>", () => {
       expect(screen.getByRole("status")).toHaveTextContent("3 items added to Anime");
     });
 
+    it("on a list's page it saves to that list from the first key, before the lists have loaded to name it", async () => {
+      const onSaveToList = vi.fn<(id: string, titles: readonly string[]) => Promise<void>>().mockResolvedValue();
+      const onSubmit = vi.fn();
+      render(<QuickAdd open projects={projects} ctx={ctx} onClose={vi.fn()} onSubmit={onSubmit} lists={[]} initialList="l9" onSaveToList={onSaveToList} />);
+      const user = userEvent.setup();
+      await user.type(screen.getByRole("textbox", { name: "Item for this list" }), "First item{Enter}");
+      await waitFor(() => expect(onSaveToList).toHaveBeenCalledWith("l9", ["First item"]));
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
     it("has no picker without lists", () => {
       setup({ lists: [], onSaveToList: vi.fn() });
       expect(screen.queryByRole("combobox", { name: "Save to" })).not.toBeInTheDocument();

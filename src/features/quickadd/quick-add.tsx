@@ -309,7 +309,9 @@ export function QuickAdd({
   const narrow = useNarrow();
   /** Where the line goes: a task (null), or an item of this list. */
   const [listId, setListId] = useState<string | null>(initialList);
-  const toList = onSaveToList ? (lists.find((l) => l.id === listId) ?? null) : null;
+  // A list chosen (or the page's own) is the destination from the first key, even before the lists have loaded to name
+  // it: the sheet opens on the first keystroke, and a line saved in that beat must not become a task instead.
+  const toList = onSaveToList && listId ? (lists.find((l) => l.id === listId) ?? { id: listId, label: "this list" }) : null;
 
   // Focus the input on open; hand focus back to whatever opened us on close.
   useEffect(() => {
