@@ -210,6 +210,10 @@ export const calendar_connections = new Table({
   email: column.text,
   status: column.text,
   can_write: column.integer,
+  /** Full access (DECISIONS.md, 2026-10-21): events come with titles; otherwise busy times only. */
+  can_read_titles: column.integer,
+  /** Blocks may go to any calendar the person owns; otherwise only to the app-created "Sparehour" one. */
+  can_write_own: column.integer,
   last_synced_at: column.text,
   last_error: column.text,
   /** When the calendar blocks were written to left Google; blocking pauses until another is chosen. */

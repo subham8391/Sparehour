@@ -3,7 +3,8 @@
 // table is needed; the signature is the record.
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export type ConsentPurpose = "read" | "write";
+/** read: busy times (the default connect); write: the app-created calendar; full: titles and the person's own calendars. */
+export type ConsentPurpose = "read" | "write" | "full";
 
 export interface OAuthState {
   userId: string;
@@ -34,7 +35,7 @@ export function verifyState(token: string | null | undefined, secret: string, no
   try {
     const state = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as OAuthState;
     if (typeof state.userId !== "string" || typeof state.exp !== "number" || state.exp < now) return null;
-    if (state.purpose !== "read" && state.purpose !== "write") return null;
+    if (state.purpose !== "read" && state.purpose !== "write" && state.purpose !== "full") return null;
     return state;
   } catch {
     return null;

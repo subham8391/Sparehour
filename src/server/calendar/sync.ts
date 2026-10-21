@@ -101,6 +101,77 @@ async function incrementalSync(source: EventSource, store: MirrorStore, calendar
   return { mode: "incremental", upserted, removed, pages };
 }
 
+// ---------------------------------------------------------------------------
+// Busy times only (§6.1 as amended 2026-10-21): calendars read through
+// freeBusy, which says when the person is busy and nothing else.
+// ---------------------------------------------------------------------------
+
+export interface BusySource {
+  freeBusy(externalCalendarIds: readonly string[], timeMin: string, timeMax: string): Promise<Record<string, { busy: { start: string; end: string }[]; error: string | null }>>;
+}
+
+/** Two weeks back for the days just gone, three months ahead for the weeks being planned. */
+export const busyWindow = (today: string): SyncWindow => windowAround(today, 14, 90);
+
+/** One freeBusy request covers a month: Google documents no limit on the span, and a month stays well inside what it answers. */
+const BUSY_SPAN_DAYS = 30;
+
+/** A busy stretch as a mirror row: no title, no response; its id comes from its times, so a pass that finds it again keeps the row. */
+export function busyEvent(start: string, end: string): ProviderEvent {
+  return { externalId: `busy-${Date.parse(start)}-${Date.parse(end)}`, recurringEventId: null, originalStartAt: null, summary: null, startAt: start, endAt: end, startDate: null, endDate: null, allDay: false, busy: true, status: "confirmed", selfResponse: null, eventType: "default", isOurs: false, etag: null };
+}
+
+/** Stretches in time order, the ones that touch or overlap made one (a meeting across a request's edge comes back in two halves). */
+export function mergeBusy(stretches: readonly { start: string; end: string }[]): { start: string; end: string }[] {
+  const sorted = [...stretches].sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+  const out: { start: string; end: string }[] = [];
+  for (const s of sorted) {
+    const last = out[out.length - 1];
+    if (last && Date.parse(s.start) <= Date.parse(last.end)) {
+      if (Date.parse(s.end) > Date.parse(last.end)) last.end = s.end;
+    } else out.push({ ...s });
+  }
+  return out;
+}
+
+/** The window as freeBusy spans, UTC midnight to UTC midnight, the last day included. */
+export function busySpans(window: SyncWindow, days = BUSY_SPAN_DAYS): [string, string][] {
+  const start = Date.parse(`${window.from}T00:00:00Z`);
+  const end = Date.parse(`${window.to}T00:00:00Z`) + 86_400_000;
+  const spans: [string, string][] = [];
+  for (let t = start; t < end; t += days * 86_400_000) spans.push([new Date(t).toISOString(), new Date(Math.min(t + days * 86_400_000, end)).toISOString()]);
+  return spans;
+}
+
+/**
+ * Every calendar's busy times for the window, up to `perRequest` calendars in each request. A calendar Google would not
+ * answer for (no access, an error) keeps what the mirror had; the rest are replaced, so a meeting that went is gone.
+ */
+export async function syncCalendarsBusy(source: BusySource, store: MirrorStore, calendars: readonly CalendarRef[], window: SyncWindow, perRequest = 50): Promise<{ upserted: number; failed: number }> {
+  const found = new Map<string, { start: string; end: string }[]>(calendars.map((c) => [c.externalId, []]));
+  const failed = new Set<string>();
+  for (let i = 0; i < calendars.length; i += perRequest) {
+    const group = calendars.slice(i, i + perRequest);
+    for (const [timeMin, timeMax] of busySpans(window)) {
+      const answer = await source.freeBusy(group.map((c) => c.externalId), timeMin, timeMax);
+      for (const c of group) {
+        const a = answer[c.externalId];
+        if (!a || a.error) failed.add(c.externalId);
+        else found.get(c.externalId)?.push(...a.busy);
+      }
+    }
+  }
+  let upserted = 0;
+  for (const c of calendars) {
+    if (failed.has(c.externalId)) continue;
+    const rows = mergeBusy(found.get(c.externalId) ?? []).map((b) => busyEvent(b.start, b.end));
+    await store.replaceEvents(c, rows);
+    await store.setSyncToken(c.id, null);
+    upserted += rows.length;
+  }
+  return { upserted, failed: failed.size };
+}
+
 export async function syncCalendarEvents(source: EventSource, store: MirrorStore, calendar: CalendarRef, window: SyncWindow): Promise<SyncOutcome> {
   if (!calendar.syncToken) return fullSync(source, store, calendar, window);
   try {

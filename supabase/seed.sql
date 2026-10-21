@@ -70,9 +70,11 @@ begin
   update public.tasks set carry_count = 3, last_carried_at = current_date - 1, title = 'Book dentist'
    where id = (select id from public.tasks where state = 'active' and do_date < current_date order by created_at desc limit 1);
 
-  -- calendar: one account, one calendar, 1 500 events over three years (about two a workday)
-  insert into private.calendar_accounts (id, user_id, space_id, provider, external_account) values (acct, uid, sid, 'google', 'dev@sparehour.local');
-  insert into public.calendar_connections (id, space_id, user_id, provider, email, status) values (acct, sid, uid, 'google', 'dev@sparehour.local', 'ok');
+  -- calendar: one account with full access (titled events; DECISIONS.md 2026-10-21), one calendar, 1 500 events over
+  -- three years (about two a workday)
+  insert into private.calendar_accounts (id, user_id, space_id, provider, external_account, scopes)
+  values (acct, uid, sid, 'google', 'dev@sparehour.local', array['https://www.googleapis.com/auth/calendar.events.readonly', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly']);
+  insert into public.calendar_connections (id, space_id, user_id, provider, email, status, can_read_titles) values (acct, sid, uid, 'google', 'dev@sparehour.local', 'ok', true);
   insert into public.calendars (id, space_id, user_id, calendar_account_id, external_id, summary, access_role, read, write_target)
   values (cal, sid, uid, acct, 'primary', 'Work', 'owner', true, true);
   insert into public.calendar_events (space_id, user_id, calendar_id, external_id, summary, start_at, end_at, busy, status, self_response, event_type)

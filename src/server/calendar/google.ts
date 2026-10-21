@@ -9,12 +9,24 @@ export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const API = "https://www.googleapis.com/calendar/v3";
 
-/** §6.1: read at connect; write is asked for later, and only one of the two. */
+export const CALENDAR_LIST_SCOPE = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+export const FREEBUSY_SCOPE = "https://www.googleapis.com/auth/calendar.events.freebusy";
+/** Event details: titles, responses. Sensitive, so Google shows its unverified-app screen until Sparehour is verified. */
+export const EVENTS_READ_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly";
+export const EVENTS_OWNED_SCOPE = "https://www.googleapis.com/auth/calendar.events.owned";
+export const APP_CREATED_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
+
+/**
+ * §6.1 as amended 2026-10-21 (DECISIONS.md): connect asks only for the non-sensitive `busy` set (no warning screen);
+ * writing adds the app-created calendar, also non-sensitive; full access (titles, blocks on the person's own calendars)
+ * is the opt-in, and the only request that brings Google's unverified-app screen.
+ */
 export const SCOPES = {
   identity: ["openid", "email"],
-  read: ["https://www.googleapis.com/auth/calendar.events.readonly", "https://www.googleapis.com/auth/calendar.calendarlist.readonly"],
-  writeOwned: ["https://www.googleapis.com/auth/calendar.events.owned"],
-  writeAppCreated: ["https://www.googleapis.com/auth/calendar.app.created"],
+  busy: [CALENDAR_LIST_SCOPE, FREEBUSY_SCOPE],
+  read: [EVENTS_READ_SCOPE, CALENDAR_LIST_SCOPE],
+  writeOwned: [EVENTS_OWNED_SCOPE],
+  writeAppCreated: [APP_CREATED_SCOPE],
 } as const;
 
 export interface GoogleOAuthConfig {
@@ -168,6 +180,18 @@ export type WriteResult = { outcome: "written"; eventId: string; etag: string | 
 /** The frozen parameter set (§6.3): every request in a sync series must match. */
 export const EVENT_LIST_PARAMS = { singleEvents: "true", showDeleted: "true", maxResults: "250", eventTypes: ["default", "focusTime", "outOfOffice"] } as const;
 
+/** One busy stretch from `freeBusy.query`, UTC ISO. */
+export interface BusyInterval {
+  start: string;
+  end: string;
+}
+
+/** Per calendar: the busy stretches, or why Google would not say (notFound, internalError…); the calendar is then left as it was. */
+export type BusyAnswer = Record<string, { busy: BusyInterval[]; error: string | null }>;
+
+/** At most this many calendars in one `freeBusy.query` (Google's `calendarExpansionMax`). */
+export const FREEBUSY_MAX_CALENDARS = 50;
+
 export function toProviderCalendar(c: RawCalendar): ProviderCalendar {
   return {
     externalId: c.id,
@@ -307,6 +331,19 @@ export class GoogleCalendar implements CalendarProvider {
     const res = await this.send("POST", `${API}/calendars`, { summary, ...(timezone ? { timeZone: timezone } : {}) });
     if (!res.ok) throw new Error(`google calendars.insert: ${res.status}`);
     return toProviderCalendar({ ...((await res.json()) as RawCalendar), accessRole: "owner" });
+  }
+
+  /** `freeBusy.query` (§6.1 as amended): busy start and end times for up to 50 calendars, nothing else about the events. */
+  async freeBusy(externalCalendarIds: readonly string[], timeMin: string, timeMax: string): Promise<BusyAnswer> {
+    const res = await this.post(`${API}/freeBusy`, { timeMin, timeMax, items: externalCalendarIds.map((id) => ({ id })) });
+    if (!res.ok) throw new Error(`google freeBusy: ${res.status}`);
+    const json = (await res.json()) as { calendars?: Record<string, { busy?: BusyInterval[]; errors?: { reason?: string }[] }> };
+    const out: BusyAnswer = {};
+    for (const id of externalCalendarIds) {
+      const c = json.calendars?.[id];
+      out[id] = c?.errors?.length ? { busy: [], error: c.errors[0]?.reason ?? "error" } : { busy: (c?.busy ?? []).map((b) => ({ start: toUtcIso(b.start), end: toUtcIso(b.end) })), error: c ? null : "missing" };
+    }
+    return out;
   }
 
   async listEvents(externalCalendarId: string, cursor: { syncToken?: string | null; pageToken?: string | null }): Promise<EventPage> {

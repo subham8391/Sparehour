@@ -6,7 +6,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { createUserScopedClient } from "@/server/auth/supabase";
 import { CURRENT_KEY_VERSION, sealToBase64 } from "@/server/calendar/crypto";
 import { googleOAuth, stateSecret, tokenKey } from "@/server/calendar/config";
-import { exchangeCode } from "@/server/calendar/google";
+import { APP_CREATED_SCOPE, EVENTS_OWNED_SCOPE, EVENTS_READ_SCOPE, FREEBUSY_SCOPE, exchangeCode } from "@/server/calendar/google";
 import { buildDeps, syncAccountById } from "@/server/calendar/run";
 import { verifyState } from "@/server/calendar/state";
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   if (!user || user.id !== state.userId) return back(url.origin, next, "error", "Sign in first, then connect the calendar.");
 
   const denied = url.searchParams.get("error");
-  if (denied) return back(url.origin, next, state.purpose === "write" ? "write_denied" : "denied", denied);
+  if (denied) return back(url.origin, next, state.purpose === "write" ? "write_denied" : state.purpose === "full" ? "full_denied" : "denied", denied);
   const code = url.searchParams.get("code");
   const oauth = googleOAuth();
   if (!code || !oauth) return back(url.origin, next, "error", "Google did not send a code back.");
@@ -63,10 +63,13 @@ export async function GET(request: NextRequest) {
       }
     });
     const granted = new Set(grant.scopes);
-    const wroteWanted = state.purpose === "write";
-    const canWrite = granted.has("https://www.googleapis.com/auth/calendar.events.owned") || granted.has("https://www.googleapis.com/auth/calendar.app.created");
+    const canRead = granted.has(FREEBUSY_SCOPE) || granted.has(EVENTS_READ_SCOPE);
+    const canWrite = granted.has(EVENTS_OWNED_SCOPE) || granted.has(APP_CREATED_SCOPE);
+    // Google lets a person untick what they are asked for: say what came of it.
+    if (!canRead) return back(url.origin, next, "no_read");
+    if (state.purpose === "full") return back(url.origin, next, granted.has(EVENTS_READ_SCOPE) ? "full" : "full_denied");
     // ONBOARDING.md step 2: read granted but write declined → say so; the picker stays hidden.
-    return back(url.origin, next, wroteWanted && !canWrite ? "read_only" : "connected");
+    return back(url.origin, next, state.purpose === "write" && !canWrite ? "read_only" : "connected");
   } catch (e) {
     console.error("google calendar connect failed", e);
     return back(url.origin, next, "error", "Google didn't answer. Try again.");

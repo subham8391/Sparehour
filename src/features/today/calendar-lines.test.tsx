@@ -6,25 +6,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CalendarIssue } from "./calendar-state";
 
 const h = vi.hoisted(() => ({
-  calendars: [] as { id: string; summary: string; access_role: string | null }[],
+  calendars: [] as { id: string; summary: string; access_role: string | null; calendar_account_id: string }[],
+  connections: [] as { id: string; status: string; can_write: number; can_write_own: number; last_synced_at: string | null }[],
   setWriteTarget: vi.fn(() => Promise.resolve()),
   dismissNotices: vi.fn(() => Promise.resolve()),
   calendarSyncNow: vi.fn(() => Promise.resolve({ ok: true, message: "Synced." })),
   issue: null as CalendarIssue | null,
 }));
-vi.mock("@/data/powersync", () => ({ useQuery: () => ({ data: h.calendars }), useLocalDatabase: () => ({}) }));
+vi.mock("@/data/powersync", () => ({ useQuery: (sql: string) => ({ data: sql.includes("calendar_connections") ? h.connections : h.calendars }), useLocalDatabase: () => ({}) }));
 vi.mock("@/data/repositories/calendar-repo", () => ({ CalendarRepo: class { setWriteTarget = h.setWriteTarget; } }));
 vi.mock("@/data/repositories/block-repo", () => ({ BlockRepo: class { dismissNotices = h.dismissNotices; } }));
 vi.mock("@/features/calendar/sync-now", () => ({ calendarSyncNow: h.calendarSyncNow }));
 vi.mock("./calendar-state", async (original) => ({ ...(await original<typeof import("./calendar-state")>()), useCalendarState: () => ({ issue: h.issue, writes: { on: false, off: null } }) }));
 
-const { CalendarBanner, RemovedNote, RECONNECT_HREF } = await import("./calendar-lines");
+const { CalendarBanner, RemovedNote, RECONNECT_HREF, reconnectHref, STALE_SYNC_MS } = await import("./calendar-lines");
 
 beforeEach(() => {
   h.calendars = [
-    { id: "c-work", summary: "Work", access_role: "owner" },
-    { id: "c-team", summary: "Team", access_role: "reader" },
+    { id: "c-work", summary: "Work", access_role: "owner", calendar_account_id: "acct" },
+    { id: "c-team", summary: "Team", access_role: "reader", calendar_account_id: "acct" },
   ];
+  // A full-access account that synced just now, unless a test says otherwise.
+  h.connections = [{ id: "acct", status: "ok", can_write: 1, can_write_own: 1, last_synced_at: new Date().toISOString() }];
   h.setWriteTarget.mockClear();
   h.dismissNotices.mockClear();
   h.calendarSyncNow.mockClear();
@@ -34,7 +37,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const issue = (over: Partial<CalendarIssue>): CalendarIssue => ({ kind: "error", email: "me@gmail.com", lastSyncedAt: "2026-10-07T09:12:00Z", key: "error:acct:t", blocking: false, ...over });
+const issue = (over: Partial<CalendarIssue>): CalendarIssue => ({ kind: "error", email: "me@gmail.com", lastSyncedAt: "2026-10-07T09:12:00Z", key: "error:acct:t", blocking: false, full: false, ...over });
 /** The banner reads the issue itself (useCalendarState); the test hands it one before rendering. */
 function banner(over: Partial<CalendarIssue>, onToday = true) {
   h.issue = issue(over);
@@ -50,6 +53,36 @@ describe("CalendarBanner", () => {
     const reconnect = screen.getByRole("link", { name: "Reconnect" });
     expect(reconnect).toHaveAttribute("href", RECONNECT_HREF);
     expect(reconnect).toHaveClass("w-full", "h-11");
+  });
+
+  it("Reconnect asks for full access again only when the account had it (DECISIONS.md, 2026-10-21)", () => {
+    render(banner({ kind: "reauth", blocking: true, key: "reauth:acct", full: true }));
+    expect(screen.getByRole("link", { name: "Reconnect" })).toHaveAttribute("href", reconnectHref(true));
+    expect(reconnectHref(true)).toContain("purpose=full");
+    expect(RECONNECT_HREF).not.toContain("purpose=");
+  });
+
+  it("with busy times only, the picker offers just the Sparehour calendar, not the person's own", () => {
+    h.connections = [{ id: "acct", status: "ok", can_write: 1, can_write_own: 0, last_synced_at: new Date().toISOString() }];
+    h.calendars = [...h.calendars, { id: "c-app", summary: "Sparehour", access_role: "owner", calendar_account_id: "acct" }];
+    render(banner({ kind: "write_gone", blocking: true, key: "gone:acct:t9" }));
+    expect(screen.getAllByRole("radio").map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Sparehour", "Keep blocks in Sparehour only"]);
+  });
+
+  it("opening on a sync older than a quarter of an hour asks for one, once per quarter hour in the tab", () => {
+    h.connections = [{ id: "acct", status: "ok", can_write: 0, can_write_own: 0, last_synced_at: new Date(Date.now() - STALE_SYNC_MS - 60_000).toISOString() }];
+    const { unmount } = render(banner({}));
+    expect(h.calendarSyncNow).toHaveBeenCalledTimes(1);
+    unmount();
+    render(banner({}));
+    expect(h.calendarSyncNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("a fresh sync, or none yet, asks for nothing", () => {
+    render(banner({}));
+    h.connections = [{ id: "acct", status: "ok", can_write: 0, can_write_own: 0, last_synced_at: null }];
+    render(banner({}));
+    expect(h.calendarSyncNow).not.toHaveBeenCalled();
   });
 
   it("write calendar gone: the picker is inline, picking one sets it, and keeping blocks local puts the banner away", async () => {

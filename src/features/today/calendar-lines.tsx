@@ -7,11 +7,14 @@
 //   calendar is chosen, or "Keep blocks in Sparehour only" is (which settles it on this device: blocking resumes).
 // - Unreachable: one line naming the last good sync, with Retry, dismissible for the session.
 // - On a task row: "Block removed in Google Calendar", once — dismissed, or gone when Today is left.
+// - Quietly: a sync when Today opens (or comes back to the front) on one older than a quarter of an hour, since
+//   calendars read by busy times have no push channel (DECISIONS.md, amendment 2026-10-21).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
+import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import { BlockRepo } from "@/data/repositories/block-repo";
 import { CalendarRepo } from "@/data/repositories/calendar-repo";
+import { takesBlocks } from "@/features/calendar/blocks-go";
 import { calendarSyncNow } from "@/features/calendar/sync-now";
 import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
@@ -39,8 +42,38 @@ const session = () => window.sessionStorage;
 
 const BANNER = "flex flex-col gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-body-sm text-ink-2";
 
-/** Reconnect starts Google's consent again and comes back to Today (the same route Settings › Calendar uses). */
-export const RECONNECT_HREF = `/api/calendar/google/start?next=${encodeURIComponent("/today")}`;
+/** Reconnect starts Google's consent again and comes back to Today (the same route Settings › Calendar uses), asking for
+ *  full access again only when the account had it. */
+export const reconnectHref = (full: boolean): string => `/api/calendar/google/start?${full ? "purpose=full&" : ""}next=${encodeURIComponent("/today")}`;
+export const RECONNECT_HREF = reconnectHref(false);
+
+/** How old a sync may be when Today opens before it asks for another, and how often it asks at most. */
+export const STALE_SYNC_MS = 15 * 60_000;
+const STALE_ASKED_KEY = "sparehour:calendar-stale-asked";
+
+/** True when a working account last synced longer ago than `STALE_SYNC_MS` (one that never synced is still on its first). */
+export function staleSync(rows: readonly CalendarConnectionRow[], now: number): boolean {
+  return rows.some((r) => r.status === "ok" && r.last_synced_at !== null && now - Date.parse(r.last_synced_at) > STALE_SYNC_MS);
+}
+
+/** Asks for a sync when Today opens, or comes back to the front, on a stale one; at most once a quarter hour per tab. */
+function useStaleSync(): void {
+  const { data } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
+  const rows = useRef<readonly CalendarConnectionRow[]>([]);
+  useEffect(() => {
+    rows.current = data ?? [];
+    const check = () => {
+      const now = Date.now();
+      if (document.visibilityState !== "visible" || !staleSync(rows.current, now)) return;
+      if (now - Number(read(session, STALE_ASKED_KEY) ?? 0) < STALE_SYNC_MS) return;
+      write(session, STALE_ASKED_KEY, String(now));
+      void calendarSyncNow();
+    };
+    check();
+    document.addEventListener("visibilitychange", check);
+    return () => document.removeEventListener("visibilitychange", check);
+  }, [data]);
+}
 
 /**
  * `onToday` false: Today stepped to a later day (SCREENS.md §2.1), where only an issue that pauses blocking is said —
@@ -48,6 +81,7 @@ export const RECONNECT_HREF = `/api/calendar/google/start?next=${encodeURICompon
  * lapsed access that does not pause blocking, are about now and stay on today.
  */
 export function CalendarBanner({ onToday = true }: { onToday?: boolean }) {
+  useStaleSync();
   const { issue } = useCalendarState();
   // What was put away: the unreachable line for this session, "Keep blocks in Sparehour only" on this device (which
   // calendar-state.ts also reads, so the day pane's blocking resumes with it).
@@ -64,7 +98,7 @@ export function CalendarBanner({ onToday = true }: { onToday?: boolean }) {
         <p className="text-pretty text-ink">{issueMessage(issue)}</p>
         {issue.blocking && <p className="text-pretty">Blocking is paused until you reconnect. Your blocks stay here, marked not synced.</p>}
         {/* A full navigation: the route answers with a redirect to Google, which client routing cannot follow. */}
-        <a href={RECONNECT_HREF} className={cx(buttonClass({ variant: "secondary" }), "w-full sm:w-auto sm:self-start")}>
+        <a href={reconnectHref(issue.full)} className={cx(buttonClass({ variant: "secondary" }), "w-full sm:w-auto sm:self-start")}>
           Reconnect
         </a>
       </section>
@@ -117,7 +151,10 @@ function WritePicker({ onKeepLocal }: { onKeepLocal: () => void }) {
   const db = useLocalDatabase();
   const repo = useMemo(() => new CalendarRepo(db), [db]);
   const { data } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
-  const candidates = (data ?? []).filter((c) => c.access_role === null || c.access_role === "owner" || c.access_role === "writer");
+  const { data: connections } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
+  const accounts = (connections ?? []).map((r) => ({ id: r.id, canWrite: r.can_write === 1, writesOwn: r.can_write_own === 1 }));
+  // Only where these permissions can write: the person's own calendars with full access, else the Sparehour calendar.
+  const candidates = (data ?? []).filter((c) => takesBlocks({ accountId: c.calendar_account_id, summary: c.summary, accessRole: c.access_role }, accounts));
   return (
     <div role="radiogroup" aria-label="Write calendar" className="flex flex-col">
       {candidates.map((c) => (

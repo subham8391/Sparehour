@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CalendarSettings, relativeTime, type CalendarPanel } from "./calendar-section";
-import { consentOutcome, declinedWrite, toAccountView, toCalendarView } from "./use-calendar";
+import { consentOutcome, toAccountView, toCalendarView } from "./use-calendar";
 
 const panel = (over: Partial<CalendarPanel> = {}): CalendarPanel => ({
   configured: true,
@@ -13,6 +13,7 @@ const panel = (over: Partial<CalendarPanel> = {}): CalendarPanel => ({
   busy: false,
   onConnect: vi.fn(),
   onAllowWrite: vi.fn(),
+  onFullAccess: vi.fn(),
   onSyncNow: vi.fn(),
   onDisconnect: vi.fn(),
   onRead: vi.fn(),
@@ -21,7 +22,10 @@ const panel = (over: Partial<CalendarPanel> = {}): CalendarPanel => ({
   ...over,
 });
 
-const account = { id: "a1", email: "sam@gmail.com", status: "ok" as const, lastSyncedAt: new Date(Date.now() - 12_000).toISOString(), lastError: null, canWrite: false };
+// An account with full access (titles, and blocks on any calendar the person owns).
+const account = { id: "a1", email: "sam@gmail.com", status: "ok" as const, lastSyncedAt: new Date(Date.now() - 12_000).toISOString(), lastError: null, canWrite: true, titles: true, writesOwn: true };
+// The default since 2026-10-21: busy times only, and no writing yet.
+const busyAccount = { ...account, canWrite: false, titles: false, writesOwn: false };
 const calendars = [
   { id: "c1", accountId: "a1", summary: "Personal", color: "#9fe1e7", accessRole: "owner", read: true, private: false, writeTarget: true },
   { id: "c2", accountId: "a1", summary: "Holidays", color: null, accessRole: "reader", read: false, private: false, writeTarget: false },
@@ -64,7 +68,7 @@ describe("<CalendarSettings>", () => {
     expect(screen.queryByRole("button", { name: "Sync now" })).not.toBeInTheDocument();
   });
 
-  it("each calendar has busy and hide-titles switches, and the write picker lists only writable ones", async () => {
+  it("with full access, each calendar has busy and hide-titles switches, and the write picker lists only writable ones", async () => {
     const user = userEvent.setup();
     const onChanged = vi.fn();
     const p = panel({ accounts: [account], calendars });
@@ -86,25 +90,36 @@ describe("<CalendarSettings>", () => {
     expect(onChanged).toHaveBeenCalledTimes(3);
   });
 
-  it("with a write calendar chosen but no write permission, offers to allow writing — and the separate calendar after a decline", async () => {
+  it("busy times only: no titles to hide, blocks stay here until the Sparehour calendar is allowed, and full access is offered with Google's warning named", async () => {
     const user = userEvent.setup();
-    const p = panel({ accounts: [account], calendars });
-    const { unmount } = render(<CalendarSettings panel={p} />);
-    await user.click(screen.getByRole("button", { name: "Allow writing to Google" }));
-    expect(p.onAllowWrite).toHaveBeenCalledWith(false);
-    expect(screen.queryByRole("button", { name: /separate Sparehour calendar/ })).not.toBeInTheDocument();
-    unmount();
+    const p = panel({ accounts: [busyAccount], calendars });
+    render(<CalendarSettings panel={p} />);
+    expect(screen.getByText(/Connected · busy times only · synced 1\ds ago/)).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Hide titles" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("switch", { name: "Counts as busy" })).toHaveLength(2);
+    // Nothing can take blocks yet: only "keep them here" is on offer, with the one step that adds the Sparehour calendar.
+    expect(screen.getAllByRole("radio").map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Keep blocks in Sparehour only"]);
+    await user.click(screen.getByRole("button", { name: "Show blocks in Google Calendar" }));
+    expect(p.onAllowWrite).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Choose Advanced, then Go to Sparehour/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Turn on full access" }));
+    expect(p.onFullAccess).toHaveBeenCalledTimes(1);
+  });
 
-    const q = panel({ accounts: [account], calendars, offerFallback: true });
-    const second = render(<CalendarSettings panel={q} />);
-    await user.click(screen.getByRole("button", { name: "Use a separate Sparehour calendar" }));
-    expect(q.onAllowWrite).toHaveBeenCalledWith(true);
-    second.unmount();
+  it("writing through the Sparehour calendar: it is the one place blocks can go; the person's own calendars are not offered", () => {
+    const own = { id: "c3", accountId: "a1", summary: "Sparehour", color: null, accessRole: "owner", read: true, private: false, writeTarget: true };
+    render(<CalendarSettings panel={panel({ accounts: [{ ...busyAccount, canWrite: true }], calendars: [{ ...calendars[0], writeTarget: false }, calendars[1], own] })} />);
+    const radios = screen.getAllByRole("radio");
+    expect(radios.map((r) => r.closest("label")?.textContent?.trim())).toEqual(["The Sparehour calendar in your Google Calendar", "Keep blocks in Sparehour only"]);
+    expect(radios[0]).toBeChecked();
+    expect(screen.queryByRole("button", { name: "Show blocks in Google Calendar" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Turn on full access" })).toBeInTheDocument();
+  });
 
-    // Once the account can write, neither offer shows.
-    render(<CalendarSettings panel={panel({ accounts: [{ ...account, canWrite: true }], calendars, offerFallback: true })} />);
-    expect(screen.queryByRole("button", { name: "Allow writing to Google" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /separate Sparehour calendar/ })).not.toBeInTheDocument();
+  it("with full access on, the upgrade is not offered", () => {
+    render(<CalendarSettings panel={panel({ accounts: [account], calendars })} />);
+    expect(screen.queryByRole("button", { name: "Turn on full access" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/busy times only/)).not.toBeInTheDocument();
   });
 });
 
@@ -123,14 +138,16 @@ describe("helpers", () => {
     expect(consentOutcome("?calendar=denied")).toMatch(/No problem/);
     expect(consentOutcome("?calendar=error&reason=Google+did+not+send+a+code+back.")).toBe("Google did not send a code back.");
     expect(consentOutcome("?calendar=read_only")).toMatch(/one more permission/);
-    expect(consentOutcome("?calendar=write_denied&reason=access_denied")).toMatch(/separate Sparehour calendar/);
-    expect(declinedWrite("?calendar=write_denied")).toBe(true);
-    expect(declinedWrite("?calendar=denied")).toBe(false);
+    expect(consentOutcome("?calendar=write_denied&reason=access_denied")).toMatch(/show them in Google Calendar later/);
+    expect(consentOutcome("?calendar=full")).toMatch(/meeting titles/);
+    expect(consentOutcome("?calendar=full_denied")).toMatch(/keeps reading your busy times/);
+    expect(consentOutcome("?calendar=no_read")).toMatch(/leave that box ticked/);
     expect(consentOutcome("?x=1")).toBeNull();
   });
 
   it("row mappers read the 0/1 columns and unknown statuses as ok", () => {
-    expect(toAccountView({ id: "a", provider: "google", email: "e", status: "weird", can_write: 1, last_synced_at: null, last_error: null })).toMatchObject({ status: "ok", canWrite: true });
+    expect(toAccountView({ id: "a", provider: "google", email: "e", status: "weird", can_write: 1, last_synced_at: null, last_error: null })).toMatchObject({ status: "ok", canWrite: true, titles: false, writesOwn: false });
+    expect(toAccountView({ id: "a", provider: "google", email: "e", status: "ok", can_write: 1, can_read_titles: 1, can_write_own: 1, last_synced_at: null, last_error: null })).toMatchObject({ titles: true, writesOwn: true });
     expect(toCalendarView({ id: "c", calendar_account_id: "a", external_id: "x", summary: null, color: null, access_role: "owner", read: null, private: 1, write_target: 0, last_synced_at: null })).toMatchObject({ summary: "Untitled calendar", read: true, private: true, writeTarget: false });
   });
 });

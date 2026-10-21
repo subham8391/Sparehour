@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { GoogleCalendar, SCOPES, authorizationUrl, backoffDelay, exchangeCode, refreshAccessToken, toProviderCalendar, toProviderEvent } from "./google";
+import { CALENDAR_LIST_SCOPE, EVENTS_OWNED_SCOPE, EVENTS_READ_SCOPE, FREEBUSY_SCOPE, GoogleCalendar, SCOPES, authorizationUrl, backoffDelay, exchangeCode, refreshAccessToken, toProviderCalendar, toProviderEvent } from "./google";
 import { FullSyncRequired, NeedsReauth } from "./provider";
 
 const cfg = { clientId: "cid", clientSecret: "secret", redirectUri: "http://localhost:3000/api/calendar/google/callback" };
@@ -16,6 +16,31 @@ describe("authorizationUrl", () => {
     expect(url.searchParams.get("state")).toBe("STATE");
     expect(url.searchParams.get("login_hint")).toBe("sam@example.com");
     expect(url.searchParams.get("redirect_uri")).toBe(cfg.redirectUri);
+  });
+});
+
+describe("SCOPES (DECISIONS.md, amendment 2026-10-21)", () => {
+  it("connect asks only for the calendar list and busy times; the sensitive event scopes are the full-access opt-in", () => {
+    expect(SCOPES.busy).toEqual([CALENDAR_LIST_SCOPE, FREEBUSY_SCOPE]);
+    expect(SCOPES.busy).not.toContain(EVENTS_READ_SCOPE);
+    expect([...SCOPES.busy, ...SCOPES.writeAppCreated]).not.toContain(EVENTS_OWNED_SCOPE);
+    expect(SCOPES.read).toContain(EVENTS_READ_SCOPE);
+  });
+});
+
+describe("freeBusy", () => {
+  it("asks for the calendars over the span and returns each one's busy stretches in UTC, or the reason Google gave", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("https://www.googleapis.com/calendar/v3/freeBusy");
+      expect(JSON.parse(String(init?.body))).toEqual({ timeMin: "2026-10-21T00:00:00.000Z", timeMax: "2026-11-20T00:00:00.000Z", items: [{ id: "primary" }, { id: "team" }, { id: "gone" }] });
+      return json({ calendars: { primary: { busy: [{ start: "2026-10-21T10:00:00+01:00", end: "2026-10-21T11:00:00+01:00" }] }, team: { errors: [{ domain: "global", reason: "notFound" }], busy: [] } } });
+    });
+    const answer = await new GoogleCalendar("at", fetchImpl as unknown as typeof fetch).freeBusy(["primary", "team", "gone"], "2026-10-21T00:00:00.000Z", "2026-11-20T00:00:00.000Z");
+    expect(answer).toEqual({
+      primary: { busy: [{ start: "2026-10-21T09:00:00.000Z", end: "2026-10-21T10:00:00.000Z" }], error: null },
+      team: { busy: [], error: "notFound" },
+      gone: { busy: [], error: "missing" },
+    });
   });
 });
 

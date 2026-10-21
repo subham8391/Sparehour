@@ -80,20 +80,25 @@ describe("calendar routes", () => {
     expect((await config()).status).toBe(401);
   });
 
-  it("start sends the person to Google with read scopes, offline access, a signed state and the callback", async () => {
+  it("start sends the person to Google with busy-time scopes (no warning screen), offline access, a signed state and the callback", async () => {
     const res = await start(req("/api/calendar/google/start?next=%2Fsettings"));
     expect(res.status).toBe(307);
     const to = new URL(res.headers.get("location")!);
     expect(to.origin + to.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
-    expect(to.searchParams.get("scope")).toBe("openid email https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly");
+    // DECISIONS.md, amendment 2026-10-21: only non-sensitive scopes at connect.
+    expect(to.searchParams.get("scope")).toBe("openid email https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy");
     expect(to.searchParams.get("redirect_uri")).toBe("http://localhost:3000/api/calendar/google/callback");
     expect(to.searchParams.get("login_hint")).toBe("sam@example.com");
     expect(to.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    // Writing asks for the app-created calendar, still non-sensitive.
     const write = new URL((await start(req("/api/calendar/google/start?purpose=write"))).headers.get("location")!);
-    expect(write.searchParams.get("scope")).toContain("calendar.events.owned");
-    const fallback = new URL((await start(req("/api/calendar/google/start?purpose=write&fallback=1"))).headers.get("location")!);
-    expect(fallback.searchParams.get("scope")).toContain("calendar.app.created");
-    expect(fallback.searchParams.get("scope")).not.toContain("events.owned");
+    expect(write.searchParams.get("scope")).toContain("calendar.app.created");
+    expect(write.searchParams.get("scope")).not.toContain("events.owned");
+    expect(write.searchParams.get("scope")).not.toContain("events.readonly");
+    // Full access is the one request with the sensitive scopes.
+    const full = new URL((await start(req("/api/calendar/google/start?purpose=full"))).headers.get("location")!);
+    expect(full.searchParams.get("scope")).toContain("calendar.events.readonly");
+    expect(full.searchParams.get("scope")).toContain("calendar.events.owned");
   });
 
   it("start without a client sends the person back with 'unavailable'; without a session, to login", async () => {
@@ -126,6 +131,15 @@ describe("calendar routes", () => {
     // Write asked for, only read granted: the picker stays hidden and the page says so.
     expect((await callback(req(`/api/calendar/google/callback?code=x&state=${encodeURIComponent(fine)}`))).headers.get("location")).toBe("http://localhost:3000/settings?calendar=read_only");
     expect(store.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it("callback says what came of full access, and of a consent where the busy-times box was unticked", async () => {
+    const full = signState({ userId: "u1", purpose: "full", next: "/settings", nonce: "n", exp: Math.floor(Date.now() / 1000) + 60 }, KEY);
+    expect((await callback(req(`/api/calendar/google/callback?code=x&state=${encodeURIComponent(full)}`))).headers.get("location")).toBe("http://localhost:3000/settings?calendar=full");
+    expect((await callback(req(`/api/calendar/google/callback?error=access_denied&state=${encodeURIComponent(full)}`))).headers.get("location")).toBe("http://localhost:3000/settings?calendar=full_denied&reason=access_denied");
+    vi.mocked(exchangeCode).mockResolvedValueOnce({ accessToken: "at", refreshToken: "rt", expiresAt: new Date("2026-09-15T11:00:00Z"), scopes: ["openid", "email"], sub: "g-1", email: "sam@gmail.com" });
+    const read = signState({ userId: "u1", purpose: "read", next: "/settings", nonce: "n", exp: Math.floor(Date.now() / 1000) + 60 }, KEY);
+    expect((await callback(req(`/api/calendar/google/callback?code=x&state=${encodeURIComponent(read)}`))).headers.get("location")).toBe("http://localhost:3000/settings?calendar=no_read");
   });
 
   it("sync now runs every account of the signed-in person", async () => {

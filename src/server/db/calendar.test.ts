@@ -35,7 +35,7 @@ describe.skipIf(admin === null)("calendar sync contract", () => {
       const acct = (await c.query("select status, email, encode(refresh_token_enc, 'base64') as r, key_version, sync_requested_at from private.calendar_accounts where id = $1", [aid])).rows[0];
       expect(acct).toMatchObject({ status: "ok", email: "sam@gmail.com", r: B64.refresh, key_version: 1 });
       expect(acct.sync_requested_at).toBeNull();
-      expect((await c.query("select status, email, can_write from public.calendar_connections where id = $1", [aid])).rows[0]).toEqual({ status: "ok", email: "sam@gmail.com", can_write: false });
+      expect((await c.query("select status, email, can_write, can_read_titles, can_write_own from public.calendar_connections where id = $1", [aid])).rows[0]).toEqual({ status: "ok", email: "sam@gmail.com", can_write: false, can_read_titles: true, can_write_own: false });
 
       const claimed = (await c.query("select id, refresh_b64, access_b64, status from public.calendar_accounts_claim($1, 5, false)", [uid])).rows;
       expect(claimed).toEqual([{ id: aid, refresh_b64: B64.refresh, access_b64: B64.access, status: "ok" }]);
@@ -64,7 +64,19 @@ describe.skipIf(admin === null)("calendar sync contract", () => {
       expect(again.r).toBe(B64.refresh);
       expect(again.status).toBe("ok");
       expect(again.scopes).toHaveLength(2);
-      expect((await c.query("select status, can_write from public.calendar_connections where id = $1", [aid])).rows[0]).toEqual({ status: "ok", can_write: true });
+      // Scopes accumulate, so the account now reads titles and writes to the person's own calendars.
+      expect((await c.query("select status, can_write, can_read_titles, can_write_own from public.calendar_connections where id = $1", [aid])).rows[0]).toEqual({ status: "ok", can_write: true, can_read_titles: true, can_write_own: true });
+    }));
+
+  it("the default connect (busy times, then the app-created calendar) tells the client it reads no titles and writes only to its own calendar (DECISIONS.md, 2026-10-21)", () =>
+    inTx(admin, async (c) => {
+      const uid = await newUser(c, "cal-busy@contract.test");
+      const busy = ["https://www.googleapis.com/auth/calendar.calendarlist.readonly", "https://www.googleapis.com/auth/calendar.events.freebusy"];
+      const { rows } = await c.query<{ id: string }>("select public.calendar_account_connect($1, 'google', 'g-busy', 'sam@gmail.com', $2, $3, now() + interval '1 hour', $4, 1) as id", [uid, B64.refresh, B64.access, busy]);
+      const aid = rows[0].id;
+      expect((await c.query("select can_write, can_read_titles, can_write_own from public.calendar_connections where id = $1", [aid])).rows[0]).toEqual({ can_write: false, can_read_titles: false, can_write_own: false });
+      await c.query("select public.calendar_account_connect($1, 'google', 'g-busy', 'sam@gmail.com', null, $2, now() + interval '1 hour', array['https://www.googleapis.com/auth/calendar.app.created'], 1)", [uid, B64.access]);
+      expect((await c.query("select can_write, can_read_titles, can_write_own from public.calendar_connections where id = $1", [aid])).rows[0]).toEqual({ can_write: true, can_read_titles: false, can_write_own: false });
     }));
 
   it("a person reads only their own connections and cannot write them; the private table is out of reach", () =>

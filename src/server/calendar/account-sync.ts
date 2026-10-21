@@ -4,9 +4,11 @@
 // Everything that talks to the outside world is a port, so the whole pass is
 // unit-tested with fakes.
 import { CURRENT_KEY_VERSION, openFromBase64, sealToBase64 } from "./crypto";
-import type { TokenGrant } from "./google";
+import { APP_CREATED_SCOPE, EVENTS_OWNED_SCOPE, EVENTS_READ_SCOPE, type TokenGrant } from "./google";
 import { NeedsReauth, type CalendarProvider, type ProviderCalendar } from "./provider";
-import { syncCalendarEvents, windowAround, type CalendarRef, type MirrorStore } from "./sync";
+import { busyWindow, syncCalendarEvents, syncCalendarsBusy, windowAround, type BusySource, type CalendarRef, type MirrorStore } from "./sync";
+
+export { APP_CREATED_SCOPE };
 
 /** A row from calendar_accounts_claim: tokens still sealed. */
 export interface ClaimedAccount {
@@ -67,7 +69,6 @@ export interface AccountStore {
   channels: ChannelPort;
 }
 
-export const APP_CREATED_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
 export const APP_CALENDAR_NAME = "Sparehour";
 
 export interface WatchPort {
@@ -78,7 +79,7 @@ export interface WatchPort {
 export interface AccountSyncDeps {
   key: Buffer;
   store: AccountStore;
-  providerFor: (accessToken: string) => CalendarProvider & Partial<WatchPort> & Partial<{ createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> }>;
+  providerFor: (accessToken: string) => CalendarProvider & Partial<WatchPort> & Partial<BusySource> & Partial<{ createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> }>;
   refresh: (refreshToken: string) => Promise<TokenGrant>;
   /** null when push channels cannot be used (no public HTTPS address, §6.4). */
   webhook: { address: string; channelToken: (calendarId: string, channelId: string) => string } | null;
@@ -138,15 +139,21 @@ async function reconcileCalendars(acct: ClaimedAccount, provider: CalendarProvid
 }
 
 /**
- * The person declined writing to their own calendar and granted the app-created
- * scope instead (§6.1): make sure a "Sparehour" calendar exists and takes the
- * blocks. Reuses one already named so; never creates twice.
+ * Writing was granted through the app-created scope (the default since 2026-10-21, and the fallback before it, §6.1):
+ * make sure a "Sparehour" calendar exists and takes the blocks. Reuses one already named so and never creates twice.
+ * Once it exists, the blocks move to it only when the chosen calendar is one these permissions cannot write; no
+ * write calendar at all is the person's "Keep blocks in Sparehour only" and stays.
  */
 async function ensureAppCalendar(acct: ClaimedAccount, provider: AccountSyncDeps["providerFor"] extends (t: string) => infer P ? P : never, calendars: CalendarRow[], deps: AccountSyncDeps): Promise<CalendarRow[]> {
-  if (!(acct.scopes ?? []).includes(APP_CREATED_SCOPE) || !provider.createCalendar) return calendars;
-  if (calendars.some((c) => c.write_target)) return calendars;
+  const scopes = acct.scopes ?? [];
+  if (!scopes.includes(APP_CREATED_SCOPE) || !provider.createCalendar) return calendars;
+  const ownsWrites = scopes.includes(EVENTS_OWNED_SCOPE);
+  const target = calendars.find((c) => c.write_target) ?? null;
   let own = calendars.find((c) => c.summary === APP_CALENDAR_NAME);
-  if (!own) {
+  if (own) {
+    if (!target || ownsWrites || target.id === own.id) return calendars;
+  } else {
+    if (target && ownsWrites) return calendars;
     const made = await provider.createCalendar(APP_CALENDAR_NAME, null);
     await deps.store.upsertCalendars([{ space_id: acct.space_id, user_id: acct.user_id, calendar_account_id: acct.id, external_id: made.externalId, summary: made.summary, timezone: made.timezone, color: made.color, access_role: "owner", read: true, deleted_at: null }]);
     own = (await deps.store.calendarsOf(acct.id)).find((c) => c.external_id === made.externalId);
@@ -181,15 +188,33 @@ export async function syncAccount(acct: ClaimedAccount, deps: AccountSyncDeps): 
     const accessToken = await goodAccessToken(acct, deps);
     const provider = deps.providerFor(accessToken);
     const calendars = await ensureAppCalendar(acct, provider, await reconcileCalendars(acct, provider, deps), deps);
+    const scopes = acct.scopes ?? [];
+    // Full access reads every event; the default (§6.1 as amended) reads busy times only.
+    const titles = scopes.includes(EVENTS_READ_SCOPE);
+    const ref = (c: CalendarRow): CalendarRef => ({ id: c.id, spaceId: acct.space_id, userId: acct.user_id, externalId: c.external_id, syncToken: c.sync_token });
+    const reading = calendars.filter((c) => c.read);
+    // The app's own calendar is read in full either way (its scope covers it), so a block moved in Google comes back.
+    const inFull = titles ? reading : scopes.includes(APP_CREATED_SCOPE) ? reading.filter((c) => c.summary === APP_CALENDAR_NAME) : [];
+    const busyOnly = reading.filter((c) => !inFull.includes(c));
     const window = windowAround(deps.today());
     let events = 0;
-    for (const c of calendars) {
-      if (!c.read) continue;
-      const ref: CalendarRef = { id: c.id, spaceId: acct.space_id, userId: acct.user_id, externalId: c.external_id, syncToken: c.sync_token };
-      const out = await syncCalendarEvents(provider, deps.store.mirror, ref, window);
-      events += out.upserted + out.removed;
+    for (const c of inFull) {
+      try {
+        const out = await syncCalendarEvents(provider, deps.store.mirror, ref(c), window);
+        events += out.upserted + out.removed;
+      } catch (e) {
+        // A calendar the person made and named "Sparehour" is not the app's: read it by busy times like the rest.
+        if (titles || e instanceof NeedsReauth) throw e;
+        busyOnly.push(c);
+      }
     }
-    await keepChannels(acct, provider, calendars, deps);
+    if (busyOnly.length) {
+      if (!provider.freeBusy) throw new Error("this calendar provider cannot read busy times");
+      const out = await syncCalendarsBusy({ freeBusy: provider.freeBusy.bind(provider) }, deps.store.mirror, busyOnly.map(ref), busyWindow(deps.today()));
+      events += out.upserted;
+    }
+    // Push channels need the events scope; busy-only calendars refresh on the reconcile, "Sync now" and Today's stale check.
+    if (titles) await keepChannels(acct, provider, calendars, deps);
     await deps.store.finish(acct.id, "ok", null);
     return { status: "ok", calendars: calendars.length, events, error: null };
   } catch (e) {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { FullSyncRequired, type EventPage, type EventSource, type ProviderEvent } from "./provider";
-import { inWindow, syncCalendarEvents, windowAround, type CalendarRef, type MirrorStore } from "./sync";
+import { busyEvent, busySpans, busyWindow, inWindow, mergeBusy, syncCalendarEvents, syncCalendarsBusy, windowAround, type BusySource, type CalendarRef, type MirrorStore } from "./sync";
 
 const ev = (id: string, day: string, extra: Partial<ProviderEvent> = {}): ProviderEvent => ({
   externalId: id,
@@ -104,5 +104,54 @@ describe("syncCalendarEvents", () => {
     const src: EventSource = { listEvents: async () => Promise.reject(new Error("google events.list: 500")) };
     await expect(syncCalendarEvents(src, s, calendar("T1"), window)).rejects.toThrow(/500/);
     expect(s.calls).toEqual([]);
+  });
+});
+
+describe("busy times only (DECISIONS.md, amendment 2026-10-21)", () => {
+  it("the window is two weeks back and three months ahead, asked a month at a time with the last day included", () => {
+    expect(busyWindow("2026-10-21")).toEqual({ from: "2026-10-07", to: "2027-01-19" });
+    const spans = busySpans({ from: "2026-10-01", to: "2026-11-15" });
+    expect(spans).toEqual([
+      ["2026-10-01T00:00:00.000Z", "2026-10-31T00:00:00.000Z"],
+      ["2026-10-31T00:00:00.000Z", "2026-11-16T00:00:00.000Z"],
+    ]);
+  });
+
+  it("merges stretches that touch or overlap, so a meeting across a request's edge is one", () => {
+    expect(
+      mergeBusy([
+        { start: "2026-10-31T00:00:00.000Z", end: "2026-10-31T01:00:00.000Z" },
+        { start: "2026-10-30T23:00:00.000Z", end: "2026-10-31T00:00:00.000Z" },
+        { start: "2026-10-31T09:00:00.000Z", end: "2026-10-31T10:00:00.000Z" },
+        { start: "2026-10-31T09:30:00.000Z", end: "2026-10-31T09:45:00.000Z" },
+      ]),
+    ).toEqual([
+      { start: "2026-10-30T23:00:00.000Z", end: "2026-10-31T01:00:00.000Z" },
+      { start: "2026-10-31T09:00:00.000Z", end: "2026-10-31T10:00:00.000Z" },
+    ]);
+  });
+
+  it("a busy stretch is an untitled, busy, confirmed row whose id comes from its times", () => {
+    const row = busyEvent("2026-10-21T09:00:00.000Z", "2026-10-21T10:00:00.000Z");
+    expect(row).toMatchObject({ summary: null, busy: true, status: "confirmed", allDay: false, isOurs: false, selfResponse: null });
+    expect(row.externalId).toBe(busyEvent("2026-10-21T09:00:00.000Z", "2026-10-21T10:00:00.000Z").externalId);
+  });
+
+  it("replaces each calendar's rows with what Google says now, and leaves a calendar it would not answer for as it was", async () => {
+    const s = store();
+    const source: BusySource = {
+      freeBusy: vi.fn(async (ids: readonly string[], timeMin: string) =>
+        Object.fromEntries(
+          ids.map((id) => [id, id === "team" ? { busy: [], error: "notFound" } : { busy: timeMin.startsWith("2026-10-07") ? [{ start: "2026-10-21T09:00:00.000Z", end: "2026-10-21T10:00:00.000Z" }] : [], error: null }]),
+        ),
+      ),
+    };
+    const primary: CalendarRef = { id: "c1", spaceId: "s1", userId: "u1", externalId: "primary", syncToken: null };
+    const team: CalendarRef = { id: "c2", spaceId: "s1", userId: "u1", externalId: "team", syncToken: null };
+    const out = await syncCalendarsBusy(source, s, [primary, team], busyWindow("2026-10-21"));
+    expect(out).toEqual({ upserted: 1, failed: 1 });
+    // One request per month of the window, both calendars in each.
+    expect(source.freeBusy).toHaveBeenCalledTimes(busySpans(busyWindow("2026-10-21")).length);
+    expect(s.calls).toEqual([`replace:${busyEvent("2026-10-21T09:00:00.000Z", "2026-10-21T10:00:00.000Z").externalId}`, "token:null"]);
   });
 });

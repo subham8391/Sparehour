@@ -1,6 +1,8 @@
-// Start the Google consent (SYSTEM_DESIGN.md §6.1): read scopes at connect,
-// the write scope later and separately (`purpose=write`), always with
-// incremental consent so nothing already granted is asked for again.
+// Start the Google consent (SYSTEM_DESIGN.md §6.1, as amended 2026-10-21 in
+// DECISIONS.md): busy times at connect and the app-created calendar for
+// writing, both non-sensitive so Google shows no warning screen; full access
+// (`purpose=full`: titles, blocks on the person's own calendars) is the opt-in
+// that does. Always incremental, so nothing already granted is asked again.
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { safeNext } from "@/features/auth/safe-next";
@@ -22,11 +24,16 @@ export async function GET(request: NextRequest) {
   const oauth = googleOAuth();
   if (!oauth || !googleConfigured()) return NextResponse.redirect(withCalendar(next, url.origin, "unavailable"));
 
-  const purpose = url.searchParams.get("purpose") === "write" ? "write" : "read";
-  const fallback = url.searchParams.get("fallback") === "1"; // the person declined events.owned: ask for the app-created calendar instead
-  const scopes = [...SCOPES.identity, ...SCOPES.read, ...(purpose === "write" ? (fallback ? SCOPES.writeAppCreated : SCOPES.writeOwned) : [])];
+  const asked = url.searchParams.get("purpose");
+  const purpose = asked === "write" || asked === "full" ? asked : "read";
+  const scopes = [...SCOPES.identity, ...scopesFor(purpose)];
   const state = signState({ userId: user.id, purpose, next, nonce: randomUUID(), exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS }, stateSecret());
   return NextResponse.redirect(authorizationUrl(oauth, scopes, state, user.email));
+}
+
+function scopesFor(purpose: "read" | "write" | "full"): readonly string[] {
+  if (purpose === "full") return [...SCOPES.read, ...SCOPES.writeOwned];
+  return purpose === "write" ? [...SCOPES.busy, ...SCOPES.writeAppCreated] : SCOPES.busy;
 }
 
 function withCalendar(next: string, origin: string, outcome: string): URL {

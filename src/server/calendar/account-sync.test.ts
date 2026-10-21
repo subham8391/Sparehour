@@ -2,8 +2,9 @@ import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { APP_CREATED_SCOPE, defaultRead, syncAccount, type AccountStore, type AccountSyncDeps, type CalendarRow, type CalendarUpsert, type ClaimedAccount, type WatchPort } from "./account-sync";
 import { openFromBase64, sealToBase64 } from "./crypto";
+import { EVENTS_OWNED_SCOPE, EVENTS_READ_SCOPE, FREEBUSY_SCOPE } from "./google";
 import { NeedsReauth, type CalendarProvider, type ProviderCalendar, type ProviderEvent } from "./provider";
-import type { CalendarRef, MirrorStore } from "./sync";
+import type { BusySource, CalendarRef, MirrorStore } from "./sync";
 
 const key = randomBytes(32);
 const NOW = new Date("2026-09-15T10:00:00Z");
@@ -18,7 +19,8 @@ const account = (over: Partial<ClaimedAccount> = {}): ClaimedAccount => ({
   refresh_b64: sealToBase64("refresh", key),
   access_b64: sealToBase64("access", key),
   token_expires_at: new Date(NOW.getTime() + 3600_000).toISOString(),
-  scopes: [],
+  // Full access unless a test says otherwise: these tests are about the event path.
+  scopes: [EVENTS_READ_SCOPE],
   key_version: 1,
   status: "ok",
   ...over,
@@ -67,6 +69,7 @@ function fakes(opts: { remote?: ProviderCalendar[]; existing?: CalendarRow[]; ev
   const provider = {
     listCalendars: vi.fn(async (): Promise<ProviderCalendar[]> => [...(opts.remote ?? []), ...created]),
     listEvents: vi.fn<CalendarProvider["listEvents"]>(async (externalId) => ({ items: opts.events?.[externalId] ?? [], nextPageToken: null, nextSyncToken: `T-${externalId}` })),
+    freeBusy: vi.fn(async (ids: readonly string[]) => Object.fromEntries(ids.map((id) => [id, { busy: id === "primary" ? [{ start: "2026-09-16T09:00:00.000Z", end: "2026-09-16T10:00:00.000Z" }] : [], error: null }]))),
     watch: vi.fn<WatchPort["watch"]>(async () => ({ resourceId: "res", expiresAt: new Date(NOW.getTime() + 604_800_000) })),
     stop: vi.fn<WatchPort["stop"]>(async () => undefined),
     createCalendar: vi.fn(async (summary: string, timezone: string | null): Promise<ProviderCalendar> => {
@@ -74,7 +77,7 @@ function fakes(opts: { remote?: ProviderCalendar[]; existing?: CalendarRow[]; ev
       created.push(made);
       return made;
     }),
-  } satisfies CalendarProvider & WatchPort & { createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> };
+  } satisfies CalendarProvider & WatchPort & BusySource & { createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> };
   const deps: AccountSyncDeps = {
     key,
     store,
@@ -162,16 +165,81 @@ describe("syncAccount", () => {
 
   it("with the app-created scope and no write calendar, a 'Sparehour' calendar is created once and takes the blocks", async () => {
     const f = fakes({ remote: [cal("primary", { primary: true })] });
-    await syncAccount(account({ scopes: [APP_CREATED_SCOPE] }), f.deps);
+    await syncAccount(account({ scopes: [EVENTS_READ_SCOPE, APP_CREATED_SCOPE] }), f.deps);
     expect(f.provider.createCalendar).toHaveBeenCalledWith("Sparehour", null);
     expect(f.log).toContain("writeTarget id-app-cal");
     expect(f.rows().find((r) => r.external_id === "app-cal")).toMatchObject({ write_target: true, read: true });
     // Next pass: it exists and is the target; nothing is created again.
-    await syncAccount(account({ scopes: [APP_CREATED_SCOPE] }), f.deps);
+    await syncAccount(account({ scopes: [EVENTS_READ_SCOPE, APP_CREATED_SCOPE] }), f.deps);
     expect(f.provider.createCalendar).toHaveBeenCalledTimes(1);
     // Without the scope, or with a write target already chosen, nothing happens.
     const g = fakes({ remote: [cal("primary", { primary: true })] });
     await syncAccount(account(), g.deps);
     expect(g.provider.createCalendar).not.toHaveBeenCalled();
+  });
+
+  describe("busy times only (DECISIONS.md, amendment 2026-10-21)", () => {
+    const busyScopes = [FREEBUSY_SCOPE];
+
+    it("reads every calendar that counts as busy through freeBusy, never their events, and opens no push channels", async () => {
+      const f = fakes({ remote: [cal("primary", { primary: true }), cal("holidays", { accessRole: "reader" }), cal("team")], webhook: true });
+      const out = await syncAccount(account({ scopes: busyScopes }), f.deps);
+      expect(out).toEqual({ status: "ok", calendars: 3, events: 1, error: null });
+      expect(f.provider.listEvents).not.toHaveBeenCalled();
+      // The holidays calendar does not count as busy, so it is not asked about.
+      expect(f.provider.freeBusy.mock.calls[0][0]).toEqual(["primary", "team"]);
+      expect(f.log).toContain("replace primary:1");
+      expect(f.log).toContain("replace team:0");
+      expect(f.provider.watch).not.toHaveBeenCalled();
+    });
+
+    it("with writing allowed, makes the Sparehour calendar, sends blocks there, and reads that one calendar in full so moved blocks come back", async () => {
+      const f = fakes({ remote: [cal("primary", { primary: true })] });
+      await syncAccount(account({ scopes: [...busyScopes, APP_CREATED_SCOPE] }), f.deps);
+      expect(f.provider.createCalendar).toHaveBeenCalledTimes(1);
+      expect(f.rows().find((r) => r.external_id === "app-cal")).toMatchObject({ write_target: true });
+      expect(f.provider.listEvents).toHaveBeenCalledTimes(1);
+      expect(f.provider.listEvents.mock.calls[0][0]).toBe("app-cal");
+      expect(f.provider.freeBusy.mock.calls[0][0]).toEqual(["primary"]);
+    });
+
+    it("a write calendar these permissions cannot write moves to the Sparehour calendar; 'keep blocks here' stays a choice", async () => {
+      const f = fakes({
+        remote: [cal("primary", { primary: true }), cal("app-cal", { summary: "Sparehour" })],
+        existing: [
+          { id: "id-primary", external_id: "primary", summary: "primary", read: true, write_target: true, sync_token: null, deleted_at: null },
+          { id: "id-app-cal", external_id: "app-cal", summary: "Sparehour", read: true, write_target: false, sync_token: null, deleted_at: null },
+        ],
+      });
+      await syncAccount(account({ scopes: [...busyScopes, APP_CREATED_SCOPE] }), f.deps);
+      expect(f.log).toContain("writeTarget id-app-cal");
+      expect(f.provider.createCalendar).not.toHaveBeenCalled();
+
+      const g = fakes({
+        remote: [cal("primary", { primary: true }), cal("app-cal", { summary: "Sparehour" })],
+        existing: [{ id: "id-app-cal", external_id: "app-cal", summary: "Sparehour", read: true, write_target: false, sync_token: null, deleted_at: null }],
+      });
+      await syncAccount(account({ scopes: [...busyScopes, APP_CREATED_SCOPE] }), g.deps);
+      expect(g.store.setWriteTarget).not.toHaveBeenCalled();
+
+      // With full write access the person's own choice stands.
+      const h = fakes({
+        remote: [cal("primary", { primary: true }), cal("app-cal", { summary: "Sparehour" })],
+        existing: [
+          { id: "id-primary", external_id: "primary", summary: "primary", read: true, write_target: true, sync_token: null, deleted_at: null },
+          { id: "id-app-cal", external_id: "app-cal", summary: "Sparehour", read: true, write_target: false, sync_token: null, deleted_at: null },
+        ],
+      });
+      await syncAccount(account({ scopes: [EVENTS_READ_SCOPE, EVENTS_OWNED_SCOPE, APP_CREATED_SCOPE] }), h.deps);
+      expect(h.store.setWriteTarget).not.toHaveBeenCalled();
+    });
+
+    it("a calendar the person named Sparehour themselves (Google refuses its events) is read by busy times like the rest", async () => {
+      const f = fakes({ remote: [cal("mine", { summary: "Sparehour" })] });
+      f.provider.listEvents.mockRejectedValueOnce(new Error("google events.list: 403"));
+      const out = await syncAccount(account({ scopes: [...busyScopes, APP_CREATED_SCOPE] }), f.deps);
+      expect(out.status).toBe("ok");
+      expect(f.provider.freeBusy.mock.calls[0][0]).toEqual(["mine"]);
+    });
   });
 });

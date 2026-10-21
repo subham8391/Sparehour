@@ -16,6 +16,8 @@ export interface CalendarIssue {
   key: string;
   /** Blocking is paused until it is fixed (PRODUCT_SPEC.md §10.3 rule 5); an unreachable calendar never pauses it. */
   blocking: boolean;
+  /** The account had full access (titles), so Reconnect asks for it again rather than for busy times only. */
+  full: boolean;
 }
 
 /** Whether new blocks can reach Google, and why blocking is paused when it cannot. */
@@ -41,7 +43,7 @@ const lapsed = (r: CalendarConnectionRow) => r.status === "needs_reauth" || r.st
  */
 export function calendarIssueFrom(rows: readonly CalendarConnectionRow[], calendars: readonly CalendarLink[] = [], keptLocal: string | null = null): CalendarIssue | null {
   const writer = writeAccount(calendars);
-  const issue = (kind: CalendarIssue["kind"], r: CalendarConnectionRow, key: string, blocking: boolean): CalendarIssue => ({ kind, email: r.email, lastSyncedAt: r.last_synced_at, key: `${kind}:${r.id}:${key}`, blocking });
+  const issue = (kind: CalendarIssue["kind"], r: CalendarConnectionRow, key: string, blocking: boolean): CalendarIssue => ({ kind, email: r.email, lastSyncedAt: r.last_synced_at, key: `${kind}:${r.id}:${key}`, blocking, full: r.can_read_titles === 1 });
   const reauth = rows.find((r) => lapsed(r) && r.id === writer) ?? rows.find(lapsed);
   if (reauth) return issue("reauth", reauth, "", reauth.id === writer);
   const gone = writer === null ? rows.find((r) => r.write_lost_at && issue("write_gone", r, r.write_lost_at, true).key !== keptLocal) : undefined;
