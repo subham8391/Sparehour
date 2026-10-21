@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
       scopes: grant.scopes,
       keyVersion: CURRENT_KEY_VERSION,
     });
+    // What Google returns may have changed with this grant (busy times only → titles): the first pass reads it all.
+    await deps.store.resetSyncTokens(accountId);
     after(async () => {
       try {
         await syncAccountById(accountId, deps);

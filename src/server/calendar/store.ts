@@ -144,6 +144,16 @@ export class SupabaseAccountStore implements AccountStore, PushStore, OurEventSt
     fail("calendar_account_finish", error);
   }
 
+  /**
+   * Forget where every calendar of the account left off, so the next pass reads all of it again. Called on each
+   * connect: a grant that changed what Google returns (busy times only → titles) must not leave the events already
+   * mirrored as they were, and an incremental sync only sends what changed since.
+   */
+  async resetSyncTokens(accountId: string): Promise<void> {
+    const { error } = await this.db.from("calendars").update({ sync_token: null }).eq("calendar_account_id", accountId);
+    fail("calendars reset sync_token", error);
+  }
+
   async requestSync(id: string): Promise<void> {
     const { error } = await this.db.rpc("calendar_account_request_sync", { p_id: id });
     fail("calendar_account_request_sync", error);

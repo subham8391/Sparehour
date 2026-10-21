@@ -20,6 +20,7 @@ const { store, after, syncAccountById, syncUser, syncDue, pushUser, pushDue, exc
     connect: vi.fn(async () => "acct-1"),
     claim: vi.fn(async () => []),
     requestSync: vi.fn(async () => undefined),
+    resetSyncTokens: vi.fn(async () => undefined),
     channelAccount: vi.fn<(id: string, token: string) => Promise<string | null>>(async (_, token) => (token === "good" ? "acct-1" : null)),
     disconnect: vi.fn<(id: string, user: string) => Promise<string | null>>(async () => "sealed"),
   },
@@ -119,6 +120,8 @@ describe("calendar routes", () => {
     expect(call[0].accessB64).not.toContain("at");
     expect(after).toHaveBeenCalledTimes(1);
     expect(syncAccountById).toHaveBeenCalledWith("acct-1", expect.anything());
+    // A new grant may change what Google returns (busy times → titles), so the first pass after it reads everything.
+    expect(store.resetSyncTokens).toHaveBeenCalledWith("acct-1");
   });
 
   it("callback refuses a stale state, a state for someone else, and reports a decline", async () => {
