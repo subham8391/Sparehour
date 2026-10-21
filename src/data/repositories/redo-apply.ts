@@ -16,6 +16,7 @@ export const SERVER_KEEPS: Partial<Record<UndoTable, readonly string[]>> = {
   task_completions: ["carry_count_before", "last_carried_before"],
   time_blocks: ["external_event_id", "external_etag", "push_state"],
   user_settings: ["deleted_at"],
+  list_items: ["preview_title", "preview_image", "preview_fetched_at"],
 };
 
 /** The columns where the row differs from `other` (every writable one when there is no other), bookkeeping left out. */

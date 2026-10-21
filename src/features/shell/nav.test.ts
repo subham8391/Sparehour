@@ -30,7 +30,7 @@ describe("navigation model", () => {
     expect(activeTab("/today")).toBe("today");
     expect(activeTab("/inbox")).toBe("inbox");
     expect(activeTab("/upcoming")).toBe("upcoming");
-    for (const p of ["/browse", "/someday", "/logbook", "/settings", "/project/p1", "/area/a1"]) expect(activeTab(p)).toBe("browse");
+    for (const p of ["/browse", "/someday", "/logbook", "/settings", "/project/p1", "/area/a1", "/lists", "/list/l1"]) expect(activeTab(p)).toBe("browse");
     expect(activeTab("/calendar")).toBeNull();
   });
 
@@ -41,7 +41,7 @@ describe("navigation model", () => {
 
   it("the add bar and the FAB show on task lists only", () => {
     for (const p of ["/today", "/inbox", "/upcoming", "/someday", "/browse", "/project/p1", "/area/a1"]) expect(showsQuickAdd(p)).toBe(true);
-    for (const p of ["/plan", "/shutdown", "/search", "/settings", "/calendar", "/logbook"]) expect(showsQuickAdd(p)).toBe(false);
+    for (const p of ["/plan", "/shutdown", "/search", "/settings", "/calendar", "/logbook", "/lists", "/list/l1"]) expect(showsQuickAdd(p)).toBe(false);
   });
 
   it("the first run stands alone: no tab bar, no add bar, no sidebar", () => {

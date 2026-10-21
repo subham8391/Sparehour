@@ -36,6 +36,10 @@ const TABLES: Record<string, string> = {
   time_blocks: "user_id, task_id, title, start_at, end_at, locked, source, routine_run_id, routine_item_key, routine_date, calendar_id, external_event_id, external_etag, push_state, notice",
   user_settings: "user_id, timezone, day_rollover_hour, default_miss_policy, onboarded_at",
   work_hours: "user_id, weekday, start_time, end_time",
+  lists: "parent_id, name, emoji, item_order, hide_done, sort_key",
+  list_items: "list_id, title, note_md, url, status, rating, done_at, preview_title, preview_image, preview_fetched_at, sort_key",
+  list_item_tags: "item_id, tag_id",
+  users: "personal_space_id",
 };
 
 export function localSqlite() {

@@ -43,6 +43,9 @@ streams:
       - SELECT * FROM checklist_items WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
       - SELECT * FROM tags            WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
       - SELECT * FROM task_tags       WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM lists           WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM list_items      WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
+      - SELECT * FROM list_item_tags  WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
       - SELECT * FROM recurrence_exceptions
                                       WHERE space_id IN (SELECT space_id FROM my_spaces) AND deleted_at IS NULL
 

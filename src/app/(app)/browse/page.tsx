@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useQuery } from "@/data/powersync";
+import { TOP_LISTS_SQL, listCardLine, type ListCardRow } from "@/data/queries/lists";
 import { FINISHED_PROJECTS_SQL, type ProjectStateRow } from "@/data/queries/nav";
 import { FinishedProjects } from "@/features/projects/finished-projects";
 import type { OrganiseTarget } from "@/features/projects/organise-sheet";
@@ -68,6 +69,7 @@ export default function BrowsePage() {
   const projectRepo = useProjectRepo();
   const { data: users } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
   const { data: finished } = useQuery<ProjectStateRow>(FINISHED_PROJECTS_SQL);
+  const { data: lists } = useQuery<ListCardRow>(TOP_LISTS_SQL);
   const spaceId = users?.[0]?.personal_space_id ?? null;
   const [adding, setAdding] = useState<Adding>(null);
   const [name, setName] = useState("");
@@ -193,6 +195,37 @@ export default function BrowsePage() {
         <FinishedProjects projects={finished ?? []} />
       </section>
       {organising && <OrganiseSheet target={organising} onClose={() => setOrganising(null)} />}
+      {/* Lists (DECISIONS.md, amendment 2026-10-22): things that aren't tasks; a list's own lists are on its page. */}
+      <section className="flex flex-col gap-2">
+        <SectionLabel
+          className="px-0.5"
+          action={
+            <Link href="/lists?add=1" className="-mr-2 flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm px-2 text-body-sm font-medium text-ink-2 transition-colors dur-fast hover:bg-hover hover:text-ink sm:h-7 touch:h-11">
+              <Icon name="plus" size={14} /> Add list
+            </Link>
+          }
+        >
+          Lists
+        </SectionLabel>
+        {(lists?.length ?? 0) === 0 ? (
+          <EmptyCard>Lists hold what isn&rsquo;t a task: shows to watch, books to read, ideas.</EmptyCard>
+        ) : (
+          <ListCard className="overflow-clip">
+            {(lists ?? []).map((l) => (
+              <li key={l.id} className="border-t border-line first:border-t-0">
+                <Link href={`/list/${l.id}`} className={ROW}>
+                  <span aria-hidden="true" className="flex size-4.5 shrink-0 items-center justify-center text-body-lg leading-none">
+                    {l.emoji ?? <span className="size-1.5 rounded-full bg-line-control" />}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{l.name ?? "Untitled list"}</span>
+                  <span className="text-body-sm text-ink-3 num">{listCardLine(l)}</span>
+                  {CHEVRON}
+                </Link>
+              </li>
+            ))}
+          </ListCard>
+        )}
+      </section>
       <section>
         <ListCard className="overflow-clip">
           {browseRows().map((v) => (

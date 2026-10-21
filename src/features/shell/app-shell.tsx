@@ -52,6 +52,16 @@ function SidebarDragIsland({ areas }: { areas: ReturnType<typeof useNavData>["ar
   return useIdleMount(loadNavDrag, false) ? <SidebarDrag areas={areas} /> : null;
 }
 
+// The sidebar's Lists section (DECISIONS.md, amendment 2026-10-22) reads its own rows, so it is an island as well:
+// fetched in idle time, or at once on a list's own page.
+const loadSidebarLists = () => import("@/features/lists/sidebar-lists");
+const SidebarLists = dynamic(() => loadSidebarLists().then((m) => m.SidebarLists), { ssr: false });
+
+function SidebarListsIsland({ pathname }: { pathname: string }) {
+  const onLists = pathname === "/lists" || pathname.startsWith("/list/");
+  return useIdleMount(loadSidebarLists, onLists) ? <SidebarLists pathname={pathname} /> : null;
+}
+
 // Storage full (SCREENS.md §21): the banner with Export your data loads only once the device reports it is out of room.
 const StorageFull = dynamic(() => import("@/features/pwa/storage-full"), { ssr: false });
 
@@ -119,7 +129,7 @@ function Frame({ children }: { children: ReactNode }) {
     // keeps the rail and the view clear of a landscape phone's notch and corners (globals.css).
     <div data-view={pathname.split("/")[1]} className="flex min-h-dvh overflow-x-clip sm:h-dvh">
       <Sidebar rail pathname={pathname} counts={counts} areas={areas} sync={sync} isMac={isMac} onPalette={() => palette.open()} onShortcuts={openShortcuts} className="hidden sm:flex md:hidden" />
-      <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} isMac={isMac} onPalette={() => palette.open()} onShortcuts={openShortcuts} className="hidden md:flex" />
+      <Sidebar pathname={pathname} counts={counts} areas={areas} sync={sync} isMac={isMac} onPalette={() => palette.open()} onShortcuts={openShortcuts} lists={<SidebarListsIsland pathname={pathname} />} className="hidden md:flex" />
       <SidebarDragIsland areas={areas} />
       <div
         className={cx(

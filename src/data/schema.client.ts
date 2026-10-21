@@ -286,6 +286,33 @@ export const day_plans = new Table(
   { indexes: { date: ["user_id", "date"] } },
 );
 
+// Lists, for things that aren't tasks (DECISIONS.md, amendment 2026-10-22): nested by parent_id, items with a status,
+// a rating, a link and its server-fetched preview, and the tags tasks use.
+export const lists = new Table(
+  { ...base, parent_id: column.text, name: column.text, emoji: column.text, item_order: column.text, hide_done: column.integer, sort_key: column.text },
+  { indexes: { parent: ["parent_id"] } },
+);
+
+export const list_items = new Table(
+  {
+    ...base,
+    list_id: column.text,
+    title: column.text,
+    note_md: column.text,
+    url: column.text,
+    status: column.text,
+    rating: column.integer,
+    done_at: column.text,
+    preview_title: column.text,
+    preview_image: column.text,
+    preview_fetched_at: column.text,
+    sort_key: column.text,
+  },
+  { indexes: { list: ["list_id"] } },
+);
+
+export const list_item_tags = new Table({ ...base, item_id: column.text, tag_id: column.text }, { indexes: { item: ["item_id"], tag: ["tag_id"] } });
+
 export const AppSchema = new Schema({
   users,
   spaces,
@@ -306,6 +333,9 @@ export const AppSchema = new Schema({
   calendar_events,
   time_blocks,
   day_plans,
+  lists,
+  list_items,
+  list_item_tags,
 });
 
 export type Database = (typeof AppSchema)["types"];
@@ -318,3 +348,5 @@ export type UserSettingsRow = Database["user_settings"];
 export type ProjectRow = Database["projects"];
 export type HeadingRow = Database["headings"];
 export type AreaRow = Database["areas"];
+export type ListRow = Database["lists"];
+export type ListItemRow = Database["list_items"];

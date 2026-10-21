@@ -18,7 +18,10 @@ export type UndoTable =
   | "time_blocks"
   | "task_completions"
   | "user_settings"
-  | "day_plans";
+  | "day_plans"
+  | "lists"
+  | "list_items"
+  | "list_item_tags";
 
 /**
  * The rows a write changed, by table: by id, or (`{ task_id: [...] }`) every row of the table that belongs to those

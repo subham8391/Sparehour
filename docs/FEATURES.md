@@ -190,3 +190,20 @@ Things the first catalogue missed: long-unbuilt requests on public vote boards, 
 | **Optional soft streaks** | Later | Todoist Karma |
 | **Subtasks schedulable on their own** | Never | Conflicts with the one-level checklist; "Convert to project" covers it |
 | **Location reminders** | Never | Web apps can't geofence in the background |
+
+## 12. Lists — things that aren't tasks (added 2026-10-22, DECISIONS.md amendment of that date)
+Ideas, things to watch or read, anything worth keeping that has no date and costs no time.
+| Feature | When | From |
+|---|---|---|
+| A "Lists" section in the sidebar (Browse on a phone), lists inside lists to any depth, an emoji per list | M1 | Notion, Capacities |
+| Items with a note (Markdown), a link, a status (to do · doing · done) and tags shared with tasks | M1 | Watchory, AniList |
+| A 1–5 star rating on an item | M1 | Letterboxd, StoryGraph |
+| Sort (by hand, name, date added, rating) and filter (status, hide done) | M1 | — |
+| "Pick one for me": a random item not yet done | M1 | Watchory |
+| Paste many lines → one item per line | M1 | Todoist (for tasks) |
+| Turn an item into a task (it lands in the Inbox; the item stays) | M1 | — |
+| Quick-add (Q) can save to a list | M1 | — |
+| ⌘K search finds list items; Settings › Data exports lists | M1 | — |
+| Link preview: the page's title and picture, fetched on the server | M1 | Raindrop, Pocket |
+| Share from other apps into a list (Android share menu; iPhone web apps cannot yet) | M1 | Web Share Target |
+

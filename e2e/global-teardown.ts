@@ -16,6 +16,9 @@ export default async function teardown(): Promise<void> {
       // Projects and areas a spec made for itself (each spec also removes its own in afterAll).
       await c.query("delete from public.projects where name like $1", [`${E2E_PREFIX}%`]);
       await c.query("delete from public.areas where name like $1", [`${E2E_PREFIX}%`]);
+      // Lists a spec made, with their items (a list's items and the lists inside it go with it).
+      await c.query("delete from public.list_items where title like $1", [`${E2E_PREFIX}%`]);
+      await c.query("delete from public.lists where name like $1", [`${E2E_PREFIX}%`]);
       // Accounts the magic-link and account-deletion tests created; auth.users cascades through public.users and
       // their space, after the ledgers that name a user without a key (as private.purge_deleted_accounts does).
       const made = "select id from auth.users where email like 'e2e-magic-%@sparehour.local' or email like 'e2e-delete-%@sparehour.local'";

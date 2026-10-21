@@ -50,7 +50,7 @@ export function isActive(pathname: string, href: string): boolean {
 export function activeTab(pathname: string): ViewId | null {
   const own = TAB_VIEWS.find((v) => v.id !== "browse" && isActive(pathname, v.href));
   if (own) return own.id;
-  if (["/browse", "/someday", "/logbook", "/settings", "/area", "/project", "/carried"].some((p) => isActive(pathname, p))) return "browse";
+  if (["/browse", "/someday", "/logbook", "/settings", "/area", "/project", "/carried", "/lists", "/list"].some((p) => isActive(pathname, p))) return "browse";
   return null;
 }
 
@@ -58,8 +58,8 @@ export function activeTab(pathname: string): ViewId | null {
 const BARE = ["/welcome"];
 /** Full-screen routes: the rituals and search own the phone's bottom edge, so the tab bar steps aside. */
 const FULL_SCREEN = ["/plan", "/shutdown", "/search", ...BARE];
-/** Views where adding a task is not the job: the add bar and the FAB stay away (brief P10). */
-const NO_ADD = [...FULL_SCREEN, "/settings", "/calendar", "/logbook"];
+/** Views where adding a task is not the job: the add bar and the FAB stay away (brief P10). A list has its own add row. */
+const NO_ADD = [...FULL_SCREEN, "/settings", "/calendar", "/logbook", "/lists", "/list"];
 
 export function showsTabBar(pathname: string): boolean {
   return !FULL_SCREEN.some((p) => isActive(pathname, p));

@@ -39,6 +39,8 @@ export const SERVER_OWNED_COLUMNS: Record<string, readonly string[]> = {
   spaces: ["owner_id", "kind", "deleted_at", "created_at", "updated_at"],
   users: ["*"],
   space_members: ["*"],
+  // A link's preview is fetched by the server (FEATURES.md §12); list_items_guard (migration 20261022000100) agrees.
+  list_items: ["preview_title", "preview_image", "preview_fetched_at", "created_at", "updated_at"],
   "*": ["created_at", "updated_at"],
 };
 

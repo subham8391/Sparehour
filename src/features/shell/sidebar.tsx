@@ -10,7 +10,7 @@
 // its ⌘K hint) and, beside Settings, to the ? overlay (SCREENS.md §0 "three
 // interaction paths", §1 Regions).
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Mark } from "@/ui/brand";
@@ -47,9 +47,9 @@ export interface NavArea {
 
 // One item look for views, areas and projects: 36 px, radius 10, ink text with the icon a step quieter.
 // Weight is set per use (views and areas medium, projects regular) so no two weights sit on one element.
-const ITEM = "flex h-9 touch:h-11 items-center gap-3 rounded-lg px-3 text-body text-ink transition-colors dur-fast hover:bg-hover active:bg-press";
+export const ITEM = "flex h-9 touch:h-11 items-center gap-3 rounded-lg px-3 text-body text-ink transition-colors dur-fast hover:bg-hover active:bg-press";
 // The active pill: surface lifted by the 1 px ring shadow.
-const ACTIVE = "bg-surface shadow-nav";
+export const ACTIVE = "bg-surface shadow-nav";
 const RAIL_ITEM = "size-9 touch:size-11 justify-center px-0";
 
 function NavItem({ view, pathname, count, rail, icon }: { view: NavView; pathname: string; count?: number; rail: boolean; icon: IconName }) {
@@ -193,6 +193,7 @@ export function Sidebar({
   isMac = true,
   onPalette,
   onShortcuts,
+  lists,
 }: {
   pathname: string;
   counts: NavCounts;
@@ -206,6 +207,8 @@ export function Sidebar({
   onPalette?: () => void;
   /** Opens the ? overlay. */
   onShortcuts?: () => void;
+  /** The Lists section under the areas (features/lists/sidebar-lists.tsx), an island of its own. */
+  lists?: ReactNode;
 }) {
   return (
     <nav
@@ -273,6 +276,7 @@ export function Sidebar({
             )}
           </section>
         )}
+        {!rail && lists}
       </div>
 
       <div className={cx("flex shrink-0 flex-col gap-0.5 border-t border-line pt-2.5 pb-4", rail ? "items-center px-2.5" : "px-3")}>
