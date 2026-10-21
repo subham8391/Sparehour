@@ -170,4 +170,21 @@ describe.skipIf(admin === null)("hardening contract", () => {
     expect((await c.query("select has_function_privilege('authenticated', 'private.in_quiet_hours(time, time, time)', 'execute') as a")).rows[0]).toEqual({ a: false });
     expect((await c.query("select count(*)::int as n from cron.job where jobname = 'sparehour_mutations_purge'")).rows[0]).toEqual({ n: 1 });
   });
+
+  it("the server's own role writes the guarded tables: the guards ask helpers it may run (20261021000200)", () =>
+    inTx(admin, async (c) => {
+      const uid = await newUser(c, "hard-svc@contract.test", "Europe/London");
+      const sid = await spaceOf(c, uid);
+      const task = (await c.query<{ id: string }>("insert into public.tasks (space_id, title, sort_key) values ($1, 'svc', 'a0') returning id", [sid])).rows[0].id;
+      // The calendar worker updates calendars, routes touch tasks and settings: as service_role, none is refused.
+      await c.query("set local role service_role");
+      await c.query("update public.user_settings set timezone = timezone where user_id = $1", [uid]);
+      await c.query("update public.tasks set title = 'svc2' where id = $1", [task]);
+      await asAdmin(c);
+      expect((await c.query("select title from public.tasks where id = $1", [task])).rows[0]).toEqual({ title: "svc2" });
+      for (const fn of ["private.is_app_user()", "private.is_valid_timezone(text)"]) {
+        expect((await c.query("select has_function_privilege('service_role', $1, 'execute') as ok", [fn])).rows[0]).toEqual({ ok: true });
+      }
+    }));
 });
+
