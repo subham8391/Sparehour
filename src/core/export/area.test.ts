@@ -17,6 +17,9 @@ const snapshot: ExportSnapshot = {
   time_blocks: [],
   day_plans: [],
   work_hours: [],
+  lists: [],
+  list_items: [],
+  list_item_tags: [],
   user_settings: [],
 };
 

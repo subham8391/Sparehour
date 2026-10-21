@@ -42,6 +42,11 @@ export class ListItemRepo {
     private readonly history?: UndoRecorder,
   ) {}
 
+  /** The space a list is in, for an item added from outside its page (quick-add, a share). */
+  async spaceOf(listId: string): Promise<string | null> {
+    return (await this.db.getOptional<{ space_id: string | null }>(`select space_id from lists where id = ? and deleted_at is null`, [listId]))?.space_id ?? null;
+  }
+
   /** Adds items at the end of the list, one per title, in one transaction. One title is a silent undo; several, a toast. */
   async add(listId: string, spaceId: string, titles: readonly string[], opts: { url?: string | null } = {}): Promise<string[]> {
     const clean = titles.map((t) => t.trim()).filter(Boolean);

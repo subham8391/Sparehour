@@ -1,6 +1,7 @@
 // Lists' database contract (migration 20261022000100; DECISIONS.md, amendment 2026-10-22): the three tables take
 // writes through apply_mutations like areas do, another person can neither read nor write them, a list never ends up
-// inside itself or in another space, an item's link preview is the server's, and a tag taken off can go back on.
+// inside itself or in another space, an item's link preview is the server's (and goes when the link changes), and a
+// tag taken off can go back on.
 import type { Client } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 import { asAdmin, asUser, inTx as inTxOn, newUser, spaceOf, tryConnect } from "./test-db";
@@ -100,6 +101,16 @@ describe.skipIf(admin === null)("lists contract", () => {
       await c.query("update public.list_items set preview_title = 'An article — Example', preview_fetched_at = now() where id = $1", [item]);
       await asAdmin(c);
       expect((await c.query("select preview_title from public.list_items where id = $1", [item])).rows[0].preview_title).toBe("An article — Example");
+
+      // A new link takes the old preview with it; the same link written again keeps it.
+      await asUser(c, me);
+      await apply(c, [patch("list_items", item, { url: "https://example.com/a", title: "An article, renamed" })]);
+      await asAdmin(c);
+      expect((await c.query("select preview_title from public.list_items where id = $1", [item])).rows[0].preview_title).toBe("An article — Example");
+      await asUser(c, me);
+      await apply(c, [patch("list_items", item, { url: "https://example.com/b" })]);
+      await asAdmin(c);
+      expect((await c.query("select preview_title, preview_fetched_at from public.list_items where id = $1", [item])).rows[0]).toEqual({ preview_title: null, preview_fetched_at: null });
     }));
 
   it("a tag taken off an item can go back on as a new link (unique among live links only)", () =>

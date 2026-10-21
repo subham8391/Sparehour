@@ -1,6 +1,6 @@
 // One-click export (PRODUCT_SPEC.md §19.1, M1): the raw rows as JSON that
 // can be imported back, a flat CSV of tasks, and Markdown a person can read
-// — one file per project. Works on the local rows exactly as stored; the
+// — one file per project and per list. Works on the local rows exactly as stored; the
 // caller makes sure finished tasks are on the device first (they sync only
 // on demand, and the server keeps them a week, so the export is their
 // long-term record) and says when they could not be. Pure.
@@ -23,6 +23,10 @@ export const EXPORT_TABLES = [
   "day_plans",
   "work_hours",
   "user_settings",
+  // Lists (DECISIONS.md, amendment 2026-10-22): things that aren't tasks.
+  "lists",
+  "list_items",
+  "list_item_tags",
 ] as const;
 export type ExportTable = (typeof EXPORT_TABLES)[number];
 export type ExportSnapshot = Record<ExportTable, Row[]>;
@@ -173,6 +177,9 @@ export function markdownFiles(s: ExportSnapshot, exportedAt: string, opts: Expor
     ].join("\n"),
   });
 
+  const lists = listFiles(s);
+  files.push(...lists.files);
+
   const areas = [...s.areas].sort(byKey);
   const index: string[] = [`# Sparehour export`, "", `Exported ${exportedAt}. ${s.tasks.length} tasks, ${projects.length} projects, ${areas.length} areas.`, ""];
   if (!finishedTasks) index.push(`**${FINISHED_TASKS_MISSING}**`, "");
@@ -183,9 +190,62 @@ export function markdownFiles(s: ExportSnapshot, exportedAt: string, opts: Expor
   }
   const orphaned = projects.filter((p) => !p.area_id || !areas.some((a) => a.id === p.area_id));
   if (orphaned.length) index.push("## No area", "", ...orphaned.map((p) => `- [${p.name ?? "Untitled project"}](${projectFiles.get(String(p.id))})`), "");
+  if (lists.index.length) index.push("## Lists", "", ...lists.index, "");
   index.push("## Everything else", "", "- [Inbox](inbox.md)", "- [Planned, no project](today-and-upcoming.md)", "- [Someday](someday.md)", "- [Logbook](logbook.md)", "- [Time blocks](time-blocks.md)", "- [Day plans](day-plans.md)", "");
   files.unshift({ path: "README.md", content: index.join("\n") });
   return files;
+}
+
+/**
+ * One file per top-level list (`lists/anime.md`), the lists inside it as headings to any depth, each item a line —
+ * ticked when done, "doing" while it is, its stars, link and tags — with its note under it; and the index's links.
+ */
+function listFiles(s: ExportSnapshot): { files: ExportFile[]; index: string[] } {
+  const lists = [...(s.lists ?? [])].sort(byKey);
+  const ids = new Set(lists.map((l) => String(l.id)));
+  const childrenOf = new Map<string, Row[]>();
+  for (const l of lists) {
+    const parent = l.parent_id && ids.has(String(l.parent_id)) ? String(l.parent_id) : "";
+    childrenOf.set(parent, [...(childrenOf.get(parent) ?? []), l]);
+  }
+  const itemsOf = new Map<string, Row[]>();
+  for (const i of [...(s.list_items ?? [])].sort(byKey)) itemsOf.set(String(i.list_id), [...(itemsOf.get(String(i.list_id)) ?? []), i]);
+  const tagNames = new Map(s.tags.map((t) => [String(t.id), String(t.name ?? "")]));
+  const tagsOf = new Map<string, string[]>();
+  for (const k of s.list_item_tags ?? []) {
+    const name = tagNames.get(String(k.tag_id));
+    if (name) tagsOf.set(String(k.item_id), [...(tagsOf.get(String(k.item_id)) ?? []), name]);
+  }
+  const itemLine = (i: Row): string => {
+    const rating = Number(i.rating ?? 0);
+    const chips = [i.status === "doing" ? "doing" : null, rating > 0 ? "★".repeat(Math.min(5, rating)) : null, i.url ? String(i.url) : null, ...[...(tagsOf.get(String(i.id)) ?? [])].sort().map((t) => `@${t}`)].filter(Boolean);
+    const lines = [`- [${i.status === "done" ? "x" : " "}] ${i.title ?? ""}${chips.length ? ` · ${chips.join(" · ")}` : ""}`];
+    if (i.note_md) lines.push(...String(i.note_md).trim().split("\n").map((l) => `    ${l}`));
+    return lines.join("\n");
+  };
+  const used = new Map<string, number>();
+  const files: ExportFile[] = [];
+  const index: string[] = [];
+  for (const top of childrenOf.get("") ?? []) {
+    const base = slug(top.name === null ? null : String(top.name));
+    const n = (used.get(base) ?? 0) + 1;
+    used.set(base, n);
+    const path = `lists/${n === 1 ? base : `${base}-${n}`}.md`;
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const walk = (l: Row, depth: number) => {
+      if (seen.has(String(l.id))) return;
+      seen.add(String(l.id));
+      out.push(`${"#".repeat(Math.min(6, depth + 1))} ${l.emoji ? `${l.emoji} ` : ""}${l.name ?? "Untitled list"}`, "");
+      const items = itemsOf.get(String(l.id)) ?? [];
+      if (items.length) out.push(...items.map(itemLine), "");
+      for (const c of childrenOf.get(String(l.id)) ?? []) walk(c, depth + 1);
+    };
+    walk(top, 0);
+    files.push({ path, content: out.join("\n").trimEnd() + "\n" });
+    index.push(`- [${top.name ?? "Untitled list"}](${path})`);
+  }
+  return { files, index };
 }
 
 function section(out: string[], title: string, tasks: Row[], names: Lookup): void {

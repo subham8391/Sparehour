@@ -7,12 +7,13 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import type { TagRef } from "@/core/types";
 import { toTask } from "@/data/mappers";
+import { LISTS_NAV_SQL, listPaths, type ListNavRow } from "@/data/queries/lists";
 import { ALL_PROJECTS_SQL, AREAS_SQL, isOpenProject, projectStateLabel, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
 import { TAGS_SQL, logbookStream } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { rankNamed } from "@/features/commands/fuzzy";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
-import { buildChecklistMatch, buildTaskSearch, contextFor, parseSearchParams, splitResults, toSearchParams, type SearchFilters } from "@/features/search/search";
+import { buildChecklistMatch, buildListItemSearch, buildTaskSearch, contextFor, hasFilters, parseSearchParams, splitResults, toSearchParams, type SearchFilters } from "@/features/search/search";
 import { SearchView, type SearchHit } from "@/features/search/search-view";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -21,6 +22,7 @@ import { useTaskRepo } from "@/features/tasks/use-task-repo";
 
 const NONE_SQL = `select * from tasks where 0`;
 const NO_ITEMS_SQL = `select task_id, title from checklist_items where 0`;
+const NO_LIST_ITEMS_SQL = `select id, title, list_id, status from list_items where 0`;
 const DEBOUNCE_MS = 150;
 
 export default function SearchPage() {
@@ -69,6 +71,9 @@ function SearchScreen() {
   const { data: projectRows } = useQuery<ProjectStateRow>(ALL_PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: tagRows } = useQuery<TagRef>(TAGS_SQL);
+  const { data: listRows } = useQuery<ListNavRow>(LISTS_NAV_SQL);
+  const listItemSearch = useMemo(() => buildListItemSearch(query, filters), [query, filters]);
+  const { data: listItemRows } = useQuery<{ id: string; title: string | null; list_id: string; status: string | null }>(listItemSearch?.sql ?? NO_LIST_ITEMS_SQL, listItemSearch?.params ?? []);
 
   // Search reaches every project, finished ones included (labelled with their state); the filter menu offers the open ones.
   const allProjects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", state: p.state })), [projectRows]);
@@ -85,6 +90,16 @@ function SearchScreen() {
   }, [taskRows, itemRows, allProjects, today, query, filters.state]);
   const projectMatches = useMemo(() => rankNamed(query, allProjects, 5).map((p) => ({ id: p.id, name: p.name, href: `/project/${p.id}`, note: projectStateLabel(p.state) })), [query, allProjects]);
   const areaMatches = useMemo(() => rankNamed(query, areas, 5).map((a) => ({ ...a, href: `/area/${a.id}` })), [query, areas]);
+  // Lists by their path (DECISIONS.md, amendment 2026-10-22); an item opens in its list, its list's path beside it.
+  const paths = useMemo(() => listPaths(listRows ?? []), [listRows]);
+  const listMatches = useMemo(
+    () => (hasFilters(filters) ? [] : rankNamed(query, paths.map((l) => ({ id: l.id, name: l.label })), 5).map((l) => ({ ...l, href: `/list/${l.id}` }))),
+    [query, paths, filters],
+  );
+  const itemMatches = useMemo(() => {
+    const label = new Map(paths.map((l) => [l.id, l.label]));
+    return (listItemRows ?? []).map((i) => ({ id: i.id, name: i.title || "Untitled", href: `/list/${i.list_id}?item=${i.id}`, note: label.get(i.list_id) ?? null }));
+  }, [listItemRows, paths]);
 
   const sel = useListSelection([...hits, ...alsoFound].map((h) => h.task.id));
   const close = () => {
@@ -106,6 +121,8 @@ function SearchScreen() {
       alsoFound={alsoFound}
       projectMatches={projectMatches}
       areaMatches={areaMatches}
+      listMatches={listMatches}
+      itemMatches={itemMatches}
       today={today}
       selectedId={sel.selectedId}
       onSelect={(id) => sel.select(id)}

@@ -2,7 +2,7 @@
 // An item, opened from its list (DECISIONS.md, amendment 2026-10-22): its name, status, rating, link (with the
 // server's preview once there is one), note and tags, where it lives, "Turn into a task" and delete. A bottom sheet on
 // a phone, a dialog above; loaded when an item is first opened.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { normaliseUrl } from "@/data/repositories/list-item-repo";
 import {
@@ -25,6 +25,7 @@ import { Segmented } from "@/ui/segmented";
 import { Select } from "@/ui/select";
 import { Sheet } from "@/ui/sheet";
 import { ListGlyph, StarPicker } from "./list-parts";
+import { requestPreview } from "./preview-client";
 import { useListRepos } from "./use-list-repos";
 
 interface ItemSheetRow {
@@ -39,6 +40,7 @@ interface ItemSheetRow {
   rating: number | null;
   preview_title: string | null;
   preview_image: string | null;
+  preview_fetched_at: string | null;
 }
 
 const STATUSES: { value: ItemStatus; label: string }[] = (["todo", "doing", "done"] as const).map((s) => ({ value: s, label: STATUS_LABEL[s] }));
@@ -62,6 +64,14 @@ export function ItemSheet({ itemId, onClose, onTaskMade }: { itemId: string; onC
     setLink(item.url ?? "");
   }
 
+  // A link the server has not read yet (saved offline, or the last ask came too soon): ask once as the sheet opens.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || !item?.url || item.preview_fetched_at) return;
+    asked.current = true;
+    requestPreview(item.id, item.url);
+  }, [item?.id, item?.url, item?.preview_fetched_at]);
+
   // The item went (deleted here or elsewhere): the sheet goes with it.
   useEffect(() => {
     if (!isLoading && rows && rows.length === 0) onClose();
@@ -72,7 +82,10 @@ export function ItemSheet({ itemId, onClose, onTaskMade }: { itemId: string; onC
   const status: ItemStatus = item.status === "doing" || item.status === "done" ? item.status : "todo";
   const saveLink = () => {
     const next = normaliseUrl(link);
-    if ((next ?? "") !== (item.url ?? "")) void items.setUrl(item.id, link);
+    if ((next ?? "") !== (item.url ?? "")) {
+      asked.current = true;
+      void items.setUrl(item.id, link).then(() => next && requestPreview(item.id, next));
+    }
     setLink(next ?? (link.trim() ? link : ""));
   };
   const addTag = () => {

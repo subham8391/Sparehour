@@ -20,6 +20,9 @@ const empty = (): ExportSnapshot => ({
   day_plans: [],
   work_hours: [],
   user_settings: [],
+  lists: [],
+  list_items: [],
+  list_item_tags: [],
 });
 const taskRow = (id: string, over: Row = {}): Row => ({ id, project_id: null, heading_id: null, title: id, notes_md: null, state: "active", priority: 0, do_date: null, do_time: null, evening: 0, deadline: null, start_date: null, estimate_min: null, carry_count: 0, recurrence_rule: null, sort_key: "a0", created_at: null, completed_at: null, ...over });
 
@@ -67,7 +70,7 @@ describe("jsonExport", () => {
 
   it("keeps the table order stable and includes empty tables", () => {
     const out = JSON.parse(jsonExport(empty(), "x")) as { tables: Record<string, unknown[]> };
-    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "task_completions", "recurrence_exceptions", "time_blocks", "day_plans", "work_hours", "user_settings"]);
+    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "task_completions", "recurrence_exceptions", "time_blocks", "day_plans", "work_hours", "user_settings", "lists", "list_items", "list_item_tags"]);
     expect(Object.values(out.tables).every((t) => t.length === 0)).toBe(true);
   });
 });

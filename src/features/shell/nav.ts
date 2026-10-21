@@ -57,7 +57,7 @@ export function activeTab(pathname: string): ViewId | null {
 /** The first run stands alone: no sidebar, no tab bar, no add bar, on every width (ONBOARDING.md "one step per screen"). */
 const BARE = ["/welcome"];
 /** Full-screen routes: the rituals and search own the phone's bottom edge, so the tab bar steps aside. */
-const FULL_SCREEN = ["/plan", "/shutdown", "/search", ...BARE];
+const FULL_SCREEN = ["/plan", "/shutdown", "/search", "/share", ...BARE];
 /** Views where adding a task is not the job: the add bar and the FAB stay away (brief P10). A list has its own add row. */
 const NO_ADD = [...FULL_SCREEN, "/settings", "/calendar", "/logbook", "/lists", "/list"];
 

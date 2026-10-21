@@ -5,8 +5,8 @@
 // at random, moves the list or deletes it.
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Fragment, use, useMemo, useState, type ClipboardEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Fragment, Suspense, use, useCallback, useEffect, useMemo, useState, type ClipboardEvent } from "react";
 import { useQuery } from "@/data/powersync";
 import { sorted } from "@/core/ordering";
 import { itemLines } from "@/data/repositories/list-item-repo";
@@ -70,6 +70,19 @@ function host(url: string): string {
 
 type Sheet = { kind: "item"; id: string } | { kind: "pick" } | { kind: "move" } | { kind: "delete" } | null;
 
+/** `?item=…` (a search or palette hit) opens that item's sheet once, then comes off the URL. */
+function OpenFromQuery({ listId, onOpen }: { listId: string; onOpen: (itemId: string) => void }) {
+  const params = useSearchParams();
+  const router = useRouter();
+  const item = params.get("item");
+  useEffect(() => {
+    if (!item) return;
+    onOpen(item);
+    router.replace(`/list/${listId}`, { scroll: false });
+  }, [item, listId, onOpen, router]);
+  return null;
+}
+
 export default function ListPage({ params }: PageProps<"/list/[id]">) {
   const { id } = use(params);
   const router = useRouter();
@@ -85,6 +98,7 @@ export default function ListPage({ params }: PageProps<"/list/[id]">) {
   const [addingList, setAddingList] = useState(false);
   const [listName, setListName] = useState("");
   const list = listRows?.[0];
+  const openItem = useCallback((itemId: string) => setSheet({ kind: "item", id: itemId }), []);
 
   if (!isLoading && !list) {
     return (
@@ -164,6 +178,9 @@ export default function ListPage({ params }: PageProps<"/list/[id]">) {
 
   return (
     <main className={VIEW_COLUMN}>
+      <Suspense fallback={null}>
+        <OpenFromQuery listId={list.id} onOpen={openItem} />
+      </Suspense>
       <ViewHeader
         eyebrow={<nav aria-label="Where this list is">{breadcrumb}</nav>}
         title={

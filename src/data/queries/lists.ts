@@ -109,6 +109,11 @@ export const LIST_ITEM_SQL = `select i.*, l.name as list_name from list_items i 
 /** An item's tags, for the sheet's chips. */
 export const LIST_ITEM_TAGS_SQL = `select t.id, t.name from list_item_tags k join tags t on t.id = k.tag_id where k.item_id = ? and k.deleted_at is null and t.deleted_at is null order by lower(t.name)`;
 
+/** Items whose title or note holds the palette's words (one `like` pattern, given three times), titles first. */
+export const LIST_ITEM_SEARCH_SQL = `select i.id, i.title, i.list_id from list_items i join lists l on l.id = i.list_id
+where i.deleted_at is null and l.deleted_at is null and (i.title like ? escape '\\' or i.note_md like ? escape '\\')
+order by case when i.title like ? escape '\\' then 0 else 1 end, i.updated_at desc limit 8`;
+
 /** Every tag, for the sheet's suggestions. */
 export const LIST_TAG_NAMES_SQL = `select id, name from tags where deleted_at is null order by lower(name)`;
 

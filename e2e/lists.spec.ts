@@ -4,8 +4,8 @@
 // adds an Inbox task; the sort is the list's own; deleting the parent takes its list and items, and Undo brings them
 // back. Every name here starts with "E2E ", so afterAll and the teardown remove them.
 import { expect, test } from "./fixtures";
-import { waitForRow, withDb } from "./db";
-import { E2E_PREFIX, openApp } from "./helpers";
+import { devAccount, seedKey, waitForRow, withDb } from "./db";
+import { DEV_USER, E2E_PREFIX, openApp } from "./helpers";
 
 const n = `l${Date.now().toString(36)}`;
 const parent = `${E2E_PREFIX}Anime ${n}`;
@@ -104,4 +104,44 @@ test("a list holds lists and items: paste many, status, rating, link, tag, to a 
   await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
   await expect(page.getByRole("link", { name: new RegExp(parent) })).toBeVisible();
   expect(await waitForRow("select 1 from public.list_items where title = $1 and deleted_at is null", [titles[1]])).not.toBeNull();
+});
+
+const reading = `${E2E_PREFIX}Reading ${n}`;
+
+test("quick-add saves a line to a list; search finds the item and opens it; a share lands in the list picked", async ({ page }) => {
+  await withDb(async (c) => {
+    const me = await devAccount(c, DEV_USER.email);
+    await c.query("insert into public.lists (id, space_id, name, sort_key) values (gen_random_uuid(), $1, $2, $3)", [me.sid, reading, seedKey("93")]);
+  });
+  await openApp(page, "/today");
+
+  // Quick-add: "Save to" the list takes the line as it is, dates and all.
+  const line = `${E2E_PREFIX}Piranesi tomorrow ${n}`;
+  await page.keyboard.press("q");
+  await page.getByRole("combobox", { name: "Save to" }).selectOption({ label: reading });
+  const box = page.getByRole("textbox", { name: `Item for ${reading}` });
+  await box.fill(line);
+  await box.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: `Added “${line}” to ${reading}` })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await waitForRow("select 1 from public.list_items i join public.lists l on l.id = i.list_id where i.title = $1 and l.name = $2", [line, reading])).not.toBeNull();
+
+  // Search finds it under List items and opens it in its list.
+  await page.goto(`/search?q=${encodeURIComponent(`piranesi ${n}`)}`);
+  const hit = page.getByRole("link", { name: new RegExp(line) });
+  await expect(hit).toBeVisible();
+  await hit.click();
+  await expect(page.getByRole("heading", { name: reading })).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: line })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // A share from another app: the words become the name, the link the item's link, in the list picked.
+  const shared = `${E2E_PREFIX}Shared article ${n}`;
+  await page.goto(`/share?text=${encodeURIComponent(`${shared} https://example.com/${n}`)}`);
+  await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(shared);
+  await page.getByRole("combobox", { name: "List" }).selectOption({ label: reading });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("heading", { name: reading })).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(`^${shared}`) }).last()).toBeVisible();
+  expect(await waitForRow("select 1 from public.list_items where title = $1 and url = $2", [shared, `https://example.com/${n}`])).not.toBeNull();
 });

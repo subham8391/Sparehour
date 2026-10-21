@@ -1,6 +1,6 @@
 "use client";
 // The search screen (SCREENS.md §13): a full view, not a sidebar filter.
-// Query, removable filter chips, then Tasks · Projects · Areas · Also found.
+// Query, removable filter chips, then Tasks · Projects · Areas · Lists · List items · Also found.
 // Presentational: the page runs the statements and owns the URL.
 import { VIEW_COLUMN } from "@/features/shell/view-header";
 import Link from "next/link";
@@ -49,6 +49,9 @@ export interface SearchViewProps {
   alsoFound: readonly SearchHit[];
   projectMatches: readonly Named[];
   areaMatches: readonly Named[];
+  /** Lists by their path, and list items with their list's path as the note (DECISIONS.md, amendment 2026-10-22). */
+  listMatches?: readonly Named[];
+  itemMatches?: readonly Named[];
   today: LocalDate;
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -81,7 +84,7 @@ export function SearchView(p: SearchViewProps) {
     onFiltersChange(next);
   };
   const isSearch = p.query.trim().length > 0 || hasFilters(filters);
-  const nothing = isSearch && !p.searching && p.hits.length === 0 && p.alsoFound.length === 0 && p.projectMatches.length === 0 && p.areaMatches.length === 0;
+  const nothing = isSearch && !p.searching && p.hits.length === 0 && p.alsoFound.length === 0 && p.projectMatches.length === 0 && p.areaMatches.length === 0 && !p.listMatches?.length && !p.itemMatches?.length;
   // ↓ from the field steps into the results (SCREENS.md §13 "every row supports the full selected-task key
   // set"): the first row is selected through the shared selection and focus leaves the field for the view, so
   // J/K, Enter and the task keys reach the keyboard layer. ↑ on the first row comes back to the field.
@@ -221,7 +224,7 @@ export function SearchView(p: SearchViewProps) {
         </span>
       </div>
 
-      {!isSearch && <p className="px-0.5 text-body text-pretty text-ink-2">Titles, notes, checklist steps, projects and areas. Add a filter to browse without typing.</p>}
+      {!isSearch && <p className="px-0.5 text-body text-pretty text-ink-2">Titles, notes, checklist steps, projects, areas, lists and their items. Add a filter to browse tasks without typing.</p>}
 
       {nothing && (
         <EmptyCard
@@ -257,6 +260,18 @@ export function SearchView(p: SearchViewProps) {
       {p.areaMatches.length > 0 && (
         <Section label="Areas" count={p.areaMatches.length}>
           <NamedList items={p.areaMatches} kind="area" />
+        </Section>
+      )}
+
+      {(p.listMatches?.length ?? 0) > 0 && (
+        <Section label="Lists" count={p.listMatches?.length ?? 0}>
+          <NamedList items={p.listMatches ?? []} kind="list" />
+        </Section>
+      )}
+
+      {(p.itemMatches?.length ?? 0) > 0 && (
+        <Section label="List items" count={p.itemMatches?.length ?? 0}>
+          <NamedList items={p.itemMatches ?? []} kind="list" />
         </Section>
       )}
 
@@ -318,8 +333,8 @@ function MenuItem({ children, onClick }: { children: ReactNode; onClick: () => v
   );
 }
 
-/** Projects carry the sidebar's 6 px dot, areas the grid glyph, so the results read like the navigation. */
-function NamedList({ items, kind }: { items: readonly Named[]; kind: "project" | "area" }) {
+/** Projects carry the sidebar's 6 px dot, areas the grid glyph, lists theirs, so the results read like the navigation. */
+function NamedList({ items, kind }: { items: readonly Named[]; kind: "project" | "area" | "list" }) {
   return (
     <ListCard className="overflow-clip">
       {items.map((x) => (
@@ -330,7 +345,7 @@ function NamedList({ items, kind }: { items: readonly Named[]; kind: "project" |
                 <span className="size-1.5 rounded-full bg-line-control" />
               </span>
             ) : (
-              <Icon name="grid" size={16} className="shrink-0 text-ink-3" />
+              <Icon name={kind === "list" ? "menu" : "grid"} size={16} className="shrink-0 text-ink-3" />
             )}
             <span className="min-w-0 flex-1 truncate">{x.name}</span>
             {x.note && (

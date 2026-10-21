@@ -5,7 +5,8 @@
 // undo). On a phone it is a bottom sheet docked above the keyboard, headed by
 // "← Quick add"; from the narrow band up, a dialog under the top edge
 // (DESIGN_SYSTEM.md §5 "Sheet"). Presentational and testable: data arrives as
-// props.
+// props. "Save to" a list (DECISIONS.md, amendment 2026-10-22) takes the line
+// as it is typed, no tokens read, as an item of that list; a paste, one a line.
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { parse, type ParseContext, type ParseResult, type Range, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
@@ -14,6 +15,7 @@ import { chipButtonClass, chipClass, type ChipTone } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
+import { Select } from "@/ui/select";
 import { Sheet } from "@/ui/sheet";
 import {
   bestProjectMatch,
@@ -47,6 +49,12 @@ export interface QuickAddSubmission {
   projectId: string | null;
   /** Set when the user asked for a project that does not exist yet. */
   createProjectName: string | null;
+}
+
+/** A list a line can be saved to instead of a task: its id and its path ("Anime › Action"). */
+export interface QuickAddList {
+  id: string;
+  label: string;
 }
 
 /** A save, resolved to the id of the task it created (the paste's undo needs them all). */
@@ -225,6 +233,12 @@ export interface QuickAddProps {
   shape?: (draft: TaskDraft) => TaskDraft;
   /** Set to the composer's flush, for a page that moves on while words may still be in the box (the brain dump). */
   flushRef?: Ref<QuickAddFlush>;
+  /** The lists "Save to" offers; with none the picker is not shown. */
+  lists?: readonly QuickAddList[];
+  /** The list the sheet opens on (a list's own page), or none: a task. */
+  initialList?: string | null;
+  /** Saves lines as items of a list, in order; the save's own undo is the caller's. */
+  onSaveToList?: (listId: string, titles: readonly string[]) => Promise<void>;
 }
 
 export function QuickAdd({
@@ -242,6 +256,9 @@ export function QuickAdd({
   hint,
   shape,
   flushRef,
+  lists = [],
+  initialList = null,
+  onSaveToList,
 }: {
   open: boolean;
   initial?: string;
@@ -259,6 +276,9 @@ export function QuickAdd({
   hint?: ReactNode;
   shape?: (draft: TaskDraft) => TaskDraft;
   flushRef?: Ref<QuickAddFlush>;
+  lists?: readonly QuickAddList[];
+  initialList?: string | null;
+  onSaveToList?: (listId: string, titles: readonly string[]) => Promise<void>;
 }) {
   // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title
   // text while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
@@ -287,6 +307,9 @@ export function QuickAdd({
   const paintRef = useRef<HTMLDivElement>(null);
   const stripId = useId();
   const narrow = useNarrow();
+  /** Where the line goes: a task (null), or an item of this list. */
+  const [listId, setListId] = useState<string | null>(initialList);
+  const toList = onSaveToList ? (lists.find((l) => l.id === listId) ?? null) : null;
 
   // Focus the input on open; hand focus back to whatever opened us on close.
   useEffect(() => {
@@ -302,9 +325,10 @@ export function QuickAdd({
 
   const parseCtx = useMemo(() => ({ now: ctx.now, zone: ctx.zone, today: ctx.today, eveningStartsAt: ctx.eveningStartsAt }), [ctx.now, ctx.zone, ctx.today, ctx.eveningStartsAt]);
   const result = useMemo(() => parse(value, parseCtx, { literal: line.literal }), [value, parseCtx, line.literal]);
-  const draft = result.ok ? result.draft : null;
-  const spans = result.ok ? result.spans : [];
-  const warnings = result.ok ? result.warnings : [];
+  // A list item is the line as typed: nothing is read out of it, so nothing is painted or restated.
+  const draft = result.ok && !toList ? result.draft : null;
+  const spans = result.ok && !toList ? result.spans : [];
+  const warnings = result.ok && !toList ? result.warnings : [];
 
   const projectName = draft?.projectName ?? null;
   const choice: ProjectChoice = draft ? chooseProject(draft, projects, picked, createProject) : { project: null, create: false, collision: [] };
@@ -325,7 +349,7 @@ export function QuickAdd({
   const newTags = draft ? draft.tagNames.filter((t) => !resolveTag(t, tags)) : [];
   const interpretation = draft ? interpret(shape ? shape(draft) : draft, ctx.today, projectLabel, newTags) : null;
   /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
-  const needsName = !result.ok && value.trim() !== "";
+  const needsName = !result.ok && value.trim() !== "" && !toList;
 
   const syncScroll = () => {
     if (paintRef.current && inputRef.current) paintRef.current.scrollLeft = inputRef.current.scrollLeft;
@@ -386,6 +410,7 @@ export function QuickAdd({
   const inFlight = useRef(0);
   /** Resolves true once this line is saved, false when it could not be (its words are back in the box). */
   const submit = (close: boolean): Promise<boolean> => {
+    if (toList && onSaveToList) return saveItems(close);
     if (!result.ok || busy) return Promise.resolve(false);
     const text = value;
     const literal = line.literal;
@@ -417,6 +442,36 @@ export function QuickAdd({
     saves.current = saved;
     return saved;
   };
+  /** The line as an item of the chosen list, saved in turn like a task line; the words come back if it fails. */
+  const saveItems = (close: boolean): Promise<boolean> => {
+    const text = value;
+    const title = text.trim();
+    if (!toList || !onSaveToList || !title || busy) return Promise.resolve(false);
+    const list = toList;
+    setLine({ text: "", literal: [] });
+    setError(null);
+    inFlight.current += 1;
+    const saved = saves.current
+      .then(() => onSaveToList(list.id, [title]))
+      .then(
+        () => {
+          setNotice({ text: `Added “${title}” to ${list.label}` });
+          if (close) onClose();
+          return true;
+        },
+        (e: unknown) => {
+          setNotice(null);
+          setError(`Couldn't save “${title}”: ${reason(e)}`);
+          setLine((now) => (now.text.trim() === "" ? { text, literal: [] } : now));
+          return false;
+        },
+      )
+      .finally(() => {
+        inFlight.current -= 1;
+      });
+    saves.current = saved;
+    return saved;
+  };
   // Words in the box are saved as Enter would save them; an empty box waits for the saves still under way, and is
   // false when the last of them failed (its words are back in the box with the reason).
   useImperativeHandle(flushRef, () => () => {
@@ -427,7 +482,7 @@ export function QuickAdd({
   // Closing with words in the box discards them, and offers them back once (§5.1 rule 4); an empty box just closes.
   const dismiss = () => {
     const text = value.trim();
-    if (text) onDiscard?.(text, result.ok ? result.draft.title : text);
+    if (text) onDiscard?.(text, result.ok && !toList ? result.draft.title : text);
     onClose();
   };
 
@@ -466,6 +521,21 @@ export function QuickAdd({
     const lines = splitPaste(e.clipboardData.getData("text"));
     if (lines.length === 0) return;
     e.preventDefault();
+    if (toList && onSaveToList) {
+      const list = toList;
+      setBusy(true);
+      setError(null);
+      try {
+        await saves.current.catch(() => undefined);
+        await onSaveToList(list.id, lines);
+        setNotice({ text: `${plural(lines.length, "item", "items")} added to ${list.label}` });
+      } catch (err) {
+        setError(`Couldn't add them to ${list.label}: ${reason(err)}`);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -548,20 +618,27 @@ export function QuickAdd({
             onKeyDown={onKeyDown}
             onPaste={(e) => void onPaste(e)}
             onScroll={syncScroll}
-            aria-label="Task"
+            aria-label={toList ? `Item for ${toList.label}` : "Task"}
             aria-describedby={stripId}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
             enterKeyHint={inline ? "enter" : "done"}
-            placeholder={placeholder ?? (narrow ? PLACEHOLDER_NARROW : PLACEHOLDER)}
+            placeholder={toList ? `Add to ${toList.label}…` : (placeholder ?? (narrow ? PLACEHOLDER_NARROW : PLACEHOLDER))}
             className={cx(LINE, "relative bg-transparent text-transparent caret-ink")}
           />
         </div>
 
         {/* The parse restated as chips; the destination follows the arrow. A live region, so a screen reader hears the parse settle. */}
         <p id={stripId} aria-live="polite" className="flex min-h-[22px] flex-wrap items-center gap-1.5 text-body-sm text-ink-2">
-          {interpretation && interpretation.facts.length > 0 ? (
+          {toList ? (
+            <span className="inline-flex items-center gap-1">
+              Saved as it is, as an item
+              <span className="sr-only"> → </span>
+              <Icon name="arrow-right" size={14} className="text-ink-3" />
+              {toList.label}
+            </span>
+          ) : interpretation && interpretation.facts.length > 0 ? (
             interpretation.facts.map((f, i) => {
               const from = factSpans(f, spans).filter((s) => UNPARSEABLE.has(s.kind) || s.kind === "notes");
               return <FactChip key={i} fact={f} first={i === 0} onRemove={from.length > 0 ? () => (unparse(from), inputRef.current?.focus()) : undefined} />;
@@ -622,7 +699,7 @@ export function QuickAdd({
           )
         )}
 
-        {!inline && (
+        {!inline && !toList && (
           <div role="group" aria-label="Suggestions" className={CHIP_ROW}>
             {SUGGESTIONS.map((s) => (
               <button key={s.label} type="button" onClick={() => insert(s.insert)} className={SUGGEST}>
@@ -630,6 +707,28 @@ export function QuickAdd({
               </button>
             ))}
           </div>
+        )}
+
+        {!inline && onSaveToList && lists.length > 0 && (
+          <label className="flex items-center gap-2 text-body-sm text-ink-2">
+            <span className="shrink-0">Save to</span>
+            <Select
+              aria-label="Save to"
+              value={toList?.id ?? ""}
+              onChange={(e) => {
+                setListId(e.target.value || null);
+                inputRef.current?.focus();
+              }}
+              className="min-w-0 flex-1 sm:w-auto sm:flex-none"
+            >
+              <option value="">A task</option>
+              {lists.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </Select>
+          </label>
         )}
 
         <div className={cx("flex items-center gap-3", inline ? "justify-end" : "justify-between")}>
@@ -650,7 +749,7 @@ export function QuickAdd({
             // The sheet's 48 px full-width primary on a phone (touch or not), the desktop size from `sm` (44 px there on touch).
             size={inline ? "auto" : "sheet"}
             onClick={() => void submit(false)}
-            disabled={!draft || busy}
+            disabled={(toList ? !value.trim() : !draft) || busy}
             className={inline ? undefined : "sm:h-9 sm:w-auto sm:text-body sm:touch:h-11"}
           >
             Add

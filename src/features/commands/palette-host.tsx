@@ -10,6 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { toTask } from "@/data/mappers";
+import { LIST_ITEM_SEARCH_SQL, LISTS_NAV_SQL, listPaths, type ListNavRow } from "@/data/queries/lists";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
 import { TASK_SEARCH_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
@@ -39,6 +40,7 @@ function readRecents(key = RECENTS_KEY): string[] {
 }
 
 const NONE_SQL = `select * from tasks where 0`;
+const NO_LIST_ITEMS_SQL = `select id, title, list_id from list_items where 0`;
 
 /** Renders the palette; must sit inside KeyboardProvider and PaletteProvider. */
 export function PaletteHost() {
@@ -80,10 +82,15 @@ export function PaletteHost() {
   const like = `%${q.replace(/[%_]/g, (c) => `\\${c}`)}%`;
   const searching = state.open && q && !state.scope;
   const { data: taskRows } = useQuery<TaskRowType>(searching ? TASK_SEARCH_SQL : NONE_SQL, searching ? [like, like] : []);
+  const { data: listRows } = useQuery<ListNavRow>(LISTS_NAV_SQL);
+  const { data: itemRows } = useQuery<{ id: string; title: string | null; list_id: string }>(searching ? LIST_ITEM_SEARCH_SQL : NO_LIST_ITEMS_SQL, searching ? [like, like, like] : []);
 
   const projects = useMemo(() => (projectRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", href: `/project/${p.id}` })), [projectRows]);
   const areas = useMemo(() => (areaRows ?? []).map((a) => ({ id: a.id, name: a.name ?? "Untitled area", href: `/area/${a.id}` })), [areaRows]);
   const tasks = useMemo(() => (taskRows ?? []).map(toTask), [taskRows]);
+  // A list is named by its path, so two "Action" lists read apart; an item opens in its list's page.
+  const lists = useMemo(() => listPaths(listRows ?? []).map((l) => ({ id: l.id, name: l.label, href: `/list/${l.id}` })), [listRows]);
+  const listItems = useMemo(() => (itemRows ?? []).map((i) => ({ id: i.id, name: i.title || "Untitled", href: `/list/${i.list_id}?item=${i.id}` })), [itemRows]);
   const avail = useCallback((c: Command) => availability(c, context()), [context]);
 
   const remember = (id: string) => {
@@ -115,6 +122,8 @@ export function PaletteHost() {
       recents={recents}
       projects={projects}
       areas={areas}
+      lists={lists}
+      listItems={listItems}
       tasks={tasks}
       today={today}
       isMac={isMac}

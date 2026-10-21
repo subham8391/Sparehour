@@ -124,6 +124,13 @@ begin
       new.preview_title := null;
       new.preview_image := null;
       new.preview_fetched_at := null;
+    elsif new.url is distinct from old.url then
+      -- The preview belongs to the link: a new link clears it until the server has read the new one.
+      new.created_at := old.created_at;
+      new.space_id := old.space_id;
+      new.preview_title := null;
+      new.preview_image := null;
+      new.preview_fetched_at := null;
     else
       new.created_at := old.created_at;
       new.space_id := old.space_id;

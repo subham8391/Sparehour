@@ -3,7 +3,8 @@
 // tasks filed in the area directly, and 5,000 tasks are searched well inside 100 ms.
 import { describe, expect, it } from "vitest";
 import { localSqlite, type Row } from "@/test/local-sqlite";
-import { buildChecklistMatch, buildTaskSearch, type SearchFilters } from "./search";
+import { buildChecklistMatch, buildListItemSearch, buildTaskSearch, type SearchFilters } from "./search";
+import { LIST_ITEM_SEARCH_SQL } from "@/data/queries/lists";
 
 type Db = ReturnType<typeof localSqlite>;
 
@@ -110,5 +111,39 @@ describe("speed", () => {
     const each = (performance.now() - started) / 5;
     expect(db.rows(s.sql, s.params).length).toBeGreaterThan(0);
     expect(each).toBeLessThan(100);
+  });
+});
+
+describe("list items (DECISIONS.md, amendment 2026-10-22)", () => {
+  function lists(): Db {
+    const db = localSqlite();
+    db.insert("lists", { id: "anime", space_id: "s1", name: "Anime", sort_key: "a0" });
+    db.insert("lists", { id: "gone", space_id: "s1", name: "Gone", sort_key: "a1", deleted_at: "2026-10-01T00:00:00.000Z" });
+    const item = (id: string, row: Row) => db.insert("list_items", { id, space_id: "s1", list_id: "anime", status: "todo", sort_key: id, updated_at: "2026-10-01T00:00:00.000Z", ...row });
+    item("title", { title: "Frieren: Beyond Journey's End" });
+    item("note", { title: "Monster", note_md: "A slow journey through Germany" });
+    item("link", { title: "Pluto", url: "https://example.com/journey-pluto" });
+    item("deleted", { title: "Journey (deleted)", deleted_at: "2026-10-02T00:00:00.000Z" });
+    item("in-gone", { title: "Journey in a deleted list", list_id: "gone" });
+    return db;
+  }
+  const ids = (db: Db, query: string, filters: SearchFilters = {}) => {
+    const s = buildListItemSearch(query, filters);
+    return s ? db.rows(s.sql, s.params).map((r) => r.id) : [];
+  };
+
+  it("every word in the title, note or link; a title match first; deleted items and lists' items left out", () => {
+    expect(ids(lists(), "journey")).toEqual(["title", "note", "link"]);
+    expect(ids(lists(), "slow germany")).toEqual(["note"]);
+  });
+
+  it("stays out while a task filter is on, and without words", () => {
+    expect(ids(lists(), "journey", { state: "active" })).toEqual([]);
+    expect(buildListItemSearch("  ", {})).toBeNull();
+  });
+
+  it("the palette's one-pattern statement finds the same, titles first", () => {
+    const like = "%journey%";
+    expect(lists().rows(LIST_ITEM_SEARCH_SQL, [like, like, like]).map((r) => r.id)).toEqual(["title", "note"]);
   });
 });

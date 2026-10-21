@@ -42,6 +42,9 @@ export interface PaletteProps {
   recents: readonly string[];
   projects: readonly PaletteNamed[];
   areas: readonly PaletteNamed[];
+  /** Lists by their path, and the list items matching the current query (DECISIONS.md, amendment 2026-10-22). */
+  lists?: readonly PaletteNamed[];
+  listItems?: readonly PaletteNamed[];
   /** Tasks matching the current query; the host runs the search. */
   tasks: readonly Task[];
   today: LocalDate;
@@ -119,7 +122,7 @@ const GROUP_ICON: Record<CommandGroup, IconName> = {
 };
 
 export function Palette(p: PaletteProps) {
-  const { commands, recents, projects, areas, tasks, availability: avail } = p;
+  const { commands, recents, projects, areas, tasks, lists, listItems, availability: avail } = p;
   const [query, setQuery] = useState(p.initialQuery ?? "");
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -156,6 +159,8 @@ export function Palette(p: PaletteProps) {
       .slice(0, trimmed ? 8 : 10);
     for (const item of rankNamed(query, projects, 4)) out.push({ kind: "named", key: `p:${item.id}`, item, icon: "grid", label: "Project" });
     for (const item of rankNamed(query, areas, 3)) out.push({ kind: "named", key: `a:${item.id}`, item, icon: "grid", label: "Area" });
+    for (const item of rankNamed(query, lists ?? [], 3)) out.push({ kind: "named", key: `l:${item.id}`, item, icon: "menu", label: "List" });
+    if (trimmed) for (const item of (listItems ?? []).slice(0, 4)) out.push({ kind: "named", key: `i:${item.id}`, item, icon: "menu", label: "List item" });
     for (const task of tasks.slice(0, 8)) out.push({ kind: "task", key: `t:${task.id}`, task });
     if (trimmed) out.push({ kind: "add", key: "add", title: trimmed });
     // Search proper (SCREENS.md §13), with its filters, for the same words: after Add, so Enter on words nothing
@@ -165,7 +170,7 @@ export function Palette(p: PaletteProps) {
     const tag = tagFromQuery(query);
     if (tag) out.unshift({ kind: "tag", key: "tag", name: tag });
     return out;
-  }, [query, commands, recents, projects, areas, tasks, avail, scope, places]);
+  }, [query, commands, recents, projects, areas, lists, listItems, tasks, avail, scope, places]);
 
   const setQ = (q: string) => {
     setQuery(q);

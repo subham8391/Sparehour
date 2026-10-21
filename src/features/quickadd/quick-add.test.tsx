@@ -19,6 +19,43 @@ function setup(over: Partial<React.ComponentProps<typeof QuickAdd>> = {}) {
 }
 
 describe("<QuickAdd>", () => {
+  describe("Save to a list (DECISIONS.md, amendment 2026-10-22)", () => {
+    const lists = [
+      { id: "l1", label: "Anime" },
+      { id: "l2", label: "Anime › Action" },
+    ];
+
+    it("takes the line as typed, no tokens read, as an item of the chosen list; switching back makes tasks again", async () => {
+      const onSaveToList = vi.fn<(id: string, titles: readonly string[]) => Promise<void>>().mockResolvedValue();
+      const { user, onSubmit } = setup({ lists, onSaveToList });
+      await user.selectOptions(screen.getByRole("combobox", { name: "Save to" }), "l2");
+      const item = screen.getByRole("textbox", { name: "Item for Anime › Action" });
+      await user.type(item, "Watch Frieren tomorrow #acme{Enter}");
+      await waitFor(() => expect(onSaveToList).toHaveBeenCalledWith("l2", ["Watch Frieren tomorrow #acme"]));
+      expect(screen.getByRole("status")).toHaveTextContent("Added “Watch Frieren tomorrow #acme” to Anime › Action");
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      await user.selectOptions(screen.getByRole("combobox", { name: "Save to" }), "");
+      await user.type(screen.getByRole("textbox", { name: "Task" }), "Call Dana{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    });
+
+    it("opens on the list it is given, and a paste adds one item a line", async () => {
+      const onSaveToList = vi.fn<(id: string, titles: readonly string[]) => Promise<void>>().mockResolvedValue();
+      render(<QuickAdd open projects={projects} ctx={ctx} onClose={vi.fn()} onSubmit={vi.fn()} lists={lists} initialList="l1" onSaveToList={onSaveToList} />);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("textbox", { name: "Item for Anime" }));
+      await user.paste("Frieren\nDandadan\n\nMonster\n");
+      await waitFor(() => expect(onSaveToList).toHaveBeenCalledWith("l1", ["Frieren", "Dandadan", "Monster"]));
+      expect(screen.getByRole("status")).toHaveTextContent("3 items added to Anime");
+    });
+
+    it("has no picker without lists", () => {
+      setup({ lists: [], onSaveToList: vi.fn() });
+      expect(screen.queryByRole("combobox", { name: "Save to" })).not.toBeInTheDocument();
+    });
+  });
+
   it("a save that fails keeps the words in the box and says why; the next save clears the message", async () => {
     const onSubmit = vi
       .fn<(s: QuickAddSubmission) => Promise<void>>()

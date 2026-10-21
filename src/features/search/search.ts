@@ -147,6 +147,28 @@ export function buildTaskSearch(query: string, filters: SearchFilters): SearchSt
   return { sql, params };
 }
 
+/**
+ * List items (DECISIONS.md, amendment 2026-10-22) holding every word of the query in their title, note or link, titles
+ * holding them all first, then the most recently changed. Null without words, and while a task filter is on: the
+ * chips narrow tasks, and an item has none of what they ask about.
+ */
+export function buildListItemSearch(query: string, filters: SearchFilters): SearchStatement | null {
+  const words = searchWords(query);
+  if (words.length === 0 || hasFilters(filters)) return null;
+  const params: string[] = [];
+  const where = words.map((w) => {
+    const like = likePattern(w);
+    params.push(like, like, like);
+    return `(i.title like ? escape '\\' or i.note_md like ? escape '\\' or i.url like ? escape '\\')`;
+  });
+  const all = words.map(() => `i.title like ? escape '\\'`).join(" and ");
+  for (const w of words) params.push(likePattern(w));
+  return {
+    sql: `select i.id, i.title, i.list_id, i.status from list_items i join lists l on l.id = i.list_id where i.deleted_at is null and l.deleted_at is null and ${where.join(" and ")} order by case when ${all} then 0 else 1 end, i.updated_at desc limit 50`,
+    params,
+  };
+}
+
 /** Checklist items holding any word of the query, so a row can show which step it was found in; null without words. */
 export function buildChecklistMatch(query: string): SearchStatement | null {
   const words = searchWords(query);

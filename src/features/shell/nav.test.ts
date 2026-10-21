@@ -36,7 +36,7 @@ describe("navigation model", () => {
 
   it("the tab bar steps aside for the rituals and search only", () => {
     for (const p of ["/today", "/inbox", "/upcoming", "/browse", "/settings", "/logbook", "/project/p1"]) expect(showsTabBar(p)).toBe(true);
-    for (const p of ["/plan", "/shutdown", "/search"]) expect(showsTabBar(p)).toBe(false);
+    for (const p of ["/plan", "/shutdown", "/search", "/share"]) expect(showsTabBar(p)).toBe(false);
   });
 
   it("the add bar and the FAB show on task lists only", () => {

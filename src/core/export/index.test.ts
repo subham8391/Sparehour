@@ -39,6 +39,17 @@ const snapshot: ExportSnapshot = {
   day_plans: [{ id: "d1", date: "2026-09-13", planned_at: "2026-09-13T08:05:00Z", shutdown_at: "2026-09-13T17:40:00Z", highlights: "Shipped the thing.", day_rating: 4, capacity_spare_min: 80 }],
   work_hours: [{ id: "w1", weekday: 0, start_time: "09:00:00", end_time: "18:00:00" }],
   user_settings: [{ id: "s1", timezone: "Europe/London", buffer_pct: 15 }],
+  lists: [
+    { id: "L2", parent_id: "L1", name: "Action", emoji: null, sort_key: "a0" },
+    { id: "L1", parent_id: null, name: "Anime", emoji: "🍥", sort_key: "a0" },
+    { id: "L3", parent_id: null, name: "Books", emoji: null, sort_key: "a1" },
+  ],
+  list_items: [
+    { id: "i2", list_id: "L2", title: "Jujutsu Kaisen", note_md: null, url: null, status: "doing", rating: null, sort_key: "a1" },
+    { id: "i1", list_id: "L2", title: "Attack on Titan", note_md: "Rewatch the last season.", url: "https://example.com/aot", status: "done", rating: 5, sort_key: "a0" },
+    { id: "i3", list_id: "L1", title: "Frieren", note_md: null, url: null, status: "todo", rating: null, sort_key: "a0" },
+  ],
+  list_item_tags: [{ id: "k1", item_id: "i1", tag_id: "g1" }],
 };
 
 describe("jsonExport", () => {
@@ -46,7 +57,7 @@ describe("jsonExport", () => {
     const out = JSON.parse(jsonExport(snapshot, "2026-09-14T12:00:00Z"));
     expect(out).toMatchObject({ format: "sparehour-export", version: 1, exported_at: "2026-09-14T12:00:00Z", finished_tasks_included: true });
     expect(out.tables.tasks).toEqual(snapshot.tasks);
-    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "task_completions", "recurrence_exceptions", "time_blocks", "day_plans", "work_hours", "user_settings"]);
+    expect(Object.keys(out.tables)).toEqual(["areas", "projects", "headings", "tasks", "checklist_items", "tags", "task_tags", "task_completions", "recurrence_exceptions", "time_blocks", "day_plans", "work_hours", "user_settings", "lists", "list_items", "list_item_tags"]);
   });
 
   it("carries the completions and exceptions of repeating tasks, and says when finished tasks are missing", () => {
@@ -82,7 +93,7 @@ describe("markdownFiles", () => {
   const byPath = Object.fromEntries(files.map((f) => [f.path, f.content]));
 
   it("makes one file per project, two projects with one name get distinct files, and the index links them", () => {
-    expect(Object.keys(byPath)).toEqual(["README.md", "projects/acme-proposal.md", "projects/acme-proposal-2.md", "inbox.md", "today-and-upcoming.md", "someday.md", "logbook.md", "time-blocks.md", "day-plans.md"]);
+    expect(Object.keys(byPath)).toEqual(["README.md", "projects/acme-proposal.md", "projects/acme-proposal-2.md", "inbox.md", "today-and-upcoming.md", "someday.md", "logbook.md", "time-blocks.md", "day-plans.md", "lists/anime.md", "lists/books.md"]);
     expect(byPath["README.md"]).toContain("## Work");
     expect(byPath["README.md"]).toContain("- [Acme proposal](projects/acme-proposal.md)");
     expect(byPath["README.md"]).toContain("## No area");
@@ -124,5 +135,16 @@ describe("markdownFiles", () => {
     expect(markdownFiles({ ...snapshot, task_completions: [] }, "2026-09-14").find((f) => f.path === "logbook.md")?.content).toContain("_Nothing here._");
     expect(byPath["time-blocks.md"]).toContain("- 2026-09-14T09:30:00Z – 2026-09-14T10:15:00Z · Draft the proposal · locked");
     expect(byPath["day-plans.md"]).toContain("- **2026-09-13** · planned 08:05 · closed 17:40 · ★★★★ · 80m spare\n    Shipped the thing.");
+  });
+});
+
+describe("lists in the Markdown export (DECISIONS.md, amendment 2026-10-22)", () => {
+  it("one file per top-level list, the lists inside as headings, each item with its status, stars, link, tags and note", () => {
+    const files = Object.fromEntries(markdownFiles(snapshot, "2026-10-22T12:00:00Z").map((f) => [f.path, f.content]));
+    expect(files["lists/anime.md"]).toBe(
+      ["# 🍥 Anime", "", "- [ ] Frieren", "", "## Action", "", "- [x] Attack on Titan · ★★★★★ · https://example.com/aot · @deep", "    Rewatch the last season.", "- [ ] Jujutsu Kaisen · doing", ""].join("\n"),
+    );
+    expect(files["lists/books.md"]).toBe("# Books\n");
+    expect(files["README.md"]).toContain("## Lists\n\n- [Anime](lists/anime.md)\n- [Books](lists/books.md)\n");
   });
 });

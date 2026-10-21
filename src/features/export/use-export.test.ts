@@ -15,7 +15,7 @@ describe("readSnapshot", () => {
     // The history of repeating tasks is part of the record: the server keeps it only a week.
     expect(sqls).toContain("select * from task_completions where deleted_at is null");
     expect(sqls).toContain("select * from recurrence_exceptions where deleted_at is null");
-    expect(sqls).toHaveLength(13);
+    expect(sqls).toHaveLength(16);
     expect(snapshot.tasks).toEqual([{ id: "select * from tasks where deleted_at is null" }]);
   });
 });
@@ -76,6 +76,9 @@ describe("buildExport", () => {
     time_blocks: [],
     day_plans: [],
     work_hours: [],
+    lists: [],
+    list_items: [],
+    list_item_tags: [],
     user_settings: [],
   };
   const now = new Date("2026-09-14T12:00:00Z");
