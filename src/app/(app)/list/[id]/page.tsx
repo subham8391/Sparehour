@@ -182,7 +182,12 @@ export default function ListPage({ params }: PageProps<"/list/[id]">) {
         <OpenFromQuery listId={list.id} onOpen={openItem} />
       </Suspense>
       <ViewHeader
-        eyebrow={<nav aria-label="Where this list is">{breadcrumb}</nav>}
+        // The eyebrow is a <p>, which cannot hold a <nav>: the path is a span with the navigation role.
+        eyebrow={
+          <span role="navigation" aria-label="Where this list is">
+            {breadcrumb}
+          </span>
+        }
         title={
           <div className="-ml-2 flex items-center gap-1">
             <EmojiPicker emoji={list.emoji} name={name} onChange={(e) => void lists.setEmoji(list.id, e)} />
