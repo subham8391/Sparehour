@@ -183,6 +183,8 @@ test("two columns from 900 px: the list stays beside the section, and #calendar 
   // Keyboard: down the list from the open section.
   await nav.getByRole("link", { name: /^Calendar/ }).focus();
   await page.keyboard.press("ArrowDown");
+  await expect(nav.getByRole("link", { name: /^Connected apps/ })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
   await expect(nav.getByRole("link", { name: /^Notifications/ })).toBeFocused();
 });
 

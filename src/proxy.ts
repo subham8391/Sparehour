@@ -6,8 +6,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { deleteAfter } from "@/features/account/deletion";
 import { safeNext } from "@/features/auth/safe-next";
 
-// /account holds the page for an account waiting for deletion, signed in or not; /privacy is readable by anyone.
-const PUBLIC_PATHS = ["/", "/login", "/auth", "/account", "/privacy"];
+// /account holds the page for an account waiting for deletion, signed in or not; /privacy is readable by anyone;
+// /.well-known holds the MCP endpoint's OAuth discovery document, which clients read before anyone has signed in.
+const PUBLIC_PATHS = ["/", "/login", "/auth", "/account", "/privacy", "/.well-known"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

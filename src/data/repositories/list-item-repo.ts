@@ -3,33 +3,14 @@
 // several at once, moving an item to another list, deleting one and turning it into a task show an undo toast.
 import { keyBetween, keyForMove } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
+import { normaliseUrl } from "@/core/lists/text";
 import type { LocalDatabase } from "../powersync";
 import { TaskRepo } from "./task-repo";
 import { placeholders, quoted, restoreRow, type RowSnapshot, type Tx, type UndoRecorder } from "./undo";
 
 export type ItemStatus = "todo" | "doing" | "done";
 
-/** One pasted line per item (DECISIONS.md, 2026-10-22): bullets and numbering dropped, blank lines skipped. */
-export function itemLines(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.replace(/^\s*(?:[-*•–]|\d+[.)]|\[[ xX]?\])\s+/, "").trim())
-    .filter(Boolean);
-}
-
-/** A web address as typed: "example.com/x" becomes https://example.com/x; anything without a dot is not a link. */
-export function normaliseUrl(text: string | null | undefined): string | null {
-  const t = (text ?? "").trim();
-  if (!t) return null;
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`;
-  try {
-    const u = new URL(withScheme);
-    if ((u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname.includes(".")) return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
+export { itemLines, normaliseUrl } from "@/core/lists/text";
 
 async function lastKey(tx: Pick<Tx, "getOptional">, listId: string): Promise<string | null> {
   const last = await tx.getOptional<{ sort_key: string | null }>(`select sort_key from list_items where deleted_at is null and list_id = ? order by sort_key desc limit 1`, [listId]);

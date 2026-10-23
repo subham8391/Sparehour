@@ -1,8 +1,8 @@
 // Task writes. Each call is one local transaction; PowerSync uploads it
 // through the connector. Only the moved/changed columns are written, which
 // is what makes per-column last-writer-wins work (§4.3).
-import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
+import { draftRow } from "@/core/quickadd/draft-row";
 import { Temporal, todayFor, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { MissPolicy, Priority, RecurrenceMode } from "@/core/types";
@@ -68,30 +68,34 @@ export class TaskRepo {
     const projectId = ctx.projectId ?? null;
     const areaId = projectId ? null : (ctx.areaId ?? null);
     const doDate = draft.doDate?.toString() ?? null;
-    const state = doDate || projectId || areaId || draft.deadline || draft.startDate ? "active" : "inbox";
 
     await this.db.writeTransaction(async (tx) => {
       const defaults = draft.recurrenceRule ? null : await tx.getOptional<{ default_miss_policy: string | null }>(`select default_miss_policy from user_settings limit 1`);
-      const missPolicy: MissPolicy = draft.recurrenceRule ? "skip" : defaults?.default_miss_policy === "skip" || defaults?.default_miss_policy === "expire" ? defaults.default_miss_policy : "carry";
       const lastInList = await tx.getOptional<{ sort_key: string | null }>(
         `select sort_key from tasks where deleted_at is null and state in ('inbox', 'active', 'someday')
            and coalesce(project_id, '') = coalesce(?, '') and coalesce(area_id, '') = coalesce(?, '') order by sort_key desc limit 1`,
         [projectId, areaId],
       );
-      const sortKey = keyBetween(lastInList?.sort_key ?? null, null);
-
-      let daySortKey: string | null = null;
+      let daySortAfter: string | null = null;
       if (doDate) {
         if (ctx.afterKey !== undefined) {
-          daySortKey = keyBetween(ctx.afterKey, null);
+          daySortAfter = ctx.afterKey;
         } else {
           const lastInDay = await tx.getOptional<{ day_sort_key: string | null }>(
             `select day_sort_key from tasks where deleted_at is null and do_date = ? and day_sort_key is not null order by day_sort_key desc limit 1`,
             [doDate],
           );
-          daySortKey = keyBetween(lastInDay?.day_sort_key ?? null, null);
+          daySortAfter = lastInDay?.day_sort_key ?? null;
         }
       }
+      const row = draftRow(id, draft, {
+        projectId,
+        areaId,
+        headingId: ctx.headingId ?? null,
+        defaultMissPolicy: defaults?.default_miss_policy ?? null,
+        lastSortKey: lastInList?.sort_key ?? null,
+        daySortAfter,
+      });
 
       await tx.execute(
         `insert into tasks (id, space_id, project_id, heading_id, area_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date,
@@ -101,26 +105,26 @@ export class TaskRepo {
         [
           id,
           ctx.spaceId,
-          projectId,
-          ctx.headingId ?? null,
-          areaId,
-          draft.title,
-          draft.notes,
-          state,
-          draft.priority,
-          doDate,
-          draft.doTime ? draft.doTime.toString({ smallestUnit: "minute" }) : null,
-          draft.deadline?.toString() ?? null,
-          draft.startDate?.toString() ?? null,
-          draft.evening ? 1 : 0,
-          draft.estimateMin,
+          row.project_id,
+          row.heading_id,
+          row.area_id,
+          row.title,
+          row.notes_md,
+          row.state,
+          row.priority,
+          row.do_date,
+          row.do_time,
+          row.deadline,
+          row.start_date,
+          row.evening ? 1 : 0,
+          row.estimate_min,
           now,
-          missPolicy,
-          draft.recurrenceRule,
-          draft.recurrenceMode,
-          draft.recurrenceRule ? id : null,
-          sortKey,
-          daySortKey,
+          row.miss_policy,
+          row.recurrence_rule,
+          row.recurrence_mode,
+          row.recurrence_series_id,
+          row.sort_key,
+          row.day_sort_key,
           now,
           now,
         ],

@@ -154,8 +154,10 @@ max_indexes = 5
 [auth]
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
-# in emails.
-site_url = "http://127.0.0.1:3000"
+# in emails. The OAuth server's consent page is site_url + /oauth/consent, so this is where the app runs
+# locally for Claude to connect: the production server on 3100 (`npm run build && npx next start -p 3100`,
+# as the e2e suite does). Port 3000 belongs to another project on this machine.
+site_url = "http://localhost:3100"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
@@ -382,14 +384,15 @@ enabled = false
 # Obtain from https://clerk.com/setup/supabase
 # domain = "example.clerk.accounts.dev"
 
-# OAuth server configuration
+# OAuth server configuration: Supabase Auth issues the tokens Claude (or any MCP client) uses on /api/mcp
+# (DECISIONS.md, amendment 2026-10-23). The consent page is the app's /oauth/consent, under site_url.
 [auth.oauth_server]
 # Enable OAuth server functionality
-enabled = false
+enabled = true
 # Path for OAuth consent flow UI
 authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+# Allow dynamic client registration: claude.ai, Claude Desktop and Claude Code register themselves.
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true

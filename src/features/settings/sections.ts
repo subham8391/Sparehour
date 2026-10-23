@@ -5,7 +5,7 @@ import type { MotionChoice } from "./motion";
 import { hoursSummary, type Segment } from "./settings-rules";
 import type { SettingsValues } from "./types";
 
-export type SectionKey = "account" | "working-hours" | "calendar" | "notifications" | "planning" | "appearance" | "data" | "app" | "about";
+export type SectionKey = "account" | "working-hours" | "calendar" | "connections" | "notifications" | "planning" | "appearance" | "data" | "app" | "about";
 
 export interface SectionMeta {
   key: SectionKey;
@@ -16,6 +16,7 @@ export const SECTIONS: readonly SectionMeta[] = [
   { key: "account", title: "Account" },
   { key: "working-hours", title: "Working hours" },
   { key: "calendar", title: "Calendar" },
+  { key: "connections", title: "Connected apps" },
   { key: "notifications", title: "Notifications" },
   { key: "planning", title: "Planning" },
   { key: "appearance", title: "Appearance" },
@@ -62,6 +63,8 @@ export function sectionSummary(key: SectionKey, s: SummaryInput): string {
       if (!s.calendars) return "Connected calendars";
       if (s.calendars.accounts === 0) return "Not connected";
       return `${s.calendars.accounts === 1 ? "1 account" : `${s.calendars.accounts} accounts`} · ${s.calendars.busy} counted as busy`;
+    case "connections":
+      return "Claude and other apps";
     case "notifications": {
       const device = s.subscribed === null ? null : s.subscribed ? "On for this device" : "Off on this device";
       const quiet = v.quietHoursStart && v.quietHoursEnd ? `quiet ${v.quietHoursStart}–${v.quietHoursEnd}` : null;

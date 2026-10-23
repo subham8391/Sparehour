@@ -1,10 +1,8 @@
 // Completing a repeating task (SYSTEM_DESIGN.md §5.2 "Completion"), loaded by
 // TaskRepo the first time a repeat is completed, together with the recurrence
 // engine (rrule), so neither is in an app shell's first download.
-import { deadlineForOccurrence, nextOccurrence } from "@/core/recurrence";
-import { currentOccurrence } from "@/core/recurrence/series";
-import { localDate, type LocalDate } from "@/core/time";
-import type { RecurrenceException, RecurrenceMode } from "@/core/types";
+import { planCompletion, toExceptions } from "@/core/recurrence/completion";
+import type { LocalDate } from "@/core/time";
 import type { LocalDatabase } from "../powersync";
 import { placeholders, quoted, restoreRow, type UndoRecorder } from "./undo";
 
@@ -39,21 +37,10 @@ export async function completeRecurring(
     `select occurrence_date, kind, moved_to from recurrence_exceptions where deleted_at is null and series_id = ?`,
     [task.recurrence_series_id ?? task.id],
   );
-  const exceptions: RecurrenceException[] = (Array.isArray(rows) ? rows : []).map((e) =>
-    e.kind === "move" && e.moved_to ? { occurrenceDate: localDate(e.occurrence_date), kind: "move", movedTo: localDate(e.moved_to) } : { occurrenceDate: localDate(e.occurrence_date), kind: "skip" },
-  );
+  const exceptions = toExceptions(Array.isArray(rows) ? rows : []);
   // A task moved "just this once" is still the occurrence it was scheduled as: the completion is recorded
   // against that day and the series counts on from it, back on its rule (SYSTEM_DESIGN.md §5.2 "Series edits").
-  const occurrence = currentOccurrence(task.do_date ? localDate(task.do_date) : null, today, exceptions);
-  const next = nextOccurrence({
-    rule: task.recurrence_rule as string,
-    mode: task.recurrence_mode as RecurrenceMode,
-    doDate: occurrence,
-    completedOn: today,
-    pausedUntil: task.recurrence_paused_until ? localDate(task.recurrence_paused_until) : null,
-    exceptions,
-  });
-  const deadline = next ? deadlineForOccurrence(task.deadline ? localDate(task.deadline) : null, occurrence, next) : null;
+  const { occurrence, next, deadline } = planCompletion({ ...task, recurrence_rule: task.recurrence_rule as string }, exceptions, today);
   const cols = ["do_date", "deadline", "state", "completed_at", "carry_count", "last_carried_at"];
   const now = new Date().toISOString();
   const completionId = crypto.randomUUID();

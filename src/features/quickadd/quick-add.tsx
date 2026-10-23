@@ -8,7 +8,7 @@
 // props. "Save to" a list (DECISIONS.md, amendment 2026-10-22) takes the line
 // as it is typed, no tokens read, as an item of that list; a paste, one a line.
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
-import { parse, type ParseContext, type ParseResult, type Range, type Span, type TaskDraft } from "@/core/quickadd";
+import { parse, type Range, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
 import { Button } from "@/ui/button";
 import { chipButtonClass, chipClass, type ChipTone } from "@/ui/chip";
@@ -18,7 +18,6 @@ import { Kbd } from "@/ui/kbd";
 import { Select } from "@/ui/select";
 import { Sheet } from "@/ui/sheet";
 import {
-  bestProjectMatch,
   carryRanges,
   factSpans,
   interpret,
@@ -36,6 +35,7 @@ import {
   type QuickAddProject,
   type QuickAddTag,
 } from "./interpret";
+import { addedNotice, chooseProject, fileLine, type ProjectChoice, type QuickAddSubmission } from "./file-line";
 
 export interface QuickAddContext {
   now: Instant;
@@ -44,12 +44,7 @@ export interface QuickAddContext {
   eveningStartsAt?: LocalTime;
 }
 
-export interface QuickAddSubmission {
-  draft: TaskDraft;
-  projectId: string | null;
-  /** Set when the user asked for a project that does not exist yet. */
-  createProjectName: string | null;
-}
+export type { QuickAddSubmission } from "./file-line";
 
 /** A list a line can be saved to instead of a task: its id and its path ("Anime › Action"). */
 export interface QuickAddList {
@@ -66,73 +61,6 @@ export type QuickAddSave = (submission: QuickAddSubmission) => Promise<string | 
  * back in the box with the reason). A page that holds the composer calls it before it moves on, so no line is lost.
  */
 export type QuickAddFlush = () => Promise<boolean>;
-
-type Parsed = Extract<ParseResult, { ok: true }>;
-
-/** One line made ready to save: the submission, and the words the notice uses to say where it went. */
-interface Filed {
-  submission: QuickAddSubmission;
-  title: string;
-  /** The project it is filed in (found, guessed from a partial name, or to be created). */
-  project: string | null;
-  /** A `#name` that filed nothing, kept in the title; and whether it was because several projects fit. */
-  unfiled: { name: string; several: boolean } | null;
-}
-
-/** What a typed `#name` files into, worked out the same way for the strip and the save. */
-interface ProjectChoice {
-  /** The project the task is filed in: named exactly, picked from the suggestions, or the one a partial name fits. */
-  project: QuickAddProject | null;
-  /** A new project of this name is made on save. */
-  create: boolean;
-  /** Two or more projects carry exactly this name (in different areas): none is guessed and none is created (§5.4). */
-  collision: QuickAddProject[];
-}
-
-/**
- * Where a parsed line goes (PRODUCT_SPEC.md §5.2 "#name"): the project picked from the suggestions while its name
- * still reads the same; else the one project named exactly; else the one a partial name fits ("#Q4" → Q4
- * planning); else a new one when asked for. A name two projects share files nowhere until one is picked.
- */
-function chooseProject(draft: TaskDraft, projects: readonly QuickAddProject[], picked: QuickAddProject | null, createAsked: boolean): ProjectChoice {
-  const name = draft.projectName;
-  if (!name) return { project: null, create: false, collision: [] };
-  if (picked && projectsNamed(name, [picked]).length === 1) return { project: picked, create: false, collision: [] };
-  const named = projectsNamed(name, projects);
-  if (named.length === 1) return { project: named[0], create: false, collision: [] };
-  if (named.length > 1) return { project: null, create: false, collision: named };
-  const create = createAsked || draft.projectCreate;
-  return { project: create ? null : bestProjectMatch(name, projects), create, collision: [] };
-}
-
-/**
- * A line made ready to save. A `#name` that files nothing keeps its words in the title rather than vanish (§5.3
- * rule 7): the line is read again with that token as literal text.
- */
-function fileLine(text: string, parsed: Parsed, projects: readonly QuickAddProject[], ctx: ParseContext, choice: ProjectChoice, literal: readonly Range[] = []): Filed {
-  const { draft } = parsed;
-  const name = draft.projectName;
-  const { project, create } = choice;
-  if (name && !project && !create) {
-    const again = parse(text, ctx, { literal: [...literal, ...parsed.spans.filter((s) => s.kind === "project")] });
-    const kept = again.ok ? again.draft : { ...draft, projectName: null, projectCreate: false };
-    const several = choice.collision.length > 1 || projectMatches(name, projects).length > 1;
-    return { submission: { draft: kept, projectId: null, createProjectName: null }, title: kept.title, project: null, unfiled: { name, several } };
-  }
-  return {
-    submission: { draft: { ...draft, projectCreate: create }, projectId: project?.id ?? null, createProjectName: create ? name : null },
-    title: draft.title,
-    project: project?.name ?? (create ? name : null),
-    unfiled: null,
-  };
-}
-
-/** "Added “Email the accountant” to Q4 planning", or why a #name stayed in the title. */
-function addedNotice(f: Filed): string {
-  const added = `Added “${f.title}”${f.project ? ` to ${f.project}` : ""}`;
-  if (!f.unfiled) return added;
-  return `${added} — ${f.unfiled.several ? `#${f.unfiled.name} fits more than one project` : `no project is called “${f.unfiled.name}”`}, so it stays in the title`;
-}
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const reason = (e: unknown) => (e instanceof Error && e.message ? e.message : "try again.");

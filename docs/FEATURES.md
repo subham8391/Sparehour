@@ -123,7 +123,8 @@ Each feature is tagged with the milestone where it fits:
 | Brain-dump → tasks; "Break this down"; estimate suggestions | M2 | Todoist, Tiimo, Any.do |
 | Plain-English explanations for "Plan my day" (the template sentences shipped with Plan my day on 2026-10-01; AI rewording of them is still M2) | M2 | — |
 | Weekly-review summary draft | M3 | — |
-| MCP server + public API with scoped permissions (read-only / propose-then-approve), agent activity log with undo | M3 | Todoist, Akiflow, Linear |
+| MCP server for Claude (`/api/mcp`, Supabase OAuth, read and change or read only per connection, Settings › Connected apps; pulled forward 2026-10-23, DECISIONS.md amendment of that date) | M1 | Todoist, Akiflow, Linear |
+| Public API, propose-then-approve for agents, agent activity log with undo | M3 | Todoist, Akiflow, Linear |
 | Credits, AI add-ons, "chat with your tasks" as a headline | Never | research: metered AI resented |
 
 ## 8. Trust, speed & platform

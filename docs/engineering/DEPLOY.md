@@ -164,6 +164,24 @@ login page shows "Continue with Google" by itself once the provider is on (it as
 
 Google's screen says "continue to `<ref>.supabase.co`" until the auth server has a custom domain (a paid add-on).
 
+### 8. Claude, through MCP (about 5 minutes)
+
+The MCP endpoint (`/api/mcp`, DECISIONS.md amendment 2026-10-23) uses Supabase Auth's OAuth 2.1 server; nothing in
+Vercel or PowerSync changes (`app_connections` is not synced).
+
+1. **SQL editor:** run `supabase/migrations/20261023000100_app_connections.sql`, then record it:
+   `insert into supabase_migrations.schema_migrations (version, name) values ('20261023000100', 'app_connections');`
+2. **Authentication → URL Configuration:** the Site URL is the app's address (`https://<app address>`): the consent
+   page is the Site URL plus the authorization path.
+3. **Authentication → OAuth Server:** turn it on, Authorization Path `/oauth/consent`, **Allow Dynamic Client
+   Registration** on (claude.ai, Claude Desktop and Claude Code register themselves), Save.
+4. Check: `https://<ref>.supabase.co/.well-known/oauth-authorization-server/auth/v1` answers JSON with a
+   `registration_endpoint`, `https://<app address>/api/mcp` answers 401 with a `WWW-Authenticate` naming
+   `/.well-known/oauth-protected-resource/api/mcp`, and connecting from Claude (README, "Connect Claude to Sparehour")
+   reaches the consent screen. Settings › Connected apps lists the app once it is allowed.
+
+Locally the same three settings are in `supabase/config.toml` (`[auth.oauth_server]`, and `site_url` on port 3100).
+
 Write down every fix the first deploy needed, here, before building prod.
 
 **As built (dev, 2026-10-18).** Supabase `sparehour` in Tokyo (`ap-northeast-1`), PowerSync instance in India (`IN`),
