@@ -108,9 +108,9 @@ export function NotificationsSection(p: SettingsFormProps) {
           <span className={HINT}>Anything due in these hours is dropped, not saved for the morning.</span>
         </span>
         <span className="flex items-center gap-2">
-          <TimeField aria-label="Quiet hours start" value={values.quietHoursStart} onChange={(e) => e.target.value && change({ quietHoursStart: e.target.value })} />
+          <TimeField aria-label="Quiet hours start" value={values.quietHoursStart} onChange={(v) => v && change({ quietHoursStart: v })} />
           <span className="text-ink-3">–</span>
-          <TimeField aria-label="Quiet hours end" value={values.quietHoursEnd} onChange={(e) => e.target.value && change({ quietHoursEnd: e.target.value })} />
+          <TimeField aria-label="Quiet hours end" value={values.quietHoursEnd} onChange={(v) => v && change({ quietHoursEnd: v })} />
           {(values.quietHoursStart || values.quietHoursEnd) && (
             // The auto size, so the action's box lines up with the two 44 px fields beside it.
             <Button variant="link" className="text-ink-2" onClick={() => change({ quietHoursStart: null, quietHoursEnd: null })}>
@@ -149,7 +149,7 @@ function NudgeRow(p: { id: string; label: string; timeLabel: string; on: boolean
           {p.time ? (
             <>
               <span className="ml-2">
-                <TimeField aria-label={p.timeLabel} value={p.time} onChange={(e) => e.target.value && p.onTime(e.target.value)} />
+                <TimeField aria-label={p.timeLabel} value={p.time} onChange={(v) => v && p.onTime(v)} />
               </span>
               <Button variant="link" size="compact" className="text-ink-2" onClick={() => p.onTime(null)}>
                 Use my working hours

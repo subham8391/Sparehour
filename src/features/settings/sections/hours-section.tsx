@@ -65,7 +65,7 @@ export function HoursSection(p: SettingsFormProps) {
         <label htmlFor="evening" className={LABEL}>
           Evening starts at
         </label>
-        <TimeField id="evening" value={values.eveningStartsAt} onChange={(e) => e.target.value && change({ eveningStartsAt: e.target.value })} />
+        <TimeField id="evening" value={values.eveningStartsAt} onChange={(v) => v && change({ eveningStartsAt: v })} />
       </div>
       {/* The evening cut-off (PRODUCT_SPEC.md §9.1): This Evening's own budget runs from the end of the working day to here. */}
       <div className={ROW}>
@@ -77,7 +77,7 @@ export function HoursSection(p: SettingsFormProps) {
             This Evening&rsquo;s time runs from the end of your working hours until then.
           </span>
         </span>
-        <TimeField id="evening-ends" aria-describedby="evening-ends-hint" value={values.eveningEndsAt} onChange={(e) => e.target.value && change({ eveningEndsAt: e.target.value })} />
+        <TimeField id="evening-ends" aria-describedby="evening-ends-hint" value={values.eveningEndsAt} onChange={(v) => v && change({ eveningEndsAt: v })} />
       </div>
       <div className={ROW}>
         <label htmlFor="rollover" className={LABEL}>
@@ -156,9 +156,9 @@ export function WorkDayRow({ name, segments, onChange }: { name: string; segment
         <span className="flex flex-col items-end gap-1 max-sm:w-full max-sm:items-start">
           {draft.map((seg, i) => (
             <span key={i} className="flex items-center gap-2">
-              <TimeField id={`${id}-start-${i}`} aria-label={i === 0 ? `${name} start` : `${name} start ${i + 1}`} value={seg.start} onChange={(e) => edit(i, { start: e.target.value })} />
+              <TimeField id={`${id}-start-${i}`} aria-label={i === 0 ? `${name} start` : `${name} start ${i + 1}`} value={seg.start} onChange={(v) => edit(i, { start: v })} />
               <span className="text-ink-3">–</span>
-              <TimeField id={`${id}-end-${i}`} aria-label={i === 0 ? `${name} end` : `${name} end ${i + 1}`} value={seg.end} onChange={(e) => edit(i, { end: e.target.value })} />
+              <TimeField id={`${id}-end-${i}`} aria-label={i === 0 ? `${name} end` : `${name} end ${i + 1}`} value={seg.end} onChange={(v) => edit(i, { end: v })} />
               {draft.length > 1 ? (
                 <button type="button" aria-label={`Remove ${name} ${seg.start}–${seg.end}`} onClick={() => commit(draft.filter((_, j) => j !== i))} className={iconButtonClass()}>
                   <Icon name="close" size={16} />

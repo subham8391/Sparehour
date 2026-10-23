@@ -95,9 +95,9 @@ export function HoursStep({ saved, zone: proposedZone, onConfirm, busy = false, 
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <TimeField aria-label="Start" value={strip.hours.start} onChange={(e) => setStrip((s) => ({ ...s, hours: { ...s.hours, start: e.target.value } }))} />
+            <TimeField aria-label="Start" value={strip.hours.start} onChange={(v) => setStrip((s) => ({ ...s, hours: { ...s.hours, start: v } }))} />
             <span className="text-ink-3">–</span>
-            <TimeField aria-label="End" value={strip.hours.end} onChange={(e) => setStrip((s) => ({ ...s, hours: { ...s.hours, end: e.target.value } }))} />
+            <TimeField aria-label="End" value={strip.hours.end} onChange={(v) => setStrip((s) => ({ ...s, hours: { ...s.hours, end: v } }))} />
           </div>
         </div>
       )}
@@ -179,9 +179,9 @@ function DayRow({
         <span className="flex flex-col items-end gap-1 py-1 max-sm:w-full max-sm:items-start">
           {segments.map((seg, i) => (
             <span key={i} className="flex items-center gap-2">
-              <TimeField aria-label={i === 0 ? `${name} start` : `${name} start ${i + 1}`} value={seg.start} onChange={(e) => edit(i, { start: e.target.value })} />
+              <TimeField aria-label={i === 0 ? `${name} start` : `${name} start ${i + 1}`} value={seg.start} onChange={(v) => edit(i, { start: v })} />
               <span className="text-ink-3">–</span>
-              <TimeField aria-label={i === 0 ? `${name} end` : `${name} end ${i + 1}`} value={seg.end} onChange={(e) => edit(i, { end: e.target.value })} />
+              <TimeField aria-label={i === 0 ? `${name} end` : `${name} end ${i + 1}`} value={seg.end} onChange={(v) => edit(i, { end: v })} />
               {segments.length > 1 ? (
                 <button type="button" aria-label={`Remove ${name} ${seg.start}–${seg.end}`} onClick={() => onChange(segments.filter((_, j) => j !== i))} className={iconButtonClass()}>
                   <Icon name="close" size={16} />

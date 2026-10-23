@@ -110,11 +110,11 @@ function BlockTimes({ block, onSave, onLock, onRemove }: { block: TaskBlock; onS
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-body-sm text-ink-2">
           Starts
-          <TimeField data-autofocus value={from} disabled={block.locked} onChange={(e) => (setFrom(e.target.value), setError(null))} aria-label="Block starts" />
+          <TimeField data-autofocus value={from} disabled={block.locked} onChange={(v) => (setFrom(v), setError(null))} aria-label="Block starts" />
         </label>
         <label className="flex items-center gap-2 text-body-sm text-ink-2">
           Ends
-          <TimeField value={to} disabled={block.locked} onChange={(e) => (setTo(e.target.value), setError(null))} aria-label="Block ends" />
+          <TimeField value={to} disabled={block.locked} onChange={(v) => (setTo(v), setError(null))} aria-label="Block ends" />
         </label>
       </div>
       {block.locked && <p className="text-body-sm text-ink-3">Locked — unlock it to change the time.</p>}

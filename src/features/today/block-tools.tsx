@@ -248,12 +248,12 @@ export function BlockToolbar({
         >
           <label className="flex items-center gap-1 text-label text-ink-2">
             From
-            <TimeField value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Start time" className="w-20" />
+            <TimeField value={from} onChange={(v) => setFrom(v)} aria-label="Start time" className="w-20" />
           </label>
           {armed === "move" && (
             <label className="flex items-center gap-1 text-label text-ink-2">
               To
-              <TimeField value={to} onChange={(e) => setTo(e.target.value)} aria-label="End time" className="w-20" />
+              <TimeField value={to} onChange={(v) => setTo(v)} aria-label="End time" className="w-20" />
             </label>
           )}
           <button type="submit" className={TOOLBAR_ACTION}>

@@ -434,9 +434,10 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                   <span className="w-12">Time</span>
                   <TimeField
                     aria-label="Time"
+                    clearable
                     className="flex-1"
                     value={task.doTime ? task.doTime.toString({ smallestUnit: "minute" }) : ""}
-                    onChange={(e) => onPatch({ doTime: e.target.value ? localTime(e.target.value) : null, ...(e.target.value && !task.doDate ? { doDate: today } : {}) })}
+                    onChange={(v) => onPatch({ doTime: v ? localTime(v) : null, ...(v && !task.doDate ? { doDate: today } : {}) })}
                   />
                 </label>
                 {task.doDate && <Clear onClick={() => pickDo({ doDate: null, doTime: null, evening: false }, close)}>No day</Clear>}
