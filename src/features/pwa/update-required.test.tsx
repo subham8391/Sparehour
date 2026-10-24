@@ -76,7 +76,8 @@ describe("<UpdateRequired>", () => {
 
     await vi.waitFor(() => expect(applyUpdate).toHaveBeenCalledTimes(1), { timeout: 3000 });
     expect(db.getUploadQueueStats).toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("Updating…");
+    // applyUpdate runs as the phase is set, before React has drawn it: on a slow runner the words follow a beat later.
+    await vi.waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Updating…"));
     expect(triedRecently("2026.10.07.1900", sessionStorage)).toBe(true);
   });
 
