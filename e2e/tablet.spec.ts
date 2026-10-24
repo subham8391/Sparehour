@@ -89,9 +89,15 @@ test("a touch screen at 820 px gets 44 px targets on Today, Inbox, Upcoming, a p
   // A row's ⋯ sheet or popover: 48 px rows on touch.
   const row = (await openApp(page, "/today"), page.getByRole("row").filter({ hasText: T.today }));
   await row.getByRole("button", { name: "More actions" }).click();
-  const items = page.getByRole("menu", { name: "More actions" }).getByRole("menuitem");
-  await expect(items.first()).toBeVisible();
-  for (let i = 0; i < (await items.count()); i++) expect((await items.nth(i).boundingBox())!.height).toBeGreaterThanOrEqual(47.5);
+  const menu = page.getByRole("menu", { name: "More actions" });
+  await expect(menu.getByRole("menuitem").first()).toBeVisible();
+  // Every item measured in one pass inside the menu, and again until it has settled: counting and then measuring one by
+  // one let a re-render in between hand back an item with no box (CI run 39931472934).
+  const shortest = async () => {
+    const heights = await menu.evaluate((m) => [...m.querySelectorAll('[role="menuitem"]')].map((e) => e.getBoundingClientRect().height).filter((h) => h > 0));
+    return heights.length ? Math.min(...heights) : 0;
+  };
+  await expect.poll(shortest, { timeout: 10_000 }).toBeGreaterThanOrEqual(47.5);
 });
 
 test("the row shows the priority mark and opens the estimate presets from its chip on touch", async ({ page }) => {

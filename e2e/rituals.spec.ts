@@ -23,7 +23,7 @@ test("morning plan: three steps, Done stamps the day plan and lands on Today", a
   await expect(page.getByRole("heading", { name: "Pick today’s tasks" })).toBeVisible();
   await page.getByRole("button", { name: "Next · Block time" }).click();
   await expect(page.getByRole("heading", { name: "Block time" })).toBeVisible();
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page).toHaveURL(/\/today/);
   const plan = await waitForRow<{ planned_at: string | null }>(PLAN, [DEV_USER.email]);
   expect(plan?.planned_at).not.toBeNull();

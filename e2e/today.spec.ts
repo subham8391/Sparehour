@@ -81,7 +81,7 @@ test.describe("Today", () => {
     expect(created).not.toBeNull();
 
     await block.click();
-    await page.getByRole("button", { name: "Remove" }).click();
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
     await expect(block).toHaveCount(0);
     await expect(row.getByText(/^\d\d:\d\d$/)).toHaveCount(0);
     const removed = await waitForRow<{ id: string }>("select id from public.time_blocks where id = $1 and deleted_at is not null", [created!.id]);

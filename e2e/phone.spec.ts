@@ -51,9 +51,10 @@ test("an Inbox row's ⋯ sheet starts with Today · Tomorrow · Someday · Proje
   await details.getByRole("button", { name: "Done" }).click();
   expect(await waitForRow("select id from public.tasks where title = $1 and estimate_min = 15 and state = 'inbox'", [title])).not.toBeNull();
 
-  await page.getByRole("button", { name: "Select" }).click();
+  await page.getByRole("button", { name: "Select", exact: true }).click();
   await expect(row.getByRole("checkbox", { name: `Select ${title}` })).toBeVisible();
-  await page.getByRole("button", { name: "Done" }).click();
+  // Exact: a task whose title has "done" in it (another spec's leftover) names its own buttons "Complete E2E done …".
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(row.getByRole("checkbox")).toHaveCount(0);
 });
 

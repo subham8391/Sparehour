@@ -79,7 +79,7 @@ test("T with nothing selected comes back to today; [ steps to yesterday, read-on
   await expect(page).toHaveURL(new RegExp(`/today\\?day=${yesterday}$`));
   await expect(page.getByText(/^A day that has passed|^Finished tasks are kept for a week/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Today options" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reopen", exact: true })).toHaveCount(0);
 });
 
 test("the palette's Go to tomorrow opens Today on tomorrow from anywhere", async ({ page }) => {

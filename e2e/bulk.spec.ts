@@ -27,7 +27,7 @@ test("X ticks, the bulk bar moves both to today, one undo puts both back", async
   expect(await waitForRow("select count(*)::int as n from public.tasks where title in ($1, $2) and do_date = $3 having count(*) = 2", [a, b, today])).not.toBeNull();
   await expect(rowA).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Undo" }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   expect(await waitForRow("select count(*)::int as n from public.tasks where title in ($1, $2) and do_date is null having count(*) = 2", [a, b])).not.toBeNull();
   await expect(page.getByRole("row").filter({ hasText: a })).toBeVisible();
 });
