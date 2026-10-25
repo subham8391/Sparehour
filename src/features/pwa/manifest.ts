@@ -1,19 +1,15 @@
-// The web app manifest (SYSTEM_DESIGN.md §10.5). `shortcuts` work on
-// Android and desktop and are ignored on iOS; so does `share_target`, which
-// puts Sparehour in Android's share sheet once installed: what is shared
-// opens /share, to be saved to a list (DECISIONS.md, amendment 2026-10-22).
-// Chrome on Android paints an installed app's navigation bar with
-// `theme_color`, and a manifest has one colour, no dark variant (the page's
-// theme-color metas only reach the status bar), so both colours are Sky's dark
-// paper: a dark bar under the dark app, and the classic dark bar under the
-// light one, never a white strip under a dark screen (DECISIONS.md, amendment
-// 2026-10-23). The icons are the mark on
-// paper: `any` keeps its own rounded corners, `maskable` is full-bleed so a
-// launcher can cut its own shape (the two are separate files on purpose).
+// The web app manifest (SYSTEM_DESIGN.md §10.5), served by app/manifest.webmanifest/route.ts. `shortcuts` work on
+// Android and desktop and are ignored on iOS; so does `share_target`, which puts Sparehour in Android's share sheet
+// once installed: what is shared opens /share, to be saved to a list (DECISIONS.md, amendment 2026-10-22).
+// Chrome on Android paints an installed app's navigation bar with `theme_color`, read from the manifest it fetches,
+// and a manifest holds one colour: so the page asks for its own (features/pwa/system-bars.tsx puts the look's tab
+// bar colour and paper in the manifest link), and without them both are Sky's dark paper (DECISIONS.md, amendments
+// 2026-10-23 and 2026-10-25). The icons are the mark on paper: `any` keeps its own rounded corners, `maskable` is
+// full-bleed so a launcher can cut its own shape (the two are separate files on purpose).
 import type { MetadataRoute } from "next";
 import { PAPER } from "@/features/commands/theme";
 
-export default function manifest(): MetadataRoute.Manifest {
+export function buildManifest(colours: { bar?: string | null; paper?: string | null } = {}): MetadataRoute.Manifest {
   return {
     id: "/",
     name: "Sparehour",
@@ -23,8 +19,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: PAPER.dark,
-    theme_color: PAPER.dark,
+    background_color: colours.paper ?? PAPER.dark,
+    theme_color: colours.bar ?? PAPER.dark,
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

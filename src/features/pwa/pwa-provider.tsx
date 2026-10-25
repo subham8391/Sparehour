@@ -16,6 +16,9 @@ import { useIdleMount } from "@/features/shell/preload-on-idle";
 // The forced update's check and its blocking screen are an island fetched once the browser is idle.
 const loadVersionGate = () => import("./version-gate");
 const VersionGate = dynamic(loadVersionGate, { ssr: false });
+// The phone's bars follow the look and theme (system-bars.tsx): set in idle time, after the pre-paint script's first guess.
+const loadSystemBars = () => import("./system-bars");
+const SystemBars = dynamic(loadSystemBars, { ssr: false });
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -98,6 +101,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const gateMounted = useIdleMount(loadVersionGate, false);
+  const barsMounted = useIdleMount(loadSystemBars, false);
 
   const requestPersist = useCallback((again = false) => {
     void requestPersistence(navigator.storage, safeStorage(), again).then(setPersistence);
@@ -124,6 +128,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     <PwaContext.Provider value={api}>
       {children}
       {gateMounted && <VersionGate />}
+      {barsMounted && <SystemBars />}
       {updateReady && (
         // The one toast surface (DESIGN_SYSTEM.md §5): raised on surface-3 with one quiet action.
         <Toast

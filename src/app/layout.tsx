@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, Newsreader, Plus_Jakarta_Sans } from "next/font/google";
 import { PAPER } from "@/features/commands/theme";
 import { THEME_BOOTSTRAP } from "@/features/commands/theme-bootstrap";
+import { MANIFEST_PATH } from "@/features/pwa/bar-colors";
 import "./globals.css";
 
 // Faces (DESIGN_SYSTEM.md §3). Plus Jakarta Sans is Sky's, the default look, for everything: preloaded. The Daylight
@@ -18,6 +19,8 @@ export const metadata: Metadata = {
   appleWebApp: { title: "Sparehour", capable: true, statusBarStyle: "default" },
   title: "Sparehour",
   description: "A calm planner that knows how much free time you really have.",
+  // Served by app/manifest.webmanifest/route.ts; features/pwa/system-bars.tsx adds the look's colours to this link.
+  manifest: MANIFEST_PATH,
 };
 
 export const viewport: Viewport = {
