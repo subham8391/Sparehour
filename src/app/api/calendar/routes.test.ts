@@ -30,9 +30,10 @@ const { store, after, syncAccountById, syncUser, syncDue, pushUser, pushDue, exc
   syncDue: vi.fn(async () => ({})),
   pushUser: vi.fn(async () => ({ written: 1, deleted: 0, adopted: 0, failed: 0 })),
   pushDue: vi.fn(async () => ({ written: 0, deleted: 0, adopted: 0, failed: 0 })),
+  // Plain tokens with "." and "-", which base64 never contains, so "sealed, never plain" cannot pass or fail by chance.
   exchangeCode: vi.fn(async () => ({
-    accessToken: "at",
-    refreshToken: "rt",
+    accessToken: "ya29.plain-access",
+    refreshToken: "1//plain-refresh",
     expiresAt: new Date("2026-09-15T11:00:00Z"),
     scopes: ["openid", "email", "https://www.googleapis.com/auth/calendar.events.readonly"],
     sub: "g-1",
@@ -116,8 +117,8 @@ describe("calendar routes", () => {
     expect(exchangeCode).toHaveBeenCalledWith(expect.objectContaining({ clientId: "cid" }), "CODE");
     const call = store.connect.mock.calls[0] as unknown as [{ userId: string; external: string; email: string; refreshB64: string; accessB64: string; scopes: string[] }];
     expect(call[0]).toMatchObject({ userId: "u1", external: "g-1", email: "sam@gmail.com" });
-    expect(call[0].refreshB64).not.toContain("rt"); // sealed, never plain
-    expect(call[0].accessB64).not.toContain("at");
+    expect(call[0].refreshB64).not.toContain("plain-refresh"); // sealed, never plain
+    expect(call[0].accessB64).not.toContain("plain-access");
     expect(after).toHaveBeenCalledTimes(1);
     expect(syncAccountById).toHaveBeenCalledWith("acct-1", expect.anything());
     // A new grant may change what Google returns (busy times → titles), so the first pass after it reads everything.
