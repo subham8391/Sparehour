@@ -37,7 +37,8 @@ describe("month ends and leap days", () => {
     expect(occurrencesAfter("FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", d("2026-01-01"), d("2026-01-01"), 3)).toEqual([]);
     expect(nextOccurrence({ rule: "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", mode: "fixed", doDate: d("2026-01-01"), completedOn: d("2026-01-01") })).toBeNull();
     expect(changeRule({ newRule: "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", today: d("2026-01-01"), exceptions: [] })).toEqual({ doDate: null, droppedExceptions: [] });
-  });
+    // rrule searches its whole horizon before it gives up on a rule that never fires: nearly 4 s under CI's coverage run.
+  }, 30_000);
 
   it("documents: the 20-year horizon ends a series whose next occurrence is further away", () => {
     expect(nextOccurrence({ rule: "FREQ=YEARLY;INTERVAL=25", mode: "fixed", doDate: d("2026-01-01"), completedOn: d("2026-01-01") })).toBeNull();
@@ -175,7 +176,8 @@ describe("ranges and limits", () => {
       }),
       { numRuns: 200 },
     );
-  });
+    // 200 runs over twenty-year windows: about 4.5 s under CI's coverage run, close to the 5 s default.
+  }, 30_000);
 
   it("changeRule drops an exception dated today even when today is on the new rule", () => {
     const r = changeRule({ newRule: "FREQ=DAILY", today: d("2026-09-11"), exceptions: [{ occurrenceDate: d("2026-09-11"), kind: "skip" }] });

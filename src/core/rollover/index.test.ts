@@ -182,7 +182,8 @@ describe("nextRunDate", () => {
         expect(localDate(runs[i]).since(localDate(runs[i - 1])).days).toBe(1);
       }
     }
-  });
+    // 35,000 ticks a zone, four zones: about 2 s here, nearer 7 s under CI's coverage run (40176771100), past the 5 s default.
+  }, 30_000);
 });
 
 // ---------- properties ----------
