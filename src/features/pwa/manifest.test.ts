@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { GET } from "@/app/manifest.webmanifest/route";
 import { PAPER } from "@/features/commands/theme";
-import { cssToHex, hexParam, manifestHref } from "./bar-colors";
+import { barsCookie, barsFromCookie, cssToHex, hexParam, manifestHref } from "./bar-colors";
 import { buildManifest } from "./manifest";
 
 describe("manifest", () => {
@@ -18,6 +18,23 @@ describe("manifest", () => {
     const plain = await GET(new Request("https://x.test/manifest.webmanifest"));
     expect(plain.headers.get("content-type")).toBe("application/manifest+json");
     expect(await plain.json()).toMatchObject({ theme_color: PAPER.dark, background_color: PAPER.dark });
+  });
+
+  it("takes the colours cookie on a plain fetch (the first, as the page loads), the link's own over it, and is never shared", async () => {
+    const cookie = "other=1; sparehour-bars=1b1e25.15171c";
+    const first = await GET(new Request("https://x.test/manifest.webmanifest", { headers: { cookie } }));
+    expect(await first.json()).toMatchObject({ theme_color: "#1b1e25", background_color: "#15171c" });
+    expect(first.headers.get("cache-control")).toBe("private, no-cache");
+    expect(first.headers.get("vary")).toBe("Cookie");
+    const asked = await GET(new Request("https://x.test/manifest.webmanifest?bar=fbfdff&paper=e8f0fa", { headers: { cookie } }));
+    expect(await asked.json()).toMatchObject({ theme_color: "#fbfdff", background_color: "#e8f0fa" });
+  });
+
+  it("writes and reads the cookie, and a bad one counts for nothing", () => {
+    expect(barsCookie("#1b1e25", "#15171c")).toBe("sparehour-bars=1b1e25.15171c; Path=/; Max-Age=31536000; SameSite=Lax");
+    expect(barsFromCookie("a=b; sparehour-bars=1B1E25.15171c")).toEqual({ bar: "#1b1e25", paper: "#15171c" });
+    expect(barsFromCookie("sparehour-bars=<x>.zz")).toEqual({ bar: null, paper: null });
+    expect(barsFromCookie(null)).toEqual({ bar: null, paper: null });
   });
 
   it("echoes nothing but a plain hex colour", async () => {

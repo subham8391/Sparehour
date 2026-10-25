@@ -19,8 +19,6 @@ export const metadata: Metadata = {
   appleWebApp: { title: "Sparehour", capable: true, statusBarStyle: "default" },
   title: "Sparehour",
   description: "A calm planner that knows how much free time you really have.",
-  // Served by app/manifest.webmanifest/route.ts; features/pwa/system-bars.tsx adds the look's colours to this link.
-  manifest: MANIFEST_PATH,
 };
 
 export const viewport: Viewport = {
@@ -40,6 +38,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${jakarta.variable} ${newsreader.variable} ${newsreaderItalic.variable} ${instrumentSans.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        {/* Served by app/manifest.webmanifest/route.ts. With credentials, so the colours cookie reaches the first
+            fetch (features/pwa/system-bars.tsx sets it, and adds the colours to this link once it runs). */}
+        <link rel="manifest" href={MANIFEST_PATH} crossOrigin="use-credentials" />
       </head>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

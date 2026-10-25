@@ -2,11 +2,12 @@
 // The phone's bars follow the look and the theme (DECISIONS.md, amendment 2026-10-25). The status bar takes the
 // look's paper from the theme-color metas, at once, whenever the look, the theme or the system scheme changes, and
 // again whenever Next renders the metas afresh (a navigation puts its own back). Chrome paints an installed app's
-// navigation bar only from the manifest it fetches, so the manifest link carries the tab bar's colour and the paper:
-// the bar matches once Chrome next refreshes the installed app. Mounted by PwaProvider in idle time; the pre-paint
+// navigation bar only from the manifest it fetches, so the manifest link carries the tab bar's colour and the paper,
+// and a cookie carries them for the next load's first fetch: the bar matches at an install, or once Chrome next
+// refreshes the installed app. Mounted by PwaProvider in idle time; the pre-paint
 // script has already set Sky's paper for the first frame.
 import { useEffect } from "react";
-import { cssToHex, hexToRgb, manifestHref } from "./bar-colors";
+import { barsCookie, cssToHex, hexToRgb, manifestHref } from "./bar-colors";
 
 function colours(): { paper: string; bar: string } | null {
   const paper = cssToHex(getComputedStyle(document.body).backgroundColor);
@@ -38,6 +39,9 @@ export default function SystemBars() {
         const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
         const href = manifestHref(c.bar, c.paper);
         if (link && link.getAttribute("href") !== href) link.setAttribute("href", href);
+        // For the next page load's first manifest fetch, before this has run (an install from the browser menu).
+        const cookie = barsCookie(c.bar, c.paper);
+        if (!document.cookie.includes(cookie.split(";")[0])) document.cookie = cookie;
       });
     };
     sync();
