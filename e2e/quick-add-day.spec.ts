@@ -39,20 +39,24 @@ test("the strip says what the task leaves of its day, and counts a missing estim
   await page.keyboard.press("q");
   await expect(page.getByRole("textbox", { name: "Task" })).toBeFocused();
 
-  const long = await dayLine(page, "E2E day line tomorrow ~45m");
-  await expect(long).toHaveText(LEAVES);
-  const left45 = minutes(LEAVES.exec((await long.textContent()) ?? "")?.[1] ?? "");
-  // A shorter task leaves exactly that much more of the same day.
-  const short = await dayLine(page, "E2E day line tomorrow ~15m");
-  await expect.poll(async () => minutes(LEAVES.exec((await short.textContent()) ?? "")?.[1] ?? "0m")).toBe(left45 + 30);
+  // Tomorrow's tasks reach a fresh device a moment after the sheet opens (later days are streamed when asked for),
+  // and each one that lands moves the figure. So the three readings are taken together, and taken again if the day
+  // changed under them (seen once, with rows an interrupted run had left on tomorrow).
+  const read = async (text: string) => LEAVES.exec((await (await dayLine(page, text)).textContent()) ?? "");
+  await expect(async () => {
+    const long = await read("E2E day line tomorrow ~45m");
+    expect(long).not.toBeNull();
+    const left45 = minutes(long?.[1] ?? "");
+    // A shorter task leaves exactly that much more of the same day.
+    expect(minutes((await read("E2E day line tomorrow ~15m"))?.[1] ?? "")).toBe(left45 + 30);
+    // No estimate: counted as the default, and the line says so.
+    const assumed = await read("E2E day line tomorrow");
+    const counted = minutes(assumed?.[2] ?? "");
+    expect(minutes(assumed?.[1] ?? "")).toBe(left45 + 45 - counted);
+  }).toPass({ timeout: 30_000 });
   // It is part of the strip the box is described by, so a screen reader hears it with the parse.
   const stripId = await page.getByRole("textbox", { name: "Task" }).getAttribute("aria-describedby");
-  await expect(page.locator(`[id="${stripId}"]`)).toContainText("spare");
-
-  const assumed = await dayLine(page, "E2E day line tomorrow");
-  await expect(assumed).toContainText("· counted as ");
-  const counted = minutes(LEAVES.exec((await assumed.textContent()) ?? "")?.[2] ?? "");
-  expect(minutes(LEAVES.exec((await assumed.textContent()) ?? "")?.[1] ?? "")).toBe(left45 + 45 - counted);
+  await expect(page.locator(`[id="${stripId}"]`)).toContainText("· counted as ");
 
   // No day, or the evening: nothing is taken from a working day, so nothing is said.
   await expect(await dayLine(page, "E2E day line")).toHaveCount(0);
