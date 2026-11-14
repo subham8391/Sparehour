@@ -42,3 +42,22 @@ test("nothing shared says so; Lists are gone from Browse and an old link to one 
     expect(gone.headers().location).toBe("/today");
   }
 });
+
+test("the installed app's Add a task shortcut opens quick add on Today, once", async ({ page }) => {
+  // The installed app has synced before: a device on its very first sync redraws the app as the data lands, and a
+  // sheet opened in that moment goes with it, shortcut or not.
+  await openApp(page, "/inbox");
+  // What the manifest's shortcut opens (features/pwa/manifest.ts).
+  await page.goto("/today?quickadd=1");
+  const box = page.getByRole("textbox", { name: "Task" });
+  await expect(box).toBeVisible();
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue("");
+  // The mark comes off the address, so a reload is an ordinary visit.
+  await expect(page).toHaveURL(/\/today$/);
+  await page.keyboard.press("Escape");
+  await expect(box).toHaveCount(0);
+  await page.reload();
+  await waitForSync(page);
+  await expect(page.getByRole("textbox", { name: "Task" })).toHaveCount(0);
+});

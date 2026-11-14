@@ -1,7 +1,9 @@
 "use client";
 // Mounts quick-add once for the whole app and wires the ways in: the desktop
 // bottom bar and the phone FAB here; `Q` and "any printable key when nothing
-// is focused" in the keyboard layer. Never navigates.
+// is focused" in the keyboard layer; and the installed app's "Add a task"
+// shortcut, which opens `/today?quickadd=1` (features/pwa/manifest.ts).
+// Never navigates.
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
@@ -47,6 +49,18 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   /** A fresh sheet holding exactly `text`: what an Undo of a discard brings back, never appended to anything. */
   const reopen = useCallback((text: string) => setState((s) => ({ open: true, initial: text, key: s.key + 1 })), []);
   useEffect(() => preloadOnIdle(loadQuickAdd), []);
+  // The "Add a task" shortcut: the sheet opens and the mark comes off the address, so a reload does not repeat it.
+  // A beat after mounting, and the mark only goes as the sheet opens, so a mount that is undone first loses nothing.
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (url.searchParams.get("quickadd") !== "1") return;
+    const timer = setTimeout(() => {
+      url.searchParams.delete("quickadd");
+      history.replaceState(history.state, "", url.pathname + url.search);
+      open();
+    });
+    return () => clearTimeout(timer);
+  }, [open]);
 
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);

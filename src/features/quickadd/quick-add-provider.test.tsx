@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { localSqlite } from "@/test/local-sqlite";
 
@@ -52,6 +53,7 @@ function setup({ undo = false } = {}) {
 
 beforeEach(() => {
   local.db = {};
+  window.history.replaceState(null, "", "/today");
 });
 
 /** The undo toast: the status that says `text` and carries an Undo (the live region beside it only has the words). */
@@ -96,6 +98,39 @@ describe("<QuickAddProvider>", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Add a task" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("the installed app's Add a task shortcut (/today?quickadd=1) opens it empty, once, and cleans the address", async () => {
+    window.history.replaceState({ kept: true }, "", "/today?quickadd=1&day=2026-10-08");
+    // Strict mode mounts twice in development: the sheet still opens, and opens once.
+    render(
+      <StrictMode>
+        <QuickAddProvider>
+          <Opener />
+        </QuickAddProvider>
+      </StrictMode>,
+    );
+    const input = await screen.findByRole("textbox", { name: "Task" });
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    // Only its own mark goes: the rest of the address, and the history entry's state, stay.
+    expect(window.location.pathname + window.location.search).toBe("/today?day=2026-10-08");
+    expect(window.history.state).toEqual({ kept: true });
+  });
+
+  it("any other address leaves it closed", () => {
+    for (const address of ["/today", "/today?quickadd=0", "/inbox?add=1"]) {
+      window.history.replaceState(null, "", address);
+      const { unmount } = render(
+        <QuickAddProvider>
+          <Opener />
+        </QuickAddProvider>,
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(window.location.pathname + window.location.search).toBe(address);
+      unmount();
+    }
   });
 
   it("nothing of the sheet is mounted before the first open", () => {

@@ -12,6 +12,11 @@ describe("manifest", () => {
     expect(buildManifest().share_target).toEqual({ action: "/share", method: "GET", params: { title: "title", text: "text", url: "url" } });
   });
 
+  it("its Add a task shortcut opens Today with the mark quick add opens on (quick-add-provider.tsx)", () => {
+    const add = buildManifest().shortcuts?.find((s) => s.name === "Add a task");
+    expect(add?.url).toBe("/today?quickadd=1");
+  });
+
   it("takes the colours in its link, and the dark paper without them", async () => {
     const asked = await (await GET(new Request("https://x.test/manifest.webmanifest?bar=FBFDFF&paper=e8f0fa"))).json();
     expect(asked).toMatchObject({ theme_color: "#fbfdff", background_color: "#e8f0fa", display: "standalone" });
