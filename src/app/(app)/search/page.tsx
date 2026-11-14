@@ -2,6 +2,7 @@
 // Search (SCREENS.md §13). The URL is the state — `/search?q=…&project=…` —
 // so a search can be shared; the statements run against the local database
 // and update as it syncs.
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@/data/powersync";
@@ -18,6 +19,10 @@ import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskDetail } from "@/features/tasks/task-detail";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+
+// What was finished before the week the device holds is searched on the server, when asked (DECISIONS.md,
+// amendment 2026-11-14): its own island, fetched the first time there are words to search for.
+const OlderFound = dynamic(() => import("@/features/finished/older-found").then((m) => m.OlderFound), { ssr: false });
 
 const NONE_SQL = `select * from tasks where 0`;
 const NO_ITEMS_SQL = `select task_id, title from checklist_items where 0`;
@@ -52,7 +57,7 @@ function SearchScreen() {
   const setFilters = (next: SearchFilters) => router.replace(`/search?${toSearchParams(draft, next)}`);
 
   const now = useNow();
-  const { today } = useLocalDay(now);
+  const { today, zone } = useLocalDay(now);
   const repo = useTaskRepo();
   const detail = useTaskDetail();
   const quickAdd = useQuickAdd();
@@ -113,6 +118,7 @@ function SearchScreen() {
       onDone={(id) => void repo.complete(id)}
       onAddTask={(title) => quickAdd.open(title)}
       onClose={close}
+      older={query.trim() ? <OlderFound words={query} zone={zone} today={today} /> : null}
     />
   );
 }

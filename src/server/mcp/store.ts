@@ -63,6 +63,8 @@ export interface PlannerStore {
   blocksOf(taskId: string): Promise<Row[]>;
   /** A series' exceptions, live ones only. */
   exceptions(seriesId: string): Promise<Row[]>;
+  /** Tasks finished longer ago than the Logbook syncs (finished_tasks), newest first, holding every word. */
+  finished(q: { words: readonly string[]; limit?: number }): Promise<Row[]>;
   /** Sort keys of the open tasks in one list (a project, an area, or neither). */
   taskSortKeys(projectId: string | null, areaId: string | null): Promise<string[]>;
   daySortKeys(doDate: string): Promise<string[]>;
@@ -201,6 +203,16 @@ export class SupabaseStore implements PlannerStore {
 
   exceptions(seriesId: string) {
     return this.rows(this.db.from("recurrence_exceptions").select("id, occurrence_date, kind, moved_to").eq("series_id", seriesId).is("deleted_at", null));
+  }
+
+  async finished(q: { words: readonly string[]; limit?: number }) {
+    const { data, error } = await this.db.rpc("finished_tasks_page", { p_words: [...q.words], p_limit: q.limit ?? 15 });
+    // A database that has not got the table yet (its migration has not run there) simply has nothing older.
+    if (error) {
+      if (error.code === "PGRST202" || error.code === "42883" || error.code === "42P01") return [];
+      throw new StoreError(error.message);
+    }
+    return ((data as Record<string, unknown>[] | null) ?? []).map(toLocal);
   }
 
   private keys(rows: Row[], column = "sort_key"): string[] {

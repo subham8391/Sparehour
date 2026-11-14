@@ -85,6 +85,12 @@ export class FakeStore implements PlannerStore {
   async exceptions(seriesId: string) {
     return this.t("recurrence_exceptions").filter((e) => e.series_id === seriesId);
   }
+  async finished(q: { words: readonly string[]; limit?: number }) {
+    return this.t("finished_tasks")
+      .filter((r) => q.words.every((w) => has(`${r.title ?? ""} ${r.notes_md ?? ""}`, w)))
+      .sort((a, b) => (String(a.completed_at) < String(b.completed_at) ? 1 : -1))
+      .slice(0, q.limit ?? 15);
+  }
   async taskSortKeys(projectId: string | null, areaId: string | null) {
     return this.t("tasks")
       .filter((r) => ["inbox", "active", "someday"].includes(String(r.state)) && (r.project_id ?? null) === projectId && (r.area_id ?? null) === areaId)

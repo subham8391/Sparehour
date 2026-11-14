@@ -77,7 +77,7 @@ test("T with nothing selected comes back to today; [ steps to yesterday, read-on
 
   await page.keyboard.press("[");
   await expect(page).toHaveURL(new RegExp(`/today\\?day=${yesterday}$`));
-  await expect(page.getByText(/^A day that has passed|^Finished tasks are kept for a week/)).toBeVisible();
+  await expect(page.getByText(/^A day that has passed|^Older finished tasks are in the Logbook/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Today options" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Reopen", exact: true })).toHaveCount(0);
 });

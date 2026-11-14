@@ -4,6 +4,8 @@
 import { strToU8, zipSync } from "fflate";
 import { EXPORT_TABLES, csvExport, jsonExport, markdownFiles, type ExportFormat, type ExportOptions, type ExportSnapshot, type Row } from "@/core/export";
 
+export { withFinished } from "./older";
+
 const WITHOUT_DELETED_AT = new Set<string>(["user_settings"]);
 
 export async function readSnapshot(getAll: <T>(sql: string, params?: unknown[]) => Promise<T[]>): Promise<ExportSnapshot> {

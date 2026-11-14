@@ -2,7 +2,7 @@
 // kept in the URL as Search keeps its own (`/logbook?show=dropped&project=…&from=…&to=…`), in the order they
 // were added so Escape can take off the last one. The day header's counts and minutes follow the filters.
 // Pure.
-import type { LocalDate } from "@/core/time";
+import { localDate, type LocalDate } from "@/core/time";
 import type { LogbookDay, LogbookEntry } from "./logbook-days";
 
 export type LogbookShow = "done" | "dropped";
@@ -105,8 +105,8 @@ function keeps(e: LogbookEntry, day: string, f: LogbookFilters, ctx: FilterConte
   if (f.show === "done" && e.kind === "dropped") return false;
   if (f.show === "dropped" && e.kind !== "dropped") return false;
   if (f.project && e.task.projectId !== f.project) return false;
-  // tasks.area_id (DECISIONS.md "Loose tasks in an area") adds a loose task's own area here once it exists.
-  if (f.area && (!e.task.projectId || ctx.areaOf(e.task.projectId) !== f.area)) return false;
+  // A task's area is its project's, or its own when it is filed in the area directly (DECISIONS.md "Loose tasks in an area").
+  if (f.area && e.task.areaId !== f.area && (!e.task.projectId || ctx.areaOf(e.task.projectId) !== f.area)) return false;
   if (f.tag && !ctx.tagsOf(e.task.id).includes(f.tag.toLocaleLowerCase())) return false;
   if (f.from && day < f.from) return false;
   if (f.to && day > f.to) return false;
@@ -125,6 +125,40 @@ export function filterLogbookDays(days: readonly LogbookDay[], f: LogbookFilters
     out.push({ day: d.day, done, dropped, minutes: done.reduce((m, e) => m + (e.task.estimateMin ?? defaultEstimateMin), 0) });
   }
   return out;
+}
+
+/** What the older Logbook is asked for: the same filters, the days as instants in the person's zone. */
+export interface OlderLogbookQuery {
+  project?: string;
+  area?: string;
+  tag?: string;
+  from?: string;
+  to?: string;
+}
+
+/**
+ * The filters as a question for the finished tasks the server keeps (features/finished): null when they leave
+ * nothing older to show, since a dropped task is never filed away. `from` is the start of its day and `to` the
+ * start of the day after, so both days are whole.
+ */
+export function olderLogbookQuery(f: LogbookFilters, zone: string): OlderLogbookQuery | null {
+  if (f.show === "dropped") return null;
+  const startOf = (iso: string, plusDays: number): string | undefined => {
+    try {
+      return localDate(iso).add({ days: plusDays }).toZonedDateTime(zone).toInstant().toString();
+    } catch {
+      return undefined;
+    }
+  };
+  const q: OlderLogbookQuery = {};
+  if (f.project) q.project = f.project;
+  if (f.area) q.area = f.area;
+  if (f.tag) q.tag = f.tag;
+  const from = f.from ? startOf(f.from, 0) : undefined;
+  const to = f.to ? startOf(f.to, 1) : undefined;
+  if (from) q.from = from;
+  if (to) q.to = to;
+  return q;
 }
 
 /** The date presets the filters offer, as inclusive ISO ranges. */

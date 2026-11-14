@@ -28,7 +28,7 @@ describe("the stepped header", () => {
     const { rerender } = render(<PastDay daysAgo={1} />);
     expect(screen.getByText(/A day that has passed, as it was/)).toBeInTheDocument();
     rerender(<PastDay daysAgo={9} />);
-    expect(screen.getByText(/Finished tasks are kept for a week/)).toBeInTheDocument();
+    expect(screen.getByText(/Older finished tasks are in the Logbook/)).toBeInTheDocument();
   });
 });
 

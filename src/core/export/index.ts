@@ -1,14 +1,14 @@
 // One-click export (PRODUCT_SPEC.md §19.1, M1): the raw rows as JSON that
 // can be imported back, a flat CSV of tasks, and Markdown a person can read
 // — one file per project and per list. Works on the local rows exactly as stored; the
-// caller makes sure finished tasks are on the device first (they sync only
-// on demand, and the server keeps them a week, so the export is their
-// long-term record) and says when they could not be. Pure.
+// caller makes sure finished tasks are among the rows first (the last week's
+// sync only on demand, and older ones are fetched from the server and added
+// as rows, features/export/older.ts) and says when they could not be. Pure.
 
 export type Cell = string | number | null;
 export type Row = Record<string, Cell>;
 
-/** Every table a person's data lives in. The completions of repeating tasks and their skipped or moved occurrences are history the Logbook only keeps for a week. */
+/** Every table a person's data lives in, with the completions of repeating tasks and their skipped or moved occurrences. */
 export const EXPORT_TABLES = [
   "areas",
   "projects",

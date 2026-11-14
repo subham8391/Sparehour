@@ -80,7 +80,7 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
       description: "Finds open tasks (title or note), projects and areas containing every word of the query.",
       inputSchema: z.object({
         query: z.string().min(1).max(200),
-        include_done: z.boolean().default(false).describe("Also finished and dropped tasks (the Logbook keeps finished ones for a week)."),
+        include_done: z.boolean().default(false).describe("Also finished and dropped tasks. Finished ones are kept: this week's can be reopened by id, older ones are listed with the day they were finished and are reopened in the app's Logbook."),
       }),
       annotations: READ,
     },

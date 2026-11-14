@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { exceptionId } from "@/core/recurrence/exception-id";
 import { Temporal } from "@/core/time";
 import type { WireOp } from "@/server/sync/upload";
-import { formatPlan, formatToday, formatUpcoming } from "./format";
+import { formatPlan, formatSearch, formatToday, formatUpcoming } from "./format";
 import { Planner, Refusal, estimateMinutes, lastKey } from "./planner";
 import type { Row } from "./store";
 import { FakeStore } from "./store.fake";
@@ -243,6 +243,27 @@ describe("the reads", () => {
     expect(acme.areas).toEqual([{ id: "a1", name: "Acme" }]);
     expect(acme).not.toHaveProperty("lists");
     expect(await refusal(planner.search("  "))).toMatch(/at least one word/);
+  });
+
+  it("asked for finished ones too, lists what was finished before the week the Logbook holds (amendment 2026-11-14)", async () => {
+    setup({
+      tasks: [task({ title: "Pay the rent", do_date: "2026-10-23" })],
+      projects: [{ id: "p1", space_id: "s1", area_id: null, name: "Home", state: "active", sort_key: "a0", deleted_at: null }],
+      finished_tasks: [
+        { id: "f1", space_id: "s1", title: "Pay the rent", notes_md: null, project_id: "p1", completed_at: "2026-09-01T16:00:00+00:00", occurrence_of: null, deleted_at: null },
+        { id: "f2", space_id: "s1", title: "Rent the van", notes_md: "pay on collection", project_id: null, completed_at: "2025-12-31T23:30:00+00:00", occurrence_of: "t-van", deleted_at: null },
+        { id: "f3", space_id: "s1", title: "Something else", notes_md: null, project_id: null, completed_at: "2026-09-02T10:00:00+00:00", occurrence_of: null, deleted_at: null },
+      ],
+    });
+    // Left out unless finished ones are asked for.
+    expect((await planner.search("pay rent")).older).toEqual([]);
+    const found = await planner.search("pay rent", true);
+    expect(found.older.map((o) => ({ ...o, finished: o.finished.toString() }))).toEqual([
+      { id: "f1", title: "Pay the rent", finished: "2026-09-01", project: "Home", occurrence: false },
+      { id: "f2", title: "Rent the van", finished: "2025-12-31", project: null, occurrence: true },
+    ]);
+    const text = formatSearch(found, "pay rent", Temporal.PlainDate.from("2026-10-23"));
+    expect(text).toContain("Finished earlier (2)\n- Pay the rent — finished Tue 1 Sep 2026 · #Home\n- Rent the van — finished Wed 31 Dec 2025 · one day of a repeat");
   });
 });
 

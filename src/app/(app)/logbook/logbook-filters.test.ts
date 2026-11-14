@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { localDate } from "@/core/time";
 import type { TaskRow } from "@/data/schema.client";
 import { logbookDays } from "./logbook-days";
-import { datePresets, dayLine, filterKeys, filterLabel, filterLogbookDays, parseLogbookParams, toLogbookParams, withFilter, withoutFilter, withoutLast, type FilterContext } from "./logbook-filters";
+import { datePresets, dayLine, filterKeys, filterLabel, filterLogbookDays, olderLogbookQuery, parseLogbookParams, toLogbookParams, withFilter, withoutFilter, withoutLast, type FilterContext } from "./logbook-filters";
 
 const row = (over: Partial<TaskRow> & { id: string }): TaskRow => ({ title: over.id, state: "done", estimate_min: 30, ...over }) as TaskRow;
 
@@ -84,5 +84,35 @@ describe("the day line (SCREENS.md §8)", () => {
     expect(dayLine({ day_rating: null, highlights: "a walk" })).toBe("Highlight: a walk");
     expect(dayLine({ day_rating: null, highlights: null })).toBeNull();
     expect(dayLine(undefined)).toBeNull();
+  });
+});
+
+describe("a task filed in an area directly", () => {
+  it("is in its area's filter as a project's task is in its project's area", () => {
+    const loose = logbookDays({ done: [row({ id: "l", area_id: "a9", completed_at: "2026-10-07T09:00:00Z" }), row({ id: "m", project_id: "p1", completed_at: "2026-10-07T10:00:00Z" })], completions: [], dropped: [], zone: "UTC", defaultEstimateMin: 30 });
+    const keys = (area: string) => filterLogbookDays(loose, { area }, ctx, 30).flatMap((d) => d.done.map((e) => e.key));
+    expect(keys("a9")).toEqual(["l"]);
+    expect(keys("a1")).toEqual(["m"]);
+  });
+});
+
+describe("the older Logbook's question (DECISIONS.md, amendment 2026-11-14)", () => {
+  it("with no filter asks for everything older", () => {
+    expect(olderLogbookQuery({}, "UTC")).toEqual({});
+    expect(olderLogbookQuery({ show: "done" }, "UTC")).toEqual({});
+  });
+
+  it("carries the project, area and tag, and the days as whole days in the person's zone", () => {
+    expect(olderLogbookQuery({ project: "p1", area: "a1", tag: "deep", from: "2026-10-01", to: "2026-10-07" }, "Asia/Kolkata")).toEqual({
+      project: "p1",
+      area: "a1",
+      tag: "deep",
+      from: "2026-09-30T18:30:00Z",
+      to: "2026-10-07T18:30:00Z",
+    });
+  });
+
+  it("has nothing to ask when only dropped tasks are wanted: they are never filed away", () => {
+    expect(olderLogbookQuery({ show: "dropped", project: "p1" }, "UTC")).toBeNull();
   });
 });

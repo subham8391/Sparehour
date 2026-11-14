@@ -48,9 +48,10 @@ export function monthsBack(day: LocalDate, n: number): string[] {
 }
 
 /**
- * How many months of the logbook stream hold every finished task there is: the server removes a done task a
- * week after it was completed (DECISIONS.md 2026-09-28), so this month and the last cover all of them. The
- * Logbook, search and the export ask for the same months, so they share one subscription.
+ * How many months of the logbook stream hold every finished task the synced tables have: a done task leaves
+ * `tasks` a week after it was completed (the nightly job files it in `finished_tasks`, DECISIONS.md 2026-11-14),
+ * so this month and the last cover all of them. The Logbook, search and the export ask for the same months, so
+ * they share one subscription; older ones are asked of the server (features/finished).
  */
 export const LOGBOOK_MONTHS = 2;
 

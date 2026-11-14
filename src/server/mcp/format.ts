@@ -124,6 +124,11 @@ export function formatSearch(v: SearchView, query: string, today: LocalDate): st
     section("Tasks", v.tasks.map((t) => taskLine(t, today, { day: true, state: true }))),
     section("Projects", v.projects.map((p) => `- ${p.name}${p.area ? ` (in ${p.area})` : ""} [id ${p.id}]`)),
     section("Areas", v.areas.map((a) => `- ${a.name} [id ${a.id}]`)),
+    // Kept, not on the timeline any more: when it was finished, and for a repeat that it was one of its days.
+    section(
+      "Finished earlier",
+      v.older.map((o) => `- ${o.title} — finished ${formatDay(o.finished, { today, year: true })}${o.project ? ` · ${projectToken(o.project)}` : ""}${o.occurrence ? " · one day of a repeat" : ""}`),
+    ),
   ].filter((s): s is string => s !== null);
   return parts.length ? parts.join("\n\n") : `Nothing matches “${query}”.`;
 }

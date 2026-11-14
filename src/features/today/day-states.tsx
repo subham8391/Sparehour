@@ -189,14 +189,14 @@ export function DoneSection({ label, tasks, today, meta, selectedId, onSelect, o
   );
 }
 
-/** How long a finished task stays on the device (DECISIONS.md 2026-09-28, done purge): the Logbook's week. */
+/** How long a finished task stays on the device: the Logbook's week (older ones are kept on the server, DECISIONS.md 2026-11-14). */
 const KEPT_DAYS = 7;
 
 /** A day that has passed, above its blocks and what was finished on it: read-only, and why an old one is bare. */
 export function PastDay({ daysAgo }: { daysAgo: number }) {
   return (
     <p className="text-body-sm text-pretty text-ink-2">
-      {daysAgo > KEPT_DAYS ? "Finished tasks are kept for a week, so only this day’s blocks and meetings are left to show." : "A day that has passed, as it was: what you finished, and its blocks and meetings."}
+      {daysAgo > KEPT_DAYS ? "Older finished tasks are in the Logbook, so only this day’s blocks and meetings are left to show." : "A day that has passed, as it was: what you finished, and its blocks and meetings."}
     </p>
   );
 }

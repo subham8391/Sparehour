@@ -96,6 +96,8 @@ export interface SearchView {
   tasks: TaskView[];
   projects: { id: string; name: string; area: string | null }[];
   areas: { id: string; name: string }[];
+  /** Finished longer ago than the Logbook holds (asked for with finished ones): the day it was finished, in the person's zone. */
+  older: { id: string; title: string; finished: LocalDate; project: string | null; occurrence: boolean }[];
 }
 
 export interface Added {
@@ -450,7 +452,10 @@ export class Planner {
     };
   }
 
-  /** Open tasks (and finished ones when asked), projects and areas matching every word. */
+  /**
+   * Open tasks (and finished ones when asked), projects and areas matching every word. Finished ones come from
+   * two places: the week the Logbook holds, and everything before it, which is kept in finished_tasks.
+   */
   async search(query: string, includeDone = false): Promise<SearchView> {
     const words = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
     if (words.length === 0) throw new Refusal("Search for at least one word.");
@@ -460,7 +465,14 @@ export class Planner {
       return words.every((w) => hay.includes(w.toLocaleLowerCase()));
     };
     const states: TaskState[] = includeDone ? ["inbox", "active", "someday", "done", "dropped"] : ["inbox", "active", "someday"];
-    const [taskRows, projects, areas] = await Promise.all([this.store.tasks({ states, text: longest, limit: 200 }), this.store.projects(), this.store.areas()]);
+    const [taskRows, projects, areas, olderRows] = await Promise.all([
+      this.store.tasks({ states, text: longest, limit: 200 }),
+      this.store.projects(),
+      this.store.areas(),
+      includeDone ? this.store.finished({ words, limit: 15 }) : Promise.resolve([]),
+    ]);
+    const c = await this.ctx();
+    const projectName = new Map(projects.map((p) => [String(p.id), str(p.name)]));
     const tasks = (await this.views(taskRows.filter((t) => has(str(t.title), str(t.notes_md)))))
       .sort((a, b) => Number(a.doDate === null) - Number(b.doDate === null) || (a.doDate && b.doDate ? compareDates(a.doDate, b.doDate) : 0) || byCodeUnit(a.sortKey, b.sortKey))
       .slice(0, 15);
@@ -472,6 +484,15 @@ export class Planner {
         .slice(0, 10)
         .map((p) => ({ id: String(p.id), name: String(p.name ?? ""), area: p.area_id ? (areaName.get(String(p.area_id)) ?? null) : null })),
       areas: areas.filter((a) => has(str(a.name))).map((a) => ({ id: String(a.id), name: String(a.name ?? "") })),
+      older: olderRows
+        .filter((r) => typeof r.completed_at === "string")
+        .map((r) => ({
+          id: String(r.id),
+          title: String(r.title ?? ""),
+          finished: Temporal.Instant.from(normaliseTimestamp(String(r.completed_at))).toZonedDateTimeISO(c.zone).toPlainDate(),
+          project: r.project_id ? (projectName.get(String(r.project_id)) ?? null) : null,
+          occurrence: Boolean(r.occurrence_of),
+        })),
     };
   }
 

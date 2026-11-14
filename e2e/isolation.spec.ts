@@ -41,7 +41,7 @@ test("a new person sees only their own (empty) world, and sign-out clears the de
   await page.getByRole("link", { name: /^Inbox/ }).click();
   await expect(page.getByText("Inbox zero. Nice.")).toBeVisible();
   await page.getByRole("link", { name: "Logbook" }).click();
-  await expect(page.getByText("Nothing finished yet.")).toBeVisible();
+  await expect(page.getByText("Nothing finished this week.")).toBeVisible();
 
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();

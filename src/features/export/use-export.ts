@@ -1,16 +1,18 @@
 "use client";
 // One-click export (PRODUCT_SPEC.md §19.1): the rows are read from the local
 // database, the files are built by the pure core, and the browser saves
-// them. Finished tasks are not in the working set — they arrive through the
-// on-demand logbook stream, and the server keeps them only a week — so the
-// export first makes sure that stream has synced. Offline, it still saves
-// what the device has, says that finished tasks are missing, and the files
-// say so too.
+// them. Finished tasks are not in the working set: the last week's arrive
+// through the on-demand logbook stream, so the export first makes sure that
+// stream has synced, and the ones before that are kept on the server and
+// fetched a page at a time (DECISIONS.md, amendment 2026-11-14). Offline, it
+// still saves what the device has, says that finished tasks are missing, and
+// the files say so too.
 import { useCallback, useEffect, useState } from "react";
 import type { ExportFormat } from "@/core/export";
 import type { LocalDate } from "@/core/time";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import { logbookStream } from "@/data/queries/shell";
+import { fetchAllFinished, type FinishedRow } from "@/features/finished/finished";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 
@@ -62,6 +64,15 @@ export async function fetchFinishedTasks(db: Pick<LocalDatabase, "syncStream">, 
   return { synced, release: () => subscription.unsubscribe() };
 }
 
+/** The finished tasks the server keeps beyond the device's week; null when they could not be fetched. */
+export async function fetchOlderFinished(fetchAll: () => Promise<FinishedRow[]> = fetchAllFinished): Promise<FinishedRow[] | null> {
+  try {
+    return await fetchAll();
+  } catch {
+    return null;
+  }
+}
+
 function saveBlob(name: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -89,12 +100,14 @@ export function useExport(): ExportApi {
       let finished: FinishedTasks | null = null;
       try {
         finished = await fetchFinishedTasks(db, today, db.currentStatus?.connected ? FINISHED_TASKS_WAIT_MS.online : FINISHED_TASKS_WAIT_MS.offline);
-        const { buildExport, readSnapshot } = await loadBuild();
+        const [{ buildExport, readSnapshot, withFinished }, older] = await Promise.all([loadBuild(), fetchOlderFinished()]);
         const snapshot = await readSnapshot((sql, params) => db.getAll(sql, params));
-        const { name, blob } = buildExport(format, snapshot, new Date(), { finishedTasks: finished.synced });
+        // Complete only with both halves: the week the device syncs, and what the server keeps from before it.
+        const complete = finished.synced && older !== null;
+        const { name, blob } = buildExport(format, older ? withFinished(snapshot, older) : snapshot, new Date(), { finishedTasks: complete });
         saveBlob(name, blob);
         setLastFile(name);
-        if (!finished.synced) setError(FINISHED_TASKS_OFFLINE);
+        if (!complete) setError(FINISHED_TASKS_OFFLINE);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {

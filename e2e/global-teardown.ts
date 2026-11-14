@@ -12,6 +12,8 @@ export default async function teardown(): Promise<void> {
       // A repeat's one-off changes (Just this once, Skip this occurrence) name its series, not the task: no key takes them with it.
       await c.query("delete from public.recurrence_exceptions e using public.tasks t where t.title like $1 and e.series_id = coalesce(t.recurrence_series_id, t.id)", [`${E2E_PREFIX}%`]);
       await c.query("delete from public.tasks where title like $1", [`${E2E_PREFIX}%`]);
+      // Finished ones the nightly job (or a spec calling it) moved out of tasks.
+      await c.query("delete from public.finished_tasks where title like $1", [`${E2E_PREFIX}%`]);
       await c.query("delete from public.headings where title like $1", [`${E2E_PREFIX}%`]);
       // Projects and areas a spec made for itself (each spec also removes its own in afterAll).
       await c.query("delete from public.projects where name like $1", [`${E2E_PREFIX}%`]);

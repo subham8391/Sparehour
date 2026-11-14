@@ -56,6 +56,8 @@ export interface SearchViewProps {
   onDone: (id: string) => void;
   onAddTask: (title: string) => void;
   onClose: () => void;
+  /** Under the results: the way to what was finished before the week the device holds (features/finished/older-found.tsx). */
+  older?: ReactNode;
 }
 
 // A filter is a control, not a data chip: the secondary button at the button scale (44 px on the phone, 36 above), its × a full target of its own.
@@ -221,7 +223,7 @@ export function SearchView(p: SearchViewProps) {
         </span>
       </div>
 
-      {!isSearch && <p className="px-0.5 text-body text-pretty text-ink-2">Titles, notes, checklist steps, projects, areas, lists and their items. Add a filter to browse tasks without typing.</p>}
+      {!isSearch && <p className="px-0.5 text-body text-pretty text-ink-2">Titles, notes, checklist steps, projects and areas. Add a filter to browse tasks without typing.</p>}
 
       {nothing && (
         <EmptyCard
@@ -280,6 +282,7 @@ export function SearchView(p: SearchViewProps) {
           </div>
         </details>
       )}
+      {p.older}
     </main>
   );
 }

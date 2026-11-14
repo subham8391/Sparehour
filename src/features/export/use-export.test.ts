@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { localDate } from "@/core/time";
 import type { LocalDatabase } from "@/data/powersync";
 import { buildExport, readSnapshot } from "./build";
-import { fetchFinishedTasks } from "./use-export";
+import type { FinishedRow } from "@/features/finished/finished";
+import { withFinished } from "./older";
+import { fetchFinishedTasks, fetchOlderFinished } from "./use-export";
 
 describe("readSnapshot", () => {
   it("reads every exported table, leaving out soft-deleted rows where the table has them", async () => {
@@ -12,7 +14,7 @@ describe("readSnapshot", () => {
     const sqls = getAll.mock.calls.map((c) => c[0]);
     expect(sqls).toContain("select * from tasks where deleted_at is null");
     expect(sqls).toContain("select * from user_settings");
-    // The history of repeating tasks is part of the record: the server keeps it only a week.
+    // The history of repeating tasks is part of the record.
     expect(sqls).toContain("select * from task_completions where deleted_at is null");
     expect(sqls).toContain("select * from recurrence_exceptions where deleted_at is null");
     expect(sqls).toHaveLength(16);
@@ -109,5 +111,69 @@ describe("buildExport", () => {
     expect(json.finished_tasks_included).toBe(false);
     const files = unzipSync(new Uint8Array(await buildExport("markdown", snapshot, now, { finishedTasks: false }).blob.arrayBuffer()));
     expect(new TextDecoder().decode(files["README.md"])).toContain("Finished tasks are not in this export");
+  });
+});
+
+describe("the export's older finished tasks (DECISIONS.md, amendment 2026-11-14)", () => {
+  const base = {
+    areas: [],
+    projects: [],
+    headings: [],
+    tasks: [{ id: "t-week", title: "Finished this week", state: "done", completed_at: "2026-11-12T10:00:00Z" }],
+    checklist_items: [],
+    tags: [{ id: "g1", name: "client" }],
+    task_tags: [],
+    task_completions: [],
+    recurrence_exceptions: [],
+    time_blocks: [],
+    day_plans: [],
+    work_hours: [],
+    user_settings: [],
+    lists: [],
+    list_items: [],
+    list_item_tags: [],
+  };
+  const finished = (over: Partial<FinishedRow>): FinishedRow =>
+    ({ id: "t-old", space_id: "s1", title: "Send the invoice", state: "done", evening: false, completed_at: "2026-09-01T16:00:00+00:00", created_at: "2026-08-30T08:00:00+00:00", updated_at: "2026-09-01T16:00:00+00:00", checklist: null, tag_ids: null, blocks: null, occurrence_of: null, occurrence_date: null, actual_min: null, ...over }) as FinishedRow;
+
+  it("unfolds each into the tables the files are built from: the task, its steps in order, its tags; a repeat's day as a completion", () => {
+    let n = 0;
+    const out = withFinished(
+      base,
+      [
+        finished({ checklist: [{ title: "Attach the PDF", done: true }, { title: "Copy Bea", done: false }], tag_ids: ["g1"] }),
+        finished({ id: "c1", title: "Gym", occurrence_of: "t-gym", occurrence_date: "2026-09-02", actual_min: 50, completed_at: "2026-09-02T07:00:00+00:00" }),
+      ],
+      () => `new-${++n}`,
+    );
+    expect(out.tasks.map((t) => t.id)).toEqual(["t-week", "t-old"]);
+    expect(out.tasks[1]).toMatchObject({ title: "Send the invoice", state: "done", evening: 0, completed_at: "2026-09-01T16:00:00+00:00" });
+    expect(Object.keys(out.tasks[1])).not.toEqual(expect.arrayContaining(["checklist", "tag_ids", "occurrence_of"]));
+    expect(out.checklist_items).toEqual([
+      expect.objectContaining({ id: "new-1", task_id: "t-old", title: "Attach the PDF", done: 1, sort_key: "a0000" }),
+      expect.objectContaining({ id: "new-2", task_id: "t-old", title: "Copy Bea", done: 0, sort_key: "a0001" }),
+    ]);
+    expect(out.task_tags).toEqual([expect.objectContaining({ id: "new-3", task_id: "t-old", tag_id: "g1" })]);
+    expect(out.task_completions).toEqual([expect.objectContaining({ id: "c1", task_id: "t-gym", occurrence_date: "2026-09-02", completed_at: "2026-09-02T07:00:00+00:00", actual_min: 50 })]);
+    // The snapshot it was given is not changed.
+    expect(base.tasks).toHaveLength(1);
+  });
+
+  it("leaves a task that is back on the device as the device has it, and an empty answer changes nothing", () => {
+    expect(withFinished(base, [finished({ id: "t-week", title: "Stale copy" })]).tasks).toEqual(base.tasks);
+    expect(withFinished(base, [])).toBe(base);
+  });
+
+  it("the older ones reach every format: the JSON holds the row, and the file says the record is whole", () => {
+    const { blob } = buildExport("json", withFinished(base, [finished({})]), new Date("2026-11-14T10:00:00Z"), { finishedTasks: true });
+    return blob.text().then((text) => {
+      const parsed = JSON.parse(text);
+      expect(parsed.tables.tasks.map((t: { id: string }) => t.id)).toEqual(["t-week", "t-old"]);
+    });
+  });
+
+  it("fetching them answers the rows, or null when the server could not be reached", async () => {
+    expect(await fetchOlderFinished(async () => [finished({})])).toHaveLength(1);
+    expect(await fetchOlderFinished(async () => Promise.reject(new Error("offline")))).toBeNull();
   });
 });

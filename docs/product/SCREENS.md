@@ -433,7 +433,7 @@ The guilt-free parking lot. Explicitly *not* a backlog you're behind on.
 
 ## 8. Logbook — M1
 
-The Logbook shows the last week: a finished task is removed for good seven days after it was completed (nightly job, DECISIONS.md 2026-09-28). Its empty state says so ("Done tasks stay here for a week.").
+The Logbook opens on the last week, which is what the device holds; a task finished before that is kept on the server (DECISIONS.md, amendment 2026-11-14, replacing the one-week purge of 2026-09-28) and comes under **Show older**, fifty at a time, under the same filters. An older row opens a read-only view (when it was finished, where it was filed, tags, steps, note) with **Reopen**, which makes it a task again; a repeat's finished day has no Reopen. The header's subtitle is "The last week", then "The last week and older"; after the last page it says "That is everything." The empty state is "Nothing finished this week." Search offers "Search older finished tasks" under its results. Older tasks need a connection.
 
 - Completed and dropped tasks, newest first, grouped by completion day.
 - Day headers: `Monday 14 Sep · 7 done · 4h 20m`. Once actuals exist (M2): `planned 4h 20m · actual 5h 05m`.

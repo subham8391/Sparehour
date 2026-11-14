@@ -51,7 +51,7 @@ describe.skipIf(admin === null)("archive and account contract", () => {
       ]);
     }));
 
-  it("the done purge never touches archived rows, however old", () =>
+  it("the nightly move of finished tasks never touches archived rows, however old", () =>
     inTx(admin, async (c) => {
       const me = await newUser(c, "archive-b@contract.test");
       const mine = await spaceOf(c, me);
@@ -59,7 +59,7 @@ describe.skipIf(admin === null)("archive and account contract", () => {
         "insert into public.tasks (space_id, title, sort_key, state, archive_batch_id, archived_at, updated_at) values ($1, 'Old archive', 'a0', 'archived', gen_random_uuid(), now() - interval '400 days', now() - interval '400 days')",
         [mine],
       );
-      await c.query("select private.purge_done_tasks()");
+      await c.query("select private.archive_done_tasks()");
       expect((await c.query("select count(*)::int as n from public.tasks where space_id = $1 and state = 'archived'", [mine])).rows[0]).toEqual({ n: 1 });
     }));
 
