@@ -141,7 +141,7 @@ describe.skipIf(admin === null)("connected apps contract", () => {
         // A repeat moved just this once: the exception's upsert brings a soft-deleted one back.
         put("tasks", series, { space_id: sid, state: "active", title: "Gym", do_date: "2026-10-26", recurrence_rule: "FREQ=WEEKLY;BYDAY=MO", recurrence_mode: "fixed", recurrence_series_id: series, miss_policy: "skip", sort_key: "a1", evening: false, priority: 0 }),
         put("recurrence_exceptions", uuid(), { space_id: sid, series_id: series, occurrence_date: "2026-10-26", kind: "move", moved_to: "2026-10-27", deleted_at: null }),
-        // create_list and add_list_items: a list, an item with a link and a rating, and a tag on it.
+        // The list tables (kept for the data in them; the app and the MCP server no longer write them): a list, an item, a tag on it.
         put("lists", list, { space_id: sid, parent_id: null, name: "Books", emoji: "📚", item_order: "manual", hide_done: false, sort_key: "a0" }),
         put("list_items", item, { space_id: sid, list_id: list, title: "Dune", note_md: null, url: "https://example.com/dune", status: "doing", rating: 5, done_at: null, sort_key: "a0" }),
         put("list_item_tags", itemTag, { space_id: sid, item_id: item, tag_id: tag }),

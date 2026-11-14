@@ -89,7 +89,7 @@ export function ConnectionsSection(_: SettingsFormProps) {
   return (
     <Section
       title="Connected apps"
-      note={<p className={NOTE}>An app sees your tasks, projects, lists and calendar busy times. Disconnecting stops it at once.</p>}
+      note={<p className={NOTE}>An app sees your tasks, projects and calendar busy times. Disconnecting stops it at once.</p>}
     >
       {state.kind === "loading" && (
         <div className={ROW}>

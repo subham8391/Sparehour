@@ -68,7 +68,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
       <div className="flex flex-col gap-2">
         <h1 className="font-display text-pane font-medium text-balance text-ink">Connect {name} to Sparehour</h1>
         <p className={P}>
-          {name} will see your tasks, projects, lists and the busy times on your calendar. You are signed in as <strong className="font-medium text-ink">{data.user.email || user.email}</strong>.
+          {name} will see your tasks, projects and the busy times on your calendar. You are signed in as <strong className="font-medium text-ink">{data.user.email || user.email}</strong>.
         </p>
       </div>
       {failed ? (
@@ -84,7 +84,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
             <Radio name="access" value="write" defaultChecked className="-ml-3 -mt-2.5" />
             <span className="flex flex-col">
               <span className="text-body text-ink">Read and change</span>
-              <span className="text-body-sm text-pretty text-ink-2">Add and complete tasks, move them to other days, edit them, and add to your lists.</span>
+              <span className="text-body-sm text-pretty text-ink-2">Add and complete tasks, move them to other days, edit them, and plan your day.</span>
             </span>
           </label>
           <label className="flex cursor-pointer items-start gap-1">

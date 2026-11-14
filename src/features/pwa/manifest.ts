@@ -1,6 +1,6 @@
 // The web app manifest (SYSTEM_DESIGN.md §10.5), served by app/manifest.webmanifest/route.ts. `shortcuts` work on
 // Android and desktop and are ignored on iOS; so does `share_target`, which puts Sparehour in Android's share sheet
-// once installed: what is shared opens /share, to be saved to a list (DECISIONS.md, amendment 2026-10-22).
+// once installed: what is shared opens /share, which hands it to quick add as a task (DECISIONS.md, amendment 2026-11-14).
 // Chrome on Android paints an installed app's navigation bar with `theme_color`, read from the manifest it fetches,
 // and a manifest holds one colour: so the page asks for its own (features/pwa/system-bars.tsx puts the look's tab
 // bar colour and paper in the manifest link), and without them both are Sky's dark paper (DECISIONS.md, amendments

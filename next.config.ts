@@ -24,6 +24,14 @@ const nextConfig: NextConfig = {
     // Keeps prefetched routes navigable through a connectivity drop (SYSTEM_DESIGN.md §10.1).
     useOffline: true,
   },
+  async redirects() {
+    // Lists were taken out of the app (DECISIONS.md, amendment 2026-11-14): an old link, or a tab left open on a
+    // list, lands on Today rather than on a page that is not there.
+    return [
+      { source: "/lists", destination: "/today", permanent: false },
+      { source: "/list/:id", destination: "/today", permanent: false },
+    ];
+  },
   async rewrites() {
     // Only what the sync client needs: the stream and the write checkpoint. The
     // service's probes and admin surface stay inside the network.

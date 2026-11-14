@@ -1,15 +1,12 @@
-// How the MCP tools answer (DECISIONS.md, amendment 2026-10-23): short plain text, one line a task or an item, with
+// How the MCP tools answer (DECISIONS.md, amendment 2026-10-23): short plain text, one line a task, with
 // the facts quick-add would show (day, time, estimate, #project, @tags, !priority, deadline, repeat) and the id to
 // act on. The app's own words: "Carried over", never "overdue"; spare time as the ribbon says it; 24-hour times.
 import type { Capacity } from "@/core/capacity";
 import { explain } from "@/core/planning";
 import { compareDates, formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import type { ListItem } from "@/data/queries/lists";
 import { deadlineWording, relativeDay } from "@/ui/relative-day";
-import type { Added, DayPlanView, ListSummary, ListView, Meeting, ProjectLine, SearchView, TaskDetail, TaskView, TodayView, UpcomingView } from "./planner";
-
-const STATUS_WORDS: Record<ListItem["status"], string> = { todo: "to do", doing: "doing", done: "done" };
+import type { Added, DayPlanView, Meeting, ProjectLine, SearchView, TaskDetail, TaskView, TodayView, UpcomingView } from "./planner";
 
 /** "!1" for the highest priority (stored as 3), as quick-add reads it. */
 const priorityToken = (p: number) => (p > 0 ? `!${4 - p}` : null);
@@ -122,37 +119,11 @@ export function formatProjects(p: { areas: { id: string; name: string; projects:
   return out.length ? out.join("\n") : "No areas or projects yet.";
 }
 
-export function formatLists(ls: readonly ListSummary[]): string {
-  if (ls.length === 0) return "No lists yet. create_list makes one.";
-  return ["Lists", ...ls.map(({ node, items, open }) => `${"  ".repeat(node.depth)}- ${node.emoji ? `${node.emoji} ` : ""}${node.name} — ${items} ${items === 1 ? "item" : "items"}${items ? `, ${open} not done` : ""} [id ${node.id}]`)].join("\n");
-}
-
-export function itemLine(i: ListItem, opts: { list?: string } = {}): string {
-  const facts = [STATUS_WORDS[i.status]];
-  if (i.rating) facts.push(`${i.rating}★`);
-  if (i.tags.length) facts.push(i.tags.map(tagToken).join(" "));
-  if (i.url) facts.push(i.previewTitle ? `${i.url} (${i.previewTitle})` : i.url);
-  if (i.note) facts.push(`note: ${i.note.replace(/\s+/g, " ").slice(0, 120)}${i.note.length > 120 ? "…" : ""}`);
-  if (opts.list) facts.push(`in ${opts.list}`);
-  return `- ${i.title} — ${facts.join(" · ")} [id ${i.id}]`;
-}
-
-export function formatList(v: ListView): string {
-  const out = [`${v.emoji ? `${v.emoji} ` : ""}${v.path} [id ${v.id}]`];
-  if (v.children.length) out.push("Lists inside", ...v.children.map((c) => `- ${c.emoji ? `${c.emoji} ` : ""}${c.name} — ${c.items} items, ${c.open} not done [id ${c.id}]`));
-  if (v.items.length) out.push(`Items (${v.items.length})`, ...v.items.map((i) => itemLine(i)));
-  else out.push(v.children.length ? "No items of its own." : "No items yet.");
-  if (v.hidden > 0) out.push(`(${v.hidden} more hidden by the filter or "Hide done")`);
-  return out.join("\n");
-}
-
 export function formatSearch(v: SearchView, query: string, today: LocalDate): string {
   const parts = [
     section("Tasks", v.tasks.map((t) => taskLine(t, today, { day: true, state: true }))),
     section("Projects", v.projects.map((p) => `- ${p.name}${p.area ? ` (in ${p.area})` : ""} [id ${p.id}]`)),
     section("Areas", v.areas.map((a) => `- ${a.name} [id ${a.id}]`)),
-    section("Lists", v.lists.map((l) => `- ${l.path} [id ${l.id}]`)),
-    section("List items", v.items.map((i) => itemLine(i, { list: i.list }))),
   ].filter((s): s is string => s !== null);
   return parts.length ? parts.join("\n\n") : `Nothing matches “${query}”.`;
 }

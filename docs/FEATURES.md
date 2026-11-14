@@ -12,7 +12,7 @@ Each feature is tagged with the milestone where it fits:
 | **Later** | After launch |
 | **Never** | Deliberately out |
 
-**Scope (DECISIONS.md, amendment 2026-11-14).** A feature belongs when it makes the day's spare-time number true or helps the person act on it. What does not is tagged "Later (parked 2026-11-14)": nothing built was taken away, and a parked feature comes back only when people using the app ask for it.
+**Scope (DECISIONS.md, amendment 2026-11-14).** A feature belongs when it makes the day's spare-time number true or helps the person act on it. What does not is tagged "Later (parked 2026-11-14)", and a parked feature comes back only when people using the app ask for it. One built feature did not pass and was taken out the same day: Lists (§12, tagged "Removed 2026-11-14"); what accounts had kept in lists is still in the database and in the export.
 
 "From" names the app that does it best today. ⏳ marks items that depend on an open question in DECISIONS.md.
 
@@ -126,7 +126,7 @@ Each feature is tagged with the milestone where it fits:
 | Brain-dump → tasks; "Break this down"; estimate suggestions (parked: Claude does this through the MCP server) | Later (parked 2026-11-14) | Todoist, Tiimo, Any.do |
 | Plain-English explanations for "Plan my day" (the template sentences shipped with Plan my day on 2026-10-01; AI rewording of them is parked) | Later (parked 2026-11-14) | — |
 | Weekly-review summary draft | Later (parked 2026-11-14) | — |
-| MCP server for Claude (`/api/mcp`, Supabase OAuth, read and change or read only per connection, Settings › Connected apps; pulled forward 2026-10-23, DECISIONS.md amendment of that date). Claude can show Plan my day and put it on the timeline (`plan_day`, `apply_day_plan`; 2026-11-14) | M1 | Todoist, Akiflow, Linear |
+| MCP server for Claude (`/api/mcp`, Supabase OAuth, read and change or read only per connection, Settings › Connected apps; pulled forward 2026-10-23, DECISIONS.md amendment of that date). Claude can show Plan my day and put it on the timeline (`plan_day`, `apply_day_plan`; 2026-11-14). Fourteen tools; the five list tools went with Lists | M1 | Todoist, Akiflow, Linear |
 | Public API, propose-then-approve for agents, agent activity log with undo | M3 | Todoist, Akiflow, Linear |
 | Credits, AI add-ons, "chat with your tasks" as a headline | Never | research: metered AI resented |
 
@@ -195,21 +195,20 @@ Things the first catalogue missed: long-unbuilt requests on public vote boards, 
 | **Subtasks schedulable on their own** | Never | Conflicts with the one-level checklist; "Convert to project" covers it |
 | **Location reminders** | Never | Web apps can't geofence in the background |
 
-## 12. Lists — things that aren't tasks (added 2026-10-22, DECISIONS.md amendment of that date)
+## 12. Lists — things that aren't tasks (added 2026-10-22, removed 2026-11-14)
 
-Kept as built and not grown (DECISIONS.md, amendment 2026-11-14): a list is not part of the day's number.
-Ideas, things to watch or read, anything worth keeping that has no date and costs no time.
+Taken out of the app (DECISIONS.md, amendment 2026-11-14): a list has no day and costs no time, so it is not part of the day's number. The rows are the feature as it was built, kept as the design if it comes back. What accounts had kept in lists stays in the database, and Settings › Data still exports it, until that data is deleted.
 | Feature | When | From |
 |---|---|---|
-| A "Lists" section in the sidebar (Browse on a phone), lists inside lists to any depth, an emoji per list | M1 | Notion, Capacities |
-| Items with a note (Markdown), a link, a status (to do · doing · done) and tags shared with tasks | M1 | Watchory, AniList |
-| A 1–5 star rating on an item | M1 | Letterboxd, StoryGraph |
-| Sort (by hand, name, date added, rating) and filter (status, hide done) | M1 | — |
-| "Pick one for me": a random item not yet done | M1 | Watchory |
-| Paste many lines → one item per line | M1 | Todoist (for tasks) |
-| Turn an item into a task (it lands in the Inbox; the item stays) | M1 | — |
-| Quick-add (Q) can save to a list | M1 | — |
-| ⌘K search finds list items; Settings › Data exports lists | M1 | — |
-| Link preview: the page's title and picture, fetched on the server | M1 | Raindrop, Pocket |
-| Share from other apps into a list (Android share menu; iPhone web apps cannot yet) | M1 | Web Share Target |
+| A "Lists" section in the sidebar (Browse on a phone), lists inside lists to any depth, an emoji per list | Removed 2026-11-14 | Notion, Capacities |
+| Items with a note (Markdown), a link, a status (to do · doing · done) and tags shared with tasks | Removed 2026-11-14 | Watchory, AniList |
+| A 1–5 star rating on an item | Removed 2026-11-14 | Letterboxd, StoryGraph |
+| Sort (by hand, name, date added, rating) and filter (status, hide done) | Removed 2026-11-14 | — |
+| "Pick one for me": a random item not yet done | Removed 2026-11-14 | Watchory |
+| Paste many lines → one item per line | Removed 2026-11-14 | Todoist (for tasks) |
+| Turn an item into a task (it lands in the Inbox; the item stays) | Removed 2026-11-14 | — |
+| Quick-add (Q) can save to a list | Removed 2026-11-14 | — |
+| ⌘K search finds list items; Settings › Data exports lists | Removed 2026-11-14 | — |
+| Link preview: the page's title and picture, fetched on the server | Removed 2026-11-14 | Raindrop, Pocket |
+| Share from other apps (Android share menu; iPhone web apps cannot yet): what is shared opens quick add as a task, the link as its note. Sharing into a list went with Lists | M1 | Web Share Target |
 

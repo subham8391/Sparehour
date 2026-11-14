@@ -2,7 +2,7 @@
 // the protected-resource document, that names Supabase Auth, the client registers itself and sends the person to
 // the consent screen, Allow returns a code, the code becomes the person's token. With it the tools add a task from
 // quick-add words (it reaches the app through sync), show Plan my day and put it on the timeline (DECISIONS.md,
-// amendment 2026-11-14), move the task, complete it, and make a list with items; then Settings
+// amendment 2026-11-14), move the task and complete it; then Settings
 // › Connected apps makes the connection read only (writes are refused, reads still answer) and Disconnect stops the
 // token. Every row here starts with "E2E ", so afterAll and the teardown remove them.
 import { createHash, randomBytes } from "node:crypto";
@@ -16,7 +16,6 @@ const n = `m${Date.now().toString(36)}`;
 const CLIENT = `${E2E_PREFIX}Claude ${n}`;
 const REDIRECT = "http://127.0.0.1:47823/callback";
 const title = `${E2E_PREFIX}Draft proposal ${n}`;
-const listName = `${E2E_PREFIX}Books ${n}`;
 const tag = `e2e-${n}`;
 
 // The client's own callback, as Claude Code listens on localhost: a browser follows the consent's 303 straight to it.
@@ -35,8 +34,6 @@ test.afterAll(async () => {
   await withDb(async (c) => {
     await c.query("delete from public.task_tags where task_id in (select id from public.tasks where title like $1)", [`%${n}`]);
     await c.query("delete from public.tasks where title like $1", [`%${n}`]);
-    await c.query("delete from public.list_items where title like $1", [`%${n}`]);
-    await c.query("delete from public.lists where name like $1", [`%${n}`]);
     await c.query("delete from public.tags where name = $1", [tag]);
     await c.query("delete from public.app_connections where client_name = $1", [CLIENT]);
     await c.query("delete from auth.oauth_clients where client_name = $1", [CLIENT]);
@@ -121,7 +118,10 @@ test("Claude connects through the consent screen and works the planner over MCP"
   expect(init.status).toBe(200);
   expect(init.json.result.serverInfo.name).toBe("sparehour");
   const tools = await rpc(request, token, "tools/list");
-  expect(tools.json.result.tools.map((t: { name: string }) => t.name)).toEqual(expect.arrayContaining(["get_today", "get_inbox", "get_upcoming", "search", "add_task", "complete_task", "reschedule_task", "plan_day", "apply_day_plan", "create_list", "add_list_items"]));
+  const names: string[] = tools.json.result.tools.map((t: { name: string }) => t.name);
+  expect(names).toEqual(expect.arrayContaining(["get_today", "get_inbox", "get_upcoming", "search", "add_task", "complete_task", "reschedule_task", "plan_day", "apply_day_plan"]));
+  // Lists were taken out of the app (DECISIONS.md, amendment 2026-11-14): Claude is offered no list tool.
+  expect(names.filter((name) => /list_item|_lists?$/.test(name))).toEqual([]);
 
   // add_task reads quick-add as the app does: a Friday at 15:00, 45 minutes, a new tag; written as the person, by MCP.
   const added = await call(request, token, "add_task", { text: `${title} fri 3pm ~45m @${tag}` });
@@ -204,19 +204,6 @@ test("Claude connects through the consent screen and works the planner over MCP"
   expect((await withDb((c) => c.query("select do_date::text from public.tasks where id = $1", [taskId]))).rows[0].do_date).toBe(isoPlus(me.today, 1));
   expect((await call(request, token, "complete_task", { task: title })).text).toBe(`Completed “${title}”`);
   expect((await withDb((c) => c.query("select state from public.tasks where id = $1", [taskId]))).rows[0].state).toBe("done");
-
-  // A list with items: a rating, a status and a tag on one, a plain title for the other.
-  const made = await call(request, token, "create_list", { name: listName, emoji: "📚" });
-  const listId = idIn(made.text) as string;
-  expect(listId).toBeTruthy();
-  const items = await call(request, token, "add_list_items", { list: listName, items: [{ title: `${E2E_PREFIX}Dune ${n}`, status: "doing", rating: 5, tags: [tag] }, `${E2E_PREFIX}Neuromancer ${n}`] });
-  expect(items.text).toContain("Added 2 items");
-  expect((await call(request, token, "update_list_item", { item: `${E2E_PREFIX}Dune ${n}`, status: "done" })).text).toContain("marked done");
-  const list = await call(request, token, "get_list", { list: listId });
-  expect(list.text).toContain(`${E2E_PREFIX}Neuromancer ${n} — to do`);
-  expect(list.text).toContain(`${E2E_PREFIX}Dune ${n} — done · 5★ · @${tag}`);
-  await openApp(page, `/list/${listId}`);
-  await expect(page.getByText(`${E2E_PREFIX}Neuromancer ${n}`)).toBeVisible({ timeout: 30_000 });
 
   // Settings › Connected apps: read only. Writes are refused with the way back; reads still answer.
   await openApp(page, "/settings#connections");

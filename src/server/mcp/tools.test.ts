@@ -12,7 +12,7 @@ import { SERVER_INSTRUCTIONS, buildServer, type Access, type Effects } from "./t
 const NOW = Temporal.Instant.from("2026-10-23T09:00:00Z");
 
 let store: FakeStore;
-let effects: Effects & { calendarChanged: Mock<() => void>; linkSaved: Mock<(itemId: string, url: string) => void> };
+let effects: Effects & { calendarChanged: Mock<() => void> };
 
 function handlerFor(access: Access) {
   return createMcpHandler(() => buildServer(new Planner(store, { device: "mcp:c1", now: () => NOW }), access, effects));
@@ -39,25 +39,23 @@ async function call(access: Access, name: string, args: Record<string, unknown> 
 
 beforeEach(() => {
   store = new FakeStore(
-    {
-      lists: [{ id: "l1", space_id: "s1", parent_id: null, name: "Books", emoji: "📚", item_order: "manual", hide_done: 0, sort_key: "a0", deleted_at: null }],
-      time_blocks: [],
-    },
+    { time_blocks: [] },
     { userId: "u1", spaceId: "s1" },
   );
-  effects = { calendarChanged: vi.fn<() => void>(), linkSaved: vi.fn<(itemId: string, url: string) => void>() };
+  effects = { calendarChanged: vi.fn<() => void>() };
 });
 
 describe("the Sparehour MCP server", () => {
-  it("introduces itself with its instructions and lists nine reads and ten writes, annotated", async () => {
+  it("introduces itself with its instructions and lists seven reads and seven writes, annotated, and no list tools", async () => {
     const init = await rpc("write", "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } });
     expect(init.json.result.serverInfo).toMatchObject({ name: "sparehour", title: "Sparehour" });
     expect(init.json.result.instructions).toBe(SERVER_INSTRUCTIONS);
     const { tools } = (await rpc("write", "tools/list")).json.result as { tools: { name: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean }; inputSchema: { properties?: Record<string, unknown> } }[] };
     const reads = tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name);
     const writes = tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name);
-    expect(reads).toEqual(["get_today", "get_inbox", "get_upcoming", "get_task", "search", "list_projects", "get_lists", "get_list", "plan_day"]);
-    expect(writes).toEqual(["apply_day_plan", "add_task", "complete_task", "reopen_task", "reschedule_task", "update_task", "drop_task", "create_list", "add_list_items", "update_list_item"]);
+    expect(reads).toEqual(["get_today", "get_inbox", "get_upcoming", "get_task", "search", "list_projects", "plan_day"]);
+    expect(writes).toEqual(["apply_day_plan", "add_task", "complete_task", "reopen_task", "reschedule_task", "update_task", "drop_task"]);
+    expect(init.json.result.instructions).not.toMatch(/\blists?\b/i);
     expect(tools.find((t) => t.name === "drop_task")?.annotations.destructiveHint).toBe(true);
     expect(Object.keys(tools.find((t) => t.name === "add_task")?.inputSchema.properties ?? {})).toEqual(["text", "notes"]);
   });
@@ -84,8 +82,8 @@ describe("the Sparehour MCP server", () => {
       ["add_task", { text: "Anything" }],
       ["complete_task", { task: "x" }],
       ["reschedule_task", { task: "x", when: "tomorrow" }],
-      ["create_list", { name: "Films" }],
-      ["add_list_items", { list: "Books", items: ["Dune"] }],
+      ["update_task", { task: "x", title: "y" }],
+      ["drop_task", { task: "x" }],
       ["apply_day_plan", {}],
     ] as const) {
       const r = await call("read", name, args);
@@ -93,15 +91,10 @@ describe("the Sparehour MCP server", () => {
       expect(r.text).toMatch(/^This connection is read only, so Sparehour changed nothing\. .*Settings › Connected apps/);
     }
     expect(store.ops).toHaveLength(0);
-    expect((await call("read", "get_lists")).text).toBe("Lists\n- 📚 Books — 0 items [id l1]");
+    expect((await call("read", "get_inbox")).text).toBe("The inbox is empty.");
   });
 
-  it("asks for a link's preview after an item with a link is saved, and for the calendar when blocks are let go", async () => {
-    const r = await call("write", "add_list_items", { list: "Books", items: [{ title: "Dune", url: "en.wikipedia.org/wiki/Dune_(novel)" }, "Neuromancer"] });
-    expect(r.text).toMatch(/^Added 2 items to Books:\n- Dune \[id .+\]\n- Neuromancer \[id .+\]$/);
-    expect(effects.linkSaved).toHaveBeenCalledTimes(1);
-    expect(effects.linkSaved.mock.calls[0][1]).toBe("https://en.wikipedia.org/wiki/Dune_(novel)");
-
+  it("asks for the calendar when blocks are let go", async () => {
     store.tables.tasks.push({ id: "t1", space_id: "s1", title: "Deep work", state: "active", do_date: "2026-10-23", priority: 0, evening: 0, carry_count: 0, sort_key: "a0", deleted_at: null });
     store.tables.time_blocks.push({ id: "b1", task_id: "t1", start_at: "2026-10-23T14:00:00+00:00", end_at: "2026-10-23T15:00:00+00:00", locked: 0, deleted_at: null });
     expect((await call("write", "reschedule_task", { task: "Deep work", when: "mon" })).text).toBe("Moved “Deep work” to Mon 26 Oct");

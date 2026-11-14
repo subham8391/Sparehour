@@ -1,21 +1,20 @@
-// The Sparehour MCP server's tools (DECISIONS.md, amendments 2026-10-23 and 2026-11-14): nine that read and ten that
-// write, each a thin call into the Planner with its answer in plain text. A write on a read-only connection is refused here with
+// The Sparehour MCP server's tools (DECISIONS.md, amendments 2026-10-23 and 2026-11-14): seven that read and seven
+// that write, each a thin call into the Planner with its answer in plain text. A write on a read-only connection is refused here with
 // the way to change it, before anything reaches Postgres (which refuses it too: migration 20261023000100).
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
-import { formatAdded, formatInbox, formatList, formatLists, formatPlan, formatProjects, formatSearch, formatTask, formatToday, formatUpcoming } from "./format";
+import { formatAdded, formatInbox, formatPlan, formatProjects, formatSearch, formatTask, formatToday, formatUpcoming } from "./format";
 import { Refusal, type Planner } from "./planner";
 
 export type Access = "read" | "write";
 
-/** Follow-ups a write asks of the route, run after the answer is sent (`after()`): the calendar push, a link's preview. */
+/** Follow-ups a write asks of the route, run after the answer is sent (`after()`): the calendar push. */
 export interface Effects {
   calendarChanged(): void;
-  linkSaved(itemId: string, url: string): void;
 }
 
-export const SERVER_INSTRUCTIONS = `Sparehour is a calm, time-aware personal planner. A task has a do-date (the day the person plans to do it), maybe a time, an optional deadline (only a missed deadline is late), an estimate, a project or an area, tags and a priority. Today shows the day's tasks, This evening, Carried over (tasks whose day passed; say "carried over", never "overdue") and the spare time left after meetings, a buffer and what is planned. Lists hold things that are not tasks (to read, to watch, ideas): items with a status (to do, doing, done), a 1–5 rating, a link, a note and tags; lists nest.
-Look with get_today, get_inbox, get_upcoming, search, get_lists and get_list; act with the ids they return (titles work too when only one task matches). plan_day is the app's own Plan my day for the rest of today and changes nothing; show it, and call apply_day_plan only when the person agrees. add_task takes one line in Sparehour's quick-add syntax, so pass the person's words through rather than rewriting them. Keep answers calm and short.`;
+export const SERVER_INSTRUCTIONS = `Sparehour is a calm, time-aware personal planner. A task has a do-date (the day the person plans to do it), maybe a time, an optional deadline (only a missed deadline is late), an estimate, a project or an area, tags and a priority. Today shows the day's tasks, This evening, Carried over (tasks whose day passed; say "carried over", never "overdue") and the spare time left after meetings, a buffer and what is planned.
+Look with get_today, get_inbox, get_upcoming and search; act with the ids they return (titles work too when only one task matches). plan_day is the app's own Plan my day for the rest of today and changes nothing; show it, and call apply_day_plan only when the person agrees. add_task takes one line in Sparehour's quick-add syntax, so pass the person's words through rather than rewriting them. Keep answers calm and short.`;
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
@@ -27,9 +26,7 @@ const READ_ONLY =
   "This connection is read only, so Sparehour changed nothing. To let Claude make changes, open Sparehour › Settings › Connected apps and set this app to “Read and change”.";
 
 const taskRef = z.string().min(1).max(500).describe("The task's id (from any listing), or its title when only one open task has it.");
-const listRef = z.string().min(1).max(500).describe("The list's id, its name when only one list has it, or its path such as “Anime › Action”.");
 const tagNames = z.array(z.string().min(1).max(100)).max(20);
-const status = z.enum(["todo", "doing", "done"]);
 
 export function registerTools(server: McpServer, planner: Planner, access: Access, effects: Effects): void {
   const run = (fn: () => Promise<string>) =>
@@ -80,7 +77,7 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
     "search",
     {
       title: "Search",
-      description: "Finds open tasks (title or note), projects, areas, lists and list items containing every word of the query.",
+      description: "Finds open tasks (title or note), projects and areas containing every word of the query.",
       inputSchema: z.object({
         query: z.string().min(1).max(200),
         include_done: z.boolean().default(false).describe("Also finished and dropped tasks (the Logbook keeps finished ones for a week)."),
@@ -94,23 +91,6 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
     "list_projects",
     { title: "Areas and projects", description: "Every area with its projects, and the projects in no area, with how many tasks are open in each.", inputSchema: z.object({}), annotations: READ },
     () => run(async () => formatProjects(await planner.projects())),
-  );
-
-  server.registerTool(
-    "get_lists",
-    { title: "Lists", description: "Every list (for things that aren't tasks) as a tree, with how many items each holds and how many are not done.", inputSchema: z.object({}), annotations: READ },
-    () => run(async () => formatLists(await planner.lists())),
-  );
-
-  server.registerTool(
-    "get_list",
-    {
-      title: "A list",
-      description: "One list: the lists inside it and its items in the list's own order, each with its status, rating, tags, link and note.",
-      inputSchema: z.object({ list: listRef, status: z.enum(["all", "todo", "doing", "done"]).default("all").describe("Only items with this status.") }),
-      annotations: READ,
-    },
-    ({ list, status }) => run(async () => formatList(await planner.list(list, status))),
   );
 
   server.registerTool(
@@ -230,88 +210,6 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
       write(async () => {
         const r = await planner.drop(task);
         if (r.blocksReleased) effects.calendarChanged();
-        return r.said;
-      }),
-  );
-
-  // ---------------------------------------------------------------- list writes
-
-  server.registerTool(
-    "create_list",
-    {
-      title: "Create a list",
-      description: "Makes a list for things that aren't tasks, at the top or inside another list.",
-      inputSchema: z.object({
-        name: z.string().min(1).max(200),
-        parent: listRef.optional().describe("The list to put it inside; left out, it goes at the top."),
-        emoji: z.string().max(16).optional(),
-      }),
-      annotations: WRITE,
-    },
-    ({ name, parent, emoji }) =>
-      write(async () => {
-        const made = await planner.createList(name, parent, emoji);
-        return `Made the list ${made.path} [id ${made.id}]`;
-      }),
-  );
-
-  server.registerTool(
-    "add_list_items",
-    {
-      title: "Add to a list",
-      description: "Adds items at the end of a list. Each item is a title, or an object with a title and optionally a note, a link, a status (todo, doing, done; new items are todo), a 1–5 rating and tags. A string with several lines is one item a line.",
-      inputSchema: z.object({
-        list: listRef,
-        items: z
-          .array(
-            z.union([
-              z.string().min(1).max(5000),
-              z.object({
-                title: z.string().min(1).max(500),
-                note: z.string().max(10000).optional(),
-                url: z.string().max(2048).optional(),
-                status: status.optional(),
-                rating: z.number().int().min(1).max(5).optional(),
-                tags: tagNames.optional(),
-              }),
-            ]),
-          )
-          .min(1)
-          .max(100),
-      }),
-      annotations: WRITE,
-    },
-    ({ list, items }) =>
-      write(async () => {
-        const r = await planner.addItems(list, items);
-        for (const a of r.added) if (a.url) effects.linkSaved(a.id, a.url);
-        return [`Added ${r.added.length} ${r.added.length === 1 ? "item" : "items"} to ${r.list}:`, ...r.added.map((a) => `- ${a.title} [id ${a.id}]`)].join("\n");
-      }),
-  );
-
-  server.registerTool(
-    "update_list_item",
-    {
-      title: "Edit a list item",
-      description: "Changes an item's status, rating, title, note, link or tags, or moves it to another list. Only the fields given change.",
-      inputSchema: z.object({
-        item: z.string().min(1).max(500).describe("The item's id, or its title when only one item has it."),
-        in_list: listRef.optional().describe("Where to look for the item by title."),
-        title: z.string().min(1).max(500).optional(),
-        note: z.string().max(10000).nullable().optional(),
-        url: z.string().max(2048).nullable().optional(),
-        status: status.optional(),
-        rating: z.number().int().min(1).max(5).nullable().optional().describe("1–5 stars; null takes the rating off."),
-        add_tags: tagNames.optional(),
-        remove_tags: tagNames.optional(),
-        move_to: listRef.optional().describe("Another list to move it to."),
-      }),
-      annotations: WRITE,
-    },
-    ({ item, in_list, add_tags, remove_tags, move_to, ...rest }) =>
-      write(async () => {
-        const r = await planner.updateItem(item, { ...rest, addTags: add_tags, removeTags: remove_tags, list: move_to }, in_list);
-        if (r.url) effects.linkSaved(r.id, r.url);
         return r.said;
       }),
   );

@@ -23,7 +23,7 @@ export const EXPORT_TABLES = [
   "day_plans",
   "work_hours",
   "user_settings",
-  // Lists (DECISIONS.md, amendment 2026-10-22): things that aren't tasks.
+  // Lists were taken out of the app on 2026-11-14 (DECISIONS.md); what an account already kept in them still exports.
   "lists",
   "list_items",
   "list_item_tags",

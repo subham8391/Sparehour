@@ -229,17 +229,19 @@ describe("the reads", () => {
     expect(text).toContain("Not yet planned (1, no day yet)");
   });
 
-  it("finds tasks, projects, lists and items holding every word", async () => {
+  it("finds tasks, projects and areas holding every word", async () => {
     setup({
       tasks: [task({ title: "Draft the Acme proposal" }), task({ title: "Proposal for Bea" }), task({ title: "Old Acme proposal", state: "done", completed_at: "2026-10-20T08:00:00Z" })],
-      lists: [{ id: "l1", parent_id: null, name: "Acme reading", emoji: null, sort_key: "a0", deleted_at: null }],
-      list_items: [{ id: "i1", list_id: "l1", space_id: "s1", title: "The Acme proposal template", status: "todo", sort_key: "a0", deleted_at: null }],
+      projects: [{ id: "p1", space_id: "s1", area_id: "a1", name: "Acme launch", state: "active", sort_key: "a0", deleted_at: null }],
+      areas: [{ id: "a1", space_id: "s1", name: "Acme", sort_key: "a0", deleted_at: null }],
     });
     const found = await planner.search("acme proposal");
     expect(found.tasks.map((t) => t.title)).toEqual(["Draft the Acme proposal"]);
-    expect(found.items.map((i) => i.title)).toEqual(["The Acme proposal template"]);
     expect((await planner.search("acme proposal", true)).tasks.map((t) => t.title)).toEqual(["Draft the Acme proposal", "Old Acme proposal"]);
-    expect((await planner.search("acme")).lists).toEqual([{ id: "l1", path: "Acme reading" }]);
+    const acme = await planner.search("acme");
+    expect(acme.projects).toEqual([{ id: "p1", name: "Acme launch", area: "Acme" }]);
+    expect(acme.areas).toEqual([{ id: "a1", name: "Acme" }]);
+    expect(acme).not.toHaveProperty("lists");
     expect(await refusal(planner.search("  "))).toMatch(/at least one word/);
   });
 });
@@ -370,72 +372,6 @@ describe("editing a task", () => {
 
   it("reads estimates as the app's tokens do", () => {
     expect([45, "45m", "45", "1h", "1h30", "1.5h", null, "none", "two", 0, 2000].map(estimateMinutes)).toEqual([45, 45, 45, 60, 90, 90, null, null, undefined, undefined, undefined]);
-  });
-});
-
-describe("lists", () => {
-  const lists = () => [
-    { id: "l-anime", space_id: "s1", parent_id: null, name: "Anime", emoji: "🍥", item_order: "manual", hide_done: 0, sort_key: "a0", deleted_at: null },
-    { id: "l-action", space_id: "s1", parent_id: "l-anime", name: "Action", emoji: null, item_order: "rating", hide_done: 1, sort_key: "a0", deleted_at: null },
-  ];
-
-  it("makes a list at the top or inside another, and will not make a twin", async () => {
-    setup({ lists: lists() });
-    expect(await planner.createList("Drama", "Anime", "🎭")).toEqual({ id: expect.any(String), path: "Anime › Drama" });
-    expect(only(opsOn("lists")).data).toMatchObject({ parent_id: "l-anime", name: "Drama", emoji: "🎭", item_order: "manual", hide_done: false, space_id: "s1" });
-    expect(await refusal(planner.createList("action", "Anime"))).toMatch(/already a list called “Action” in Anime/);
-    expect(await refusal(planner.createList("Films", "Nope"))).toMatch(/No list is called “Nope”/);
-  });
-
-  it("adds items in order with a link made whole, a status, a rating and tags; one string a line", async () => {
-    setup({ lists: lists() });
-    const r = await planner.addItems("Anime › Action", [{ title: "Attack on Titan", url: "example.com/aot", status: "done", rating: 5, tags: ["client", "rewatch"] }, "- Jujutsu Kaisen\n- Demon Slayer"]);
-    expect(r.list).toBe("Anime › Action");
-    const items = opsOn("list_items");
-    expect(items.map((o) => o.data?.title)).toEqual(["Attack on Titan", "Jujutsu Kaisen", "Demon Slayer"]);
-    expect(items[0].data).toMatchObject({ list_id: "l-action", url: "https://example.com/aot", status: "done", rating: 5, done_at: "2026-10-23T09:00:00.000Z" });
-    expect(items[1].data).toMatchObject({ status: "todo", url: null, done_at: null });
-    const keys = items.map((o) => String(o.data?.sort_key));
-    expect([...keys].sort()).toEqual(keys);
-    expect(opsOn("tags").map((o) => o.data?.name)).toEqual(["rewatch"]);
-    expect(opsOn("list_item_tags")).toHaveLength(2);
-    expect(r.added[0].url).toBe("https://example.com/aot");
-    expect(await refusal(planner.addItems("Action", [{ title: "Bad", url: "not a link" }]))).toMatch(/not a web address/);
-    expect(await refusal(planner.addItems("Action", [{ title: "Too many stars", rating: 6 }]))).toMatch(/1 to 5/);
-  });
-
-  it("shows a list as its page does: sub-lists first, its own order, done hidden when it hides them", async () => {
-    setup({
-      lists: lists(),
-      list_items: [
-        { id: "i1", space_id: "s1", list_id: "l-action", title: "Bleach", status: "todo", rating: 3, sort_key: "a0", created_at: "2026-10-01", deleted_at: null },
-        { id: "i2", space_id: "s1", list_id: "l-action", title: "AoT", status: "doing", rating: 5, sort_key: "a1", created_at: "2026-10-02", deleted_at: null },
-        { id: "i3", space_id: "s1", list_id: "l-action", title: "Naruto", status: "done", rating: 4, sort_key: "a2", created_at: "2026-10-03", deleted_at: null },
-      ],
-    });
-    const top = await planner.list("Anime");
-    expect(top.children).toEqual([{ id: "l-action", name: "Action", emoji: null, items: 3, open: 2 }]);
-    const action = await planner.list("anime/action");
-    expect(action.items.map((i) => i.title)).toEqual(["AoT", "Bleach"]);
-    expect(action.hidden).toBe(1);
-    expect((await planner.list("Action", "done")).items.map((i) => i.title)).toEqual(["Naruto"]);
-    const all = await planner.lists();
-    expect(all.map((l) => [l.node.name, l.node.depth, l.items, l.open])).toEqual([
-      ["Anime", 0, 0, 0],
-      ["Action", 1, 3, 2],
-    ]);
-  });
-
-  it("edits an item: status stamps done, a rating comes off, it moves to the end of another list", async () => {
-    setup({
-      lists: lists(),
-      list_items: [{ id: "i1", space_id: "s1", list_id: "l-action", title: "Bleach", status: "todo", rating: 3, sort_key: "a0", deleted_at: null }],
-    });
-    const r = await planner.updateItem("bleach", { status: "done", rating: null, list: "Anime" });
-    expect(only(opsOn("list_items")).data).toMatchObject({ status: "done", done_at: "2026-10-23T09:00:00.000Z", rating: null, list_id: "l-anime" });
-    expect(r.said).toBe("Changed “Bleach”: marked done, rating taken off, moved to Anime");
-    expect(await refusal(planner.updateItem("Bleach", { rating: 9 }))).toMatch(/1 to 5 stars/);
-    expect(await refusal(planner.updateItem("Nothing like it", { status: "done" }))).toMatch(/No list item matches/);
   });
 });
 

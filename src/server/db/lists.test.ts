@@ -1,3 +1,5 @@
+// Lists were taken out of the app on 2026-11-14 (DECISIONS.md), but the tables stay, holding what accounts kept in
+// them, until that data is deleted; so their contract is still checked.
 // Lists' database contract (migration 20261022000100; DECISIONS.md, amendment 2026-10-22): the three tables take
 // writes through apply_mutations like areas do, another person can neither read nor write them, a list never ends up
 // inside itself or in another space, an item's link preview is the server's (and goes when the link changes), and a

@@ -28,7 +28,7 @@
 | **M3 — public launch** | Billing, onboarding, landing page, data export |
 
 ## Connect Claude to Sparehour
-Claude can read your planner and, if you let it, change it: add tasks in quick-add words ("Draft proposal fri 3pm ~45m #Acme"), see Today with its spare time, the Inbox and Upcoming, complete, move and edit tasks, search, and keep your lists. It signs in as you through Sparehour's own consent screen, where you choose **Read and change** or **Read only**; Settings › Connected apps changes that or disconnects.
+Claude can read your planner and, if you let it, change it: add tasks in quick-add words ("Draft proposal fri 3pm ~45m #Acme"), see Today with its spare time, the Inbox and Upcoming, complete, move and edit tasks, search, and plan your day. It signs in as you through Sparehour's own consent screen, where you choose **Read and change** or **Read only**; Settings › Connected apps changes that or disconnects.
 
 The address is `https://sparehour-dev.vercel.app/api/mcp` (Settings › Connected apps shows it with a Copy button).
 
@@ -37,7 +37,7 @@ The address is `https://sparehour-dev.vercel.app/api/mcp` (Settings › Connecte
 - **Claude Code**: `claude mcp add --transport http sparehour https://sparehour-dev.vercel.app/api/mcp`, then `/mcp` → `sparehour` → **Authenticate**; the browser opens the consent screen.
 - **Locally**, against `npm run dev:stack`: run the app on port 3100 (`npm run build && npx next start -p 3100`; the local auth server sends consent there) and use `http://localhost:3100/api/mcp` from Claude Code. claude.ai cannot reach your machine.
 
-The tools: `get_today`, `get_inbox`, `get_upcoming`, `get_task`, `search`, `list_projects`, `get_lists`, `get_list`, `plan_day` (read); `apply_day_plan`, `add_task`, `complete_task`, `reopen_task`, `reschedule_task`, `update_task`, `drop_task`, `create_list`, `add_list_items`, `update_list_item` (write, refused on a read-only connection). The design is in [docs/DECISIONS.md](docs/DECISIONS.md) (amendment 2026-10-23).
+The tools: `get_today`, `get_inbox`, `get_upcoming`, `get_task`, `search`, `list_projects`, `plan_day` (read); `apply_day_plan`, `add_task`, `complete_task`, `reopen_task`, `reschedule_task`, `update_task`, `drop_task` (write, refused on a read-only connection). The design is in [docs/DECISIONS.md](docs/DECISIONS.md) (amendment 2026-10-23).
 
 ## Development
 Stack so far: Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · npm.

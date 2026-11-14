@@ -1,12 +1,11 @@
-// The planner as Claude sees it (DECISIONS.md, amendment 2026-10-23): what Today, the Inbox, Upcoming, search and the
-// lists show, and the writes a person makes from them — each read the way the app reads it (the same mappers,
-// carried-over rule, capacity engine and list helpers) and each write built as the app would build it (quick-add's
+// The planner as Claude sees it (DECISIONS.md, amendment 2026-10-23): what Today, the Inbox, Upcoming and search
+// show, and the writes a person makes from them — each read the way the app reads it (the same mappers,
+// carried-over rule and capacity engine) and each write built as the app would build it (quick-add's
 // parser and filing, the draft's row, a repeat's completion, a move "just this once") and sent through
 // apply_mutations as the person. Plan my day is the app's own scheduler (core/planning) over the same day, shown
 // first and written only when asked (DECISIONS.md, amendment 2026-11-14). Anything that cannot be done is a Refusal
 // with a reason the tools pass on.
 import { capacityFor, type Capacity } from "@/core/capacity";
-import { itemLines, normaliseUrl } from "@/core/lists/text";
 import { keyBetween } from "@/core/ordering";
 import { plan, type PlanBlock, type PlanInput, type Proposal } from "@/core/planning";
 import { parse, type ParseContext, type TaskDraft } from "@/core/quickadd";
@@ -20,7 +19,6 @@ import { carriedOver } from "@/core/rollover/carried";
 import { Temporal, compareDates, localDate, todayFor, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 import type { RecurrenceMode, Task } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
-import { arrangeItems, listPaths, listTree, toListItem, type ListItem, type ListItemRow, type ListNode } from "@/data/queries/lists";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 import { canApprovePlan } from "@/features/planning/entitlement";
 import { aheadDays, aheadThrough, isoAt, planTask } from "@/features/planning/plan-input";
@@ -94,27 +92,10 @@ export interface TaskDetail extends TaskView {
   checklist: { title: string; done: boolean }[];
 }
 
-export interface ListView {
-  id: string;
-  path: string;
-  emoji: string | null;
-  children: { id: string; name: string; emoji: string | null; items: number; open: number }[];
-  items: ListItem[];
-  hidden: number;
-}
-
-export interface ListSummary {
-  node: ListNode;
-  items: number;
-  open: number;
-}
-
 export interface SearchView {
   tasks: TaskView[];
   projects: { id: string; name: string; area: string | null }[];
   areas: { id: string; name: string }[];
-  lists: { id: string; path: string }[];
-  items: (ListItem & { list: string })[];
 }
 
 export interface Added {
@@ -131,27 +112,6 @@ export interface Changed {
   id: string;
   /** Blocks this change took off the calendar, so the caller can push the calendar now rather than at the tick. */
   blocksReleased: number;
-}
-
-export interface ItemInput {
-  title: string;
-  note?: string | null;
-  url?: string | null;
-  status?: "todo" | "doing" | "done";
-  rating?: number | null;
-  tags?: string[];
-}
-
-export interface ItemPatch {
-  title?: string;
-  note?: string | null;
-  url?: string | null;
-  status?: "todo" | "doing" | "done";
-  rating?: number | null;
-  addTags?: string[];
-  removeTags?: string[];
-  /** Another list to move it to (id or path). */
-  list?: string;
 }
 
 export interface TaskPatchInput {
@@ -490,43 +450,7 @@ export class Planner {
     };
   }
 
-  /** Every list as a tree, with how many items each holds and how many are not done. */
-  async lists(): Promise<ListSummary[]> {
-    const [lists, items] = await Promise.all([this.store.lists(), this.store.items({})]);
-    const counts = countItems(items);
-    const out: ListSummary[] = [];
-    const walk = (nodes: ListNode[]) => {
-      for (const node of nodes) {
-        const k = counts.get(node.id) ?? { items: 0, open: 0 };
-        out.push({ node, ...k });
-        walk(node.children);
-      }
-    };
-    walk(listTree(lists.map(navRow)));
-    return out;
-  }
-
-  /** One list: its path, its sub-lists, and its items in the list's own order (done ones hidden when it hides them). */
-  async list(ref: string, status: "all" | "todo" | "doing" | "done" = "all"): Promise<ListView> {
-    const lists = await this.store.lists();
-    const list = this.findList(ref, lists);
-    const children = lists.filter((l) => l.parent_id === list.id).sort((a, b) => byCodeUnit(String(a.sort_key ?? ""), String(b.sort_key ?? "")));
-    const [rows, childItems] = await Promise.all([this.store.items({ listIds: [String(list.id)] }), children.length ? this.store.items({ listIds: children.map((c) => String(c.id)) }) : Promise.resolve([])]);
-    const items = await this.itemViews(rows);
-    const order = (["manual", "name", "added", "rating"] as const).find((o) => o === list.item_order) ?? "manual";
-    const shown = arrangeItems(items, order, status, list.hide_done === 1);
-    const counts = countItems(childItems);
-    return {
-      id: String(list.id),
-      path: pathOf(String(list.id), lists),
-      emoji: str(list.emoji),
-      children: children.map((ch) => ({ id: String(ch.id), name: str(ch.name) ?? "Untitled list", emoji: str(ch.emoji), ...(counts.get(String(ch.id)) ?? { items: 0, open: 0 }) })),
-      items: shown,
-      hidden: items.length - shown.length,
-    };
-  }
-
-  /** Open tasks (and finished ones when asked), projects, areas, lists and list items matching every word. */
+  /** Open tasks (and finished ones when asked), projects and areas matching every word. */
   async search(query: string, includeDone = false): Promise<SearchView> {
     const words = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
     if (words.length === 0) throw new Refusal("Search for at least one word.");
@@ -536,18 +460,11 @@ export class Planner {
       return words.every((w) => hay.includes(w.toLocaleLowerCase()));
     };
     const states: TaskState[] = includeDone ? ["inbox", "active", "someday", "done", "dropped"] : ["inbox", "active", "someday"];
-    const [taskRows, projects, areas, lists, itemRows] = await Promise.all([
-      this.store.tasks({ states, text: longest, limit: 200 }),
-      this.store.projects(),
-      this.store.areas(),
-      this.store.lists(),
-      this.store.items({ text: longest, limit: 200 }),
-    ]);
+    const [taskRows, projects, areas] = await Promise.all([this.store.tasks({ states, text: longest, limit: 200 }), this.store.projects(), this.store.areas()]);
     const tasks = (await this.views(taskRows.filter((t) => has(str(t.title), str(t.notes_md)))))
       .sort((a, b) => Number(a.doDate === null) - Number(b.doDate === null) || (a.doDate && b.doDate ? compareDates(a.doDate, b.doDate) : 0) || byCodeUnit(a.sortKey, b.sortKey))
       .slice(0, 15);
     const areaName = new Map(areas.map((a) => [String(a.id), str(a.name)]));
-    const items = (await this.itemViews(itemRows.filter((i) => has(str(i.title), str(i.note_md))))).slice(0, 15);
     return {
       tasks,
       projects: projects
@@ -555,11 +472,6 @@ export class Planner {
         .slice(0, 10)
         .map((p) => ({ id: String(p.id), name: String(p.name ?? ""), area: p.area_id ? (areaName.get(String(p.area_id)) ?? null) : null })),
       areas: areas.filter((a) => has(str(a.name))).map((a) => ({ id: String(a.id), name: String(a.name ?? "") })),
-      lists: listPaths(lists.map(navRow))
-        .filter((l) => has(l.label))
-        .slice(0, 10)
-        .map((l) => ({ id: l.id, path: l.label })),
-      items: items.map((i) => ({ ...i, list: pathOf(i.listId, lists) })),
     };
   }
 
@@ -786,120 +698,6 @@ export class Planner {
     return { said: `Changed ${quoted(title)}: ${said.join(", ")}`, id, blocksReleased: 0 };
   }
 
-  // ---------------------------------------------------------------- list writes
-
-  async createList(name: string, parentRef?: string | null, emoji?: string | null): Promise<{ id: string; path: string }> {
-    const c = await this.ctx();
-    const clean = name.trim();
-    if (!clean) throw new Refusal("A list needs a name.");
-    if (clean.length > 200) throw new Refusal("That name is too long for a list (200 characters at most).");
-    const lists = await this.store.lists();
-    const parent = parentRef?.trim() ? this.findList(parentRef, lists) : null;
-    const parentId = parent ? String(parent.id) : null;
-    const twin = lists.find((l) => (l.parent_id ?? null) === parentId && fold(String(l.name ?? "")) === fold(clean));
-    if (twin) throw new Refusal(`There is already a list called ${quoted(String(twin.name))} ${parent ? `in ${pathOf(parentId as string, lists)}` : "at the top"} (id ${twin.id}). Add to it with add_list_items.`);
-    const id = this.newId();
-    await this.apply(
-      [this.put("lists", id, { space_id: parent ? str(parent.space_id) ?? c.spaceId : c.spaceId, parent_id: parentId, name: clean, emoji: emoji?.trim() || null, item_order: "manual", hide_done: false, sort_key: keyBetween(lastKey(await this.store.listSortKeys(parentId)), null) })],
-      `add the list ${quoted(clean)}`,
-    );
-    return { id, path: parent ? `${pathOf(parentId as string, lists)} › ${clean}` : clean };
-  }
-
-  /** Items at the end of a list, in order; each with an optional note, link, status, rating and tags. */
-  async addItems(listRef: string, input: readonly (ItemInput | string)[]): Promise<{ list: string; listId: string; added: { id: string; title: string; url: string | null }[] }> {
-    const c = await this.ctx();
-    const items: ItemInput[] = input.flatMap((i) => (typeof i === "string" ? itemLines(i).map((title) => ({ title })) : [{ ...i, title: i.title.trim() }])).filter((i) => i.title);
-    if (items.length === 0) throw new Refusal("There is nothing to add: every item needs a title.");
-    if (items.length > 100) throw new Refusal("Add at most 100 items at a time.");
-    const lists = await this.store.lists();
-    const list = this.findList(listRef, lists);
-    const listId = String(list.id);
-    const spaceId = str(list.space_id) ?? c.spaceId;
-    let key = lastKey(await this.store.itemSortKeys(listId));
-    const at = new Date(c.now.epochMilliseconds).toISOString();
-    const ops: WireOp[] = [];
-    const added: { id: string; title: string; url: string | null }[] = [];
-    for (const item of items) {
-      if (item.rating != null && (item.rating < 1 || item.rating > 5)) throw new Refusal(`A rating is 1 to 5 stars (${quoted(item.title)} had ${item.rating}).`);
-      const id = this.newId();
-      key = keyBetween(key, null);
-      const url = item.url ? normaliseUrl(item.url) : null;
-      if (item.url && !url) throw new Refusal(`${quoted(item.url)} is not a web address (for ${quoted(item.title)}).`);
-      const status = item.status ?? "todo";
-      ops.push(
-        this.put("list_items", id, {
-          space_id: spaceId,
-          list_id: listId,
-          title: item.title,
-          note_md: item.note?.trim() || null,
-          url,
-          status,
-          rating: item.rating == null ? null : Math.round(item.rating),
-          done_at: status === "done" ? at : null,
-          sort_key: key,
-        }),
-      );
-      ops.push(...(await this.tagLinks("list_item_tags", "item_id", id, spaceId, item.tags ?? [], ops)).ops);
-      added.push({ id, title: item.title, url });
-    }
-    await this.apply(ops, `add to ${quoted(String(list.name ?? ""))}`);
-    return { list: pathOf(listId, lists), listId, added };
-  }
-
-  async updateItem(ref: string, input: ItemPatch, listRef?: string): Promise<{ said: string; id: string; url: string | null }> {
-    const c = await this.ctx();
-    const lists = await this.store.lists();
-    const item = await this.findItem(ref, lists, listRef);
-    const id = String(item.id);
-    const title = String(item.title ?? "");
-    const patch: Record<string, unknown> = {};
-    const said: string[] = [];
-    if (input.title !== undefined) {
-      if (!input.title.trim()) throw new Refusal("An item needs a title.");
-      patch.title = input.title.trim();
-      said.push(`renamed to ${quoted(input.title.trim())}`);
-    }
-    if (input.note !== undefined) {
-      patch.note_md = input.note?.trim() || null;
-      said.push(patch.note_md ? "note replaced" : "note cleared");
-    }
-    let url: string | null = null;
-    if (input.url !== undefined) {
-      url = input.url ? normaliseUrl(input.url) : null;
-      if (input.url && !url) throw new Refusal(`${quoted(input.url)} is not a web address.`);
-      patch.url = url;
-      said.push(url ? `link ${url}` : "link cleared");
-    }
-    if (input.status !== undefined) {
-      patch.status = input.status;
-      patch.done_at = input.status === "done" ? new Date(c.now.epochMilliseconds).toISOString() : null;
-      said.push(input.status === "done" ? "marked done" : input.status === "doing" ? "marked doing" : "marked to do");
-    }
-    if (input.rating !== undefined) {
-      if (input.rating !== null && (input.rating < 1 || input.rating > 5)) throw new Refusal("A rating is 1 to 5 stars, or null to take it off.");
-      patch.rating = input.rating === null ? null : Math.round(input.rating);
-      said.push(input.rating === null ? "rating taken off" : `rated ${patch.rating}★`);
-    }
-    if (input.list !== undefined) {
-      const to = this.findList(input.list, lists);
-      if (String(to.id) !== String(item.list_id)) {
-        patch.list_id = String(to.id);
-        patch.sort_key = keyBetween(lastKey(await this.store.itemSortKeys(String(to.id))), null);
-        said.push(`moved to ${pathOf(String(to.id), lists)}`);
-      }
-    }
-    const ops: WireOp[] = Object.keys(patch).length ? [this.patch("list_items", id, patch)] : [];
-    if (input.addTags?.length || input.removeTags?.length) {
-      const tagOps = await this.retag("list_item_tags", "item_id", id, String(item.space_id), input.addTags ?? [], input.removeTags ?? []);
-      ops.push(...tagOps.ops);
-      said.push(...tagOps.said);
-    }
-    if (ops.length === 0) throw new Refusal("Nothing to change: give at least one field.");
-    await this.apply(ops, `change ${quoted(title)}`);
-    return { said: `Changed ${quoted(title)}: ${said.join(", ")}`, id, url };
-  }
-
   // ---------------------------------------------------------------- finding things
 
   /** A task by id, or by its title (exactly, else the one title that contains the words). */
@@ -939,55 +737,6 @@ export class Planner {
     const within = projects.filter((p) => fold(String(p.name ?? "")).includes(fold(name)));
     if (within.length === 1) return within[0];
     throw new Refusal(within.length ? `${quoted(name)} fits ${within.length} projects: ${within.map((p) => quoted(String(p.name))).join(", ")}.` : `No project is called ${quoted(name)}. Add one with add_task and #+${name.replace(/\s+/g, "")} or in Sparehour.`);
-  }
-
-  /** A list by id, by path ("Anime › Action" or "Anime/Action"), or by a name only one list has. */
-  private findList(ref: string, lists: readonly Row[]): Row {
-    const want = ref.trim();
-    if (!want) throw new Refusal("Say which list: its id, its name or its path.");
-    if (UUID.test(want)) {
-      const l = lists.find((x) => x.id === want);
-      if (!l) throw new Refusal(`No list has the id ${want}.`);
-      return l;
-    }
-    const paths = listPaths(lists.map(navRow));
-    const norm = (p: string) =>
-      p
-        .split(/\s*(?:›|>|\/)\s*/)
-        .map(fold)
-        .join(" › ");
-    const byPath = paths.filter((p) => norm(p.label) === norm(want));
-    if (byPath.length === 1) return lists.find((l) => l.id === byPath[0].id) as Row;
-    const byName = lists.filter((l) => fold(String(l.name ?? "")) === fold(want));
-    if (byName.length === 1) return byName[0];
-    if (byName.length > 1 || byPath.length > 1) {
-      const ids = new Set([...byName.map((l) => String(l.id)), ...byPath.map((p) => p.id)]);
-      throw new Refusal(`More than one list is called ${quoted(want)}: ${paths
-        .filter((p) => ids.has(p.id))
-        .map((p) => `${p.label} (id ${p.id})`)
-        .join("; ")}. Give the path or the id.`);
-    }
-    throw new Refusal(`No list is called ${quoted(want)}. get_lists shows them all; create_list makes a new one.`);
-  }
-
-  private async findItem(ref: string, lists: readonly Row[], listRef?: string): Promise<Row> {
-    const want = ref.trim();
-    if (!want) throw new Refusal("Say which item: its id or its title.");
-    if (UUID.test(want)) {
-      const [row] = await this.store.items({ ids: [want] });
-      if (!row) throw new Refusal(`No list item has the id ${want}.`);
-      return row;
-    }
-    const scope = listRef?.trim() ? String(this.findList(listRef, lists).id) : null;
-    const rows = (await this.store.items(scope ? { listIds: [scope] } : { text: want, limit: 100 })).filter((r) => fold(String(r.title ?? "")).includes(fold(want)));
-    const exact = rows.filter((r) => fold(String(r.title ?? "")) === fold(want));
-    const pool = exact.length ? exact : rows;
-    if (pool.length === 1) return pool[0];
-    if (pool.length === 0) throw new Refusal(`No list item matches ${quoted(want)}${scope ? ` in ${pathOf(scope, lists)}` : ""}.`);
-    throw new Refusal(`${pool.length} items match ${quoted(want)}: ${pool
-      .slice(0, 6)
-      .map((r) => `${quoted(String(r.title))} in ${pathOf(String(r.list_id), lists)} (id ${r.id})`)
-      .join("; ")}. Say which by its id.`);
   }
 
   /** A day as the task detail's Do field reads words, else an ISO date. */
@@ -1035,7 +784,7 @@ export class Planner {
   }
 
   /** Links to the named tags, made if they are new (create-if-missing, case-insensitive); `pending` holds tags made earlier in the same batch. */
-  private async tagLinks(table: "task_tags" | "list_item_tags", column: "task_id" | "item_id", ownerId: string, spaceId: string, names: readonly string[], pending: readonly WireOp[] = []): Promise<{ ops: WireOp[]; newTags: string[] }> {
+  private async tagLinks(table: "task_tags", column: "task_id", ownerId: string, spaceId: string, names: readonly string[], pending: readonly WireOp[] = []): Promise<{ ops: WireOp[]; newTags: string[] }> {
     const clean = [...new Map(names.map((n) => n.trim().replace(/^[@#]/, "")).filter(Boolean).map((n) => [fold(n), n])).values()];
     if (clean.length === 0) return { ops: [], newTags: [] };
     const known = (await this.store.tags()).map((t) => ({ id: String(t.id), name: String(t.name ?? "") }));
@@ -1055,8 +804,8 @@ export class Planner {
     return { ops, newTags };
   }
 
-  private async retag(table: "task_tags" | "list_item_tags", column: "task_id" | "item_id", ownerId: string, spaceId: string, add: readonly string[], remove: readonly string[]): Promise<{ ops: WireOp[]; said: string[] }> {
-    const current = (table === "task_tags" ? await this.store.taskTags([ownerId]) : await this.store.itemTags([ownerId])).map((t) => ({ name: t.name, linkId: t.link_id }));
+  private async retag(table: "task_tags", column: "task_id", ownerId: string, spaceId: string, add: readonly string[], remove: readonly string[]): Promise<{ ops: WireOp[]; said: string[] }> {
+    const current = (await this.store.taskTags([ownerId])).map((t) => ({ name: t.name, linkId: t.link_id }));
     const has = new Set(current.map((t) => fold(t.name)));
     const ops: WireOp[] = [];
     const said: string[] = [];
@@ -1088,13 +837,6 @@ export class Planner {
       .map((b) => String(b.id));
   }
 
-  private async itemViews(rows: readonly Row[]): Promise<ListItem[]> {
-    const tags = await this.store.itemTags(rows.map((r) => String(r.id)));
-    const tagsOf = new Map<string, string[]>();
-    for (const t of tags) tagsOf.set(t.item_id, [...(tagsOf.get(t.item_id) ?? []), t.name]);
-    return rows.map((r) => ({ ...toListItem({ ...(r as unknown as ListItemRow), tag_names: null }), tags: (tagsOf.get(String(r.id)) ?? []).sort((a, b) => a.localeCompare(b)) }));
-  }
-
   /** The task as written, for the answer when the read-back has not caught up. */
   private syntheticRow(id: string, spaceId: string, row: object): Record<string, unknown> {
     return { id, space_id: spaceId, ...row, evening: (row as { evening: boolean }).evening ? 1 : 0, carry_count: 0 };
@@ -1112,25 +854,6 @@ export interface ProjectLine {
 
 function rowOf(rows: readonly Row[], id: string): Row {
   return rows.find((r) => r.id === id) as Row;
-}
-
-function navRow(l: Row) {
-  return { id: String(l.id), parent_id: str(l.parent_id), name: str(l.name), emoji: str(l.emoji), sort_key: str(l.sort_key) };
-}
-
-function pathOf(id: string, lists: readonly Row[]): string {
-  return listPaths(lists.map(navRow)).find((p) => p.id === id)?.label ?? "a list";
-}
-
-function countItems(items: readonly Row[]): Map<string, { items: number; open: number }> {
-  const out = new Map<string, { items: number; open: number }>();
-  for (const i of items) {
-    const k = out.get(String(i.list_id)) ?? { items: 0, open: 0 };
-    k.items += 1;
-    if (i.status !== "done") k.open += 1;
-    out.set(String(i.list_id), k);
-  }
-  return out;
 }
 
 function exceptionRow(e: Row) {

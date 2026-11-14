@@ -85,22 +85,6 @@ export class FakeStore implements PlannerStore {
   async exceptions(seriesId: string) {
     return this.t("recurrence_exceptions").filter((e) => e.series_id === seriesId);
   }
-  async lists() {
-    return this.t("lists");
-  }
-  async items(q: { listIds?: readonly string[]; ids?: readonly string[]; text?: string; limit?: number }) {
-    return this.t("list_items")
-      .filter((i) => !q.listIds || q.listIds.includes(String(i.list_id)))
-      .filter((i) => !q.ids || q.ids.includes(String(i.id)))
-      .filter((i) => !q.text || has(i.title, q.text) || has(i.note_md, q.text))
-      .slice(0, q.limit ?? 2000);
-  }
-  async itemTags(itemIds: readonly string[]) {
-    const tags = new Map(this.t("tags").map((t) => [String(t.id), String(t.name)]));
-    return this.t("list_item_tags")
-      .filter((l) => itemIds.includes(String(l.item_id)) && tags.has(String(l.tag_id)))
-      .map((l) => ({ item_id: String(l.item_id), tag_id: String(l.tag_id), name: tags.get(String(l.tag_id)) as string, link_id: String(l.id) }));
-  }
   async taskSortKeys(projectId: string | null, areaId: string | null) {
     return this.t("tasks")
       .filter((r) => ["inbox", "active", "someday"].includes(String(r.state)) && (r.project_id ?? null) === projectId && (r.area_id ?? null) === areaId)
@@ -116,17 +100,6 @@ export class FakeStore implements PlannerStore {
       .filter((r) => (r.area_id ?? null) === areaId)
       .map((r) => String(r.sort_key));
   }
-  async listSortKeys(parentId: string | null) {
-    return this.t("lists")
-      .filter((r) => (r.parent_id ?? null) === parentId)
-      .map((r) => String(r.sort_key));
-  }
-  async itemSortKeys(listId: string) {
-    return this.t("list_items")
-      .filter((r) => r.list_id === listId)
-      .map((r) => String(r.sort_key));
-  }
-
   async apply(device: string, ops: readonly WireOp[]): Promise<ApplyResult> {
     this.devices.push(device);
     const out: ApplyResult = { applied: [], rejected: [] };

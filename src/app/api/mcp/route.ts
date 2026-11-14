@@ -7,7 +7,6 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 import { after } from "next/server";
 import { googleConfigured } from "@/server/calendar/config";
 import { pushUser } from "@/server/calendar/run";
-import { refreshPreview } from "@/server/lists/refresh";
 import { authenticate, type Caller } from "@/server/mcp/auth";
 import { Planner } from "@/server/mcp/planner";
 import { SupabaseStore } from "@/server/mcp/store";
@@ -24,17 +23,13 @@ const CORS = {
   "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id, Mcp-Protocol-Version",
 };
 
-/** What a write asks for once the answer has gone: the calendar told now rather than at the tick, a link's preview fetched. */
+/** What a write asks for once the answer has gone: the calendar told now rather than at the tick. */
 function effectsFor(caller: Caller): Effects {
   return {
     calendarChanged: () =>
       after(async () => {
         if (!googleConfigured()) return;
         await pushUser(caller.userId).catch((e) => console.error("mcp calendar push failed", e));
-      }),
-    linkSaved: (itemId, url) =>
-      after(async () => {
-        await refreshPreview(caller.db, itemId, url, { tries: 2, ms: 500 }).catch((e) => console.error("mcp link preview failed", e));
       }),
   };
 }

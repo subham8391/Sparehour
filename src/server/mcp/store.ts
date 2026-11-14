@@ -63,21 +63,15 @@ export interface PlannerStore {
   blocksOf(taskId: string): Promise<Row[]>;
   /** A series' exceptions, live ones only. */
   exceptions(seriesId: string): Promise<Row[]>;
-  lists(): Promise<Row[]>;
-  items(q: { listIds?: readonly string[]; ids?: readonly string[]; text?: string; limit?: number }): Promise<Row[]>;
-  itemTags(itemIds: readonly string[]): Promise<{ item_id: string; tag_id: string; name: string; link_id: string }[]>;
   /** Sort keys of the open tasks in one list (a project, an area, or neither). */
   taskSortKeys(projectId: string | null, areaId: string | null): Promise<string[]>;
   daySortKeys(doDate: string): Promise<string[]>;
   projectSortKeys(areaId: string | null): Promise<string[]>;
-  listSortKeys(parentId: string | null): Promise<string[]>;
-  itemSortKeys(listId: string): Promise<string[]>;
   apply(device: string, ops: readonly WireOp[]): Promise<ApplyResult>;
 }
 
 const TASK_COLUMNS =
   "id, space_id, project_id, heading_id, area_id, title, notes_md, state, priority, do_date, do_time, deadline, start_date, evening, estimate_min, carry_count, miss_policy, recurrence_rule, recurrence_mode, recurrence_series_id, recurrence_paused_until, sort_key, day_sort_key, completed_at, created_at, actual_min, routine_run_id, last_carried_at, last_touched_at";
-const ITEM_COLUMNS = "id, space_id, list_id, title, note_md, url, status, rating, done_at, preview_title, sort_key, created_at";
 /** PostgREST's ceiling on one `in.(…)` list we send: ids are chunked below it. */
 const CHUNK = 80;
 
@@ -209,37 +203,6 @@ export class SupabaseStore implements PlannerStore {
     return this.rows(this.db.from("recurrence_exceptions").select("id, occurrence_date, kind, moved_to").eq("series_id", seriesId).is("deleted_at", null));
   }
 
-  lists() {
-    return this.rows(this.db.from("lists").select("id, space_id, parent_id, name, emoji, item_order, hide_done, sort_key, created_at").is("deleted_at", null));
-  }
-
-  async items(q: { listIds?: readonly string[]; ids?: readonly string[]; text?: string; limit?: number }) {
-    const run = (column?: "title" | "note_md", ids?: readonly string[], listIds?: readonly string[]) => {
-      let s = this.db.from("list_items").select(ITEM_COLUMNS).is("deleted_at", null);
-      if (listIds) s = s.in("list_id", [...listIds]);
-      if (ids) s = s.in("id", [...ids]);
-      if (column && q.text) s = s.ilike(column, ilikePattern(q.text));
-      return this.rows(s.limit(q.limit ?? 2000));
-    };
-    if (q.ids) return (await Promise.all(chunks(q.ids).map((c) => run(undefined, c)))).flat();
-    if (q.listIds) return (await Promise.all(chunks(q.listIds).map((c) => run(undefined, undefined, c)))).flat();
-    if (q.text) {
-      const [byTitle, byNote] = await Promise.all([run("title"), run("note_md")]);
-      const seen = new Set(byTitle.map((r) => r.id));
-      return [...byTitle, ...byNote.filter((r) => !seen.has(r.id))];
-    }
-    return run();
-  }
-
-  async itemTags(itemIds: readonly string[]) {
-    if (itemIds.length === 0) return [];
-    const tags = new Map((await this.tags()).map((t) => [String(t.id), String(t.name ?? "")]));
-    const links = (await Promise.all(chunks(itemIds).map((c) => this.rows(this.db.from("list_item_tags").select("id, item_id, tag_id").is("deleted_at", null).in("item_id", c))))).flat();
-    return links
-      .filter((l) => tags.has(String(l.tag_id)))
-      .map((l) => ({ item_id: String(l.item_id), tag_id: String(l.tag_id), name: tags.get(String(l.tag_id)) as string, link_id: String(l.id) }));
-  }
-
   private keys(rows: Row[], column = "sort_key"): string[] {
     return rows.map((r) => r[column]).filter((k): k is string => typeof k === "string");
   }
@@ -258,15 +221,6 @@ export class SupabaseStore implements PlannerStore {
   async projectSortKeys(areaId: string | null) {
     const s = this.db.from("projects").select("sort_key").is("deleted_at", null);
     return this.keys(await this.rows((areaId ? s.eq("area_id", areaId) : s.is("area_id", null)).limit(10000)));
-  }
-
-  async listSortKeys(parentId: string | null) {
-    const s = this.db.from("lists").select("sort_key").is("deleted_at", null);
-    return this.keys(await this.rows((parentId ? s.eq("parent_id", parentId) : s.is("parent_id", null)).limit(10000)));
-  }
-
-  async itemSortKeys(listId: string) {
-    return this.keys(await this.rows(this.db.from("list_items").select("sort_key").is("deleted_at", null).eq("list_id", listId).limit(10000)));
   }
 
   async apply(device: string, ops: readonly WireOp[]): Promise<ApplyResult> {

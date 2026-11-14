@@ -286,8 +286,8 @@ export const day_plans = new Table(
   { indexes: { date: ["user_id", "date"] } },
 );
 
-// Lists, for things that aren't tasks (DECISIONS.md, amendment 2026-10-22): nested by parent_id, items with a status,
-// a rating, a link and its server-fetched preview, and the tags tasks use.
+// Lists (DECISIONS.md, amendment 2026-10-22) were taken out of the app on 2026-11-14. The rows an account already has
+// stay in the database, so these three tables stay here for one reason: Settings › Data still exports them.
 export const lists = new Table(
   { ...base, parent_id: column.text, name: column.text, emoji: column.text, item_order: column.text, hide_done: column.integer, sort_key: column.text },
   { indexes: { parent: ["parent_id"] } },
@@ -348,5 +348,3 @@ export type UserSettingsRow = Database["user_settings"];
 export type ProjectRow = Database["projects"];
 export type HeadingRow = Database["headings"];
 export type AreaRow = Database["areas"];
-export type ListRow = Database["lists"];
-export type ListItemRow = Database["list_items"];

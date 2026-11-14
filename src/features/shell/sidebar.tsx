@@ -10,7 +10,7 @@
 // its ⌘K hint) and, beside Settings, to the ? overlay (SCREENS.md §0 "three
 // interaction paths", §1 Regions).
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { iconButtonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Mark } from "@/ui/brand";
@@ -193,7 +193,6 @@ export function Sidebar({
   isMac = true,
   onPalette,
   onShortcuts,
-  lists,
 }: {
   pathname: string;
   counts: NavCounts;
@@ -207,8 +206,6 @@ export function Sidebar({
   onPalette?: () => void;
   /** Opens the ? overlay. */
   onShortcuts?: () => void;
-  /** The Lists section under the areas (features/lists/sidebar-lists.tsx), an island of its own. */
-  lists?: ReactNode;
 }) {
   return (
     <nav
@@ -276,7 +273,6 @@ export function Sidebar({
             )}
           </section>
         )}
-        {!rail && lists}
       </div>
 
       <div className={cx("flex shrink-0 flex-col gap-0.5 border-t border-line pt-2.5 pb-4", rail ? "items-center px-2.5" : "px-3")}>
