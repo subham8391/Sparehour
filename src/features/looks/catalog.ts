@@ -1,5 +1,6 @@
 // Every look the picker offers (DECISIONS.md, amendment 2026-10-20), in the order it shows them: Sky, the default, then
-// Daylight, the original, then the directions A to Z from the looks page. Only Settings loads this file. A look's
+// Daylight, the original, then the directions A to Z from the looks page. The picker opens on three of them
+// (FEATURED_LOOKS; amendment 2026-11-14) and keeps the rest behind "More looks": none is removed. Only Settings loads this file. A look's
 // stylesheet is public/looks/<id>.css (look.ts); `ready` holds back a look whose sheet is not built yet. The swatches
 // draw the picker's small preview in the theme on screen: page, card, ink, and the colour that means spare time.
 import { DEFAULT_LOOK } from "./look";
@@ -54,4 +55,18 @@ export const LOOKS: readonly Look[] = [
 ];
 
 export const readyLooks = () => LOOKS.filter((l) => l.ready);
+
+/**
+ * The looks the picker opens on (DECISIONS.md, amendment 2026-11-14): the default, the original, and one quiet
+ * alternative. A choice of three is a choice; twenty-seven is a catalogue to read before the app can be used.
+ */
+export const FEATURED_LOOKS: readonly string[] = [DEFAULT_LOOK, "daylight", "indigo"];
+
+/**
+ * What the picker shows: the three it opens on and any look in `keep` (the person's own, so it never drops out of
+ * sight), or every look once "More looks" is open. Always in the catalogue's order.
+ */
+export function shownLooks(open: boolean, keep: readonly string[] = []): Look[] {
+  return readyLooks().filter((l) => open || FEATURED_LOOKS.includes(l.id) || keep.includes(l.id));
+}
 export const findLook = (id: string) => LOOKS.find((l) => l.id === id);

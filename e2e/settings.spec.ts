@@ -110,6 +110,13 @@ test("a look is picked in Appearance, reaches Postgres, holds over a reload, and
   await section(page, "Appearance");
   const looks = page.getByRole("group", { name: "Look" });
   await expect(looks.getByRole("radio", { name: /Sky/ })).toBeChecked();
+  // The picker opens on three looks; the rest are one tap away and fold back (DECISIONS.md, amendment 2026-11-14).
+  await expect(looks.getByRole("radio")).toHaveCount(3);
+  await page.getByRole("button", { name: /^More looks \(\d+\)$/ }).click();
+  await expect(looks.getByRole("radio", { name: /Terminal/ })).toBeVisible();
+  expect(await looks.getByRole("radio").count()).toBeGreaterThan(20);
+  await page.getByRole("button", { name: "Fewer looks" }).click();
+  await expect(looks.getByRole("radio")).toHaveCount(3);
   await looks.getByText("Daylight", { exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-look", "daylight");
   await expect(page.locator("#look-css")).toHaveAttribute("href", /\/looks\/daylight\.css/);
