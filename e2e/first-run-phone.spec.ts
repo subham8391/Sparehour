@@ -1,7 +1,9 @@
 // The first run on a phone (ONBOARDING.md "Phone: one step per screen"; M1 gaps first-run-working-hours and
-// first-run-brain-dump, "360 px"): at 360 px on a touch phone, 1b and the brain dump are consecutive screens with
-// no tab bar, the step's buttons run full width and hold the bottom edge, every target is 44 px, nothing scrolls
-// sideways, and a line typed but not entered is saved when Next is tapped.
+// first-run-brain-dump, "360 px"): at 360 px on a touch phone, 1b, the calendar step and the brain dump are
+// consecutive screens with no tab bar, the step's buttons run full width and hold the bottom edge, every target is
+// 44 px, nothing scrolls sideways, and a line typed but not entered is saved when Next is tapped. The calendar step
+// (DECISIONS.md, amendment 2026-11-14) shows only where the server can connect Google; the local stack has no Google
+// client, so its answer is stubbed here, and the step is left by Skip (Google's consent is not ours to drive).
 //
 // Never the dev account: a throwaway local account made the way supabase/seed.sql makes the dev user (the same
 // password), whose first run is still ahead; afterAll removes it and every row it owns (and global-teardown.ts
@@ -77,6 +79,7 @@ async function noSidewaysScroll(page: Page, width: number): Promise<void> {
 
 test("a new account's first run at 360 px: one step per screen, full-width buttons at the bottom, 44 px targets", async ({ page }) => {
   const viewport = page.viewportSize()!;
+  await page.route("**/api/calendar/config", (route) => route.fulfill({ json: { google: true } }));
   await signIn(page);
   await expect(page).toHaveURL(/\/welcome/, { timeout: 30_000 });
 
@@ -97,6 +100,26 @@ test("a new account's first run at 360 px: one step per screen, full-width butto
   await heldAtTheBottom(page.getByRole("button", { name: "That’s right" }), viewport);
   await noSidewaysScroll(page, viewport.width);
   await page.getByRole("button", { name: "That’s right" }).click();
+
+  // The calendar on the next screen, on its own: what is read, a link out to Google's consent, and a way past.
+  await expect(page.getByRole("heading", { name: "Connect your calendar." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "When do you work?" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "What's on your plate today?" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+  await expect(page.getByText("We read when you're busy.")).toBeVisible();
+  const connect = page.getByRole("link", { name: "Connect Google Calendar" });
+  await expect(connect).toHaveAttribute("href", "/api/calendar/google/start?next=%2Fwelcome");
+  await heldAtTheBottom(connect, viewport);
+  const skip = await page.getByRole("button", { name: "Skip for now" }).boundingBox();
+  expect(skip!.height).toBeGreaterThanOrEqual(44);
+  expect(skip!.width).toBeGreaterThanOrEqual(viewport.width - 41);
+  await noSidewaysScroll(page, viewport.width);
+  // Back from Google with a no: the hours are not asked again, one calm line is said, and both ways on are still there.
+  await page.goto("/welcome?calendar=denied");
+  await expect(page.getByRole("status").filter({ hasText: "No problem. You can connect later from Settings." })).toBeVisible({ timeout: 30_000 });
+  await expect(page).toHaveURL(/\/welcome$/);
+  await expect(page.getByRole("link", { name: "Connect Google Calendar" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip for now" }).click();
 
   // The brain dump on the next screen.
   await expect(page.getByRole("heading", { name: "What's on your plate today?" })).toBeVisible();

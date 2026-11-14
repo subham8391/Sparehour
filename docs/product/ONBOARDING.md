@@ -174,6 +174,8 @@ Each screen: **purpose · copy · inputs · defaults · skip · saved · validat
 
 ---
 
+**As built (2026-11-14; DECISIONS.md, amendment of that date).** Step 2 is in the first run, between the hours and the brain dump, wherever the server can connect Google and no calendar is connected yet. It follows the 2026-10-21 amendment, so it differs from the copy above: connecting asks only for busy times (no warning screen), and the three lines say so — "We read when you're busy. Only the times, so the spare-time number is real." · "We don't see what your meetings are. No titles, no guests, no notes." · "We don't change anything. Nothing is added, moved or deleted." — with one line under them: without it the number uses the working hours alone, and meeting names and blocks on the calendar are later choices in Settings, beside the "What we store, in plain English" link. **Primary:** "Connect Google Calendar", a link to the consent that comes back to `/welcome`. **Secondary:** "Skip for now". Back from Google: connected goes on to the brain dump; a no stays on the step with "No problem. You can connect later from Settings." (or Google's reason, or "Google didn't answer. Try again.") and both ways on. The step is asked once per account on a device (a connection or Skip settles it). 2b is not shown: writing blocks is its own later grant (the write-calendar banner). No analytics events are sent yet.
+
 #### 2b — Choose the write-calendar (inline, in the connect result)
 
 **Purpose.** Make the "we write to one calendar" promise concrete, and let people keep their work calendar clean.

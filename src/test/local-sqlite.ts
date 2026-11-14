@@ -40,6 +40,7 @@ const TABLES: Record<string, string> = {
   list_items: "list_id, title, note_md, url, status, rating, done_at, preview_title, preview_image, preview_fetched_at, sort_key",
   list_item_tags: "item_id, tag_id",
   users: "personal_space_id",
+  calendar_connections: "user_id, provider, email, status, can_write, can_read_titles, can_write_own, last_synced_at, last_error, write_lost_at",
 };
 
 export function localSqlite() {

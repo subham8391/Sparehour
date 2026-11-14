@@ -157,8 +157,8 @@ Each feature is tagged with the milestone where it fits:
 ## 10. Launch & business ⏳ Q22
 | Feature | When |
 |---|---|
-| Onboarding: connect calendar → set working hours → first morning plan | M2 |
-| Minimal first run: confirm working hours, then a brain dump into today (`/welcome`, built 2026-10-07) | M1 |
+| Onboarding: connect calendar → set working hours → first morning plan (the calendar step is built: see the next line) | M2 |
+| Minimal first run: confirm working hours, connect the calendar or skip (added 2026-11-14, busy times only), then a brain dump into today (`/welcome`, built 2026-10-07) | M1 |
 | Free tier + Pro (~$6/mo yearly), 30-day no-card trial, founding-member price | M3 |
 | Landing page, billing | M3 |
 

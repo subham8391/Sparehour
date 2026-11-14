@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // The first run's route over an in-memory database: it waits for the account, confirms the hours and the zone in
-// one tap, comes back to the brain dump after a reload, and ends on Today with the account stamped.
+// one tap, offers the calendar where the server can connect one (once, with Google's answer said when it was no),
+// comes back to where it was after a reload, and ends on Today with the account stamped.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +13,8 @@ const h = vi.hoisted(() => ({
   users: [{ id: "u1", personal_space_id: "s1" }] as { id: string; personal_space_id: string | null }[],
   replace: vi.fn(),
   undo: [] as { label: string; undo: () => Promise<void> }[],
+  /** What /api/calendar/config answers: whether this server can connect Google, or a failure. */
+  google: false as boolean | "down",
 }));
 vi.mock("@/data/powersync", () => ({
   useQuery: (sql: string) => {
@@ -51,9 +54,21 @@ beforeEach(() => {
   h.users = [{ id: "u1", personal_space_id: "s1" }];
   h.replace.mockClear();
   h.undo = [];
+  h.google = false;
   window.localStorage.clear();
+  window.history.replaceState(null, "", "/welcome");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url !== "/api/calendar/config" || h.google === "down") throw new Error("offline");
+      return new Response(JSON.stringify({ google: h.google }), { status: 200, headers: { "content-type": "application/json" } });
+    }),
+  );
 });
-afterEach(() => window.localStorage.clear());
+afterEach(() => {
+  window.localStorage.clear();
+  vi.unstubAllGlobals();
+});
 
 describe("/welcome", () => {
   it("waits for the account before asking anything", () => {
@@ -88,10 +103,10 @@ describe("/welcome", () => {
     expect(hours(3)).toHaveLength(1);
   });
 
-  it("a reload after the hours comes back to the brain dump", () => {
+  it("a reload after the hours comes back to the brain dump", async () => {
     window.localStorage.setItem("sparehour.first-run.hours", "u1");
     render(<WelcomePage />);
-    expect(screen.getByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
   });
 
   it("another account on the device starts at the hours", () => {
@@ -102,12 +117,14 @@ describe("/welcome", () => {
 
   it("finishing stamps the account and opens Today", async () => {
     window.localStorage.setItem("sparehour.first-run.hours", "u1");
+    window.localStorage.setItem("sparehour.first-run.calendar", "u1");
     const user = userEvent.setup();
     render(<WelcomePage />);
-    await user.click(screen.getByRole("button", { name: "Brain dump" }));
+    await user.click(await screen.findByRole("button", { name: "Brain dump" }));
     await waitFor(() => expect(h.replace).toHaveBeenCalledWith("/today"));
     expect(settingsRow().onboarded_at).toMatch(/^2\d{3}-/);
     expect(window.localStorage.getItem("sparehour.first-run.hours")).toBeNull();
+    expect(window.localStorage.getItem("sparehour.first-run.calendar")).toBeNull();
   });
 
   it("an account that is already set up goes to Today", () => {
@@ -115,5 +132,87 @@ describe("/welcome", () => {
     render(<WelcomePage />);
     expect(h.replace).toHaveBeenCalledWith("/today");
     expect(screen.queryByRole("heading", { name: "When do you work?" })).not.toBeInTheDocument();
+  });
+});
+
+describe("/welcome, the calendar step (ONBOARDING.md step 2; DECISIONS.md, amendment 2026-11-14)", () => {
+  const atCalendar = () => screen.findByRole("heading", { name: "Connect your calendar." });
+
+  it("comes after the hours where the server can connect Google: it says what is read, connects by leaving for Google, and Skip moves on", async () => {
+    h.google = true;
+    const user = userEvent.setup();
+    render(<WelcomePage />);
+    await user.click(screen.getByRole("button", { name: "That’s right" }));
+    expect(await atCalendar()).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Brain dump" })).not.toBeInTheDocument();
+    expect(screen.getByText("We read when you're busy.")).toBeInTheDocument();
+    expect(screen.getByText("We don't see what your meetings are.")).toBeInTheDocument();
+    expect(screen.getByText("We don't change anything.")).toBeInTheDocument();
+    // Busy times only, and back to this page: no purpose asked for, so Google shows no warning screen.
+    expect(screen.getByRole("link", { name: "Connect Google Calendar" })).toHaveAttribute("href", "/api/calendar/google/start?next=%2Fwelcome");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Skip for now" }));
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("sparehour.first-run.calendar")).toBe("u1");
+    expect(settingsRow().onboarded_at).toBeNull();
+  });
+
+  it("is asked once: a reload after Skip comes back to the brain dump", async () => {
+    h.google = true;
+    window.localStorage.setItem("sparehour.first-run.hours", "u1");
+    window.localStorage.setItem("sparehour.first-run.calendar", "u1");
+    render(<WelcomePage />);
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Connect your calendar." })).not.toBeInTheDocument();
+  });
+
+  it("back from Google connected: on to the brain dump, remembered, and the address is plain again", async () => {
+    h.google = true;
+    window.localStorage.setItem("sparehour.first-run.hours", "u1");
+    window.history.replaceState(null, "", "/welcome?calendar=connected");
+    render(<WelcomePage />);
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("sparehour.first-run.calendar")).toBe("u1");
+    expect(window.location.search).toBe("");
+  });
+
+  it("back from Google with a no: the step stays with one calm line and both ways on", async () => {
+    h.google = true;
+    window.localStorage.setItem("sparehour.first-run.hours", "u1");
+    window.history.replaceState(null, "", "/welcome?calendar=denied&reason=access_denied");
+    render(<WelcomePage />);
+    await atCalendar();
+    expect(screen.getByRole("status")).toHaveTextContent("No problem. You can connect later from Settings.");
+    expect(screen.getByRole("link", { name: "Connect Google Calendar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skip for now" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("sparehour.first-run.calendar")).toBeNull();
+  });
+
+  it("a failure says Google's reason, or that it did not answer", async () => {
+    h.google = true;
+    window.localStorage.setItem("sparehour.first-run.hours", "u1");
+    window.history.replaceState(null, "", `/welcome?calendar=error&reason=${encodeURIComponent("That connection attempt has expired. Try again.")}`);
+    render(<WelcomePage />);
+    await atCalendar();
+    expect(screen.getByRole("status")).toHaveTextContent("That connection attempt has expired. Try again.");
+  });
+
+  it("is not offered where a calendar is already connected, where the server cannot connect one, or when it does not answer", async () => {
+    h.google = true;
+    window.localStorage.setItem("sparehour.first-run.hours", "u1");
+    h.db.insert("calendar_connections", { id: "k1", provider: "google", email: "me@example.com", status: "ok" });
+    const first = render(<WelcomePage />);
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    first.unmount();
+
+    h.db.rows("delete from calendar_connections");
+    for (const answer of [false, "down"] as const) {
+      h.google = answer;
+      const view = render(<WelcomePage />);
+      expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Connect your calendar." })).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 });
