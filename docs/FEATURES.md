@@ -12,6 +12,8 @@ Each feature is tagged with the milestone where it fits:
 | **Later** | After launch |
 | **Never** | Deliberately out |
 
+**Scope (DECISIONS.md, amendment 2026-11-14).** A feature belongs when it makes the day's spare-time number true or helps the person act on it. What does not is tagged "Later (parked 2026-11-14)": nothing built was taken away, and a parked feature comes back only when people using the app ask for it.
+
 "From" names the app that does it best today. ⏳ marks items that depend on an open question in DECISIONS.md.
 
 ## 1. Capture — getting things in fast
@@ -80,12 +82,12 @@ Each feature is tagged with the milestone where it fits:
 | Drag to time-block | M1 | Sunsama, Akiflow |
 | "Plan my day": suggest → preview → approve, explains each placement, lockable blocks. **Built 2026-10-01, ahead of M2, at the customer's request:** template explanations now, AI wording later (§7); the Pro gate waits for billing (DECISIONS.md Q22) | M2 (built early) | Morgen, Akiflow |
 | One-click "re-plan the rest of today" (built 2026-10-01 with Plan my day: the same scheduler from now on) | M2 (built early) | Akiflow |
-| Weekly review wizard (stalled projects, no next step, waiting-for follow-ups) | M2 | OmniFocus, FacileThings |
-| Weekly objectives | M2 | Sunsama |
-| **Routines** — build a full day once (timed items + "anytime" items), schedule it for N days (7 · 14 · 21 · 30 · custom · until a date · no end) on every day / working days / picked weekdays; it appears in Today and on the day timeline each of those days | M2 | Structured, Tiimo routines (user request) |
-| Routine behaviour — counts toward spare time; missed routine items never carry over; edit "just this day" or "this and following days"; pause, extend, end early; gentle progress ("Day 4 of 21", done on 3 of 3 days — no streaks) | M2 | — |
-| Timed routine items can be written to your calendar as blocks (opt-in per routine); a clash with a meeting is flagged, never auto-moved | M2 | — |
-| Outlook / Microsoft 365 calendar | M3 | — |
+| Weekly review wizard (stalled projects, no next step, waiting-for follow-ups) | Later (parked 2026-11-14) | OmniFocus, FacileThings |
+| Weekly objectives | Later (parked 2026-11-14) | Sunsama |
+| **Routines** — build a full day once (timed items + "anytime" items), schedule it for N days (7 · 14 · 21 · 30 · custom · until a date · no end) on every day / working days / picked weekdays; it appears in Today and on the day timeline each of those days | Later (parked 2026-11-14) | Structured, Tiimo routines (user request) |
+| Routine behaviour — counts toward spare time; missed routine items never carry over; edit "just this day" or "this and following days"; pause, extend, end early; gentle progress ("Day 4 of 21", done on 3 of 3 days — no streaks) | Later (parked 2026-11-14) | — |
+| Timed routine items can be written to your calendar as blocks (opt-in per routine); a clash with a meeting is flagged, never auto-moved | Later (parked 2026-11-14) | — |
+| Outlook / Microsoft 365 calendar (moved up from M3 on 2026-11-14: meeting-heavy days are often on it) | M2 | — |
 | Learn estimate vs actual, suggest corrections | Later | Sunsama |
 | Buffers and travel time between blocks | Later | Reclaim, Morgen |
 | Energy-aware placement (deep work in your peak hours) | Later | Lunatask, Temporal |
@@ -97,7 +99,7 @@ Each feature is tagged with the milestone where it fits:
 | Feature | When | From |
 |---|---|---|
 | Satisfying (subtle) completion feedback | M1 | Things |
-| Focus timer tied to a task (countdown / Pomodoro) | M2 | TickTick, Llama Life, Blitzit |
+| Focus timer tied to a task (countdown / Pomodoro) | Later (parked 2026-11-14) | TickTick, Llama Life, Blitzit |
 | Actual time tracked per task | M2 | Marvin, Ellie |
 | Habits as the same objects as tasks | Later | TickTick, Lunatask |
 | Low-density ADHD mode + visual countdowns | Later | Tiimo, Structured |
@@ -120,9 +122,9 @@ Each feature is tagged with the milestone where it fits:
 | Feature | When | From |
 |---|---|---|
 | — none; quick-add parsing is deterministic | M1 | — |
-| Brain-dump → tasks; "Break this down"; estimate suggestions | M2 | Todoist, Tiimo, Any.do |
-| Plain-English explanations for "Plan my day" (the template sentences shipped with Plan my day on 2026-10-01; AI rewording of them is still M2) | M2 | — |
-| Weekly-review summary draft | M3 | — |
+| Brain-dump → tasks; "Break this down"; estimate suggestions (parked: Claude does this through the MCP server) | Later (parked 2026-11-14) | Todoist, Tiimo, Any.do |
+| Plain-English explanations for "Plan my day" (the template sentences shipped with Plan my day on 2026-10-01; AI rewording of them is parked) | Later (parked 2026-11-14) | — |
+| Weekly-review summary draft | Later (parked 2026-11-14) | — |
 | MCP server for Claude (`/api/mcp`, Supabase OAuth, read and change or read only per connection, Settings › Connected apps; pulled forward 2026-10-23, DECISIONS.md amendment of that date) | M1 | Todoist, Akiflow, Linear |
 | Public API, propose-then-approve for agents, agent activity log with undo | M3 | Todoist, Akiflow, Linear |
 | Credits, AI add-ons, "chat with your tasks" as a headline | Never | research: metered AI resented |
@@ -147,8 +149,8 @@ Each feature is tagged with the milestone where it fits:
 | Feature | When |
 |---|---|
 | Every record carries a `space_id` (Personal) from day one | M1 |
-| Shared spaces; assign → lands in their Inbox; you get Waiting-for | M2.5 |
-| Comments & activity on shared tasks | M2.5 |
+| Shared spaces; assign → lands in their Inbox; you get Waiting-for | Later (parked 2026-11-14) |
+| Comments & activity on shared tasks | Later (parked 2026-11-14) |
 | Teammate availability (busy / free / overloaded — never task details) | Later |
 
 ## 10. Launch & business ⏳ Q22
@@ -177,11 +179,11 @@ Things the first catalogue missed: long-unbuilt requests on public vote boards, 
 | **Visual time-remaining** on the day timeline | M2 | Tiimo, 2025 App of the Year |
 | **Planned vs actual insights** — estimate accuracy, where time went, what keeps slipping | M2 | Sunsama board, 685 votes |
 | **Backlog suggestions** — resurface aged or often-rescheduled tasks | M2 | TickTick 8.0 |
-| **Always-on-top "Now" card / timer** (desktop) | M2 | Document Picture-in-Picture (Chrome, Edge, Firefox) |
-| **Keep screen awake** during focus sessions and rituals | M2 | Screen Wake Lock, iOS 18.4+ |
+| **Always-on-top "Now" card / timer** (desktop) | Later (parked 2026-11-14) | Document Picture-in-Picture (Chrome, Edge, Firefox) |
+| **Keep screen awake** during focus sessions and rituals | Later (parked 2026-11-14) | Screen Wake Lock, iOS 18.4+ |
 | **Daily scratchpad note** separate from tasks | M2 | Sunsama request |
 | **iOS share path** via Apple Shortcut + email-in (Web Share Target has no iOS support) | M2 | WebKit bug 194593 |
-| **Objectives ladder** — month / quarter / year goals linked to tasks, with a monthly review | M3 | **Sunsama's top requests: 1.7k / 1.2k / 865 votes** |
+| **Objectives ladder** — month / quarter / year goals linked to tasks, with a monthly review | Later (parked 2026-11-14) | **Sunsama's top requests: 1.7k / 1.2k / 865 votes** |
 | **Energy budget** — effort per task, daily energy meter | Later | Structured Energy Monitor |
 | **Year heatmap + Year in Review** | Later | TickTick 8.0, Todoist |
 | **Countdowns to key dates** | Later | TickTick |
@@ -193,6 +195,8 @@ Things the first catalogue missed: long-unbuilt requests on public vote boards, 
 | **Location reminders** | Never | Web apps can't geofence in the background |
 
 ## 12. Lists — things that aren't tasks (added 2026-10-22, DECISIONS.md amendment of that date)
+
+Kept as built and not grown (DECISIONS.md, amendment 2026-11-14): a list is not part of the day's number.
 Ideas, things to watch or read, anything worth keeping that has no date and costs no time.
 | Feature | When | From |
 |---|---|---|
