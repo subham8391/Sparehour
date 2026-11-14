@@ -130,6 +130,18 @@ describe("personalise: notification words with the day's numbers (SCREENS.md §1
     expect(p.notification.body).toBe("Plan your day — about 2 minutes.");
   });
 
+  it("a day that already holds more than fits says so, and asks what moves (amendment 2026-11-14)", () => {
+    const p = personalise("morning", stored("morning", "Good morning.", "Plan your day — about 2 minutes."), { ...figures, spareMin: -40 });
+    expect(p.notification).toMatchObject({ title: "Good morning. Today is 40m over.", body: "2 meetings. Choose what moves — about 2 minutes." });
+    // Without a calendar the meetings clause still stays out; a day whose meetings left nothing to fit is over all the same.
+    expect(personalise("morning", stored("morning", "Good morning.", "x"), { ...figures, spareMin: -95, hasCalendar: false }).notification).toMatchObject({ title: "Good morning. Today is 1h 35m over.", body: "Choose what moves — about 2 minutes." });
+    expect(personalise("morning", stored("morning", "Good morning.", "x"), { ...figures, capacityMin: 0, spareMin: -30 }).notification.title).toBe("Good morning. Today is 30m over.");
+    // Exactly full is not over: the day still reads as what fits.
+    expect(personalise("morning", stored("morning", "Good morning.", "x"), { ...figures, spareMin: 0 }).notification.title).toBe("Good morning. 5h 40m fits today.");
+    // A day off says nothing of either.
+    expect(personalise("morning", stored("morning", "Good morning.", "x"), { ...figures, workDay: false, spareMin: -40 }).notification.title).toBe("Good morning.");
+  });
+
   it("a day with nothing to fit keeps the plain greeting", () => {
     expect(personalise("morning", stored("morning", "Good morning.", "x"), { ...figures, capacityMin: 0 }).notification.title).toBe("Good morning.");
   });

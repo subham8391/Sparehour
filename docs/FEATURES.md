@@ -112,7 +112,7 @@ Each feature is tagged with the milestone where it fits:
 | Feature | When | From |
 |---|---|---|
 | Web push (installed PWA; iOS needs Add to Home Screen) | M1 | — |
-| Time block starting · deadline (day before + day of) · one morning nudge | M1 | — |
+| Time block starting · deadline (day before + day of) · one morning nudge, which says when the day already holds more than fits ("Today is 40m over", 2026-11-14) | M1 | — |
 | Quiet hours; every category can be turned off | M1 | — |
 | Actionable notifications (Start / Snooze / Plan) | M1 | — |
 | Opt-in "urgent" reminder that repeats until acknowledged | M2 | TickTick, Todoist, Apple |
