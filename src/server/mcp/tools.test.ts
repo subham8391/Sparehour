@@ -49,15 +49,15 @@ beforeEach(() => {
 });
 
 describe("the Sparehour MCP server", () => {
-  it("introduces itself with its instructions and lists eight reads and nine writes, annotated", async () => {
+  it("introduces itself with its instructions and lists nine reads and ten writes, annotated", async () => {
     const init = await rpc("write", "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } });
     expect(init.json.result.serverInfo).toMatchObject({ name: "sparehour", title: "Sparehour" });
     expect(init.json.result.instructions).toBe(SERVER_INSTRUCTIONS);
     const { tools } = (await rpc("write", "tools/list")).json.result as { tools: { name: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean }; inputSchema: { properties?: Record<string, unknown> } }[] };
     const reads = tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name);
     const writes = tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name);
-    expect(reads).toEqual(["get_today", "get_inbox", "get_upcoming", "get_task", "search", "list_projects", "get_lists", "get_list"]);
-    expect(writes).toEqual(["add_task", "complete_task", "reopen_task", "reschedule_task", "update_task", "drop_task", "create_list", "add_list_items", "update_list_item"]);
+    expect(reads).toEqual(["get_today", "get_inbox", "get_upcoming", "get_task", "search", "list_projects", "get_lists", "get_list", "plan_day"]);
+    expect(writes).toEqual(["apply_day_plan", "add_task", "complete_task", "reopen_task", "reschedule_task", "update_task", "drop_task", "create_list", "add_list_items", "update_list_item"]);
     expect(tools.find((t) => t.name === "drop_task")?.annotations.destructiveHint).toBe(true);
     expect(Object.keys(tools.find((t) => t.name === "add_task")?.inputSchema.properties ?? {})).toEqual(["text", "notes"]);
   });
@@ -86,6 +86,7 @@ describe("the Sparehour MCP server", () => {
       ["reschedule_task", { task: "x", when: "tomorrow" }],
       ["create_list", { name: "Films" }],
       ["add_list_items", { list: "Books", items: ["Dune"] }],
+      ["apply_day_plan", {}],
     ] as const) {
       const r = await call("read", name, args);
       expect(r.isError).toBe(true);
@@ -104,6 +105,23 @@ describe("the Sparehour MCP server", () => {
     store.tables.tasks.push({ id: "t1", space_id: "s1", title: "Deep work", state: "active", do_date: "2026-10-23", priority: 0, evening: 0, carry_count: 0, sort_key: "a0", deleted_at: null });
     store.tables.time_blocks.push({ id: "b1", task_id: "t1", start_at: "2026-10-23T14:00:00+00:00", end_at: "2026-10-23T15:00:00+00:00", locked: 0, deleted_at: null });
     expect((await call("write", "reschedule_task", { task: "Deep work", when: "mon" })).text).toBe("Moved “Deep work” to Mon 26 Oct");
+    expect(effects.calendarChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Plan my day on any connection, writes it only on one that may change things, and then asks for the calendar", async () => {
+    store.tables.work_hours.push({ id: "w1", weekday: 4, start_time: "09:00:00", end_time: "18:00:00", deleted_at: null });
+    store.tables.tasks.push({ id: "t1", space_id: "s1", title: "Deep work", state: "active", do_date: "2026-10-23", estimate_min: 60, priority: 3, evening: 0, carry_count: 0, sort_key: "a0", created_at: "2026-10-20T10:00:00Z", deleted_at: null });
+    const shown = await call("read", "plan_day");
+    expect(shown.isError).toBe(false);
+    expect(shown.text).toContain("Blocks (1)\n- 09:00–10:00 Deep work — High priority. [task t1]");
+    expect(shown.text).toContain("Nothing has changed yet.");
+    expect(store.ops).toHaveLength(0);
+    expect(effects.calendarChanged).not.toHaveBeenCalled();
+
+    const applied = await call("write", "apply_day_plan");
+    expect(applied.isError).toBe(false);
+    expect(applied.text).toContain("On the timeline now (1)\n- 09:00–10:00 Deep work");
+    expect(store.ops.map((o) => [o.op, o.table, o.data?.source])).toEqual([["PUT", "time_blocks", "plan"]]);
     expect(effects.calendarChanged).toHaveBeenCalledTimes(1);
   });
 

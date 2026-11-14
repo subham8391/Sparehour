@@ -2,11 +2,12 @@
 // the facts quick-add would show (day, time, estimate, #project, @tags, !priority, deadline, repeat) and the id to
 // act on. The app's own words: "Carried over", never "overdue"; spare time as the ribbon says it; 24-hour times.
 import type { Capacity } from "@/core/capacity";
-import { compareDates, formatMinutes, formatTime, type LocalDate } from "@/core/time";
+import { explain } from "@/core/planning";
+import { compareDates, formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { ListItem } from "@/data/queries/lists";
 import { deadlineWording, relativeDay } from "@/ui/relative-day";
-import type { Added, ListSummary, ListView, Meeting, ProjectLine, SearchView, TaskDetail, TaskView, TodayView, UpcomingView } from "./planner";
+import type { Added, DayPlanView, ListSummary, ListView, Meeting, ProjectLine, SearchView, TaskDetail, TaskView, TodayView, UpcomingView } from "./planner";
 
 const STATUS_WORDS: Record<ListItem["status"], string> = { todo: "to do", doing: "doing", done: "done" };
 
@@ -160,4 +161,37 @@ export function formatAdded(a: Added, today: LocalDate): string {
   const lines = [`Added “${a.task.title}”${a.strip ? ` — ${a.strip}` : ""} → ${a.destination}`, taskLine(a.task, today, { day: true })];
   if (a.unfiled) lines.push(a.unfiled.several ? `#${a.unfiled.name} fits more than one project, so it stayed in the title.` : `No project is called “${a.unfiled.name}”, so it stayed in the title (#+${a.unfiled.name} makes a new one).`);
   return lines.join("\n");
+}
+
+/** A minute of the day as the timeline says it; the end of the day is 24:00. */
+const clock = (minute: number) => (minute >= 24 * 60 ? "24:00" : formatTime(timeFromMinutes(minute)));
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Plan my day as the app's preview shows it (DECISIONS.md, amendment 2026-11-14): each block with the scheduler's own
+ * reason, what did not fit and why, and the time left unplanned. Before it is applied it says nothing has changed;
+ * after, it lists what went on the timeline.
+ */
+export function formatPlan(v: DayPlanView): string {
+  const p = v.proposal;
+  const out = [`Plan for today, ${formatDay(v.today, { weekday: "long", month: "long" })} · from ${formatTime(v.now)} in ${v.zone}`, ""];
+  if (p.noWorkDay) return [...out, "No working hours today, so there is nothing to plan."].join("\n");
+  if (v.considered === 0) return [...out, "Nothing to plan: today has no open tasks."].join("\n");
+  if (p.blocks.length) {
+    out.push(`${v.applied ? "On the timeline now" : "Blocks"} (${p.blocks.length})`);
+    for (const b of p.blocks) out.push(`- ${clock(b.start)}–${clock(b.end)} ${b.title}${b.part ? ` (part ${b.part.index} of ${b.part.count})` : ""} — ${explain(b.reasons)} [task ${b.taskId}]`);
+  } else {
+    out.push(p.kept.length && p.unplaced.length === 0 ? "No new block: every task already has its time." : "No new block: nothing more fits in what is left of today.");
+  }
+  if (p.unplaced.length) {
+    out.push("", `Didn't fit (${p.unplaced.length})`);
+    for (const u of p.unplaced) out.push(`- ${u.title} (${formatMinutes(u.minutes)}) — ${explain(u.reason)} [task ${u.taskId}]`);
+  }
+  const notes: string[] = [];
+  if (p.kept.length) notes.push(`${count(p.kept.length, "task keeps the block it already has", "tasks keep the blocks they already have")}.`);
+  if (p.replaces.length && p.blocks.length) notes.push(v.applied ? `Replaced ${count(v.applied.replaced, "earlier plan block", "earlier plan blocks")}.` : `Applying it replaces ${count(p.replaces.length, "earlier plan block that has not started", "earlier plan blocks that have not started")}.`);
+  notes.push(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin }));
+  out.push("", notes.join(" "));
+  if (!v.applied && p.blocks.length) out.push("", "Nothing has changed yet. Show this to the person; when they agree, apply_day_plan puts these blocks on the timeline.");
+  return out.join("\n");
 }

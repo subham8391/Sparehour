@@ -1,14 +1,15 @@
 // Claude connects to Sparehour (DECISIONS.md, amendment 2026-10-23), the whole way an MCP client goes: the 401 names
 // the protected-resource document, that names Supabase Auth, the client registers itself and sends the person to
 // the consent screen, Allow returns a code, the code becomes the person's token. With it the tools add a task from
-// quick-add words (it reaches the app through sync), move it, complete it, and make a list with items; then Settings
+// quick-add words (it reaches the app through sync), show Plan my day and put it on the timeline (DECISIONS.md,
+// amendment 2026-11-14), move the task, complete it, and make a list with items; then Settings
 // › Connected apps makes the connection read only (writes are refused, reads still answer) and Disconnect stops the
 // token. Every row here starts with "E2E ", so afterAll and the teardown remove them.
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { devAccount, isoPlus, withDb } from "./db";
+import { addAllDayHours, devAccount, isoPlus, putBack, seedKey, standAside, withDb, type StoodAside } from "./db";
 import { DEV_USER, E2E_PREFIX, openApp } from "./helpers";
 
 const n = `m${Date.now().toString(36)}`;
@@ -120,7 +121,7 @@ test("Claude connects through the consent screen and works the planner over MCP"
   expect(init.status).toBe(200);
   expect(init.json.result.serverInfo.name).toBe("sparehour");
   const tools = await rpc(request, token, "tools/list");
-  expect(tools.json.result.tools.map((t: { name: string }) => t.name)).toEqual(expect.arrayContaining(["get_today", "get_inbox", "get_upcoming", "search", "add_task", "complete_task", "reschedule_task", "create_list", "add_list_items"]));
+  expect(tools.json.result.tools.map((t: { name: string }) => t.name)).toEqual(expect.arrayContaining(["get_today", "get_inbox", "get_upcoming", "search", "add_task", "complete_task", "reschedule_task", "plan_day", "apply_day_plan", "create_list", "add_list_items"]));
 
   // add_task reads quick-add as the app does: a Friday at 15:00, 45 minutes, a new tag; written as the person, by MCP.
   const added = await call(request, token, "add_task", { text: `${title} fri 3pm ~45m @${tag}` });
@@ -148,6 +149,54 @@ test("Claude connects through the consent screen and works the planner over MCP"
   expect(today.isError).toBe(false);
   expect(today.text).toMatch(/^Today, /);
   expect((await call(request, token, "search", { query: `proposal ${n}` })).text).toContain(title);
+
+  // Plan my day, the app's own scheduler: shown first with nothing written, then put on the timeline as the plan's
+  // own block. Every hour is a working hour and the account's other open tasks stand aside for these few calls, so
+  // the plan holds this spec's task whatever the day or the seed. Before the day rolls over the app's today has
+  // already ended, and in its last half hour nothing fits: then only the reading is checked.
+  const planTitle = `${E2E_PREFIX}Plan me ${n}`;
+  const room = me.minute >= me.rollover * 60 && me.minute < 23 * 60;
+  let hours: string[] = [];
+  let aside: StoodAside[] = [];
+  let planTaskId = "";
+  await withDb(async (c) => {
+    hours = await addAllDayHours(c, me);
+    aside = await standAside(c, me);
+    planTaskId = (
+      await c.query<{ id: string }>(
+        "insert into public.tasks (id, space_id, title, state, priority, do_date, estimate_min, sort_key) values (gen_random_uuid(), $1, $2, 'active', 3, $3::date, 30, $4) returning id",
+        [me.sid, planTitle, me.today, seedKey("97")],
+      )
+    ).rows[0].id;
+  });
+  try {
+    const shown = await call(request, token, "plan_day");
+    expect(shown.isError, shown.text).toBe(false);
+    expect(shown.text).toMatch(/^Plan for today, /);
+    expect(shown.text).toContain(planTitle);
+    const blocksOf = async () =>
+      (
+        await withDb((c) =>
+          c.query("select source, locked, user_id = $2 as mine, (extract(epoch from end_at - start_at) / 60)::int as minutes from public.time_blocks where task_id = $1 and deleted_at is null", [planTaskId, me.uid]),
+        )
+      ).rows;
+    expect(await blocksOf()).toEqual([]);
+    if (room) {
+      expect(shown.text).toContain("Blocks (1)");
+      expect(shown.text).toContain("Nothing has changed yet.");
+      const applied = await call(request, token, "apply_day_plan");
+      expect(applied.isError, applied.text).toBe(false);
+      expect(applied.text).toContain("On the timeline now (1)");
+      // Written as the person, as the plan's own unlocked block, for the task's half hour.
+      expect(await blocksOf()).toEqual([{ source: "plan", locked: false, mine: true, minutes: 30 }]);
+    }
+  } finally {
+    await withDb(async (c) => {
+      await c.query("delete from public.time_blocks where task_id = $1", [planTaskId]);
+      await c.query("delete from public.work_hours where id = any($1::uuid[])", [hours]);
+      await putBack(c, aside);
+    });
+  }
 
   // Move it to tomorrow, then complete it.
   const moved = await call(request, token, "reschedule_task", { task: taskId, when: "tomorrow" });

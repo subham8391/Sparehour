@@ -2,10 +2,13 @@
 // lists show, and the writes a person makes from them — each read the way the app reads it (the same mappers,
 // carried-over rule, capacity engine and list helpers) and each write built as the app would build it (quick-add's
 // parser and filing, the draft's row, a repeat's completion, a move "just this once") and sent through
-// apply_mutations as the person. Anything that cannot be done is a Refusal with a reason the tools pass on.
+// apply_mutations as the person. Plan my day is the app's own scheduler (core/planning) over the same day, shown
+// first and written only when asked (DECISIONS.md, amendment 2026-11-14). Anything that cannot be done is a Refusal
+// with a reason the tools pass on.
 import { capacityFor, type Capacity } from "@/core/capacity";
 import { itemLines, normaliseUrl } from "@/core/lists/text";
 import { keyBetween } from "@/core/ordering";
+import { plan, type PlanBlock, type PlanInput, type Proposal } from "@/core/planning";
 import { parse, type ParseContext, type TaskDraft } from "@/core/quickadd";
 import { draftRow } from "@/core/quickadd/draft-row";
 import { readTypedDate } from "@/core/quickadd/read-date";
@@ -19,8 +22,11 @@ import type { RecurrenceMode, Task } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import { arrangeItems, listPaths, listTree, toListItem, type ListItem, type ListItemRow, type ListNode } from "@/data/queries/lists";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
+import { canApprovePlan } from "@/features/planning/entitlement";
+import { aheadDays, aheadThrough, isoAt, planTask } from "@/features/planning/plan-input";
 import { chooseProject, fileLine } from "@/features/quickadd/file-line";
 import { interpret, resolveTag, type QuickAddProject } from "@/features/quickadd/interpret";
+import { minuteOnDay } from "@/features/today/day-minute";
 import { sanitize, type WireOp } from "@/server/sync/upload";
 import type { PlannerStore, Row, TaskState } from "./store";
 
@@ -58,6 +64,18 @@ export interface TodayView {
   carried: TaskView[];
   meetings: Meeting[];
   blocks: Meeting[];
+}
+
+/** Plan my day for the rest of today, as the app's preview would show it. */
+export interface DayPlanView {
+  today: LocalDate;
+  now: LocalTime;
+  zone: string;
+  proposal: Proposal;
+  /** How many open tasks the plan looked at. */
+  considered: number;
+  /** Set once the plan has been written: how many blocks went on the timeline and how many earlier plan blocks they replaced. */
+  applied?: { placed: number; replaced: number };
 }
 
 export interface UpcomingDay {
@@ -256,17 +274,17 @@ export class Planner {
     };
   }
 
-  /** The capacity, meetings and blocks of each day, from one read of the calendar around them. */
-  private async days(days: readonly LocalDate[], taskRows: readonly Row[]): Promise<{ capacity: Capacity | null; meetings: Meeting[]; blocks: Meeting[] }[]> {
+  /**
+   * The calendar between two ISO days, read once: the working hours, the meetings, and the blocks as capacity counts
+   * them, with the raw rows for the lines the answers draw.
+   */
+  private async around(from: string, to: string, taskRows: readonly Row[]) {
     const c = await this.ctx();
-    const from = days[0].subtract({ days: 1 }).toString();
-    const to = days[days.length - 1].add({ days: 1 }).toString();
     const [workRows, calendars, eventRows, blockRows] = await Promise.all([this.store.workHours(), this.store.calendars(), this.store.events(from, to), this.store.blocks(from, to)]);
     const read = new Map(calendars.map((k) => [String(k.id), k.read !== 0]));
     const hidden = new Set(calendars.filter((k) => k.private === 1).map((k) => String(k.id)));
     const workHours = workRows.map((w) => toWorkWindow(w as unknown as WorkHoursRow)).filter((w): w is NonNullable<typeof w> => w !== null);
     const events = eventRows.map((e) => toCapacityEvent(e as unknown as CalendarEventRow, read.get(String(e.calendar_id ?? "")) ?? true));
-    const tasks = taskRows.map((t) => toCapacityTask(t as unknown as TaskRow));
     const titleOf = new Map(taskRows.map((t) => [String(t.id), str(t.title)]));
     // A block whose task is finished counts only for what already ran (use-today.ts capacityBlocks).
     const stateOf = new Map(taskRows.map((t) => [String(t.id), str(t.state)]));
@@ -287,6 +305,14 @@ export class Planner {
         if (Temporal.Instant.compare(b.startAt, c.now) >= 0) return [];
         return Temporal.Instant.compare(b.endAt, c.now) <= 0 ? [b] : [{ ...b, endAt: c.now }];
       });
+    return { workHours, events, blocks, eventRows, blockRows, read, hidden, titleOf, closed };
+  }
+
+  /** The capacity, meetings and blocks of each day, from one read of the calendar around them. */
+  private async days(days: readonly LocalDate[], taskRows: readonly Row[]): Promise<{ capacity: Capacity | null; meetings: Meeting[]; blocks: Meeting[] }[]> {
+    const c = await this.ctx();
+    const { workHours, events, blocks, eventRows, blockRows, read, hidden, titleOf } = await this.around(days[0].subtract({ days: 1 }).toString(), days[days.length - 1].add({ days: 1 }).toString(), taskRows);
+    const tasks = taskRows.map((t) => toCapacityTask(t as unknown as TaskRow));
     return days.map((day) => {
       const capacity = capacityFor({
         day,
@@ -322,6 +348,94 @@ export class Planner {
       const byStart = (a: Meeting, b: Meeting) => a.start.localeCompare(b.start);
       return { capacity, meetings: meetings.sort(byStart), blocks: blockLines.sort(byStart) };
     });
+  }
+
+  /**
+   * The scheduler's input for today, built as the app's preview builds it (features/planning/plan-input.ts): the
+   * candidates are every open task Today shows (carried over, today, this evening), the blocks are the day's own with
+   * their lock and source, and the days out to the furthest deadline feed deadline pressure.
+   */
+  private async planInput(): Promise<{ c: Ctx; input: PlanInput }> {
+    const c = await this.ctx();
+    const iso = c.today.toString();
+    const rows = await this.store.tasks({ states: ["inbox", "active"], doDateLte: iso, startedBy: iso });
+    const tasks = rows.map((r) => toTask(r as unknown as TaskRow));
+    const byDay = (a: Task, b: Task) => byCodeUnit(a.daySortKey ?? "", b.daySortKey ?? "") || byCodeUnit(a.sortKey, b.sortKey) || byCodeUnit(a.id, b.id);
+    const carried = carriedOver(tasks, c.today);
+    const carriedIds = new Set(carried.map((t) => t.id));
+    const onDay = tasks.filter((t) => !carriedIds.has(t.id) && t.doDate?.equals(c.today)).sort(byDay);
+    const candidates = [...carried, ...onDay.filter((t) => !t.evening), ...onDay.filter((t) => t.evening)];
+    const through = aheadThrough(c.today, candidates);
+    const cal = await this.around(c.today.subtract({ days: 1 }).toString(), (through ?? c.today).add({ days: 1 }).toString(), rows);
+    const settings = { timezone: c.zone, bufferPct: c.settings.bufferPct, defaultEstimateMin: c.settings.defaultEstimateMin };
+    const capacity = capacityFor({ day: c.today, settings, workHours: cal.workHours, events: cal.events, blocks: cal.blocks, tasks: rows.map((t) => toCapacityTask(t as unknown as TaskRow)), now: c.now });
+    // Completing a task marks its block done: what has passed stays as it was, the rest is free again (plan-input.ts).
+    const nowMin = minuteOnDay(c.now, c.zone, c.today).minute;
+    const blocks: PlanBlock[] = [];
+    for (const b of cal.blockRows) {
+      if (typeof b.start_at !== "string" || typeof b.end_at !== "string") continue;
+      const start = minuteOnDay(Temporal.Instant.from(normaliseTimestamp(b.start_at)), c.zone, c.today).minute;
+      const end = minuteOnDay(Temporal.Instant.from(normaliseTimestamp(b.end_at)), c.zone, c.today).minute;
+      if (end <= start) continue;
+      const block: PlanBlock = { id: String(b.id), taskId: str(b.task_id), start, end, locked: b.locked === 1, source: str(b.source) };
+      if (!cal.closed(block.taskId)) blocks.push(block);
+      else if (start < nowMin) blocks.push({ ...block, end: Math.min(end, nowMin) });
+    }
+    const createdOn = new Map<string, LocalDate>();
+    for (const r of rows) if (typeof r.created_at === "string") createdOn.set(String(r.id), Temporal.Instant.from(normaliseTimestamp(r.created_at)).toZonedDateTimeISO(c.zone).toPlainDate());
+    return {
+      c,
+      input: {
+        day: c.today,
+        capacity: { windows: capacity.windows, busy: capacity.busy },
+        blocks,
+        candidates: candidates.map((t) => planTask(t, createdOn.get(t.id) ?? null)),
+        settings: { ...settings, maxBlockMin: c.settings.maxBlockMin, minBlockMin: c.settings.minBlockMin, eveningStartsAt: c.settings.eveningStartsAt },
+        now: c.now,
+        ahead: through ? aheadDays({ today: c.today, through, settings, workHours: cal.workHours, events: cal.events, blocks: cal.blocks }) : [],
+      },
+    };
+  }
+
+  private planView(c: Ctx, input: PlanInput, proposal: Proposal): DayPlanView {
+    const local = c.now.toZonedDateTimeISO(c.zone);
+    return { today: c.today, now: Temporal.PlainTime.from({ hour: local.hour, minute: local.minute }), zone: c.zone, proposal, considered: input.candidates.length };
+  }
+
+  /** Plan my day for the rest of today: the proposal with its reasons, and nothing written. */
+  async planDay(): Promise<DayPlanView> {
+    const { c, input } = await this.planInput();
+    return this.planView(c, input, plan(input));
+  }
+
+  /**
+   * Plan my day's Approve (block-repo.ts approvePlan): the plan as it stands now becomes blocks with source 'plan',
+   * and the plan's own earlier unlocked blocks it replaces go in the same batch. The plan is worked out again here,
+   * so what is written is what fits at this minute; the answer says exactly what went on the timeline.
+   */
+  async applyPlan(): Promise<DayPlanView> {
+    if (!canApprovePlan()) throw new Refusal("Putting a plan on the timeline is part of Sparehour Pro. The plan itself is free to look at.");
+    const { c, input } = await this.planInput();
+    const proposal = plan(input);
+    const view = this.planView(c, input, proposal);
+    if (proposal.blocks.length === 0) return view;
+    const ops: WireOp[] = [
+      ...proposal.replaces.map((id) => this.del("time_blocks", id)),
+      ...proposal.blocks.map((b) =>
+        this.put("time_blocks", this.newId(), {
+          space_id: c.spaceId,
+          user_id: c.userId,
+          task_id: b.taskId,
+          title: b.title,
+          start_at: isoAt(c.today, b.start, c.zone),
+          end_at: isoAt(c.today, b.end, c.zone),
+          locked: false,
+          source: "plan",
+        }),
+      ),
+    ];
+    await this.apply(ops, "plan the day");
+    return { ...view, applied: { placed: proposal.blocks.length, replaced: proposal.replaces.length } };
   }
 
   /** Untriaged tasks, newest first: the inbox is a queue. */

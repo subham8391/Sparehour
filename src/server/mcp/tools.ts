@@ -1,9 +1,9 @@
-// The Sparehour MCP server's tools (DECISIONS.md, amendment 2026-10-23): eight that read and nine that write, each
-// a thin call into the Planner with its answer in plain text. A write on a read-only connection is refused here with
+// The Sparehour MCP server's tools (DECISIONS.md, amendments 2026-10-23 and 2026-11-14): nine that read and ten that
+// write, each a thin call into the Planner with its answer in plain text. A write on a read-only connection is refused here with
 // the way to change it, before anything reaches Postgres (which refuses it too: migration 20261023000100).
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
-import { formatAdded, formatInbox, formatList, formatLists, formatProjects, formatSearch, formatTask, formatToday, formatUpcoming } from "./format";
+import { formatAdded, formatInbox, formatList, formatLists, formatPlan, formatProjects, formatSearch, formatTask, formatToday, formatUpcoming } from "./format";
 import { Refusal, type Planner } from "./planner";
 
 export type Access = "read" | "write";
@@ -15,7 +15,7 @@ export interface Effects {
 }
 
 export const SERVER_INSTRUCTIONS = `Sparehour is a calm, time-aware personal planner. A task has a do-date (the day the person plans to do it), maybe a time, an optional deadline (only a missed deadline is late), an estimate, a project or an area, tags and a priority. Today shows the day's tasks, This evening, Carried over (tasks whose day passed; say "carried over", never "overdue") and the spare time left after meetings, a buffer and what is planned. Lists hold things that are not tasks (to read, to watch, ideas): items with a status (to do, doing, done), a 1–5 rating, a link, a note and tags; lists nest.
-Look with get_today, get_inbox, get_upcoming, search, get_lists and get_list; act with the ids they return (titles work too when only one task matches). add_task takes one line in Sparehour's quick-add syntax, so pass the person's words through rather than rewriting them. Keep answers calm and short.`;
+Look with get_today, get_inbox, get_upcoming, search, get_lists and get_list; act with the ids they return (titles work too when only one task matches). plan_day is the app's own Plan my day for the rest of today and changes nothing; show it, and call apply_day_plan only when the person agrees. add_task takes one line in Sparehour's quick-add syntax, so pass the person's words through rather than rewriting them. Keep answers calm and short.`;
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
@@ -113,7 +113,36 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
     ({ list, status }) => run(async () => formatList(await planner.list(list, status))),
   );
 
+  server.registerTool(
+    "plan_day",
+    {
+      title: "Plan my day",
+      description:
+        "Sparehour's own Plan my day for the rest of today: a time block for each open task that fits (a set time first, then what is due today, then by priority and how often it was carried over), each with its reason, then what did not fit and the time left unplanned. Meetings, locked blocks and blocks made by hand stay where they are. Changes nothing: show it to the person, and call apply_day_plan when they agree.",
+      inputSchema: z.object({}),
+      annotations: READ,
+    },
+    () => run(async () => formatPlan(await planner.planDay())),
+  );
+
   // ---------------------------------------------------------------- task writes
+
+  server.registerTool(
+    "apply_day_plan",
+    {
+      title: "Put the plan on the timeline",
+      description:
+        "Writes Plan my day's blocks for the rest of today to the timeline (and to the person's calendar when they have that on), replacing the plan's own earlier blocks that have not started. The plan is worked out again at this moment, so the answer lists exactly what was placed. Call plan_day first and ask the person before using this.",
+      inputSchema: z.object({}),
+      annotations: WRITE,
+    },
+    () =>
+      write(async () => {
+        const plan = await planner.applyPlan();
+        if (plan.applied) effects.calendarChanged();
+        return formatPlan(plan);
+      }),
+  );
 
   server.registerTool(
     "add_task",

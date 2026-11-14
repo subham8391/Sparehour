@@ -194,7 +194,7 @@ export class SupabaseStore implements PlannerStore {
     return this.rows(
       this.db
         .from("time_blocks")
-        .select("id, task_id, title, start_at, end_at, locked")
+        .select("id, task_id, title, start_at, end_at, locked, source")
         .is("deleted_at", null)
         .gte("start_at", `${from}T00:00:00Z`)
         .lt("start_at", `${nextDay(to)}T00:00:00Z`),

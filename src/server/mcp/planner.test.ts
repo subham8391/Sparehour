@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { exceptionId } from "@/core/recurrence/exception-id";
 import { Temporal } from "@/core/time";
 import type { WireOp } from "@/server/sync/upload";
-import { formatToday, formatUpcoming } from "./format";
+import { formatPlan, formatToday, formatUpcoming } from "./format";
 import { Planner, Refusal, estimateMinutes, lastKey } from "./planner";
 import type { Row } from "./store";
 import { FakeStore } from "./store.fake";
@@ -436,5 +436,122 @@ describe("lists", () => {
     expect(r.said).toBe("Changed “Bleach”: marked done, rating taken off, moved to Anime");
     expect(await refusal(planner.updateItem("Bleach", { rating: 9 }))).toMatch(/1 to 5 stars/);
     expect(await refusal(planner.updateItem("Nothing like it", { status: "done" }))).toMatch(/No list item matches/);
+  });
+});
+
+describe("Plan my day is the app's own scheduler, shown first and written only when asked (amendment 2026-11-14)", () => {
+  // Friday 23 October, 09:00: work 09:00–18:00 with a stand-up at 10:00.
+  const day = (over: Record<string, Row[]> = {}) => ({
+    tasks: [
+      task({ id: "t-report", title: "Write the report", do_date: "2026-10-23", do_time: "11:00:00", estimate_min: 60, day_sort_key: "a1" }),
+      task({ id: "t-first", title: "First thing", do_date: "2026-10-23", day_sort_key: "a0" }),
+      task({ id: "t-due", title: "Send the invoice", do_date: "2026-10-23", deadline: "2026-10-23", estimate_min: 45, day_sort_key: "a2" }),
+      task({ id: "t-carried", title: "Missed Monday", do_date: "2026-10-19", carry_count: 3, estimate_min: 30 }),
+      task({ id: "t-evening", title: "Call mum", do_date: "2026-10-23", evening: 1, estimate_min: 20, day_sort_key: "a3" }),
+      task({ id: "t-later", title: "Not started", do_date: "2026-10-23", start_date: "2026-10-30" }),
+    ],
+    work_hours: [{ id: "w1", weekday: 4, start_time: "09:00:00", end_time: "18:00:00", deleted_at: null }],
+    calendars: [{ id: "c1", read: 1, private: 0, deleted_at: null }],
+    calendar_events: [
+      { id: "e1", calendar_id: "c1", summary: "Standup", start_at: "2026-10-23T10:00:00+00:00", end_at: "2026-10-23T10:30:00+00:00", all_day: 0, busy: 1, status: "confirmed", self_response: "accepted", event_type: "default", is_ours: 0, deleted_at: null },
+    ],
+    ...over,
+  });
+  const placed = (v: Awaited<ReturnType<Planner["planDay"]>>) => v.proposal.blocks.map((b) => [b.title, b.start, b.end]);
+  const overlaps = (a: number[], b: number[]) => a[0] < b[1] && b[0] < a[1];
+
+  it("plan_day proposes a block for every open task that fits, around the meeting, and writes nothing", async () => {
+    setup(day());
+    const v = await planner.planDay();
+    expect(store.ops).toHaveLength(0);
+    expect(v.considered).toBe(5);
+    const blocks = placed(v);
+    // A do-time is a promise: the report sits at 11:00 for its hour.
+    expect(blocks).toContainEqual(["Write the report", 11 * 60, 12 * 60]);
+    expect(blocks.map((b) => b[0]).sort()).toEqual(["First thing", "Missed Monday", "Send the invoice", "Write the report"]);
+    // Nothing before now, in the stand-up, or on top of another block; the evening task has no evening time in a day that ends at 18:00.
+    for (const [, start, end] of blocks) {
+      expect(start).toBeGreaterThanOrEqual(9 * 60);
+      expect(end).toBeLessThanOrEqual(18 * 60);
+      expect(overlaps([start as number, end as number], [10 * 60, 10 * 60 + 30])).toBe(false);
+    }
+    for (const [i, a] of blocks.entries()) for (const b of blocks.slice(i + 1)) expect(overlaps([a[1] as number, a[2] as number], [b[1] as number, b[2] as number])).toBe(false);
+    expect(v.proposal.unplaced.map((u) => [u.title, u.reason.kind])).toEqual([["Call mum", "no_evening_time"]]);
+
+    const text = formatPlan(v);
+    expect(text).toContain("Plan for today, Friday 23 October · from 09:00 in UTC");
+    expect(text).toContain("Blocks (4)");
+    expect(text).toContain("- 11:00–12:00 Write the report — You set it for 11:00. [task t-report]");
+    expect(text).toMatch(/- \d\d:\d\d–\d\d:\d\d Send the invoice — Due today, so it gets time before the day ends\. \[task t-due\]/);
+    expect(text).toMatch(/Didn't fit \(1\)\n- Call mum \(20m\) — Your working hours end before 18:00/);
+    expect(text).toContain("Nothing has changed yet.");
+    expect(text).not.toContain("overdue");
+  });
+
+  it("apply_day_plan writes those blocks as the plan's own, as the person, and a second run replaces them", async () => {
+    setup(day());
+    const before = await planner.planDay();
+    const v = await planner.applyPlan();
+    expect(v.applied).toEqual({ placed: 4, replaced: 0 });
+    expect(store.devices).toEqual(["mcp:client-1"]);
+    const puts = opsOn("time_blocks");
+    expect(puts.map((o) => o.op)).toEqual(["PUT", "PUT", "PUT", "PUT"]);
+    expect(puts.map((o) => [o.data?.title, o.data?.start_at, o.data?.end_at]).sort()).toEqual(
+      placed(before)
+        .map(([title, start, end]) => [title, new Date(Date.UTC(2026, 9, 23, 0, start as number)).toISOString().replace(".000Z", "Z"), new Date(Date.UTC(2026, 9, 23, 0, end as number)).toISOString().replace(".000Z", "Z")])
+        .sort(),
+    );
+    const report = puts.find((o) => o.data?.task_id === "t-report");
+    expect(report?.data).toMatchObject({ space_id: "s1", user_id: "u1", task_id: "t-report", title: "Write the report", start_at: "2026-10-23T11:00:00Z", end_at: "2026-10-23T12:00:00Z", locked: false, source: "plan" });
+    // The calendar's side of a block is the server's: nothing of it is sent.
+    expect(Object.keys(report?.data ?? {})).not.toContain("push_state");
+    expect(formatPlan(v)).toContain("On the timeline now (4)");
+    expect(formatPlan(v)).not.toContain("Nothing has changed yet.");
+
+    // Planned again, the plan's own unlocked blocks are its to replace, and the day comes out the same.
+    const again = await planner.applyPlan();
+    expect(again.applied).toEqual({ placed: 4, replaced: 4 });
+    const second = store.ops.slice(4).filter((o) => o.table === "time_blocks");
+    expect(second.filter((o) => o.op === "DELETE").map((o) => o.id).sort()).toEqual(puts.map((o) => o.id).sort());
+    expect(second.filter((o) => o.op === "PUT")).toHaveLength(4);
+    expect(formatPlan(again)).toContain("Replaced 4 earlier plan blocks.");
+    expect(placed(again)).toEqual(placed(before));
+  });
+
+  it("a locked block, a block made by hand and a meeting all stay where they are", async () => {
+    setup(
+      day({
+        time_blocks: [
+          { id: "b-locked", task_id: "t-first", title: "First thing", start_at: "2026-10-23T09:00:00+00:00", end_at: "2026-10-23T09:30:00+00:00", locked: 1, source: "plan", deleted_at: null },
+          { id: "b-hand", task_id: null, title: "Deep work", start_at: "2026-10-23T13:00:00+00:00", end_at: "2026-10-23T15:00:00+00:00", locked: 0, source: "manual", deleted_at: null },
+        ],
+      }),
+    );
+    const v = await planner.applyPlan();
+    expect(v.proposal.kept).toEqual(["t-first"]);
+    expect(v.proposal.replaces).toEqual([]);
+    expect(opsOn("time_blocks").every((o) => o.op === "PUT")).toBe(true);
+    for (const [title, start, end] of placed(v)) {
+      expect(title).not.toBe("First thing");
+      expect(overlaps([start as number, end as number], [9 * 60, 9 * 60 + 30])).toBe(false);
+      expect(overlaps([start as number, end as number], [13 * 60, 15 * 60])).toBe(false);
+    }
+    expect(formatPlan(v)).toContain("1 task keeps the block it already has.");
+  });
+
+  it("a day off, or a day with nothing open, has nothing to plan and writes nothing", async () => {
+    setup(day({ work_hours: [] }));
+    expect(formatPlan(await planner.applyPlan())).toContain("No working hours today, so there is nothing to plan.");
+    setup({ work_hours: [{ id: "w1", weekday: 4, start_time: "09:00:00", end_time: "18:00:00", deleted_at: null }] });
+    const none = await planner.applyPlan();
+    expect(none.applied).toBeUndefined();
+    expect(formatPlan(none)).toContain("Nothing to plan: today has no open tasks.");
+    expect(store.ops).toHaveLength(0);
+  });
+
+  it("a connection that may not write is refused by the database, in words", async () => {
+    setup(day());
+    store.refuse = () => "42501";
+    expect(await refusal(planner.applyPlan())).toContain("Sparehour refused to plan the day: this connection may not change that");
   });
 });

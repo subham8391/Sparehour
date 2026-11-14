@@ -126,7 +126,7 @@ Each feature is tagged with the milestone where it fits:
 | Brain-dump → tasks; "Break this down"; estimate suggestions (parked: Claude does this through the MCP server) | Later (parked 2026-11-14) | Todoist, Tiimo, Any.do |
 | Plain-English explanations for "Plan my day" (the template sentences shipped with Plan my day on 2026-10-01; AI rewording of them is parked) | Later (parked 2026-11-14) | — |
 | Weekly-review summary draft | Later (parked 2026-11-14) | — |
-| MCP server for Claude (`/api/mcp`, Supabase OAuth, read and change or read only per connection, Settings › Connected apps; pulled forward 2026-10-23, DECISIONS.md amendment of that date) | M1 | Todoist, Akiflow, Linear |
+| MCP server for Claude (`/api/mcp`, Supabase OAuth, read and change or read only per connection, Settings › Connected apps; pulled forward 2026-10-23, DECISIONS.md amendment of that date). Claude can show Plan my day and put it on the timeline (`plan_day`, `apply_day_plan`; 2026-11-14) | M1 | Todoist, Akiflow, Linear |
 | Public API, propose-then-approve for agents, agent activity log with undo | M3 | Todoist, Akiflow, Linear |
 | Credits, AI add-ons, "chat with your tasks" as a headline | Never | research: metered AI resented |
 
