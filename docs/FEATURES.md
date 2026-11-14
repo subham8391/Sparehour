@@ -21,6 +21,7 @@ Each feature is tagged with the milestone where it fits:
 |---|---|---|
 | Natural-language quick-add: `Draft proposal fri 3pm ~45m #acme @calls !1 every mon` | M1 | Todoist, Remember The Milk |
 | Keyboard quick-add from anywhere in the app (Cmd+K / `Q`) | M1 | Things, Linear |
+| Quick add says what the line does to its day before it is saved: "Leaves 2h 50m spare today", "40m more than fits on Thu" (built 2026-11-14) | M1 | — |
 | Inbox for everything unsorted | M1 | GTD apps |
 | Paste a multi-line list → one task per line | M1 | Todoist |
 | Share to the app from phone share sheet (PWA share target; Android first) | M2 | Nirvana, Everdo |

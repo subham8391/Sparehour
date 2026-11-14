@@ -14,9 +14,11 @@ import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/q
 import { withAreaNames } from "@/data/queries/project-label";
 import { TAGS_SQL } from "@/data/queries/views";
 import { useListRepos } from "@/features/lists/use-list-repos";
+import type { TaskDraft } from "@/core/quickadd";
+import { DayLine } from "./day-line";
 import { QuickAdd, type QuickAddProps } from "./quick-add";
 
-export function QuickAddConnected(props: Omit<QuickAddProps, "projects" | "tags" | "lists" | "initialList" | "onSaveToList">) {
+export function QuickAddConnected(props: Omit<QuickAddProps, "projects" | "tags" | "lists" | "initialList" | "onSaveToList" | "dayLine">) {
   const { data: projectRows } = useQuery<ProjectRow>(PROJECTS_SQL);
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
   const { data: tagRows } = useQuery<{ id: string; name: string | null }>(TAGS_SQL);
@@ -36,7 +38,10 @@ export function QuickAddConnected(props: Omit<QuickAddProps, "projects" | "tags"
   );
   // On a list's own page the sheet opens on that list.
   const here = /^\/list\/([^/]+)$/.exec(usePathname() ?? "")?.[1] ?? null;
-  return <QuickAdd {...props} projects={projects} tags={tags} lists={lists} initialList={here} onSaveToList={onSaveToList} />;
+  // What the line would do to its day's spare time, before it is saved (DECISIONS.md, amendment 2026-11-14).
+  const { now, today } = props.ctx;
+  const dayLine = useCallback((draft: TaskDraft) => <DayLine draft={draft} now={now} today={today} />, [now, today]);
+  return <QuickAdd {...props} projects={projects} tags={tags} lists={lists} initialList={here} onSaveToList={onSaveToList} dayLine={dayLine} />;
 }
 
 /**

@@ -167,6 +167,8 @@ export interface QuickAddProps {
   initialList?: string | null;
   /** Saves lines as items of a list, in order; the save's own undo is the caller's. */
   onSaveToList?: (listId: string, titles: readonly string[]) => Promise<void>;
+  /** What the task would do to its day ("Leaves 2h 50m spare today"), drawn as the strip's last line. */
+  dayLine?: (draft: TaskDraft) => ReactNode;
 }
 
 export function QuickAdd({
@@ -187,6 +189,7 @@ export function QuickAdd({
   lists = [],
   initialList = null,
   onSaveToList,
+  dayLine,
 }: {
   open: boolean;
   initial?: string;
@@ -207,6 +210,7 @@ export function QuickAdd({
   lists?: readonly QuickAddList[];
   initialList?: string | null;
   onSaveToList?: (listId: string, titles: readonly string[]) => Promise<void>;
+  dayLine?: (draft: TaskDraft) => ReactNode;
 }) {
   // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title
   // text while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
@@ -585,6 +589,7 @@ export function QuickAdd({
               {interpretation.destination}
             </span>
           )}
+          {draft && dayLine?.(shape ? shape(draft) : draft)}
         </p>
         {warnings.length > 0 && (
           // A parse warning is a note, not a failure: ink-2 and the alert glyph (DESIGN_SYSTEM.md §2, ruling R1).

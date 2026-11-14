@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
@@ -19,6 +19,29 @@ function setup(over: Partial<React.ComponentProps<typeof QuickAdd>> = {}) {
 }
 
 describe("<QuickAdd>", () => {
+  describe("the day line (DECISIONS.md, amendment 2026-11-14)", () => {
+    it("is handed the draft as it will be saved and drawn inside the strip, so it is announced with the parse", async () => {
+      const dayLine = vi.fn((d: { doDate: unknown; estimateMin: number | null }) => (d.doDate ? <span>Leaves 2h 50m spare today</span> : null));
+      const { user, input } = setup({ dayLine });
+      await user.type(input, "Call Dana today ~30m");
+      const strip = document.getElementById(input.getAttribute("aria-describedby") ?? "");
+      expect(strip).toHaveAttribute("aria-live", "polite");
+      expect(strip).toHaveTextContent("Leaves 2h 50m spare today");
+      expect(dayLine.mock.lastCall?.[0]).toMatchObject({ title: "Call Dana", estimateMin: 30 });
+      expect(String(dayLine.mock.lastCall?.[0].doDate)).toBe("2026-09-11");
+    });
+
+    it("takes the brain dump's shape, and is not asked about a list item or a line with no name", async () => {
+      const dayLine = vi.fn(() => null);
+      const { input } = setup({ dayLine, shape: (d) => ({ ...d, doDate: d.doDate ?? ctx.today }) });
+      // The whole line at once: typed key by key, "t", "to"… are names of their own on the way.
+      fireEvent.change(input, { target: { value: "tomorrow ~30m" } });
+      expect(dayLine).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: "Buy milk" } });
+      expect(String((dayLine.mock.lastCall as unknown as [{ doDate: unknown }])[0].doDate)).toBe("2026-09-11");
+    });
+  });
+
   describe("Save to a list (DECISIONS.md, amendment 2026-10-22)", () => {
     const lists = [
       { id: "l1", label: "Anime" },
