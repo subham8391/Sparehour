@@ -42,6 +42,49 @@ describe("<QuickAdd>", () => {
     });
   });
 
+  describe("what a task like this usually takes (DECISIONS.md, amendment 2026-11-15)", () => {
+    it("is asked with the line's estimate and the project it will be filed in, and said in the strip", async () => {
+      const usual = vi.fn((t: { estimateMin: number | null; projectId: string | null }) => (t.estimateMin === 30 ? 50 : null));
+      const { user, input } = setup({ usual });
+      await user.type(input, "Write the report #Acme ~30m");
+      expect(usual.mock.lastCall?.[0]).toEqual({ estimateMin: 30, projectId: "p1" });
+      const strip = document.getElementById(input.getAttribute("aria-describedby") ?? "");
+      expect(strip).toHaveTextContent("Tasks like this usually take you 50m.");
+    });
+
+    it("Use puts the length in place of the estimate typed, and the line saves with it", async () => {
+      const usual = (t: { estimateMin: number | null }) => (t.estimateMin === 30 ? 50 : null);
+      const { user, input, onSubmit } = setup({ usual });
+      await user.type(input, "Write the report ~30m today");
+      await user.click(screen.getByRole("button", { name: "Use 50m" }));
+      expect(input).toHaveValue("Write the report ~50m today");
+      expect(input).toHaveFocus();
+      // Taken: the line now counts what the suggestion said, so there is nothing more to suggest.
+      expect(screen.queryByRole("button", { name: "Use 50m" })).not.toBeInTheDocument();
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0].draft).toMatchObject({ title: "Write the report", estimateMin: 50 });
+    });
+
+    it("Use adds an estimate to a line that has none", async () => {
+      const usual = (t: { estimateMin: number | null }) => (t.estimateMin == null ? 90 : null);
+      const { user, input } = setup({ usual });
+      await user.type(input, "Plan the offsite");
+      await user.click(screen.getByRole("button", { name: "Use 1h 30m" }));
+      expect(input).toHaveValue("Plan the offsite ~1h30m");
+    });
+
+    it("says nothing when there is nothing to say, or no name yet", async () => {
+      const usual = vi.fn(() => null);
+      const { input } = setup({ usual });
+      fireEvent.change(input, { target: { value: "~30m" } });
+      expect(usual).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: "Buy milk ~30m" } });
+      expect(usual).toHaveBeenCalled();
+      expect(screen.queryByText(/usually take you/)).not.toBeInTheDocument();
+    });
+  });
+
   it("a save that fails keeps the words in the box and says why; the next save clears the message", async () => {
     const onSubmit = vi
       .fn<(s: QuickAddSubmission) => Promise<void>>()

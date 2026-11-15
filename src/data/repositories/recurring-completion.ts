@@ -69,6 +69,8 @@ export async function completeRecurring(
   history.record({
     label: `Completed ${quoted(before.title)}`,
     toast: true,
+    // How long this day of it took is the completion's to keep (took.ts), not the rolling task's.
+    took: { table: "task_completions", id: completionId },
     rows: { tasks: [task.id], task_completions: [completionId], checklist_items: ticked },
     // One transaction: sync takes a done row off the device a moment after it uploads (see restoreRow).
     undo: () =>

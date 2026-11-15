@@ -33,6 +33,7 @@ import { dayLabel } from "@/features/quickadd/interpret";
 import { Checklist } from "./checklist";
 import { repeatPolicy } from "./repeat-policy";
 import { PausePicker, pausedUntil, RepeatLine, SeriesPrompt } from "./series-controls";
+import { UsualLine } from "@/features/estimates/usual-line";
 import { DefaultEstimate } from "./default-estimate";
 import { ESTIMATE_PRESETS, guessLabel } from "./estimate-presets";
 import { BLOCK_GLYPH } from "./task-actions";
@@ -66,6 +67,12 @@ export interface TaskDetailPanelProps {
   onBlock?: () => void;
   /** The task's blocks as field rows (features/blocking/block-rows.tsx), under the Estimate. */
   blockRows?: ReactNode;
+  /** How long a finished task took, once that is recorded (DECISIONS.md, amendment 2026-11-15). */
+  took?: number | null;
+  /** Records it, or clears it with null; with this, a finished task shows a Took field under its Estimate. */
+  onTook?: (minutes: number | null) => void;
+  /** What a task like this usually takes, when that is not what it is counted as (core/estimates `suggestEstimate`). */
+  usual?: number | null;
   /** Convert task → project (PRODUCT_SPEC.md §6): the footer's ⋯ and the checklist's ⋯ offer it. */
   onConvert?: () => void;
   /** A copy right after the task, which then opens (SCREENS.md §10 footer ⋯ "Duplicate"). */
@@ -483,6 +490,13 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           <FieldRow label="Estimate" value={task.estimateMin ? <Chip>{formatMinutes(task.estimateMin)}</Chip> : <GuessChip />} request={asked("estimate")}>
             {(close) => <EstimatePicker value={task.estimateMin} onChange={(m) => (onPatch({ estimateMin: m }), close())} />}
           </FieldRow>
+          {/* What finished tasks say about this estimate: said, and taken only with a tap (DECISIONS.md, amendment 2026-11-15). */}
+          {p.usual != null && !done && task.state !== "dropped" && <UsualLine className="min-h-11 px-4 py-1.5 sm:px-5" minutes={p.usual} onUse={() => onPatch({ estimateMin: p.usual })} />}
+          {done && p.onTook && (
+            <FieldRow label="Took" value={p.took ? <Chip>{formatMinutes(p.took)}</Chip> : <Muted>—</Muted>}>
+              {(close) => <EstimatePicker value={p.took ?? null} clear="Not recorded" onChange={(m) => (p.onTook?.(m), close())} />}
+            </FieldRow>
+          )}
 
           {/* The task's blocks, each with start and end fields (SCREENS.md §10 "Blocked 9:30–10:15 · locked"). */}
           {p.blockRows}
@@ -881,8 +895,8 @@ function GuessChip() {
   );
 }
 
-/** The estimate picker: the preset chips, minutes typed in (focused when the picker is opened by `E`), and No estimate. */
-export function EstimatePicker({ value, onChange }: { value: number | null; onChange: (minutes: number | null) => void }) {
+/** The estimate picker: the preset chips, minutes typed in (focused when the picker is opened by `E`), and No estimate (`clear` names it). */
+export function EstimatePicker({ value, onChange, clear = "No estimate" }: { value: number | null; onChange: (minutes: number | null) => void; clear?: string }) {
   return (
     <>
       <div className="flex flex-wrap gap-1.5">
@@ -893,7 +907,7 @@ export function EstimatePicker({ value, onChange }: { value: number | null; onCh
         ))}
       </div>
       <MinutesInput onSubmit={onChange} />
-      {value != null && <Clear onClick={() => onChange(null)}>No estimate</Clear>}
+      {value != null && <Clear onClick={() => onChange(null)}>{clear}</Clear>}
     </>
   );
 }

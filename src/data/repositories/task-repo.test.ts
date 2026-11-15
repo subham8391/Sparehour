@@ -167,8 +167,8 @@ describe("TaskRepo undo after the row has left the device", () => {
     // completed_at goes in set and the explicit update clears it: an update uploads only what it changes.
     expect(insertArgs.slice(0, 5)).toEqual(["t1", "s1", "Draft the proposal", "inbox", expect.any(String)]);
     const [fixSql, fixArgs] = execute.mock.calls[2];
-    expect(fixSql).toBe("update tasks set state = ?, completed_at = ?, updated_at = ? where id = ?");
-    expect(fixArgs.slice(0, 2)).toEqual(["inbox", null]);
+    expect(fixSql).toBe("update tasks set state = ?, completed_at = ?, actual_min = ?, updated_at = ? where id = ?");
+    expect(fixArgs.slice(0, 3)).toEqual(["inbox", null, null]);
   });
 
   it("when the row is still here, it is updated in place and nothing is re-inserted", async () => {
@@ -178,8 +178,8 @@ describe("TaskRepo undo after the row has left the device", () => {
     await history.record.mock.calls[0][0].undo();
     expect(execute).toHaveBeenCalledTimes(2);
     const [sql, args] = execute.mock.calls[1];
-    expect(sql).toBe("update tasks set state = ?, completed_at = ?, updated_at = ? where id = ?");
-    expect(args.slice(0, 2)).toEqual(["inbox", null]);
+    expect(sql).toBe("update tasks set state = ?, completed_at = ?, actual_min = ?, updated_at = ? where id = ?");
+    expect(args.slice(0, 3)).toEqual(["inbox", null, null]);
   });
 
   it("the presence check and the write share one transaction, so sync cannot take the row away between them", async () => {

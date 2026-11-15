@@ -7,7 +7,7 @@ import { normaliseTimestamp, toTask } from "@/data/mappers";
 import type { TaskRow } from "@/data/schema.client";
 
 /** A repeat's completion, joined to the task it belongs to (LOGBOOK_COMPLETIONS_SQL). */
-export type CompletionRow = TaskRow & { completion_id: string; occurrence_completed_at: string };
+export type CompletionRow = TaskRow & { completion_id: string; occurrence_completed_at: string; /** How long that day of it took, when it was said. */ occurrence_actual_min?: number | null };
 
 export type LogbookKind = "done" | "completion" | "dropped";
 
@@ -21,13 +21,15 @@ export interface LogbookEntry {
   at: string;
   /** Dropped by the rollover because its miss policy is "expire" (PRODUCT_SPEC.md §8.2 rule 5). */
   expired?: boolean;
+  /** How long it took, when the person said (DECISIONS.md, amendment 2026-11-15): the row says so and the day counts it. */
+  tookMin?: number;
 }
 
 export interface LogbookDay {
   day: LocalDate;
   done: LogbookEntry[];
   dropped: LogbookEntry[];
-  /** What the day's done entries add up to (unestimated ones at the default). */
+  /** What the day's done entries add up to: what each took where that is recorded, else its estimate (unestimated ones at the default). */
   minutes: number;
 }
 
@@ -45,15 +47,17 @@ export function logbookDays(input: {
   defaultEstimateMin: number;
 }): LogbookDay[] {
   const stamped: Stamped[] = [];
-  const add = (when: string | null | undefined, kind: LogbookKind, key: string, task: Task, expired = false) => {
+  const add = (when: string | null | undefined, kind: LogbookKind, key: string, task: Task, expired = false, took: number | null = null) => {
     if (!when) return;
     const zoned = instant(normaliseTimestamp(when)).toZonedDateTimeISO(input.zone);
     const entry: LogbookEntry = { key, task, kind, at: formatTime(zoned.toPlainTime()) };
     if (expired) entry.expired = true;
+    if (took != null && took > 0) entry.tookMin = took;
     stamped.push({ ms: zoned.epochMilliseconds, day: zoned.toPlainDate(), entry });
   };
-  for (const r of input.done ?? []) add(r.completed_at, "done", r.id, toTask(r));
-  for (const r of input.completions ?? []) add(r.occurrence_completed_at, "completion", r.completion_id, { ...toTask(r), id: r.id as TaskId, state: "done" });
+  for (const r of input.done ?? []) add(r.completed_at, "done", r.id, toTask(r), false, r.actual_min);
+  // A repeat's length is its finished day's, never the rolling task's.
+  for (const r of input.completions ?? []) add(r.occurrence_completed_at, "completion", r.completion_id, { ...toTask(r), id: r.id as TaskId, state: "done" }, false, r.occurrence_actual_min ?? null);
   // A drop is written as a state change, so the row's last write is when it was dropped.
   for (const r of input.dropped ?? []) add(r.updated_at ?? r.last_touched_at, "dropped", r.id, toTask(r), Boolean(r.expired_at));
   stamped.sort((a, b) => b.ms - a.ms || (a.entry.key < b.entry.key ? -1 : a.entry.key > b.entry.key ? 1 : 0));
@@ -69,8 +73,13 @@ export function logbookDays(input: {
       group.dropped.push(entry);
     } else {
       group.done.push(entry);
-      group.minutes += entry.task.estimateMin ?? input.defaultEstimateMin;
+      group.minutes += entryMinutes(entry, input.defaultEstimateMin);
     }
   }
   return days;
+}
+
+/** What a done entry adds to its day: what it took where the person said, else what it was counted as. */
+export function entryMinutes(entry: LogbookEntry, defaultEstimateMin: number): number {
+  return entry.tookMin ?? entry.task.estimateMin ?? defaultEstimateMin;
 }

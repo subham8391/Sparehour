@@ -42,7 +42,7 @@ export function FinishedPeek({
   onClose: () => void;
 }) {
   const when = finishedWhen(row.completed_at, zone, today);
-  const facts = [projectName, row.estimate_min ? formatMinutes(row.estimate_min) : null, row.deadline ? `due ${formatDay(localDate(String(row.deadline).slice(0, 10)), { today })}` : null].filter(Boolean);
+  const facts = [projectName, row.estimate_min ? formatMinutes(row.estimate_min) : null, row.actual_min ? `took ${formatMinutes(row.actual_min)}` : null, row.deadline ? `due ${formatDay(localDate(String(row.deadline).slice(0, 10)), { today })}` : null].filter(Boolean);
   const steps = row.checklist ?? [];
   return (
     <Sheet label="Finished task" onClose={onClose} align="center" width="sm" data-testid="finished-peek">

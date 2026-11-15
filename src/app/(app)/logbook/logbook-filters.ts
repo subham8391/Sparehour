@@ -3,7 +3,7 @@
 // were added so Escape can take off the last one. The day header's counts and minutes follow the filters.
 // Pure.
 import { localDate, type LocalDate } from "@/core/time";
-import type { LogbookDay, LogbookEntry } from "./logbook-days";
+import { entryMinutes, type LogbookDay, type LogbookEntry } from "./logbook-days";
 
 export type LogbookShow = "done" | "dropped";
 
@@ -122,7 +122,7 @@ export function filterLogbookDays(days: readonly LogbookDay[], f: LogbookFilters
     const done = d.done.filter((e) => keeps(e, day, f, ctx));
     const dropped = d.dropped.filter((e) => keeps(e, day, f, ctx));
     if (done.length === 0 && dropped.length === 0) continue;
-    out.push({ day: d.day, done, dropped, minutes: done.reduce((m, e) => m + (e.task.estimateMin ?? defaultEstimateMin), 0) });
+    out.push({ day: d.day, done, dropped, minutes: done.reduce((m, e) => m + entryMinutes(e, defaultEstimateMin), 0) });
   }
   return out;
 }

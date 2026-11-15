@@ -7,8 +7,10 @@
 // (DESIGN_SYSTEM.md §5 "Sheet"). Presentational and testable: data arrives as
 // props.
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { estimateToken } from "@/core/estimates";
 import { parse, type Range, type Span, type TaskDraft } from "@/core/quickadd";
 import type { Instant, LocalDate, LocalTime } from "@/core/time";
+import { UsualLine } from "@/features/estimates/usual-line";
 import { Button } from "@/ui/button";
 import { chipButtonClass, chipClass, type ChipTone } from "@/ui/chip";
 import { cx } from "@/ui/cx";
@@ -155,6 +157,8 @@ export interface QuickAddProps {
   flushRef?: Ref<QuickAddFlush>;
   /** What the task would do to its day ("Leaves 2h 50m spare today"), drawn as the strip's last line. */
   dayLine?: (draft: TaskDraft) => ReactNode;
+  /** What a task like this usually takes, when that is not what the line counts it as (core/estimates `suggestEstimate`). */
+  usual?: (task: { estimateMin: number | null; projectId: string | null }) => number | null;
 }
 
 export function QuickAdd({
@@ -173,6 +177,7 @@ export function QuickAdd({
   shape,
   flushRef,
   dayLine,
+  usual,
 }: {
   open: boolean;
   initial?: string;
@@ -191,6 +196,7 @@ export function QuickAdd({
   shape?: (draft: TaskDraft) => TaskDraft;
   flushRef?: Ref<QuickAddFlush>;
   dayLine?: (draft: TaskDraft) => ReactNode;
+  usual?: (task: { estimateMin: number | null; projectId: string | null }) => number | null;
 }) {
   // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title
   // text while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
@@ -256,6 +262,9 @@ export function QuickAdd({
   const tagSuggestions = tagSpan && !tagKnown ? tagMatches(tagName, tags).slice(0, 3) : [];
   const newTags = draft ? draft.tagNames.filter((t) => !resolveTag(t, tags)) : [];
   const interpretation = draft ? interpret(shape ? shape(draft) : draft, ctx.today, projectLabel, newTags) : null;
+  // What finished tasks say this one will take, when that is not what the line counts it as: one tap writes it in
+  // as the line's estimate, in place of the one typed (DECISIONS.md, amendment 2026-11-15).
+  const usualMin = draft && usual ? usual({ estimateMin: draft.estimateMin, projectId: match?.id ?? null }) : null;
   /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
   const needsName = !result.ok && value.trim() !== "";
 
@@ -288,6 +297,13 @@ export function QuickAdd({
       input.focus();
       requestAnimationFrame(() => input.setSelectionRange(at, at));
     }
+  };
+
+  const takeUsual = () => {
+    if (usualMin == null) return;
+    const typed = spans.findLast((s) => s.kind === "estimate");
+    if (typed) replaceSpan(typed, estimateToken(usualMin));
+    else insert(estimateToken(usualMin));
   };
 
   const pickProject = (p: QuickAddProject) => {
@@ -510,6 +526,7 @@ export function QuickAdd({
               {interpretation.destination}
             </span>
           )}
+          {usualMin != null && <UsualLine inline minutes={usualMin} onUse={takeUsual} />}
           {draft && dayLine?.(shape ? shape(draft) : draft)}
         </p>
         {warnings.length > 0 && (

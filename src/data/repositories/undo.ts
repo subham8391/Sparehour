@@ -26,11 +26,22 @@ export type UndoTable =
  */
 export type UndoRows = Partial<Record<UndoTable, readonly string[] | { readonly task_id: readonly string[] }>>;
 
+/**
+ * The row a finished task's length is written on (took.ts): the task itself, or for a repeat the completion of
+ * the day that was finished. A completion's undo toast asks "Took" for it (DECISIONS.md, amendment 2026-11-15).
+ */
+export interface TookAsk {
+  table: "tasks" | "task_completions";
+  id: string;
+}
+
 /** One write's undo entry, as a repository records it. */
 export interface UndoRecord {
   label: string;
   toast: boolean;
   announce?: string;
+  /** One task was finished: its toast offers how long it took. */
+  took?: TookAsk;
   /** Every row the write changed (and its undo puts back), so a redo can make exactly the same change again. */
   rows: UndoRows;
   undo: () => Promise<void>;

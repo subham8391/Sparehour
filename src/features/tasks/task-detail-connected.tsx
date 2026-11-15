@@ -4,8 +4,9 @@
 // writes. It travels with the panel in one island (task-detail.tsx fetches
 // it in idle time), so neither the queries nor the repositories ride in the
 // shell's first download (SYSTEM_DESIGN.md §11.6).
-import { useEffect, useMemo } from "react";
-import { useQuery } from "@/data/powersync";
+import { useContext, useEffect, useMemo } from "react";
+import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
+import { suggestEstimate } from "@/core/estimates";
 import { localDate } from "@/core/time";
 import type { RecurrenceException, TagRef } from "@/core/types";
 import { toChecklistItem, toTask } from "@/data/mappers";
@@ -14,11 +15,16 @@ import { withAreaNames } from "@/data/queries/project-label";
 import { CHECKLIST_SQL, SERIES_EXCEPTIONS_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL, PROJECT_HEADINGS_SQL } from "@/data/queries/views";
 import type { SeriesRepo } from "@/data/repositories/series-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
+import { setTook } from "@/data/repositories/took";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
+import { learnedIsOld } from "@/features/estimates/learned-store";
+import { useLearned } from "@/features/estimates/use-learned";
+import { useUndoSink } from "@/features/undo/undo-provider";
 import { BlockRows } from "@/features/blocking/block-rows";
 import { preloadMarkdown } from "@/ui/note-field";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { DefaultEstimate } from "./default-estimate";
 import { requestOrganize } from "./organize";
 import type { FieldRequest } from "./task-detail";
 import { Opening } from "./task-detail-surface";
@@ -31,6 +37,11 @@ type ChecklistRow = Parameters<typeof toChecklistItem>[0];
 
 export function TaskDetail({ id, field = null, onClose }: { id: string; field?: FieldRequest | null; onClose: () => void }) {
   const repo = useTaskRepo();
+  const db = useLocalDatabase() as LocalDatabase;
+  const undo = useUndoSink();
+  // How the person's estimates run (DECISIONS.md, amendment 2026-11-15): said under the Estimate, taken with a tap.
+  const learned = useLearned();
+  const defaultEstimate = useContext(DefaultEstimate);
   const checklistRepo = useChecklistRepo();
   const tagRepo = useTagRepo();
   const now = useNow();
@@ -103,6 +114,9 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
       blockRows={<BlockRows taskId={task.id} estimateMin={task.estimateMin} zone={zone} today={today} />}
+      took={rows?.[0]?.actual_min ?? null}
+      onTook={(minutes) => void setTook(db, undo, task.id, minutes).then(learnedIsOld)}
+      usual={suggestEstimate(learned, task, defaultEstimate)?.minutes ?? null}
       onConvert={() => void convert(task.id)}
       onDuplicate={() => requestOrganize({ kind: "duplicate", id: task.id })}
       onMovePicker={() => requestOrganize({ kind: "move", ids: [task.id] })}

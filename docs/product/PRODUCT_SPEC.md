@@ -628,6 +628,8 @@ A wizard, default Friday afternoon: Inbox to zero · projects with no next actio
 - Document Picture-in-Picture "Now" card on desktop Chromium/Firefox: current task, time remaining, pause, done (`07` §D32). Not available in Safari — the feature degrades to a normal tab, never breaks.
 - Overrun is quiet: the timer counts up past zero and offers "+15m" or "Done".
 
+**As built (2026-11-15), without the timer.** The timer is parked (DECISIONS.md, amendment 2026-11-14); the length is recorded by one optional tap as a task is finished ("Took" under the completion's toast) or on a finished task's detail, and the app learns from it (DECISIONS.md, amendment 2026-11-15): it says what tasks like this usually take where an estimate is being chosen, and changes an estimate only when the person takes the suggestion.
+
 ---
 
 ## 14. Notifications — M1 (Q24)

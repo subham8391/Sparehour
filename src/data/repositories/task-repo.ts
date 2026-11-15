@@ -185,13 +185,14 @@ export class TaskRepo {
     return restoreRow(tx, "tasks", { ...before, id }, columns, at);
   }
 
-  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = [], announce?: string): void {
+  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = [], announce?: string, took = false): void {
     if (!this.history || !before) return;
     const title = quoted(before.title);
     this.history.record({
       label: label.includes("{title}") ? label.replace("{title}", title) : `${label} ${title}`,
       toast,
       ...(announce ? { announce: announce.replace("{title}", title) } : {}),
+      ...(took ? { took: { table: "tasks", id } } : {}),
       rows: { tasks: [id], time_blocks: released.map((b) => b.id) },
       // One transaction: sync takes a done or deleted row off the device a moment after it uploads, and
       // that must not land between restore's presence check and its write (the write would hit nothing).
@@ -285,10 +286,11 @@ export class TaskRepo {
     if (!before) return;
     const task = recurringOf(before);
     if (task) return this.completeRecurring(task, before);
-    const cols = ["state", "completed_at"];
+    // The toast asks how long it took (took.ts writes actual_min); undoing the completion takes that answer back too.
+    const cols = ["state", "completed_at", "actual_min"];
     const now = new Date().toISOString();
     await this.db.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, id]);
-    this.remember(id, before, cols, "Completed", true);
+    this.remember(id, before, cols, "Completed", true, [], undefined, true);
   }
 
   /**

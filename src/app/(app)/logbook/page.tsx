@@ -211,10 +211,12 @@ export default function LogbookPage() {
         days.map((d) => [...d.done.filter((e) => e.kind === "done" && !finished.has(e.key)).map((e) => e.key), ...(filters.show === "dropped" || openDropped.has(d.day.toString()) ? d.dropped.map((e) => e.key) : [])]),
   );
 
-  const meta = ({ task: t, at, expired: wasExpired }: LogbookEntry) => (
+  const meta = ({ task: t, at, expired: wasExpired, tookMin }: LogbookEntry) => (
     <>
       {wasExpired && <span>Expired</span>}
       {t.projectId && projectNames.has(t.projectId) && <span>{projectNames.get(t.projectId)}</span>}
+      {/* How long it took, when the person said: beside the estimate chip the row already carries. */}
+      {tookMin != null && <span className="num">took {formatMinutes(tookMin)}</span>}
       <span className="num">{at}</span>
     </>
   );

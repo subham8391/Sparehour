@@ -170,6 +170,42 @@ describe("<TaskDetailPanel>", () => {
     expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: null });
   });
 
+  it("a finished task has a Took field: the same picker records how long it took, and Not recorded clears it", async () => {
+    const onTook = vi.fn();
+    const { user } = setup({ task: { ...task, state: "done" }, took: null, onTook });
+    expect(screen.getByRole("button", { name: /^Took/ })).toHaveTextContent("—");
+    await user.click(screen.getByRole("button", { name: /^Took/ }));
+    await user.click(screen.getByRole("button", { name: "1h" }));
+    expect(onTook).toHaveBeenLastCalledWith(60);
+    await user.click(screen.getByRole("button", { name: /^Took/ }));
+    await user.type(screen.getByRole("spinbutton", { name: "Minutes" }), "50{Enter}");
+    expect(onTook).toHaveBeenLastCalledWith(50);
+    cleanup();
+    const again = setup({ task: { ...task, state: "done" }, took: 50, onTook });
+    expect(screen.getByRole("button", { name: /^Took/ })).toHaveTextContent("50m");
+    await again.user.click(screen.getByRole("button", { name: /^Took/ }));
+    await again.user.click(screen.getByRole("button", { name: "Not recorded" }));
+    expect(onTook).toHaveBeenLastCalledWith(null);
+  });
+
+  it("an open task has no Took field", () => {
+    setup({ took: null, onTook: vi.fn() });
+    expect(screen.queryByRole("button", { name: /^Took/ })).not.toBeInTheDocument();
+  });
+
+  it("says what tasks like this usually take, and Use makes it the estimate; a finished task is not told", async () => {
+    const { user, onPatch } = setup({ usual: 70 });
+    expect(screen.getByText("Tasks like this usually take you 1h 10m.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Use 1h 10m" }));
+    expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: 70 });
+    cleanup();
+    setup({ usual: 70, task: { ...task, state: "done" } });
+    expect(screen.queryByText(/usually take you/)).not.toBeInTheDocument();
+    cleanup();
+    setup({ usual: null });
+    expect(screen.queryByText(/usually take you/)).not.toBeInTheDocument();
+  });
+
   it("priority, project and miss policy are single choices", async () => {
     const { user, onPatch } = setup();
     await user.click(screen.getByRole("button", { name: /^Priority/ }));

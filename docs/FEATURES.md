@@ -89,7 +89,7 @@ Each feature is tagged with the milestone where it fits:
 | Routine behaviour — counts toward spare time; missed routine items never carry over; edit "just this day" or "this and following days"; pause, extend, end early; gentle progress ("Day 4 of 21", done on 3 of 3 days — no streaks) | Later (parked 2026-11-14) | — |
 | Timed routine items can be written to your calendar as blocks (opt-in per routine); a clash with a meeting is flagged, never auto-moved | Later (parked 2026-11-14) | — |
 | Outlook / Microsoft 365 calendar (moved up from M3 on 2026-11-14: meeting-heavy days are often on it) | M2 | — |
-| Learn estimate vs actual, suggest corrections | Later | Sunsama |
+| Learn estimate vs actual, suggest corrections — built 2026-11-15 (DECISIONS.md, amendment of that date): "Tasks like this usually take you 50m." with one tap to use it, in quick add, the task detail and Settings › Planning; it suggests and never changes an estimate on its own | M1 | Sunsama |
 | Buffers and travel time between blocks | Later | Reclaim, Morgen |
 | Energy-aware placement (deep work in your peak hours) | Later | Lunatask, Temporal |
 | Explainable priority ("why is this #1?") | Later | Taskwarrior urgency |
@@ -101,7 +101,7 @@ Each feature is tagged with the milestone where it fits:
 |---|---|---|
 | Satisfying (subtle) completion feedback | M1 | Things |
 | Focus timer tied to a task (countdown / Pomodoro) | Later (parked 2026-11-14) | TickTick, Llama Life, Blitzit |
-| Actual time tracked per task | M2 | Marvin, Ellie |
+| Actual time per task — built 2026-11-15 as one optional tap when a task is finished ("Took 15m · 30m · 45m · 1h"), not a timer (DECISIONS.md, amendment of that date) | M1 | Marvin, Ellie |
 | Habits as the same objects as tasks | Later | TickTick, Lunatask |
 | Low-density ADHD mode + visual countdowns | Later | Tiimo, Structured |
 | Forgiving streaks (freeze days) | Later | Finch, Streaks |

@@ -3,10 +3,11 @@
 // ones a person might regret (drop, complete, move), ⌘Z for all. Undoing one
 // keeps the way to make it again: ⇧⌘Z (Ctrl+Y), the palette's Redo, and the
 // toast that confirms the undo (DECISIONS.md "Redo"). A new write clears it.
+import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import type * as RedoCapture from "@/data/repositories/redo-capture";
-import type { UndoRecord } from "@/data/repositories/undo";
+import type { TookAsk, UndoRecord } from "@/data/repositories/undo";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { Button } from "@/ui/button";
 import { Toast } from "@/ui/toast";
@@ -70,6 +71,11 @@ function redoableEntry(db: LocalDatabase, raw: UndoRecord): UndoEntry {
   };
 }
 
+// "Took" under a completion's toast (took-chips.tsx; DECISIONS.md, amendment 2026-11-15): fetched in idle time
+// after the redo's capture, so it is there by the first task finished, offline too, and no shell carries it.
+const loadTook = () => import("@/features/took/took-chips");
+const Took = dynamic(() => loadTook().then((m) => m.TookChips), { ssr: false });
+
 /** Ten seconds to change your mind (PRODUCT_SPEC.md §7 rule 3, SCREENS.md §19); hovering or focusing the toast holds it. */
 const TOAST_MS = 10_000;
 
@@ -77,6 +83,8 @@ const TOAST_MS = 10_000;
 interface ToastState {
   text: string;
   action: "Undo" | "Redo";
+  /** One task was finished: the toast also asks how long it took. */
+  took?: TookAsk;
 }
 
 export function UndoProvider({ children }: { children: ReactNode }) {
@@ -110,7 +118,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
     (raw: UndoEntry | UndoRecord) => {
       const entry: UndoEntry = "rows" in raw ? (db ? redoableEntry(db, raw) : { label: raw.label, toast: raw.toast, announce: raw.announce, undo: raw.undo }) : raw;
       history.record(entry);
-      if (entry.toast) showToast({ text: entry.label, action: "Undo" });
+      if (entry.toast) showToast({ text: entry.label, action: "Undo", took: "rows" in raw ? raw.took : undefined });
       const words = entry.announce ?? (entry.toast ? entry.label : "");
       if (words) say(words);
     },
@@ -144,7 +152,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
-  useEffect(() => preloadOnIdle(loadRedo), []);
+  useEffect(() => preloadOnIdle(() => loadRedo().then(loadTook)), []);
 
   const api = useMemo<UndoApi>(() => ({ record, undo, redo, canUndo: depth.canUndo, canRedo: depth.canRedo }), [record, undo, redo, depth]);
 
@@ -166,9 +174,12 @@ export function UndoProvider({ children }: { children: ReactNode }) {
           onFocus={holdToast}
           onBlur={releaseToast}
           action={
-            <Button variant="quiet" size="auto" className="px-3" onClick={() => void (toast.action === "Redo" ? redo() : undo())}>
-              {toast.action}
-            </Button>
+            <>
+              <Button variant="quiet" size="auto" className="px-3" onClick={() => void (toast.action === "Redo" ? redo() : undo())}>
+                {toast.action}
+              </Button>
+              {toast.took && <Took ask={toast.took} />}
+            </>
           }
         >
           {toast.text}

@@ -275,6 +275,26 @@ describe("completing, moving and dropping", () => {
     expect(await refusal(planner.complete("Send invoice"))).toBe("“Send invoice” is already done.");
   });
 
+  it("records how long it took when the person said, on the task or on a repeat's finished day", async () => {
+    setup({
+      tasks: [
+        task({ id: "t1", title: "Send invoice", estimate_min: 30 }),
+        task({ id: "r1", title: "Weekly review", do_date: "2026-10-19", recurrence_rule: "FREQ=WEEKLY;BYDAY=MO", recurrence_mode: "fixed", recurrence_series_id: "r1", miss_policy: "skip" }),
+        task({ id: "t2", title: "Call Sam" }),
+      ],
+    });
+    expect((await planner.complete("Send invoice", 50)).said).toBe("Completed “Send invoice” · took 50m");
+    expect(only(store.ops)).toMatchObject({ op: "PATCH", table: "tasks", id: "t1", data: { state: "done", actual_min: 50 } });
+    const repeat = await planner.complete("Weekly review", 75);
+    expect(repeat.said).toMatch(/^Completed “Weekly review” · it repeats, next on .+ · took 1h 15m$/);
+    expect(only(opsOn("task_completions")).data).toMatchObject({ task_id: "r1", actual_min: 75 });
+    // The rolling task itself carries no length: the next day of it is its own.
+    expect(opsOn("tasks").find((o) => o.id === "r1")?.data).not.toHaveProperty("actual_min");
+    // Nothing said, nothing written.
+    expect((await planner.complete("Call Sam", 0)).said).toBe("Completed “Call Sam”");
+    expect(opsOn("tasks").find((o) => o.id === "t2")?.data).not.toHaveProperty("actual_min");
+  });
+
   it("rolls a repeat on to its next day with its deadline at the same offset, and unticks its steps", async () => {
     setup({
       tasks: [task({ id: "r1", title: "Weekly review", do_date: "2026-10-19", deadline: "2026-10-20", recurrence_rule: "FREQ=WEEKLY;BYDAY=MO", recurrence_mode: "fixed", recurrence_series_id: "r1", miss_policy: "skip" })],

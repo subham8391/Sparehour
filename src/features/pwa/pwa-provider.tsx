@@ -5,7 +5,7 @@
 // person chooses to reload, unless /api/bootstrap says this build is below the
 // oldest one allowed: then "Update required" blocks the app, lets pending
 // uploads go and moves to the new version (§10.2).
-import { Serwist } from "@serwist/window";
+import type { Serwist } from "@serwist/window";
 import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/ui/button";
@@ -84,18 +84,26 @@ export function PwaProvider({ children }: { children: ReactNode }) {
 
   // The update flow (§10.2): register the worker (production builds only —
   // in development there is no sw.js), notice a waiting version, and reload
-  // only when the person asks.
+  // only when the person asks. The worker's own library is fetched here, after
+  // the first paint, so no shell carries it (§11.6); the worker precaches it, so it is there offline too.
   useEffect(() => {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
-    const worker = new Serwist("/sw.js", { scope: "/", type: "classic" });
-    workerRef.current = worker;
-    worker.addEventListener("waiting", () => setUpdateReady(true));
-    worker.addEventListener("controlling", (event) => {
-      if (event.isUpdate) window.location.reload();
-    });
-    // Blocked by policy or a private window: the app works without it, so no uncaught error on every load.
-    worker.register().catch(() => {});
+    let left = false;
+    import("@serwist/window")
+      .then(({ Serwist }) => {
+        if (left) return;
+        const worker = new Serwist("/sw.js", { scope: "/", type: "classic" });
+        workerRef.current = worker;
+        worker.addEventListener("waiting", () => setUpdateReady(true));
+        worker.addEventListener("controlling", (event) => {
+          if (event.isUpdate) window.location.reload();
+        });
+        return worker.register();
+      })
+      // Blocked by policy or a private window, or the library could not be fetched: the app works without it, so no uncaught error on every load.
+      .catch(() => {});
     return () => {
+      left = true;
       workerRef.current = null;
     };
   }, []);

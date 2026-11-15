@@ -3,9 +3,12 @@
 // about a carried-over task, when an untouched one goes to Someday, the
 // morning review, what a new one-off task does when its day passes, and the
 // view the app opens to.
+import { suggestDefault } from "@/core/estimates";
 import { TODAY_SORTS, isTodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo } from "@/data/repositories/settings-repo";
+import { useLearned } from "@/features/estimates/use-learned";
+import { UsualLine } from "@/features/estimates/usual-line";
 import { cx } from "@/ui/cx";
 import { Segmented } from "@/ui/segmented";
 import { Select } from "@/ui/select";
@@ -39,9 +42,13 @@ export function PlanningSection(p: SettingsFormProps) {
     p.onChange(patch);
     flash();
   };
+  // What tasks finished without an estimate really took, when that is not the default they are counted as
+  // (DECISIONS.md, amendment 2026-11-15): one tap makes it the default, and every day's number counts with it.
+  const usual = suggestDefault(useLearned(), values.defaultEstimateMin);
   return (
     <Section title="Planning" saved={saved}>
       <NumberRow id="estimate" label="Default estimate" unit="minutes" value={values.defaultEstimateMin} min={5} max={480} step={5} onChange={(v) => change({ defaultEstimateMin: v })} />
+      {usual && <UsualLine className="-mt-1 px-4 pb-2" about="Tasks you finished without an estimate usually took" minutes={usual.minutes} onUse={() => change({ defaultEstimateMin: usual.minutes })} />}
       <NumberRow id="carry" label="Ask about a carried-over task after" unit="carries" value={values.carryAskAfter} min={1} max={14} step={1} onChange={(v) => change({ carryAskAfter: v })} />
       <NumberRow id="someday" label="Move an untouched task to Someday after" unit="days" value={values.autoSomedayDays} min={7} max={120} step={1} onChange={(v) => change({ autoSomedayDays: v })} />
       <SwitchRow id="carry-review" label="Morning review" hint="Ask about carried-over tasks when the day starts" checked={values.carryReview} onChange={(v) => change({ carryReview: v })} />

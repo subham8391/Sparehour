@@ -51,14 +51,14 @@ export function toTaskRow(f: FinishedRow): TaskRow {
 }
 
 /** A repeat's finished occurrence, shaped as the Logbook's completion rows are: the repeating task, and when. */
-export type FinishedOccurrence = TaskRow & { completion_id: string; occurrence_completed_at: string };
+export type FinishedOccurrence = TaskRow & { completion_id: string; occurrence_completed_at: string; occurrence_actual_min: number | null };
 
 /** Splits a page into tasks that were finished and occurrences of repeats, as the Logbook lists them. */
 export function splitFinished(rows: readonly FinishedRow[]): { done: TaskRow[]; completions: FinishedOccurrence[] } {
   const done: TaskRow[] = [];
   const completions: FinishedOccurrence[] = [];
   for (const f of rows) {
-    if (f.occurrence_of && f.completed_at) completions.push({ ...toTaskRow(f), id: f.occurrence_of, completion_id: f.id, occurrence_completed_at: f.completed_at });
+    if (f.occurrence_of && f.completed_at) completions.push({ ...toTaskRow(f), id: f.occurrence_of, completion_id: f.id, occurrence_completed_at: f.completed_at, occurrence_actual_min: f.actual_min ?? null });
     else done.push(toTaskRow(f));
   }
   return { done, completions };

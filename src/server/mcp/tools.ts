@@ -150,8 +150,16 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
 
   server.registerTool(
     "complete_task",
-    { title: "Complete a task", description: "Marks a task done. A repeating task moves on to its next day.", inputSchema: z.object({ task: taskRef }), annotations: WRITE },
-    ({ task }) => write(async () => (await planner.complete(task)).said),
+    {
+      title: "Complete a task",
+      description: "Marks a task done. A repeating task moves on to its next day. When the person says how long it took, pass that too: Sparehour learns how their estimates run from it.",
+      inputSchema: z.object({
+        task: taskRef,
+        took_minutes: z.number().int().min(1).max(1440).optional().describe("How long the task took, in minutes, only when the person said so. Never a guess."),
+      }),
+      annotations: WRITE,
+    },
+    ({ task, took_minutes }) => write(async () => (await planner.complete(task, took_minutes)).said),
   );
 
   server.registerTool(

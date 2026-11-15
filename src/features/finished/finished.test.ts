@@ -35,6 +35,12 @@ describe("toTaskRow and splitFinished", () => {
     expect(done.map((d) => d.id)).toEqual(["t1"]);
     expect(completions).toEqual([expect.objectContaining({ id: "t-gym", completion_id: "c9", occurrence_completed_at: "2026-09-28T07:00:00+00:00", title: "Gym" })]);
   });
+
+  it("keeps how long each took: a task's on the task, an occurrence's as the occurrence's", () => {
+    const { done, completions } = splitFinished([row({ actual_min: 70 }), row({ id: "c9", occurrence_of: "t-gym", actual_min: 55, completed_at: "2026-09-28T07:00:00+00:00" }), row({ id: "c8", occurrence_of: "t-gym", completed_at: "2026-09-21T07:00:00+00:00" })]);
+    expect(done[0].actual_min).toBe(70);
+    expect(completions.map((c) => c.occurrence_actual_min)).toEqual([55, null]);
+  });
 });
 
 describe("finishedUrl", () => {

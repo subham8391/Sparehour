@@ -16,7 +16,7 @@ import { exceptionId } from "@/core/recurrence/exception-id";
 import { currentOccurrence } from "@/core/recurrence/series";
 import { ruleWords } from "@/core/recurrence/words";
 import { carriedOver } from "@/core/rollover/carried";
-import { Temporal, compareDates, localDate, todayFor, type Instant, type LocalDate, type LocalTime } from "@/core/time";
+import { Temporal, compareDates, formatMinutes, localDate, todayFor, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 import type { RecurrenceMode, Task } from "@/core/types";
 import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
@@ -547,8 +547,12 @@ export class Planner {
     return { task, strip: said.strip, destination: said.destination, unfiled: filed.unfiled };
   }
 
-  /** Done; a repeating task rolls on to its next day (or ends with its series), as the app completes it. */
-  async complete(ref: string): Promise<Changed> {
+  /**
+   * Done; a repeating task rolls on to its next day (or ends with its series), as the app completes it. `tookMin`
+   * is how long it took, when the person said: on the task, or for a repeat on that day's completion, where the
+   * estimates learn from it (DECISIONS.md, amendment 2026-11-15).
+   */
+  async complete(ref: string, tookMin?: number | null): Promise<Changed> {
     const c = await this.ctx();
     const row = await this.findTask(ref, { anyState: true });
     const title = String(row.title ?? "");
@@ -556,6 +560,8 @@ export class Planner {
     if (row.state === "dropped" || row.state === "archived") throw new Refusal(`${quoted(title)} was ${row.state}; bring it back with reopen_task first.`);
     const at = new Date(c.now.epochMilliseconds).toISOString();
     const id = String(row.id);
+    const took = tookMin != null && Number.isFinite(tookMin) && tookMin >= 1 ? Math.round(tookMin) : null;
+    const tookWords = took == null ? "" : ` · took ${formatMinutes(took)}`;
     if (row.recurrence_rule && row.recurrence_mode) {
       const series = String(row.recurrence_series_id ?? id);
       const plan = planCompletion(
@@ -564,7 +570,7 @@ export class Planner {
         c.today,
       );
       const ops: WireOp[] = [
-        this.put("task_completions", this.newId(), { space_id: str(row.space_id), task_id: id, occurrence_date: plan.occurrence.toString(), completed_at: at, actual_min: row.actual_min ?? null }),
+        this.put("task_completions", this.newId(), { space_id: str(row.space_id), task_id: id, occurrence_date: plan.occurrence.toString(), completed_at: at, actual_min: took ?? row.actual_min ?? null }),
       ];
       if (plan.next) {
         ops.push(this.patch("tasks", id, { do_date: plan.next.toString(), deadline: plan.deadline?.toString() ?? null, state: "active", completed_at: null }));
@@ -573,10 +579,10 @@ export class Planner {
         ops.push(this.patch("tasks", id, { state: "done", completed_at: at }));
       }
       await this.apply(ops, `complete ${quoted(title)}`);
-      return { said: plan.next ? `Completed ${quoted(title)} · it repeats, next on ${dayWords(plan.next, c.today)}` : `Completed ${quoted(title)} · that was the last one in its series`, id, blocksReleased: 0 };
+      return { said: `${plan.next ? `Completed ${quoted(title)} · it repeats, next on ${dayWords(plan.next, c.today)}` : `Completed ${quoted(title)} · that was the last one in its series`}${tookWords}`, id, blocksReleased: 0 };
     }
-    await this.apply([this.patch("tasks", id, { state: "done", completed_at: at })], `complete ${quoted(title)}`);
-    return { said: `Completed ${quoted(title)}`, id, blocksReleased: 0 };
+    await this.apply([this.patch("tasks", id, { state: "done", completed_at: at, ...(took == null ? {} : { actual_min: took }) })], `complete ${quoted(title)}`);
+    return { said: `Completed ${quoted(title)}${tookWords}`, id, blocksReleased: 0 };
   }
 
   /** Un-completes a finished task, or brings back a dropped one (PRODUCT_SPEC.md §7 rule 2). */

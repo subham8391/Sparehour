@@ -56,6 +56,11 @@ describe("<FinishedPeek>", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("says how long it took beside the estimate, when that was recorded", () => {
+    render(<FinishedPeek row={row({ actual_min: 70 })} projectName="Launch" zone="UTC" today={localDate("2026-11-14")} onClose={vi.fn()} />);
+    expect(screen.getByRole("dialog", { name: "Finished task" })).toHaveTextContent("Launch · 45m · took 1h 10m · due Thu 5 Mar");
+  });
+
   it("a repeat's occurrence says what it is and has no Reopen; a bare task shows no empty sections", () => {
     render(<FinishedPeek row={row({ occurrence_of: "t-gym", title: "Gym", notes_md: null, checklist: null, tag_ids: null, deadline: null, estimate_min: null })} zone="UTC" onClose={vi.fn()} />);
     const dialog = screen.getByRole("dialog", { name: "Finished task" });

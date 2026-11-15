@@ -46,6 +46,21 @@ describe("Logbook filters (SCREENS.md §8)", () => {
     expect(shape({ show: "done", project: "p1" })).toEqual([{ day: "2026-10-07", done: ["a"], dropped: [], minutes: 60 }]);
   });
 
+  it("a day's minutes count what a task took where that was recorded, filtered or not", () => {
+    const took = logbookDays({
+      done: [
+        row({ id: "a", project_id: "p1", completed_at: "2026-10-07T09:00:00Z", estimate_min: 60, actual_min: 100 }),
+        row({ id: "b", project_id: "p2", completed_at: "2026-10-07T10:00:00Z", estimate_min: 15 }),
+      ],
+      completions: [],
+      dropped: [],
+      zone: "UTC",
+      defaultEstimateMin: 30,
+    });
+    expect(took[0].minutes).toBe(115);
+    expect(filterLogbookDays(took, { project: "p1" }, ctx, 30)[0].minutes).toBe(100);
+  });
+
   it("lives in the URL in the order the filters were added, malformed values left out", () => {
     const f = parseLogbookParams(new URLSearchParams("tag=deep&show=dropped&from=2026-10-01&to=bad&project=p1&show=bogus"));
     expect(f).toEqual({ tag: "deep", show: "dropped", from: "2026-10-01", project: "p1" });

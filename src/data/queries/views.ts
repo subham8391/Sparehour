@@ -59,7 +59,7 @@ export const LOGBOOK_SQL = `
  * a completion per occurrence), newest first, with the task they belong to.
  */
 export const LOGBOOK_COMPLETIONS_SQL = `
-  select t.*, c.id as completion_id, c.completed_at as occurrence_completed_at, c.occurrence_date
+  select t.*, c.id as completion_id, c.completed_at as occurrence_completed_at, c.occurrence_date, c.actual_min as occurrence_actual_min
   from task_completions c join tasks t on t.id = c.task_id
   where c.deleted_at is null and t.deleted_at is null
   order by c.completed_at desc, c.id
