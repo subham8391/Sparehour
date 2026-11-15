@@ -158,6 +158,44 @@ describe("a bare time that has passed (A10)", () => {
   });
 });
 
+describe("a line added on a later day's page (ctx.from; DECISIONS.md, amendment 2026-11-15)", () => {
+  // 09:00 BST on Friday 11 Sep; the page shown is Tuesday 15 Sep.
+  const onTuesday: ParseContext = { now: instant("2026-09-11T08:00:00Z"), zone: "Europe/London", from: localDate("2026-09-15") };
+  const draft = (s: string, c: ParseContext = onTuesday) => {
+    const r = parse(s, c);
+    if (!r.ok) throw new Error(s);
+    return r.draft;
+  };
+
+  it("a time typed without a date is that day's, whether or not the clock has passed it today", () => {
+    expect([draft("Workout 8am").doDate?.toString(), draft("Workout 8am").doTime?.toString({ smallestUnit: "minute" })]).toEqual(["2026-09-15", "08:00"]);
+    expect(draft("Standup 3pm").doDate?.toString()).toBe("2026-09-15");
+    // Without a page's day the same line is the next 8am there is: tomorrow.
+    expect(draft("Workout 8am", { now: onTuesday.now, zone: onTuesday.zone }).doDate?.toString()).toBe("2026-09-12");
+  });
+
+  it("evening alone is that day's evening, and a repeat with no date starts from that day", () => {
+    const evening = draft("Call mum evening");
+    expect([evening.doDate?.toString(), evening.evening]).toEqual(["2026-09-15", true]);
+    expect(draft("Stand-up every day").doDate?.toString()).toBe("2026-09-15");
+    expect(draft("Review every fri").doDate?.toString()).toBe("2026-09-18");
+  });
+
+  it("words that name a day still win, and a line with neither a day nor a time is left without one for the sheet to place", () => {
+    expect(draft("Workout tomorrow 8am").doDate?.toString()).toBe("2026-09-12");
+    expect(draft("Workout mon").doDate?.toString()).toBe("2026-09-14");
+    expect(draft("Buy milk").doDate).toBeNull();
+  });
+
+  it("a day that is today or has passed changes nothing: a time gone by is still tomorrow's", () => {
+    const today: ParseContext = { ...onTuesday, from: localDate("2026-09-11") };
+    const past: ParseContext = { ...onTuesday, from: localDate("2026-09-01") };
+    expect(draft("Stretch 7am", today).doDate?.toString()).toBe("2026-09-12");
+    expect(draft("Stretch 7am", past).doDate?.toString()).toBe("2026-09-12");
+    expect(draft("Stretch 3pm", today).doDate?.toString()).toBe("2026-09-11");
+  });
+});
+
 describe("deadline before the do-date (PRODUCT_SPEC §5.4)", () => {
   it("keeps both as typed and warns, unless the do-date is a repeat's first occurrence", () => {
     const r = parse("Prep {today} mon", ctx);

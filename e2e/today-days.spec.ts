@@ -127,6 +127,17 @@ test("the Add a task bar on a later day files the task on that day; on the Inbox
   await page.keyboard.press("Escape");
   expect(await waitForRow("select 1 from public.tasks where title = $1 and do_date = $2", [kept, later])).not.toBeNull();
 
+  // A time typed with no date is that day's time. (It used to be filed on the next day the clock reaches that time:
+  // "Workout 8am" typed on the day after tomorrow landed on tomorrow.)
+  const timed = uniqueTitle("bar with a time");
+  await bar.click();
+  await box.pressSequentially(`${timed} 8am ~2h`);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await waitForRow("select 1 from public.tasks where title = $1 and do_date = $2 and do_time = '08:00' and estimate_min = 120", [timed, later])).not.toBeNull();
+  await expect(page.getByRole("row").filter({ hasText: timed })).toBeVisible();
+
   // Where there is no day to mean, it is plain quick add: no day, so the Inbox.
   await openApp(page, "/inbox");
   const loose = uniqueTitle("bar in the inbox");

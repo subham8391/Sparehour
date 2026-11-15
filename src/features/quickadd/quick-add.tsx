@@ -246,21 +246,27 @@ export function QuickAdd({
     };
   }, [open]);
 
-  const parseCtx = useMemo(() => ({ now: ctx.now, zone: ctx.zone, today: ctx.today, eveningStartsAt: ctx.eveningStartsAt }), [ctx.now, ctx.zone, ctx.today, ctx.eveningStartsAt]);
-  const result = useMemo(() => parse(value, parseCtx, { literal: line.literal }), [value, parseCtx, line.literal]);
-  const draft = result.ok ? result.draft : null;
-  const spans = result.ok ? result.spans : [];
-  const warnings = result.ok ? result.warnings : [];
-
   // Where a line that does not say goes, when the sheet was opened from a day or a project (`here`). A day that has
   // passed takes new tasks on today. Each can be taken off for this opening of the sheet.
   const [hereOff, setHereOff] = useState<{ day?: boolean; project?: boolean }>({});
   const hereIso = here?.day && !hereOff.day ? here.day : null;
   const hereProjectId = here?.projectId && !hereOff.project ? here.projectId : null;
-  const place = useMemo<Here>(() => {
+  const hereDay = useMemo(() => {
     const day = hereIso ? localDate(hereIso) : null;
-    return { day: day && compareDates(day, ctx.today) < 0 ? ctx.today : day, project: hereProjectId ? (projects.find((p) => p.id === hereProjectId) ?? null) : null };
-  }, [hereIso, hereProjectId, projects, ctx.today]);
+    return day && compareDates(day, ctx.today) < 0 ? ctx.today : day;
+  }, [hereIso, ctx.today]);
+  // The parser is told the day too: a time, `evening` or a repeat typed without a date is for that day (8am typed on
+  // Tuesday's page is Tuesday's 8am, not the next 8am there is).
+  const parseCtx = useMemo(
+    () => ({ now: ctx.now, zone: ctx.zone, today: ctx.today, eveningStartsAt: ctx.eveningStartsAt, ...(hereDay ? { from: hereDay } : {}) }),
+    [ctx.now, ctx.zone, ctx.today, ctx.eveningStartsAt, hereDay],
+  );
+  const result = useMemo(() => parse(value, parseCtx, { literal: line.literal }), [value, parseCtx, line.literal]);
+  const draft = result.ok ? result.draft : null;
+  const spans = result.ok ? result.spans : [];
+  const warnings = result.ok ? result.warnings : [];
+
+  const place = useMemo<Here>(() => ({ day: hereDay, project: hereProjectId ? (projects.find((p) => p.id === hereProjectId) ?? null) : null }), [hereDay, hereProjectId, projects]);
   /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
   const needsName = !result.ok && value.trim() !== "";
   // With nothing typed yet the strip already says where a task added here will go: an untitled draft stands in.

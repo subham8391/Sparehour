@@ -15,6 +15,12 @@ export interface ParseContext {
   today?: LocalDate;
   /** A time at or after this counts as "this evening". Default 18:00. */
   eveningStartsAt?: LocalTime;
+  /**
+   * The day a line is being added on, when that is a later day than today (quick add opened from a day of Today,
+   * DECISIONS.md amendment 2026-11-15): a time typed without a date, `evening` alone and a repeat without a date are
+   * for that day, not for the next time the clock reaches it. Words that name a day still win. Left out, today.
+   */
+  from?: LocalDate;
 }
 
 export interface TaskDraft {

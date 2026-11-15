@@ -301,7 +301,9 @@ export function parse(input: string, ctx: ParseContext, options?: ParseOptions):
   // today is the calendar's yesterday, so 10am then is tomorrow's 10am, and 11pm the coming night's.
   const nowMinute = ctx.now.toZonedDateTimeISO(ctx.zone).round({ smallestUnit: "minute", roundingMode: "floor" });
   const passedOn = (d: LocalDate, t: LocalTime) => Temporal.ZonedDateTime.compare(d.toZonedDateTime({ timeZone: ctx.zone, plainTime: t }), nowMinute) < 0;
-  let from = today;
+  // Added on a later day's page (`ctx.from`), that day is the first it can happen: 8am typed there is that day's 8am.
+  const base = ctx.from && compareDates(ctx.from, today) > 0 ? ctx.from : today;
+  let from = base;
   if (!draft.doDate && draft.doTime) for (let i = 0; i < 2 && passedOn(from, draft.doTime); i++) from = from.add({ days: 1 });
   let doDateFromRule = false;
   if (draft.recurrenceRule && !draft.doDate) {
@@ -315,7 +317,7 @@ export function parse(input: string, ctx: ParseContext, options?: ParseOptions):
     doDateFromRule = true;
   }
   if (draft.doTime && !draft.doDate) draft.doDate = from;
-  if (draft.evening && !draft.doDate) draft.doDate = today;
+  if (draft.evening && !draft.doDate) draft.doDate = base;
 
   // 7. Evening follows the clock.
   if (draft.doTime && Temporal.PlainTime.compare(draft.doTime, eveningAt) >= 0) draft.evening = true;

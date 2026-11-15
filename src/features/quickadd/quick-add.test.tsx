@@ -129,6 +129,21 @@ describe("<QuickAdd>", () => {
       expect(String(onSubmit.mock.calls[0][0].draft.doDate)).toBe("2026-09-12");
     });
 
+    it("a time typed with no date is that day's time, not the next time the clock reaches it", async () => {
+      // 09:00 on Fri 11 Sep; the sheet was opened from Mon 14 Sep. 8am has passed today.
+      const { user, input, onSubmit } = setup({ here: { day: "2026-09-14" } });
+      await user.type(input, "Workout 8am ~2h");
+      expect(strip(input)).toHaveTextContent("Mon 14 Sep 08:00");
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const { draft } = onSubmit.mock.calls[0][0];
+      expect([String(draft.doDate), draft.doTime?.toString({ smallestUnit: "minute" }), draft.estimateMin]).toEqual(["2026-09-14", "08:00", 120]);
+      // This evening typed there is that day's evening.
+      await user.type(input, "Call mum evening{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+      expect(String(onSubmit.mock.calls[1][0].draft.doDate)).toBe("2026-09-14");
+    });
+
     it("taking the day's chip off sends the line to the Inbox, and it stays off for this sheet", async () => {
       const { user, input, onSubmit } = setup({ here: { day: "2026-09-14" } });
       await user.type(input, "Renew passport");
