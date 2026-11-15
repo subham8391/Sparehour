@@ -115,6 +115,43 @@ describe("writeTook", () => {
   });
 });
 
+describe("undo after sync has taken the finished row away", () => {
+  // The device's own tables are stood in for by SQLite, which keeps a null as a null; the real ones upload an
+  // insert without its null columns. So the proof is in the statements: the row goes back carrying a value, and
+  // the update after it clears it.
+  it("the completion's undo puts the row back with a 0 and then clears the length", async () => {
+    const { s, records, repo } = setup();
+    await repo.complete("t1");
+    const row = await tookRow(s.db, { table: "tasks", id: "t1" });
+    await writeTook(s.db, { table: "tasks", id: "t1" }, row!.snapshot, 45);
+    s.drop("tasks", "t1");
+    const seen: Array<Record<string, unknown> | null> = [];
+    const execute = s.db.writeTransaction.bind(s.db);
+    s.db.writeTransaction = (async (fn: Parameters<typeof execute>[0]) =>
+      execute(async (tx) => {
+        const run = tx.execute.bind(tx);
+        tx.execute = (async (sql: string, args?: unknown[]) => {
+          const out = await run(sql, args as never);
+          seen.push(s.row("tasks", "t1"));
+          return out;
+        }) as typeof tx.execute;
+        return fn(tx);
+      })) as typeof s.db.writeTransaction;
+    await records[0].undo();
+    expect(seen.map((r) => r?.actual_min)).toEqual([0, null]);
+    expect(s.row("tasks", "t1")).toMatchObject({ state: "active", completed_at: null, actual_min: null, title: "Write the report" });
+  });
+
+  it("the detail's undo puts the row back with the length it wrote, then the one before", async () => {
+    const { s, records, history, repo } = setup();
+    await repo.complete("t1");
+    await setTook(s.db, history, "t1", 50);
+    s.drop("tasks", "t1");
+    await records[1].undo();
+    expect(s.row("tasks", "t1")).toMatchObject({ state: "done", actual_min: null });
+  });
+});
+
 describe("setTook", () => {
   it("sets the length from the detail, with a silent undo", async () => {
     const { s, records, history, repo } = setup();

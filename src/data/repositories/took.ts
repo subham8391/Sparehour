@@ -51,6 +51,7 @@ export async function setTook(db: LocalDatabase, history: UndoRecorder | null | 
     label: `Changed how long ${quoted(before.title)} took`,
     toast: false,
     rows: { tasks: [id] },
-    undo: () => db.writeTransaction((tx) => restoreRow(tx, "tasks", before, ["actual_min"], new Date().toISOString())),
+    // `held` is what was just written: if sync has taken the finished row away by then, putting the old value back is still a change.
+    undo: () => db.writeTransaction((tx) => restoreRow(tx, "tasks", before, ["actual_min"], new Date().toISOString(), { id, actual_min: minutes })),
   });
 }

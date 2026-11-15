@@ -180,9 +180,15 @@ export class TaskRepo {
     return (await this.db.getOptional<Snapshot>(`select * from tasks where id = ?`, [id])) ?? null;
   }
 
-  /** Restores `columns` on one row, re-inserting it from the snapshot if it has left the device (see restoreRow). */
+  /**
+   * Restores `columns` on one row, re-inserting it from the snapshot if it has left the device (see restoreRow).
+   * A length recorded after a completion (took.ts) is on the server and not in the snapshot, and a re-inserted row
+   * uploads without its null columns: so where the undo clears `actual_min`, the row goes back carrying a 0 first
+   * and the update after it clears it, which is a change and reaches the server (restoreRow's `held`).
+   */
   private restore(tx: Pick<Tx, "execute" | "getOptional">, before: Snapshot, id: string, columns: readonly string[], at: string): Promise<void> {
-    return restoreRow(tx, "tasks", { ...before, id }, columns, at);
+    const held = columns.includes("actual_min") && before.actual_min == null ? { id, actual_min: 0 } : undefined;
+    return restoreRow(tx, "tasks", { ...before, id }, columns, at, held);
   }
 
   private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = [], announce?: string, took = false): void {

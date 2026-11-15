@@ -68,7 +68,10 @@ test("finishing a task asks how long it took: a tap records it, another changes 
   await took.getByRole("button", { name: "2h" }).click();
   expect(await waitForRow("select 1 from public.tasks where title = $1 and actual_min = 120", [title])).not.toBeNull();
 
-  // Undo takes the completion back, and the length with it.
+  // Undo takes the completion back, and the length with it: also once the row the tap put back has left the
+  // device again, which is when the clearing has to reach the server on its own (CI found it did not).
+  await toast.hover();
+  await page.waitForTimeout(2_500);
   await toast.getByRole("button", { name: "Undo" }).click();
   await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
   expect(await waitForRow("select 1 from public.tasks where title = $1 and state = 'inbox' and completed_at is null and actual_min is null", [title])).not.toBeNull();

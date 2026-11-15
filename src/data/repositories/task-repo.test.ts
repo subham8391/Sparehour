@@ -163,9 +163,12 @@ describe("TaskRepo undo after the row has left the device", () => {
     expect(execute).toHaveBeenCalledTimes(3);
     expect(String(getOptional.mock.calls[1][0])).toBe("select id from tasks where id = ?");
     const [insertSql, insertArgs] = execute.mock.calls[1];
-    expect(insertSql).toMatch(/^insert into tasks \(id, space_id, title, state, completed_at, do_date, sort_key, carry_count, updated_at\) values \(\?, \?, \?, \?, \?, \?, \?, \?, \?\)$/);
+    expect(insertSql).toMatch(/^insert into tasks \(id, space_id, title, state, completed_at, do_date, sort_key, carry_count, updated_at, actual_min\) values \(\?, \?, \?, \?, \?, \?, \?, \?, \?, \?\)$/);
     // completed_at goes in set and the explicit update clears it: an update uploads only what it changes.
     expect(insertArgs.slice(0, 5)).toEqual(["t1", "s1", "Draft the proposal", "inbox", expect.any(String)]);
+    // A length tapped under the toast is on the server, not in the snapshot: the row goes back with a 0, so the
+    // update's clearing of it is a change too (CI found a reopened task still holding its length).
+    expect(insertArgs[9]).toBe(0);
     const [fixSql, fixArgs] = execute.mock.calls[2];
     expect(fixSql).toBe("update tasks set state = ?, completed_at = ?, actual_min = ?, updated_at = ? where id = ?");
     expect(fixArgs.slice(0, 3)).toEqual(["inbox", null, null]);
