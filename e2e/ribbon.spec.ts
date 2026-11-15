@@ -1,6 +1,7 @@
 // The ribbon's hands (SCREENS.md §2.2 "Interactions", as built 2026-10-07): one real button lies over the drawing,
 // named "Spare time breakdown" with the equation in words as its description. Enter opens the breakdown pinned,
-// ← → step along the day's segments ("Meeting · …", "Free · 14:00–18:00 · 4h"), "Add something" on free time
+// ← → step along the day's segments ("Meeting · …", "Free · 14:00–18:00 · 4h"; an open stretch under 15 minutes
+// reads "Too short to use · …", amendment 2026-11-15), "Add something" on free time
 // opens quick add holding "today ", and Escape closes the panel.
 //
 // The ribbon is drawn only on a working day, so the dev account gets working hours over every hour of every day
@@ -51,7 +52,7 @@ test("the breakdown button reads the equation; Enter pins it, the arrows step to
 
   // The segment line names what it is in words; → walks along the day until it reaches free time.
   const line = panel.locator("p[aria-live]");
-  await expect(line).toHaveText(/^(Meeting|Block|Free|Outside working hours|Over) · /);
+  await expect(line).toHaveText(/^(Meeting|Block|Free|Too short to use|Outside working hours|Over) · /);
   for (let i = 0; i < 40 && !/^Free · /.test((await line.textContent()) ?? ""); i++) await page.keyboard.press("ArrowRight");
   await expect(line).toHaveText(/^Free · \d\d:\d\d–\d\d:\d\d · /);
   const add = panel.getByRole("button", { name: "Add something" });

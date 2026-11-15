@@ -9,7 +9,7 @@
 // opening anything. An island: Today's shell carries only the dynamic import.
 import { useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { round5 } from "@/core/capacity/intervals";
-import type { Capacity, Interval } from "@/core/capacity";
+import { USABLE_GAP_MIN, type Capacity, type Interval } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
@@ -51,6 +51,9 @@ function named(list: readonly { title: string }[], one: string, many: string): s
   return list.length > 1 ? `${list.length} ${many}` : one;
 }
 
+/** What an open stretch is called: one too short to count as spare time says so, rather than reading as free time (DECISIONS.md, amendment 2026-11-15). */
+const freeName = (f: Interval) => (f.end - f.start < USABLE_GAP_MIN ? "Too short to use" : "Free");
+
 /** The day as the ribbon draws it, in clock order: meetings, blocks, free time, and the hours between work windows. */
 export function ribbonSegments(c: Capacity, meetings: readonly TimelineMeeting[], blocks: readonly TimelineBlock[]): RibbonSegment[] {
   const day = c.windows[0]?.start ?? 0;
@@ -58,7 +61,7 @@ export function ribbonSegments(c: Capacity, meetings: readonly TimelineMeeting[]
   const segs: RibbonSegment[] = [
     ...c.busy.map((b) => ({ kind: "meeting" as const, ...b, name: named(inside(meetings, b), "Busy", "meetings") })),
     ...c.blocks.map((b) => ({ kind: "block" as const, ...b, name: named(inside(blocks, b), "Block", "blocks") })),
-    ...c.free.map((f) => ({ kind: "free" as const, ...f, name: "Free" })),
+    ...c.free.map((f) => ({ kind: "free" as const, ...f, name: freeName(f) })),
   ];
   for (let i = 1; i < c.windows.length; i++) segs.push({ kind: "off", start: c.windows[i - 1].end, end: c.windows[i].start, name: KIND_WORD.off });
   return segs.filter((s) => s.end > s.start && s.start >= day && s.end <= end).sort((a, b) => a.start - b.start);
@@ -85,12 +88,14 @@ export function segmentLine(s: RibbonSegment): string {
 /**
  * The breakdown in words (PRODUCT_SPEC.md §9.1, the same sentence as the reveal and Settings): "9h working − 2h in
  * meetings − 1h 20m buffer (15% of your working day) − 2h 20m planned = 3h 20m spare". Without a calendar the
- * meetings term is left out; a buffer capped by meetings drops the share it no longer is.
+ * meetings term is left out; open stretches too short to use are a term of their own when the day has any, so the
+ * sentence still adds up; a buffer capped by what meetings and those gaps left drops the share it no longer is.
  */
 export function breakdownTerms(c: Capacity, bufferPct: number, connected: boolean): { terms: string[]; result: string } {
   const capped = c.bufferMin < round5((c.workMin * bufferPct) / 100);
   const terms = [`${formatMinutes(c.workMin)} working`];
   if (connected) terms.push(`${formatMinutes(c.busyMin)} in meetings`);
+  if (c.gapMin > 0) terms.push(`${formatMinutes(c.gapMin)} in gaps too short to use`);
   terms.push(capped ? `${formatMinutes(c.bufferMin)} buffer` : `${formatMinutes(c.bufferMin)} buffer (${bufferPct}% of your working day)`);
   terms.push(`${formatMinutes(c.committedMin + c.unscheduledMin)} planned`);
   return { terms, result: c.spareMin >= 0 ? `${formatMinutes(c.spareMin)} spare` : `${formatMinutes(-c.spareMin)} over` };

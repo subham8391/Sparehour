@@ -65,6 +65,17 @@ describe("<PlanPreview>", () => {
     expect(screen.getByText("Left 1h 15m unplanned.")).toBeInTheDocument();
   });
 
+  it("counts what is left as the day's number does: ten minutes a block leaves before a meeting are not in it", () => {
+    // A 50-minute task before the 10:00 meeting leaves 09:50–10:00, which holds nothing (DECISIONS.md, amendment 2026-11-15).
+    setup({ candidates: [planTask({ ...draft, estimateMin: 50 }, TODAY), planTask(deck, TODAY)] });
+    expect(screen.getByText("Left 1h unplanned.")).toBeInTheDocument();
+  });
+
+  it("with nothing but such a gap left, the line says so", () => {
+    setup({ capacity: { windows: [{ start: 540, end: 600 }], busy: [] }, candidates: [planTask({ ...draft, estimateMin: 50 }, TODAY)] });
+    expect(screen.getByText("Every free minute is planned but 10m in gaps too short to use. There is no buffer left.")).toBeInTheDocument();
+  });
+
   it("hands the timeline its ghosts, which draw as dashed blocks that are not there yet", () => {
     const { onDrawing } = setup();
     const drawing = onDrawing.mock.calls.at(-1)![0] as PlanDrawing;

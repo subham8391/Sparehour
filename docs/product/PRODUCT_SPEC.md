@@ -333,12 +333,18 @@ meeting_minutes(d)   = Σ length of ( CalendarEvent ∩ work window )
                        for events where busy = true and all_day = false,
                        with overlapping events merged so a minute is counted once
 
+gap_minutes(d)       = Σ length of the open stretches of the day shorter than 15 minutes,
+                       where open = work window − meetings − time blocks, taken over the
+                       whole day ( not from now ); a stretch of exactly 15 minutes counts as open time
+                       → ten minutes between two meetings hold no task, so they are not spare time
+                         ( DECISIONS.md, amendment 2026-11-15 )
+
 buffer_minutes(d)    = min( round5( buffer_pct × work_minutes(d) ),
-                            work_minutes(d) − meeting_minutes(d) )
+                            work_minutes(d) − meeting_minutes(d) − gap_minutes(d) )
                        buffer_pct default 0.15 · round5 = nearest 5 minutes
                        → a 9h day reserves 1h 20m; the cap means capacity never goes below zero
 
-capacity_minutes(d)  = work_minutes(d) − meeting_minutes(d) − buffer_minutes(d)
+capacity_minutes(d)  = work_minutes(d) − meeting_minutes(d) − gap_minutes(d) − buffer_minutes(d)
                        ( ≥ 0 by construction )
 
 planned_minutes(d)   = Σ estimate_min of tasks where do_date = d
@@ -350,18 +356,32 @@ planned_minutes(d)   = Σ estimate_min of tasks where do_date = d
 spare_minutes(d)     = capacity_minutes(d) − planned_minutes(d)
 ```
 
-**Buffer is 15% of the day's working hours, capped at the time left after meetings** (ruled 2026-09-13). The plain-English version is "15% of your working day, held back for the things that always come up", and it is the same sentence in the reveal, the ribbon tooltip and the Settings preview. The cap means a day that is 100% meetings reports zero capacity, never a negative one.
+**Buffer is 15% of the day's working hours, capped at the time left after meetings** (ruled 2026-09-13) **and after the gaps too short to use** (2026-11-15). The plain-English version is "15% of your working day, held back for the things that always come up", and it is the same sentence in the reveal, the ribbon tooltip and the Settings preview. The cap means a day that is 100% meetings reports zero capacity, never a negative one.
 
-**Canonical worked example — used for every number in these three documents.** A 9:00–18:00 day (9h) with 2h of meetings and 2h 20m of planned tasks:
+**As built (2026-11-15), gaps too short to use.** An open stretch shorter than 15 minutes (the shortest estimate the app offers) is left out of the number: between two meetings, between a time block and a meeting or another block, or at either end of a working window. It is not folded into the buffer, which is for things that come up and need usable time; it is treated like a meeting, in the sum and in the buffer's cap, so gaps alone never put a day over. The stretch stays open everywhere else: the timeline and the ribbon draw it as free, and a block can be put there by hand, which turns it into planned time. The breakdown names it only on a day that has some ("… − 10m in gaps too short to use − …", SCREENS.md §2.2), and "fits today" (the morning plan, the morning message) is capacity as defined above, so it leaves the gaps out too.
+
+**Canonical worked example — used for every number in these three documents.** A 9:00–18:00 day (9h) with 2h of meetings and 2h 20m of planned tasks, where no open stretch is shorter than 15 minutes (the prep block runs up to the 1:1 it prepares, 13:40–14:00):
 
 ```
 work      = 540m
 meetings  = 120m
-buffer    = min( round5(0.15 × 540) = 80m, 540 − 120 = 420m ) = 80m   → "1h 20m"
-capacity  = 540 − 120 − 80 = 340m                                     → "5h 40m fits today"
-planned   = 140m                                                      → "2h 20m planned"
-spare     = 340 − 140 = 200m                                          → "3h 20m spare"
+gaps      = 0m
+buffer    = min( round5(0.15 × 540) = 80m, 540 − 120 − 0 = 420m ) = 80m   → "1h 20m"
+capacity  = 540 − 120 − 0 − 80 = 340m                                     → "5h 40m fits today"
+planned   = 140m                                                          → "2h 20m planned"
+spare     = 340 − 140 = 200m                                              → "3h 20m spare"
 ```
+
+**The same day with a gap** (2026-11-15). Let the prep block end at 13:50, ten minutes before the 14:00 meeting. Those ten minutes are open and hold no task:
+
+```
+gaps      = 10m                                                           → "10m in gaps too short to use"
+buffer    = min( 80m, 540 − 120 − 10 = 410m ) = 80m
+capacity  = 540 − 120 − 10 − 80 = 330m                                    → "5h 30m fits today"
+spare     = 330 − 140 = 190m                                              → "3h 10m spare"
+```
+
+And a day of back-to-back meetings that leaves 1h 20m open, 40m of it in four ten-minute gaps: `buffer = min(80m, 540 − 460 − 40 = 40m) = 40m`, capacity and spare are 0, and a 30-minute task makes the day exactly 30m over.
 
 **Evening is budgeted separately.** `evening_capacity` runs from the end of the last work segment to the evening cut-off (default 22:00), with no buffer. Evening tasks never consume working-hours spare time, and evening overload gets its own, quieter line.
 
@@ -381,7 +401,7 @@ Computed by walking the clock forward from `now`:
 
 1. Start at `max(now, start of the current work segment)`.
 2. Step through the rest of the work window. Minutes occupied by a busy `CalendarEvent` or a `TimeBlock` are consumed by that event.
-3. Free minutes are consumed by the remaining unfinished, non-evening Today tasks, in list order, at their estimate.
+3. Free minutes are consumed by the remaining unfinished, non-evening Today tasks, in list order, at their estimate. **As built (2026-11-15):** an open stretch whose whole length is under 15 minutes takes none of it (the same stretches the number leaves out); a longer stretch the clock has already eaten into is still used to its end.
 4. The clock time when the last task's last minute is consumed is the **projected finish**, displayed as "done by 4:30pm".
 5. If the walk runs past the end of the work window, the finish shows as the overflow instead: "**40m more than fits**".
 6. Recomputed on every relevant change, debounced to 250ms. It is a rolling number and is expected to move during the day.
@@ -465,6 +485,8 @@ Suggest → preview → approve. Never full-auto (`DECISIONS.md`; `FEATURES.md` 
 6. **Re-plan the rest of today** does the same for the remaining hours only, leaving the past alone.
 7. It never moves calendar events, only Sparehour blocks. It never silently drops a task — anything that doesn't fit is listed under "Didn't fit" with the reason and one-tap Tomorrow / Someday.
 8. Ordering heuristic (deterministic, explainable, no AI required for placement): deadline proximity → priority → carry_count → estimate fits the gap → task's usual time of day (Later). AI at M2 writes the *explanations*, not the placement.
+
+**As built (2026-11-15), gaps too short to use (§9.1).** The plan counts free time as the day's number does. The time ahead it may plan into, the buffer's cap and the "Left … unplanned" line leave out open stretches under 15 minutes, both the ones meetings and fixed blocks made and the ones its own blocks leave (a 50-minute block before a meeting an hour away takes the hour), so the spare it names is counted in the minutes Today's figure counts (planned at the start of a day with every task placed, "your 1h 10m buffer and 4h 50m spare" is the figure Today shows once the plan is approved). Where blocks go did not change. When only such gaps are left the line reads "Every free minute is planned but 10m in gaps too short to use. There is no buffer left."
 
 **Pro feature** (Q22).
 

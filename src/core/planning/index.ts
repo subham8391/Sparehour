@@ -14,7 +14,12 @@
 //      back-pass (tasks due today take the latest slot where they still
 //      finish, so nothing crowds them out), then the greedy first-fit
 //      forward pass, which keeps the buffer free.
+// What is free ahead, the buffer's cap and what the plan leaves are counted as
+// the day's number counts them (core/capacity): an open stretch shorter than
+// USABLE_GAP_MIN is not time to plan into, whether meetings made it or the
+// plan's own blocks did.
 // Minutes of the local day throughout, half-open [start, end).
+import { USABLE_GAP_MIN } from "../capacity";
 import { clip, merge, round5, subtract, totalMinutes, type Interval } from "../capacity/intervals";
 import { compareDates, formatMinutes, formatTime, minutesOfDay, timeFromMinutes, type Instant, type LocalDate, type LocalTime, type Zone } from "../time";
 import { formatDay, weekdayName } from "../time/format-day";
@@ -82,7 +87,7 @@ export interface PlanBlock {
   source: string | null;
 }
 
-/** A later day's capacity, for deadline pressure: working minutes and the free minutes left after meetings, blocks and buffer. */
+/** A later day's capacity, for deadline pressure: working minutes and the free minutes left after meetings, gaps too short to use, blocks and buffer. */
 export interface AheadDay {
   day: LocalDate;
   workMin: number;
@@ -172,8 +177,10 @@ export interface Proposal {
   /** Working time still open once the proposal is in (not clipped to now), for drawing the free gaps. */
   free: Interval[];
   plannedMin: number;
-  /** Open minutes from now to the end of the day that the plan leaves unplanned. */
+  /** Open minutes from now to the end of the day that the plan leaves unplanned, in stretches long enough to use. */
   leftMin: number;
+  /** The rest of what it leaves open ahead: stretches too short to use, which `leftMin` and the day's number leave out. */
+  gapMin: number;
   /** The share of the rest of the day the plan keeps free on purpose. */
   bufferMin: number;
   noWorkDay: boolean;
@@ -447,6 +454,7 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
       free: [],
       plannedMin: 0,
       leftMin: 0,
+      gapMin: 0,
       bufferMin: 0,
       noWorkDay: true,
     };
@@ -468,16 +476,22 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
   const eveningExists = totalMinutes(regionGaps(windows, eveningAt, DAY)) > 0;
   const allGaps = [...dayGaps, ...eveGaps];
   const longestGap = allGaps.length > 1 ? allGaps.reduce((a, b) => (b.end - b.start > a.end - a.start ? b : a)) : null;
-  const freeAheadMin = totalMinutes(future);
-  const restOfDayWork = totalMinutes(clip(windows, [{ start: startMin, end: DAY }]));
+  const ahead = [{ start: startMin, end: DAY }];
+  /**
+   * The open minutes ahead that the day's number will still count once `taken` is out: a stretch is judged by its
+   * whole length, so one the clock has eaten into still counts to its end, and a block that leaves ten minutes
+   * before a meeting takes those ten with it.
+   */
+  const usableAhead = (taken: readonly Interval[]) => totalMinutes(clip(subtract(open, taken).filter((g) => g.end - g.start >= USABLE_GAP_MIN), ahead));
+  const freeAheadMin = usableAhead([]);
+  const restOfDayWork = totalMinutes(clip(windows, ahead));
   const bufferMin = Math.max(0, Math.min(round5((restOfDayWork * s.bufferPct) / 100), freeAheadMin));
-  let budget = freeAheadMin - bufferMin;
 
   // ---- 2. rank
   const workMin = totalMinutes(windows);
   const ctx: ScoreContext = {
     day,
-    todayFreeMin: budget,
+    todayFreeMin: freeAheadMin - bufferMin,
     typicalFreeMin: Math.max(0, workMin - totalMinutes(clip(busy, windows)) - round5((workMin * s.bufferPct) / 100)),
     ahead: new Map((input.ahead ?? []).map((a) => [a.day.toString(), a])),
     defaultEstimateMin: s.defaultEstimateMin,
@@ -488,6 +502,8 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
 
   // ---- placement state
   const placed: Interval[] = [];
+  /** What the forward pass may still take: the usable time ahead, less the buffer. */
+  const budget = () => usableAhead(placed) - bufferMin;
   const out: ProposedBlock[] = [];
   const unplaced: Unplaced[] = [];
   const handled = new Set<string>();
@@ -565,7 +581,7 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
     let cursor = from;
     for (let i = startIndex; i < parts.length; i++) {
       const dur = parts[i];
-      if (useBudget && dur > budget) break;
+      if (useBudget && dur > budget()) break;
       const pick = seed !== 0 ? seeded(seed, `${r.t.id}:${i}`) : undefined;
       let slot: Slot | null = null;
       for (const region of regionsFor(r.t)) {
@@ -574,7 +590,6 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
       }
       if (!slot) break;
       placed.push(slot);
-      budget -= dur;
       slots.push(slot);
       cursor = slot.end + PART_BREAK_MIN;
     }
@@ -608,7 +623,6 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
     }
     const firstSlot: Slot = { ...first, fit: "first" };
     placed.push(firstSlot);
-    budget -= parts[0];
     const more = parts.length > 1 ? forwardParts(r, parts, first.end + PART_BREAK_MIN, false, 1) : [];
     commit(r, [firstSlot, ...more], parts.length, "fixed", r.t.doTime);
     handled.add(r.t.id);
@@ -633,7 +647,6 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
         before = slot.start - PART_BREAK_MIN;
       }
       if (slots.length === parts.length) {
-        budget -= parts.reduce((a, b) => a + b, 0);
         commit(r, slots, parts.length, "back", null);
         handled.add(r.t.id);
         break;
@@ -664,6 +677,7 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
   const rankIndex = new Map(ranked.map((r, i) => [r.t.id, i]));
   unplaced.sort((a, b) => (rankIndex.get(a.taskId) ?? 0) - (rankIndex.get(b.taskId) ?? 0));
   const plannedMin = out.reduce((sum, b) => sum + (b.end - b.start), 0);
+  const leftMin = usableAhead(placed);
   return {
     ...base,
     order: ranked.map((r) => r.t.id),
@@ -673,7 +687,8 @@ function planWith(input: PlanInput, hold: ReadonlySet<string>): Proposal {
     replaces: [...replaceIds].sort(cmpStr),
     free: subtract(open, placed),
     plannedMin,
-    leftMin: Math.max(0, freeAheadMin - plannedMin),
+    leftMin,
+    gapMin: totalMinutes(clip(subtract(open, placed), ahead)) - leftMin,
     bufferMin,
     noWorkDay: false,
   };
@@ -700,6 +715,8 @@ export interface BufferNote {
   kind: "buffer";
   leftMin: number;
   bufferMin: number;
+  /** Open minutes ahead in stretches too short to use: said only when nothing else is left, so "every free minute" stays true. */
+  gapMin?: number;
 }
 
 export type Explainable = Reason | readonly Reason[] | UnplacedReason | BufferNote;
@@ -766,7 +783,7 @@ export function explain(x: Explainable): string {
       return "No working hours today. It stays on Today and will carry over quietly.";
     case "buffer": {
       const left = formatMinutes(x.leftMin);
-      if (x.leftMin <= 0) return "Every free minute is planned. There is no buffer left.";
+      if (x.leftMin <= 0) return `Every free minute is planned${x.gapMin ? ` but ${formatMinutes(x.gapMin)} in gaps too short to use` : ""}. There is no buffer left.`;
       if (x.bufferMin <= 0) return `Left ${left} unplanned.`;
       if (x.leftMin <= x.bufferMin + 4) return `Left ${left} unplanned. That's your buffer.`;
       return `Left ${left} unplanned: your ${formatMinutes(x.bufferMin)} buffer and ${formatMinutes(x.leftMin - x.bufferMin)} spare.`;

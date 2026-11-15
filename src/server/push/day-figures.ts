@@ -40,7 +40,7 @@ export interface DayFigures {
   hasCalendar: boolean;
   /** The day has working hours (and is not wholly out of office). */
   workDay: boolean;
-  /** Work − meetings − buffer, before anything planned (PRODUCT_SPEC.md §9.1; M1 gap rulings "fits today"). */
+  /** Work − meetings − gaps too short to use − buffer, before anything planned (PRODUCT_SPEC.md §9.1; M1 gap rulings "fits today"). */
   capacityMin: number;
   /** Timed meetings that count as busy and fall in working hours. */
   meetings: number;
@@ -100,7 +100,7 @@ export function dayFigures(ctx: DayContext): DayFigures {
     badge: Math.max(0, ctx.app_badge ?? 0),
     hasCalendar: ctx.calendar_connected,
     workDay: c.state !== "no_work_day",
-    capacityMin: Math.max(0, c.workMin - c.busyMin - c.bufferMin),
+    capacityMin: Math.max(0, c.workMin - c.busyMin - c.gapMin - c.bufferMin),
     meetings,
     spareMin: c.spareMin,
     done: ctx.done ?? 0,

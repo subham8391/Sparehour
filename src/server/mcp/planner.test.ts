@@ -205,6 +205,23 @@ describe("the reads", () => {
     expect(text).toContain("- First thing — #Acme");
     expect(text).toMatch(/Carried over \(1\)\n- Missed Monday — 19 Oct · carried 3×/);
     expect(text).not.toContain("overdue");
+    // No stretch of this day is too short to use, so the line has no part for them.
+    expect(text).toContain("(work 9h, meetings 1h 30m, buffer 1h 20m, planned 1h 30m)");
+  });
+
+  it("names the gaps too short to use in the spare-time line, so its parts still add up", async () => {
+    const meeting = (id: string, from: string, to: string): Row => ({ id, calendar_id: "c1", summary: id, start_at: `2026-10-23T${from}:00+00:00`, end_at: `2026-10-23T${to}:00+00:00`, all_day: 0, busy: 1, status: "confirmed", self_response: "accepted", event_type: "default", is_ours: 0, deleted_at: null });
+    setup({
+      tasks: [task({ title: "Write the report", do_date: "2026-10-23", estimate_min: 60, day_sort_key: "a1" })],
+      work_hours: [{ id: "w1", weekday: 4, start_time: "09:00:00", end_time: "18:00:00", deleted_at: null }],
+      calendars: [{ id: "c1", read: 1, private: 0, deleted_at: null }],
+      // Ten minutes between the two (DECISIONS.md, amendment 2026-11-15).
+      calendar_events: [meeting("Review", "10:00", "10:50"), meeting("Planning", "11:00", "12:00")],
+    });
+    const v = await planner.todayView();
+    expect(v.capacity?.gapMin).toBe(10);
+    expect(v.capacity?.spareMin).toBe(540 - 110 - 10 - 80 - 60);
+    expect(formatToday(v)).toContain("Spare time: 4h 40m spare · done by 10:00 (work 9h, meetings 1h 50m, gaps too short to use 10m, buffer 1h 20m, planned 1h)");
   });
 
   it("lists the inbox newest first and Upcoming by day, with the tasks that have no day yet", async () => {

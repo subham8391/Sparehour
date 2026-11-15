@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { formatTime, instant, localDate, localTime } from "../time";
-import { capacityFor, classify, workWindowsFor, type CapacityInput } from "./index";
+import { USABLE_GAP_MIN, capacityFor, classify, workWindowsFor, type CapacityInput } from "./index";
 import { clip, merge, round5, subtract, totalMinutes } from "./intervals";
 import { DAY, REFERENCE_DAY, SETTINGS, WORK_HOURS, block, event, task } from "./__fixtures__/reference-day";
 
@@ -10,6 +10,7 @@ describe("the reference day", () => {
     const c = capacityFor(REFERENCE_DAY);
     expect(c.workMin).toBe(540);
     expect(c.busyMin).toBe(120);
+    expect(c.gapMin).toBe(0); // three stretches of exactly 15 minutes, which count; none shorter
     expect(c.bufferMin).toBe(80);
     expect(c.committedMin).toBe(135);
     expect(c.unscheduledMin).toBe(5);
@@ -18,17 +19,28 @@ describe("the reference day", () => {
     expect(c.eveningMin).toBe(50); // 20 + a 30-minute default, kept out of the daytime maths
     expect(c.projectedFinish && formatTime(c.projectedFinish)).toBe("16:25");
     expect(c.overflowMin).toBe(0);
-    // windows − meetings − blocks: the gaps you could still plan into
+    // windows − meetings − blocks: the gaps you could still plan into. The prep block now runs 13:40–14:00 (see the
+    // fixture), so the stretch before it ends at 13:40 and the ten minutes that used to follow it are gone.
     expect(c.free).toEqual([
       { start: 540, end: 555 },
       { start: 570, end: 585 },
       { start: 675, end: 690 },
-      { start: 735, end: 810 },
-      { start: 830, end: 840 },
+      { start: 735, end: 820 },
       { start: 870, end: 900 },
       { start: 930, end: 960 },
       { start: 985, end: 1080 },
     ]);
+  });
+
+  it("as it was laid out until 2026-11-15, the ten minutes between the prep block and the 1:1 are no longer spare: 3h 10m", () => {
+    // The number moved on purpose (DECISIONS.md, amendment 2026-11-15): 13:50–14:00 holds no task, so it is a gap, not spare time.
+    const c = capacityFor({ ...REFERENCE_DAY, blocks: REFERENCE_DAY.blocks.map((b) => (b.id === "b-prep" ? block("b-prep", "prep", "13:30", "13:50") : b)) });
+    expect(c.gapMin).toBe(10);
+    expect(c.bufferMin).toBe(80);
+    expect(c.committedMin).toBe(135);
+    expect(c.spareMin).toBe(190); // was 200
+    expect(c.free).toContainEqual({ start: 830, end: 840 }); // still open on the timeline
+    expect(c.projectedFinish && formatTime(c.projectedFinish)).toBe("16:25");
   });
 
   it("returns the ribbon segments in minutes of the day", () => {
@@ -42,7 +54,7 @@ describe("the reference day", () => {
     ]);
     expect(c.blocks).toEqual([
       { start: 585, end: 675 },
-      { start: 810, end: 830 },
+      { start: 820, end: 840 }, // the prep block, moved with the fixture
       { start: 960, end: 985 },
     ]);
     expect(totalMinutes(c.free)).toBe(540 - 120 - 135);
@@ -190,6 +202,133 @@ describe("golden fixtures", () => {
   });
 });
 
+// DECISIONS.md, amendment 2026-11-15: an open stretch shorter than USABLE_GAP_MIN holds no task, so it is not spare time.
+describe("gaps too short to use", () => {
+  const split = [{ weekday: 2, start: localTime("09:00"), end: localTime("12:00") }, { weekday: 2, start: localTime("13:00"), end: localTime("17:00") }];
+
+  it("the shortest stretch that counts is the shortest estimate the app offers", () => {
+    expect(USABLE_GAP_MIN).toBe(15);
+  });
+
+  it("ten minutes between two meetings are not spare time, and are still open on the timeline", () => {
+    const c = capacityFor(base({ events: [event("a", "10:00", "10:50"), event("b", "11:00", "12:00")] }));
+    expect(c.busyMin).toBe(110);
+    expect(c.gapMin).toBe(10);
+    expect(c.bufferMin).toBe(80);
+    expect(c.spareMin).toBe(540 - 110 - 10 - 80); // 5h 40m, where every open minute used to give 5h 50m
+    expect(c.free).toEqual([{ start: 540, end: 600 }, { start: 650, end: 660 }, { start: 720, end: 1080 }]);
+  });
+
+  it("fifteen minutes count; fourteen do not", () => {
+    const fifteen = capacityFor(base({ events: [event("a", "10:00", "10:45"), event("b", "11:00", "12:00")] }));
+    expect(fifteen.gapMin).toBe(0);
+    expect(fifteen.spareMin).toBe(540 - 105 - 80);
+    const fourteen = capacityFor(base({ events: [event("a", "10:00", "10:46"), event("b", "11:00", "12:00")] }));
+    expect(fourteen.gapMin).toBe(14);
+    expect(fourteen.spareMin).toBe(540 - 106 - 14 - 80);
+  });
+
+  it("a time block that stops ten minutes short of a meeting makes a gap; one that runs up to it does not", () => {
+    const meeting = [event("m", "14:00", "14:30")];
+    const short = capacityFor(base({ events: meeting, blocks: [block("b", "t", "13:30", "13:50")], tasks: [task("t", 20)] }));
+    expect(short.gapMin).toBe(10);
+    expect(short.committedMin).toBe(20);
+    expect(short.spareMin).toBe(540 - 30 - 10 - 80 - 20);
+    const flush = capacityFor(base({ events: meeting, blocks: [block("b", "t", "13:40", "14:00")], tasks: [task("t", 20)] }));
+    expect(flush.gapMin).toBe(0);
+    expect(flush.spareMin).toBe(short.spareMin + 10);
+  });
+
+  it("two blocks ten minutes apart, and a block that cuts a stretch into two slivers", () => {
+    const apart = capacityFor(base({ blocks: [block("b1", null, "10:00", "10:30"), block("b2", null, "10:40", "11:00")] }));
+    expect(apart.gapMin).toBe(10);
+    // 20 open minutes between two meetings, a 10-minute block in the middle: 5 + 5 are left, and neither holds a task.
+    const cut = capacityFor(base({ events: [event("a", "10:00", "11:00"), event("b", "11:20", "12:00")], blocks: [block("b", null, "11:05", "11:15")] }));
+    expect(cut.gapMin).toBe(10);
+    expect(cut.committedMin).toBe(10);
+    expect(cut.spareMin).toBe(540 - 100 - 10 - 80 - 10);
+  });
+
+  it("a block put into a short stretch by hand uses it: the minutes are planned, no longer a gap", () => {
+    const events = [event("a", "10:00", "10:50"), event("b", "11:00", "12:00")];
+    const loose = capacityFor(base({ events, tasks: [task("t", 10)] }));
+    expect(loose.gapMin).toBe(10);
+    expect(loose.spareMin).toBe(540 - 110 - 10 - 80 - 10);
+    const placed = capacityFor(base({ events, tasks: [task("t", 10)], blocks: [block("b", "t", "10:50", "11:00")] }));
+    expect(placed.gapMin).toBe(0);
+    expect(placed.committedMin).toBe(10);
+    expect(placed.spareMin).toBe(loose.spareMin + 10);
+  });
+
+  it("a short stretch at the start or the end of the working day is a gap too", () => {
+    const c = capacityFor(base({ events: [event("first", "09:10", "10:00"), event("last", "17:00", "17:50")] }));
+    expect(c.free[0]).toEqual({ start: 540, end: 550 });
+    expect(c.free[c.free.length - 1]).toEqual({ start: 1070, end: 1080 });
+    expect(c.gapMin).toBe(20);
+    expect(c.spareMin).toBe(540 - 100 - 20 - 80);
+  });
+
+  it("the buffer is capped at what meetings and gaps left, so gaps alone never put a day over", () => {
+    // Four ten-minute gaps between meetings and 40 usable minutes at the end: meetings left 80, of which 40 can hold anything.
+    const events = [event("a", "09:00", "10:50"), event("b", "11:00", "12:50"), event("c", "13:00", "14:50"), event("d", "15:00", "16:50"), event("e", "17:00", "17:20")];
+    const c = capacityFor(base({ events }));
+    expect(c.busyMin).toBe(460);
+    expect(c.gapMin).toBe(40);
+    expect(c.bufferMin).toBe(40); // not the 80 that work − meetings alone would allow
+    expect(c.spareMin).toBe(0);
+    const planned = capacityFor(base({ events, tasks: [task("t", 30)] }));
+    expect(planned.spareMin).toBe(-30); // over by exactly what is planned
+    // Nothing but slivers left: no buffer, nothing spare, nothing over.
+    const slivers = capacityFor(base({ events: [...events.slice(0, 4), event("e", "17:00", "17:50")] }));
+    expect(slivers.gapMin).toBe(50);
+    expect(slivers.bufferMin).toBe(0);
+    expect(slivers.spareMin).toBe(0);
+    expect(slivers.state).toBe("full");
+  });
+
+  it("a split day: ten minutes before the break are a gap, and windows that touch are one stretch", () => {
+    const c = capacityFor(base({ workHours: split, events: [event("m", "09:00", "11:50")] }));
+    expect(c.workMin).toBe(420);
+    expect(c.gapMin).toBe(10); // 11:50–12:00 is not joined to the afternoon: the break is not open time
+    expect(c.bufferMin).toBe(65);
+    expect(c.spareMin).toBe(420 - 170 - 10 - 65);
+    const touching = capacityFor(base({
+      workHours: [{ weekday: 2, start: localTime("09:00"), end: localTime("13:00") }, { weekday: 2, start: localTime("13:00"), end: localTime("18:00") }],
+      events: [event("am", "09:00", "12:50"), event("pm", "13:10", "18:00")],
+    }));
+    expect(touching.free).toEqual([{ start: 770, end: 790 }]);
+    expect(touching.gapMin).toBe(0);
+  });
+
+  it("out of office: the working day ends where it starts, and a no-work day has no gaps", () => {
+    const c = capacityFor(base({ events: [event("ooo", "14:00", "18:00", { eventType: "outOfOffice" }), event("m", "09:00", "13:50")] }));
+    expect(c.workMin).toBe(300);
+    expect(c.gapMin).toBe(10);
+    expect(c.bufferMin).toBe(0);
+    expect(c.spareMin).toBe(0);
+    expect(capacityFor(base({ day: localDate("2026-09-13") })).gapMin).toBe(0);
+  });
+
+  it("the projected finish skips a short stretch, and uses a longer one the clock has eaten into to its end", () => {
+    const events = [event("a", "10:00", "10:50"), event("b", "11:00", "12:00")];
+    // 09:30 → 30 minutes before the meeting, nothing in 10:50–11:00, the last 15 from 12:00. It used to say 12:05.
+    const c = capacityFor(base({ events, tasks: [task("t", 45)], now: instant("2026-09-15T09:30:00+01:00") }));
+    expect(c.projectedFinish && formatTime(c.projectedFinish)).toBe("12:15");
+    // 09:50: ten minutes are left of the hour before the meeting, and they are used.
+    const late = capacityFor(base({ events, tasks: [task("t", 45)], now: instant("2026-09-15T09:50:00+01:00") }));
+    expect(late.projectedFinish && formatTime(late.projectedFinish)).toBe("12:35");
+    // Work that would end inside the short stretch ends in the next usable one.
+    const edge = capacityFor(base({ events, tasks: [task("t", 35)], now: instant("2026-09-15T09:30:00+01:00") }));
+    expect(edge.projectedFinish && formatTime(edge.projectedFinish)).toBe("12:05");
+  });
+
+  it("work that only a short stretch could take spills past the day", () => {
+    const c = capacityFor(base({ events: [event("m", "17:00", "17:50")], tasks: [task("t", 30)], now: instant("2026-09-15T16:40:00+01:00") }));
+    expect(c.projectedFinish).toBeNull();
+    expect(c.overflowMin).toBe(10); // 20 minutes before the meeting; the 10 after it hold nothing
+  });
+});
+
 describe("projected finish", () => {
   it("pours unscheduled work into the next gaps and honours fixed blocks", () => {
     const c = capacityFor(base({
@@ -262,12 +401,26 @@ const arbBlockFor = (taskId: string) =>
   });
 
 describe("capacity properties", () => {
-  it("the buffer never exceeds what meetings left, and never causes an overload on its own", () => {
+  it("the buffer never exceeds what meetings and gaps left, and never causes an overload on its own", () => {
     fc.assert(
       fc.property(fc.array(arbEvent, { maxLength: 8 }), fc.array(arbTask, { maxLength: 6 }), (events, tasks) => {
         const c = capacityFor(base({ events, tasks }));
-        expect(c.bufferMin).toBeLessThanOrEqual(c.workMin - c.busyMin);
+        expect(c.bufferMin).toBeLessThanOrEqual(c.workMin - c.busyMin - c.gapMin);
         expect(c.spareMin).toBeGreaterThanOrEqual(-(c.committedMin + c.unscheduledMin));
+      }),
+    );
+  });
+
+  it("gaps are exactly the open stretches under 15 minutes, and unscheduled work never finishes inside one", () => {
+    fc.assert(
+      fc.property(fc.array(arbEvent, { maxLength: 8 }), fc.array(arbTask, { maxLength: 4 }), arbHHMM, (events, tasks, nowMin) => {
+        const now = instant(`2026-09-15T${String(Math.floor(nowMin / 60)).padStart(2, "0")}:${String(nowMin % 60).padStart(2, "0")}:00+01:00`);
+        const c = capacityFor(base({ events, tasks, now }));
+        expect(c.gapMin).toBe(totalMinutes(c.free.filter((f) => f.end - f.start < USABLE_GAP_MIN)));
+        expect(totalMinutes(c.free)).toBe(c.workMin - c.busyMin);
+        if (!c.projectedFinish || c.unscheduledMin === 0) return;
+        const finish = c.projectedFinish.hour * 60 + c.projectedFinish.minute;
+        expect(c.free.some((f) => f.end - f.start >= USABLE_GAP_MIN && finish > f.start && finish <= f.end)).toBe(true);
       }),
     );
   });
@@ -290,7 +443,11 @@ describe("capacity properties", () => {
         // the block replaces the estimate; it can only count for the part inside free work time
         expect(withBlock.unscheduledMin).toBe(0);
         expect(withBlock.committedMin).toBeLessThanOrEqual(Math.max(t.estimateMin ?? 0, withBlock.committedMin));
-        expect(withBlock.spareMin + withBlock.committedMin).toBe(withEstimate.spareMin + withEstimate.unscheduledMin);
+        // Since 2026-11-15 a block can also move the gaps (a sliver beside it) and, through them, the buffer's cap, so
+        // both sit in the identity: what is spare, planned, lost to gaps and held back is the same working time either way.
+        expect(withBlock.spareMin + withBlock.committedMin + withBlock.gapMin + withBlock.bufferMin).toBe(withEstimate.spareMin + withEstimate.unscheduledMin + withEstimate.gapMin + withEstimate.bufferMin);
+        // And the block costs its own minutes plus the slivers it made, never more.
+        if (withBlock.bufferMin === withEstimate.bufferMin) expect(withBlock.spareMin + withBlock.committedMin + (withBlock.gapMin - withEstimate.gapMin)).toBe(withEstimate.spareMin + withEstimate.unscheduledMin);
       }),
     );
   });

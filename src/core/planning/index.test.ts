@@ -4,7 +4,8 @@
 // random days.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { merge, subtract, totalMinutes, type Interval } from "../capacity/intervals";
+import { USABLE_GAP_MIN, capacityFor } from "../capacity";
+import { clip, merge, subtract, totalMinutes, type Interval } from "../capacity/intervals";
 import { localDate, localTime, minutesOfDay, timeFromMinutes, toInstant, type LocalDate } from "../time";
 import {
   PART_BREAK_MIN,
@@ -335,6 +336,90 @@ describe("days with nothing to give", () => {
   });
 });
 
+// DECISIONS.md, amendment 2026-11-15: the plan counts free time as the day's number does. An open stretch under
+// USABLE_GAP_MIN is not time to plan into, whether meetings made it or the plan's own blocks did.
+describe("gaps too short to use", () => {
+  const twoMeetings = { windows: [{ start: m("09:00"), end: m("12:00") }], busy: [{ start: m("10:00"), end: m("10:50") }, { start: m("11:00"), end: m("11:30") }] };
+
+  it("ten minutes between two meetings are not free time ahead: not in the buffer's cap, the budget or what is left", () => {
+    const p = plan(input({ capacity: twoMeetings, settings: { ...SETTINGS, bufferPct: 15 }, candidates: [task("a", { estimateMin: 60, sortKey: "a0" }), task("b", { estimateMin: 30, sortKey: "a1" })] }));
+    expect(span(p, "a")).toBe("09:00-10:00");
+    expect(p.unplaced.map((u) => u.taskId)).toEqual(["b"]); // 90 usable minutes, 25 of them the buffer: 65 to plan
+    expect(p.bufferMin).toBe(25);
+    expect(p.leftMin).toBe(30); // 11:30–12:00; it was 40 when the ten minutes at 10:50 counted
+    expect(p.gapMin).toBe(10);
+    expect(p.plannedMin + p.leftMin + p.gapMin).toBe(100);
+    expect(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin, gapMin: p.gapMin })).toBe("Left 30m unplanned: your 25m buffer and 5m spare.");
+    // The stretch is still open on the preview's timeline.
+    expect(p.free).toContainEqual({ start: m("10:50"), end: m("11:00") });
+  });
+
+  it("when only such gaps are left, the line says so rather than that every free minute is planned", () => {
+    const p = plan(input({ capacity: twoMeetings, candidates: [task("a", { estimateMin: 60, sortKey: "a0" }), task("b", { estimateMin: 30, sortKey: "a1" })] }));
+    expect(span(p, "b")).toBe("11:30-12:00");
+    expect(p.leftMin).toBe(0);
+    expect(p.gapMin).toBe(10);
+    expect(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin, gapMin: p.gapMin })).toBe("Every free minute is planned but 10m in gaps too short to use. There is no buffer left.");
+  });
+
+  it("a block that stops ten minutes short of a meeting takes them out of what is left, exactly as Today's number will", () => {
+    const day = { windows: [{ start: m("09:00"), end: m("17:00") }], busy: [{ start: m("10:00"), end: m("11:00") }] };
+    const p = plan(input({ capacity: day, settings: { ...SETTINGS, bufferPct: 15 }, candidates: [task("t", { estimateMin: 50 })] }));
+    expect(span(p, "t")).toBe("09:00-09:50");
+    expect(p.leftMin).toBe(420 - 50 - 10);
+    expect(p.gapMin).toBe(10);
+    expect(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin, gapMin: p.gapMin })).toBe("Left 6h unplanned: your 1h 10m buffer and 4h 50m spare.");
+    // The same day once the plan is approved, through the capacity engine: the spare figure is the one the line gave.
+    const c = capacityFor({
+      day: DAY0,
+      settings: { timezone: ZONE, bufferPct: 15, defaultEstimateMin: 30 },
+      workHours: [{ weekday: DAY0.dayOfWeek, start: localTime("09:00"), end: localTime("17:00") }],
+      events: [{ id: "m", startAt: at("10:00"), endAt: at("11:00"), startDate: null, endDate: null, allDay: false, busy: true, status: "confirmed", selfResponse: "accepted", eventType: "default", isOurs: false, calendarRead: true }],
+      blocks: p.blocks.map((b) => ({ id: b.key, taskId: b.taskId as never, startAt: toInstant(DAY0, timeFromMinutes(b.start), ZONE), endAt: toInstant(DAY0, timeFromMinutes(b.end), ZONE) })),
+      tasks: [{ id: "t" as never, state: "active", doDate: DAY0, estimateMin: 50, evening: false, daySortKey: null }],
+    });
+    expect(c.gapMin).toBe(10);
+    expect(c.spareMin).toBe(p.leftMin - p.bufferMin);
+  });
+
+  it("the slivers the plan's own blocks leave come off what the next task may take", () => {
+    // 150 usable minutes, 25 of them the buffer. Two 50-minute tasks take 100 and leave ten minutes before the 10:00
+    // meeting, so 15 are left to plan with and the 25-minute task waits. Counted by the block lengths alone it fitted.
+    const day = { windows: [{ start: m("09:00"), end: m("12:00") }], busy: [{ start: m("10:00"), end: m("10:30") }] };
+    const p = plan(input({ capacity: day, settings: { ...SETTINGS, bufferPct: 15 }, candidates: [task("t0", { estimateMin: 50, sortKey: "a0" }), task("t1", { estimateMin: 50, sortKey: "a1" }), task("t2", { estimateMin: 25, sortKey: "a2" })] }));
+    expect(span(p, "t0")).toBe("09:00-09:50");
+    expect(span(p, "t1")).toBe("10:30-11:20");
+    expect(p.unplaced.map((u) => u.taskId)).toEqual(["t2"]);
+    expect(explain(p.unplaced[0].reason)).toBe("No gap left today. It stays on Today and will carry over quietly.");
+    expect(p.leftMin).toBe(40);
+    expect(p.gapMin).toBe(10);
+    expect(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin, gapMin: p.gapMin })).toBe("Left 40m unplanned: your 25m buffer and 15m spare.");
+  });
+
+  it("documents: a block that fits what may be planned is placed even when the sliver it leaves is the buffer, and the line says the buffer is gone", () => {
+    // 55 minutes, 10 of them the buffer (18%), a 45-minute task: the ten minutes it leaves hold nothing.
+    const p = plan(input({ capacity: { windows: [{ start: m("09:00"), end: m("09:55") }], busy: [] }, settings: { ...SETTINGS, bufferPct: 18 }, candidates: [task("t", { estimateMin: 45 })] }));
+    expect(p.bufferMin).toBe(10);
+    expect(span(p, "t")).toBe("09:00-09:45");
+    expect(p.leftMin).toBe(0);
+    expect(p.gapMin).toBe(10);
+    expect(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin, gapMin: p.gapMin })).toBe("Every free minute is planned but 10m in gaps too short to use. There is no buffer left.");
+  });
+
+  it("a stretch the clock has eaten into still counts to its end, and a short block may still go into a short stretch", () => {
+    // 09:50 on a day with an hour before the 10:00 meeting: ten minutes of a usable stretch are left, and they count.
+    const eaten = plan(input({ capacity: { windows: [{ start: m("09:00"), end: m("12:00") }], busy: [{ start: m("10:00"), end: m("11:00") }] }, now: at("09:50"), candidates: [] }));
+    expect(eaten.leftMin).toBe(70);
+    expect(eaten.gapMin).toBe(0);
+    // A ten-minute task, where the shortest block is five minutes, fits the ten minutes between the meetings; the day's
+    // number never counted them, so what is left does not change.
+    const tiny = plan(input({ capacity: twoMeetings, settings: { ...SETTINGS, minBlockMin: 5 }, now: at("10:30"), candidates: [task("t", { estimateMin: 10 })] }));
+    expect(span(tiny, "t")).toBe("10:50-11:00");
+    expect(tiny.leftMin).toBe(30);
+    expect(tiny.gapMin).toBe(0);
+  });
+});
+
 describe("Shuffle", () => {
   const busyDay = input({
     capacity: { windows: [{ start: m("09:00"), end: m("17:00") }], busy: [{ start: m("11:00"), end: m("12:00") }, { start: m("14:00"), end: m("14:30") }] },
@@ -390,6 +475,10 @@ describe("explanations", () => {
     expect(explain([{ kind: "priority", priority: 3 }, { kind: "gap", fit: "first", gapStart: localTime("09:00"), gapMin: 60 }])).toBe("High priority.");
     expect(explain({ kind: "no_gap", neededMin: 90, placedParts: 2, partCount: 3 })).toBe("Only 2 of 3 parts fit today. The rest stays on Today and will carry over quietly.");
     expect(explain({ kind: "buffer", leftMin: 0, bufferMin: 60 })).toBe("Every free minute is planned. There is no buffer left.");
+    expect(explain({ kind: "buffer", leftMin: 0, bufferMin: 60, gapMin: 0 })).toBe("Every free minute is planned. There is no buffer left.");
+    expect(explain({ kind: "buffer", leftMin: 0, bufferMin: 0, gapMin: 25 })).toBe("Every free minute is planned but 25m in gaps too short to use. There is no buffer left.");
+    // Gaps are named only when nothing else is left.
+    expect(explain({ kind: "buffer", leftMin: 45, bufferMin: 0, gapMin: 10 })).toBe("Left 45m unplanned.");
     expect(explain({ kind: "buffer", leftMin: 45, bufferMin: 0 })).toBe("Left 45m unplanned.");
   });
 
@@ -427,7 +516,13 @@ function expectValid(inp: PlanInput, p: Proposal) {
     expect(explain(b.reasons)).not.toBe("");
   }
   expect(p.plannedMin).toBeLessThanOrEqual(totalMinutes(free));
-  expect(p.plannedMin + p.leftMin).toBe(p.noWorkDay ? 0 : totalMinutes(free));
+  // Since 2026-11-15 what the plan leaves is counted as the day's number counts it: `leftMin` is the open time ahead in
+  // stretches long enough to use (by their whole length across the day, with the plan's blocks in), `gapMin` the rest,
+  // and the three still make up the free time exactly.
+  const usable = subtract(subtract(windows, obstacles), p.blocks).filter((g) => g.end - g.start >= USABLE_GAP_MIN);
+  expect(p.leftMin).toBe(totalMinutes(clip(usable, [{ start: Math.ceil(nowMin / 5) * 5, end: 1440 }])));
+  expect(p.gapMin).toBeGreaterThanOrEqual(0);
+  expect(p.plannedMin + p.leftMin + p.gapMin).toBe(p.noWorkDay ? 0 : totalMinutes(free));
   // Conservation: every candidate is planned, listed, or left alone with its own block, and only once in each list.
   const ids = new Set(inp.candidates.map((t) => t.id));
   const planned = new Set(p.blocks.map((b) => b.taskId));

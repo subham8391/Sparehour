@@ -82,7 +82,8 @@ export function aheadThrough(today: LocalDate, tasks: readonly Pick<Task, "deadl
 
 /**
  * Each day after `today` through `through`, from the capacity engine: its
- * working minutes and what is free once meetings, blocks and the buffer are out.
+ * working minutes and what is free once meetings, gaps too short to use,
+ * blocks and the buffer are out (the day's spare time before any task).
  */
 export function aheadDays(args: {
   today: LocalDate;
@@ -102,7 +103,7 @@ export function aheadDays(args: {
       blocks: args.blocks,
       tasks: [],
     });
-    out.push({ day, workMin: c.workMin, freeMin: c.state === "no_work_day" ? 0 : Math.max(0, c.workMin - c.busyMin - c.bufferMin - c.committedMin) });
+    out.push({ day, workMin: c.workMin, freeMin: c.state === "no_work_day" ? 0 : Math.max(0, c.workMin - c.busyMin - c.gapMin - c.bufferMin - c.committedMin) });
   }
   return out;
 }

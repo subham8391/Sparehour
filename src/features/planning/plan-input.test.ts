@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localDate, localTime } from "@/core/time";
+import { instant, localDate, localTime } from "@/core/time";
 import type { TaskId } from "@/core/types";
 import { NOW, TODAY, capacityFixture, taskFixture } from "@/test/fixtures";
 import { AHEAD_DAYS, aheadDays, aheadThrough, isoAt, planInputFrom } from "./plan-input";
@@ -83,6 +83,21 @@ describe("plan input", () => {
       ["2026-09-19", 0, 0],
       ["2026-09-20", 0, 0],
     ]);
+  });
+
+  it("leaves a later day's gaps too short to use out of its free time, as that day's number will", () => {
+    // Tue 15 Sep in London (UTC+1): meetings 10:00–10:50 and 11:00–12:00, with ten minutes between them.
+    const meeting = (id: string, from: string, to: string) => ({ id, startAt: instant(`2026-09-15T${from}:00+01:00`), endAt: instant(`2026-09-15T${to}:00+01:00`), startDate: null, endDate: null, allDay: false, busy: true, status: "confirmed" as const, selfResponse: "accepted" as const, eventType: "default" as const, isOurs: false, calendarRead: true });
+    const [tuesday] = aheadDays({
+      today: TODAY,
+      through: TODAY.add({ days: 1 }),
+      settings,
+      workHours: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, start: localTime("09:00"), end: localTime("17:00") })),
+      events: [meeting("a", "10:00", "10:50"), meeting("b", "11:00", "12:00")],
+      blocks: [],
+    });
+    // 8h − 1h 50m of meetings − the 10m gap − 1h 10m buffer.
+    expect(tuesday.freeMin).toBe(480 - 110 - 10 - 70);
   });
 
   it("writes a minute of the day as the instant a block stores, midnight included", () => {

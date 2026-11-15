@@ -14,6 +14,7 @@ const capacity: Capacity = {
   reason: null,
   workMin: 540,
   busyMin: 60,
+  gapMin: 0,
   bufferMin: 80,
   committedMin: 45,
   unscheduledMin: 0,

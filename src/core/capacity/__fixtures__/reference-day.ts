@@ -1,5 +1,10 @@
 // The canonical day every doc and mockup uses: Tue 15 Sept 2026, Europe/London,
 // 9h workday, 2h of meetings, 1h 20m buffer, 2h 20m planned → 3h 20m spare.
+// The prep block runs up to the 1:1 (13:40–14:00). Until 2026-11-15 it ended at
+// 13:50, and the ten minutes it left before the meeting are now a gap too
+// short to use (DECISIONS.md, amendment of that date), which makes that layout
+// 3h 10m: index.test.ts keeps it as a case of its own. The canonical figures
+// stay, so every doc that quotes them stays true.
 import { instant, localDate, localTime } from "../../time";
 import type { TaskId } from "../../types";
 import type { CapacityBlock, CapacityEvent, CapacityInput, CapacityTask, WorkWindow } from "../index";
@@ -61,7 +66,7 @@ export const REFERENCE_DAY: CapacityInput = {
   ],
   blocks: [
     block("b-proposal", "proposal", "09:45", "11:15"),
-    block("b-prep", "prep", "13:30", "13:50"),
+    block("b-prep", "prep", "13:40", "14:00"),
     block("b-pr", "pr", "16:00", "16:25"),
   ],
   tasks: [

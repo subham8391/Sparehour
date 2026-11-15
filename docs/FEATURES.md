@@ -74,7 +74,7 @@ Each feature is tagged with the milestone where it fits:
 |---|---|---|
 | Working hours per weekday | M1 | Reclaim, Morgen |
 | Time estimates (optional; default 30 min, flagged) | M1 | Sunsama, Marvin |
-| Capacity = hours − meetings − buffer; overload warning | M1 | Sunsama |
+| Capacity = hours − meetings − buffer; overload warning. Open stretches under 15 minutes are not counted as spare time and are named in the breakdown ("10m in gaps too short to use"; built 2026-11-15, DECISIONS.md, amendment of that date) | M1 | Sunsama |
 | Morning plan ritual (2–5 min, skippable) | M1 | Sunsama |
 | Evening shutdown ritual | M1 | Sunsama |
 | Carry-over section; gentle ask after 3 carry-overs; auto-Someday at 30 days; "Clear the slate" | M1 | Bullet Journal migration |

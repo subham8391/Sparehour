@@ -1,7 +1,8 @@
 // Capacity & spare-time calculator. See docs/engineering/SYSTEM_DESIGN.md §5.4.
 //
-//   spare  = work − busy − buffer − committed − unscheduled
-//   buffer = min(round5(buffer_pct% × work), work − busy)
+//   spare  = work − busy − gaps − buffer − committed − unscheduled
+//   gaps   = the open stretches shorter than USABLE_GAP_MIN (DECISIONS.md, amendment 2026-11-15)
+//   buffer = min(round5(buffer_pct% × work), work − busy − gaps)
 //
 // Everything is computed in wall-clock minutes of the given day in the user's
 // zone, so a 9-hour workday is 540 minutes even on a DST-change day.
@@ -70,6 +71,13 @@ export interface CapacityInput {
   now?: Instant;
 }
 
+/**
+ * The shortest open stretch that counts as time to plan into: the shortest task the app offers is 15m, and ten
+ * minutes between two meetings holds none. A shorter stretch is still open on the timeline (a block can be put
+ * there by hand); it is only left out of the number.
+ */
+export const USABLE_GAP_MIN = 15;
+
 export type CapacityState = "no_work_day" | "comfortable" | "full" | "tight" | "overloaded";
 
 export interface Capacity {
@@ -79,6 +87,8 @@ export interface Capacity {
   reason: "no_hours" | "out_of_office" | null;
   workMin: number;
   busyMin: number;
+  /** Open time in stretches too short to use (under USABLE_GAP_MIN), between meetings, blocks and the day's ends. */
+  gapMin: number;
   bufferMin: number;
   committedMin: number;
   unscheduledMin: number;
@@ -99,7 +109,7 @@ export interface Capacity {
   windows: Interval[];
   busy: Interval[];
   blocks: Interval[];
-  /** Genuinely open time: windows − busy − blocks. */
+  /** Genuinely open time: windows − busy − blocks. A stretch under USABLE_GAP_MIN is still here (the timeline shows it and a block can go there by hand); only the number leaves it out. */
   free: Interval[];
   projectedFinish: LocalTime | null;
   /** Work that cannot finish inside today's windows ("~1h 20m spills over"). */
@@ -107,6 +117,8 @@ export interface Capacity {
 }
 
 const DAY = 1440;
+
+const tooShort = (gap: Interval): boolean => gap.end - gap.start < USABLE_GAP_MIN;
 
 /** Where an instant falls on `day`, in wall-clock minutes; clamped to [0, 1440]. */
 function minuteOn(i: Instant, day: LocalDate, zone: Zone): number {
@@ -161,6 +173,7 @@ const noWorkDay = (day: LocalDate, reason: "no_hours" | "out_of_office", extra: 
   reason,
   workMin: 0,
   busyMin: 0,
+  gapMin: 0,
   bufferMin: 0,
   committedMin: 0,
   unscheduledMin: 0,
@@ -238,6 +251,9 @@ export function capacityFor(input: CapacityInput): Capacity {
   const committedBlocks = clip(mergedBlocks, free);
   const committedMin = totalMinutes(committedBlocks);
   const outsideHoursMin = totalMinutes(mergedBlocks) - totalMinutes(clip(mergedBlocks, windows));
+  // What is left open, and the part of it in stretches no task fits in.
+  const open = subtract(free, committedBlocks);
+  const gapMin = totalMinutes(open.filter(tooShort));
 
   let unscheduledMin = 0;
   let eveningMin = 0;
@@ -255,8 +271,8 @@ export function capacityFor(input: CapacityInput): Capacity {
     unscheduledTasks.push(t);
   }
 
-  const bufferMin = Math.max(0, Math.min(round5((workMin * settings.bufferPct) / 100), workMin - busyMin));
-  const spareMin = workMin - busyMin - bufferMin - committedMin - unscheduledMin;
+  const bufferMin = Math.max(0, Math.min(round5((workMin * settings.bufferPct) / 100), workMin - busyMin - gapMin));
+  const spareMin = workMin - busyMin - gapMin - bufferMin - committedMin - unscheduledMin;
 
   const { projectedFinish, overflowMin } = projectFinish({
     windows,
@@ -273,6 +289,7 @@ export function capacityFor(input: CapacityInput): Capacity {
     reason: null,
     workMin,
     busyMin,
+    gapMin,
     bufferMin,
     committedMin,
     unscheduledMin,
@@ -286,7 +303,7 @@ export function capacityFor(input: CapacityInput): Capacity {
     windows,
     busy,
     blocks: committedBlocks,
-    free: subtract(free, committedBlocks),
+    free: open,
     projectedFinish,
     overflowMin,
   };
@@ -295,7 +312,9 @@ export function capacityFor(input: CapacityInput): Capacity {
 /**
  * "At this pace you're done at 16:25." Unscheduled work is poured into the
  * gaps after `cursor` (around meetings and blocks); the answer is the later of
- * when that runs out and when the last block ends.
+ * when that runs out and when the last block ends. A gap too short to use takes
+ * none of it, by its whole length: a longer one the clock has eaten into is
+ * still used to its end.
  */
 function projectFinish(p: {
   windows: Interval[];
@@ -310,6 +329,7 @@ function projectFinish(p: {
   let finish = p.cursor;
   for (const gap of subtract(p.windows, p.fixed)) {
     if (remaining <= 0) break;
+    if (tooShort(gap)) continue; // the same stretches the number leaves out
     const start = Math.max(gap.start, p.cursor);
     if (gap.end <= start) continue;
     const take = Math.min(gap.end - start, remaining);

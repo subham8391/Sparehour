@@ -43,14 +43,17 @@ const section = (title: string, lines: readonly string[]) => (lines.length ? [`$
 
 const span = (m: Meeting) => `${m.start}–${m.end} ${m.title}`;
 
-/** "3h 20m spare · done by 16:30 (work 9h, meetings 2h, buffer 1h 20m, planned 2h 20m)", as the ribbon and the hero say it. */
+/**
+ * "3h 20m spare · done by 16:30 (work 9h, meetings 2h, buffer 1h 20m, planned 2h 20m)", as the ribbon and the hero say
+ * it. A day with open stretches too short to use names them in the ribbon's words, so the parts still add up.
+ */
 export function capacityLine(c: Capacity | null): string | null {
   if (!c) return null;
   if (c.state === "no_work_day") return c.reason === "out_of_office" ? "Out of office: no working time" : "No working hours";
   const head = c.spareMin >= 0 ? `${formatMinutes(c.spareMin)} spare` : `${formatMinutes(c.overMin)} over`;
   const finish = c.projectedFinish ? ` · done by ${formatTime(c.projectedFinish)}` : "";
   const spill = c.overflowMin > 0 ? ` · about ${formatMinutes(c.overflowMin)} spills past the working day` : "";
-  const parts = [`work ${formatMinutes(c.workMin)}`, `meetings ${formatMinutes(c.busyMin)}`, `buffer ${formatMinutes(c.bufferMin)}`, `planned ${formatMinutes(c.committedMin + c.unscheduledMin)}`];
+  const parts = [`work ${formatMinutes(c.workMin)}`, `meetings ${formatMinutes(c.busyMin)}`, ...(c.gapMin > 0 ? [`gaps too short to use ${formatMinutes(c.gapMin)}`] : []), `buffer ${formatMinutes(c.bufferMin)}`, `planned ${formatMinutes(c.committedMin + c.unscheduledMin)}`];
   const evening = c.eveningMin > 0 ? ` · this evening ${formatMinutes(c.eveningMin)} planned` : "";
   return `${head}${finish}${spill} (${parts.join(", ")})${evening}`;
 }
@@ -166,7 +169,7 @@ export function formatPlan(v: DayPlanView): string {
   const notes: string[] = [];
   if (p.kept.length) notes.push(`${count(p.kept.length, "task keeps the block it already has", "tasks keep the blocks they already have")}.`);
   if (p.replaces.length && p.blocks.length) notes.push(v.applied ? `Replaced ${count(v.applied.replaced, "earlier plan block", "earlier plan blocks")}.` : `Applying it replaces ${count(p.replaces.length, "earlier plan block that has not started", "earlier plan blocks that have not started")}.`);
-  notes.push(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin }));
+  notes.push(explain({ kind: "buffer", leftMin: p.leftMin, bufferMin: p.bufferMin, gapMin: p.gapMin }));
   out.push("", notes.join(" "));
   if (!v.applied && p.blocks.length) out.push("", "Nothing has changed yet. Show this to the person; when they agree, apply_day_plan puts these blocks on the timeline.");
   return out.join("\n");

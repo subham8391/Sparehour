@@ -65,12 +65,13 @@ export interface FitBlock extends Interval {
 
 /**
  * What fits today before anything is picked, so step 2 starts from the spare figure Today shows: the working
- * minutes less meetings, the buffer, and the time blocks already hold for something that is not a picked daytime
- * task — an ad-hoc block, or one whose task is not on today or is an evening task. A picked daytime task counts by
- * its estimate in the readout instead, so `pickedIds` holds those. A finished task's block keeps only the part
- * before `nowMin`, as Today's capacity does.
+ * minutes less meetings, the gaps too short to use (as Today counts them, around every block on the day), the
+ * buffer, and the time blocks already hold for something that is not a picked daytime task — an ad-hoc block, or
+ * one whose task is not on today or is an evening task. A picked daytime task counts by its estimate in the
+ * readout instead, so `pickedIds` holds those. A finished task's block keeps only the part before `nowMin`, as
+ * Today's capacity does.
  */
-export function fitsToday(c: Pick<Capacity, "state" | "workMin" | "busyMin" | "bufferMin" | "windows" | "busy"> | null, blocks: readonly FitBlock[], pickedIds: ReadonlySet<string>, nowMin: number): number {
+export function fitsToday(c: Pick<Capacity, "state" | "workMin" | "busyMin" | "gapMin" | "bufferMin" | "windows" | "busy"> | null, blocks: readonly FitBlock[], pickedIds: ReadonlySet<string>, nowMin: number): number {
   if (!c || c.state === "no_work_day") return 0;
   const held = blocks.flatMap((b): Interval[] => {
     if (b.taskId && !b.done && pickedIds.has(b.taskId)) return [];
@@ -78,7 +79,7 @@ export function fitsToday(c: Pick<Capacity, "state" | "workMin" | "busyMin" | "b
     return end > b.start ? [{ start: b.start, end }] : [];
   });
   const heldMin = totalMinutes(clip(held, subtract(c.windows, c.busy)));
-  return Math.max(0, c.workMin - c.busyMin - c.bufferMin - heldMin);
+  return Math.max(0, c.workMin - c.busyMin - c.gapMin - c.bufferMin - heldMin);
 }
 
 export interface Readout {

@@ -303,7 +303,7 @@ export function PlanPreview(p: PlanPreviewProps) {
         )}
 
         {proposal && !proposal.noWorkDay && (blocks.length > 0 || proposal.unplaced.length > 0) && (
-          <p className="mt-3 text-body-sm text-pretty text-ink-2 num">{explain({ kind: "buffer", leftMin: proposal.leftMin, bufferMin: proposal.bufferMin })}</p>
+          <p className="mt-3 text-body-sm text-pretty text-ink-2 num">{explain({ kind: "buffer", leftMin: proposal.leftMin, bufferMin: proposal.bufferMin, gapMin: proposal.gapMin })}</p>
         )}
         {note && (
           <p role="status" className="mt-2 text-body-sm text-ink-2">

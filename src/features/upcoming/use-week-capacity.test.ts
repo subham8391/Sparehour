@@ -6,6 +6,7 @@ vi.mock("@/data/powersync", () => ({ useQuery: vi.fn(), useLocalDatabase: vi.fn(
 import { capacityFor } from "@/core/capacity";
 import { DAY, REFERENCE_DAY, SETTINGS, WORK_HOURS, block, event, task } from "@/core/capacity/__fixtures__/reference-day";
 import { localDate } from "@/core/time";
+import { dayEffect } from "@/features/quickadd/day-effect";
 import { heroState } from "@/features/today/ribbon";
 import { calendarMonths, weekCapacities, type WeekCapacityInput } from "./use-week-capacity";
 import { dayReadout } from "./week";
@@ -59,6 +60,20 @@ describe("weekCapacities (multi-day capacity)", () => {
     const thursday = { ...tuesday, startAt: tuesday.startAt!.add({ hours: 48 }), endAt: tuesday.endAt!.add({ hours: 48 }) };
     const caps = weekCapacities(week({ events: [...REFERENCE_DAY.events, thursday] }));
     expect(caps.get(DAY.add({ days: 2 }).toString())!.busyMin).toBe(60);
+  });
+
+  it("gaps too short to use come off a day here as on Today, and quick add's line reads the same figure", () => {
+    // Wednesday gets two meetings ten minutes apart (DECISIONS.md, amendment 2026-11-15).
+    const onWed = (e: ReturnType<typeof event>) => ({ ...e, startAt: e.startAt!.add({ hours: 24 }), endAt: e.endAt!.add({ hours: 24 }) });
+    const events = [...REFERENCE_DAY.events, onWed(event("a", "10:00", "10:50")), onWed(event("b", "11:00", "12:00"))];
+    const wed = weekCapacities(week({ events })).get(WED.toString())!;
+    expect(wed.gapMin).toBe(10);
+    // 9h − 1h 50m meetings − the 10m gap − 1h 20m buffer − 1h planned.
+    expect(wed.spareMin).toBe(540 - 110 - 10 - 80 - 60);
+    expect(dayReadout(wed, false).text).toBe("4h 40m spare");
+    // Quick add asks for the day with its line on it (day-line.tsx): a 30-minute task for Wednesday.
+    const after = weekCapacities(week({ events, preview: task("new", 30, { doDate: WED }) })).get(WED.toString())!;
+    expect(dayEffect({ day: WED, today: DAY, after, countedMin: null }).text).toBe("Leaves 4h 10m spare tomorrow");
   });
 
   it("previews a drag: the task leaves its day and lands on the one it hovers over, both bars at once", () => {

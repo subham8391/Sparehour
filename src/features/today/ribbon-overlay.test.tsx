@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // The ribbon's hands (SCREENS.md §2.2 "Interactions"): the breakdown in words, the segment names, and what a
 // click, a tap and the keyboard do.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Capacity } from "@/core/capacity";
+import { capacityFor, type Capacity } from "@/core/capacity";
+import { REFERENCE_DAY, block as dayBlock, event as dayEvent } from "@/core/capacity/__fixtures__/reference-day";
 import { capacityFixture } from "@/test/fixtures";
 import RibbonOverlay, { breakdownSentence, ribbonSegments, segmentAt, segmentLine, type RibbonOverlayProps } from "./ribbon-overlay";
 
@@ -38,6 +39,39 @@ describe("breakdownSentence (PRODUCT_SPEC.md §9.1)", () => {
     expect(breakdownSentence({ ...day, busyMin: 0, spareMin: 320 }, 15, false)).toBe("9h working − 1h 20m buffer (15% of your working day) − 2h 20m planned = 5h 20m spare");
     expect(breakdownSentence({ ...day, unscheduledMin: 240, spareMin: -40 }, 15, true)).toMatch(/= 40m over$/);
     expect(breakdownSentence({ ...day, busyMin: 500, bufferMin: 40, committedMin: 0, spareMin: 0 }, 15, true)).toBe("9h working − 8h 20m in meetings − 40m buffer − 0m planned = 0m spare");
+  });
+});
+
+// DECISIONS.md, amendment 2026-11-15: open stretches under 15 minutes are not spare time. The days here come from the
+// capacity engine, so the sentence is checked against the number it explains.
+describe("gaps too short to use", () => {
+  // The reference day with its prep block ending at 13:50, ten minutes before the 14:00 meeting.
+  const gappy = capacityFor({ ...REFERENCE_DAY, blocks: REFERENCE_DAY.blocks.map((b) => (b.id === "b-prep" ? dayBlock("b-prep", "prep", "13:30", "13:50") : b)) });
+
+  it("are a term of their own after the meetings, so the sentence still adds up", () => {
+    expect(breakdownSentence(gappy, 15, true)).toBe("9h working − 2h in meetings − 10m in gaps too short to use − 1h 20m buffer (15% of your working day) − 2h 20m planned = 3h 10m spare");
+    expect(gappy.workMin - gappy.busyMin - gappy.gapMin - gappy.bufferMin - gappy.committedMin - gappy.unscheduledMin).toBe(190);
+    // A day with none says nothing about them.
+    expect(breakdownSentence(capacityFor(REFERENCE_DAY), 15, true)).toBe("9h working − 2h in meetings − 1h 20m buffer (15% of your working day) − 2h 20m planned = 3h 20m spare");
+  });
+
+  it("are named without a calendar too: two blocks ten minutes apart make one", () => {
+    const c = capacityFor({ ...REFERENCE_DAY, events: [], tasks: [], blocks: [dayBlock("b1", null, "10:00", "10:30"), dayBlock("b2", null, "10:40", "11:00")] });
+    expect(breakdownSentence(c, 15, false)).toBe("9h working − 10m in gaps too short to use − 1h 20m buffer (15% of your working day) − 50m planned = 6h 40m spare");
+  });
+
+  it("cap the buffer with the meetings: the share is dropped when gaps are why it is smaller", () => {
+    // Meetings leave 1h 20m, exactly the buffer's share, but 40m of it is four ten-minute gaps.
+    const events = [dayEvent("a", "09:00", "10:50"), dayEvent("b", "11:00", "12:50"), dayEvent("c", "13:00", "14:50"), dayEvent("d", "15:00", "16:50"), dayEvent("e", "17:00", "17:20")];
+    const c = capacityFor({ ...REFERENCE_DAY, events, blocks: [], tasks: [] });
+    expect(breakdownSentence(c, 15, true)).toBe("9h working − 7h 40m in meetings − 40m in gaps too short to use − 40m buffer − 0m planned = 0m spare");
+  });
+
+  it("the stretch says what it is under the pointer, where a stretch of fifteen minutes is still Free", () => {
+    const lines = ribbonSegments(gappy, [], []).map(segmentLine);
+    expect(lines).toContain("Too short to use · 13:50–14:00 · 10m");
+    expect(lines[0]).toBe("Free · 09:00–09:15 · 15m");
+    expect(lines.filter((l) => l.startsWith("Too short"))).toHaveLength(1);
   });
 });
 
@@ -130,6 +164,20 @@ describe("<RibbonOverlay>", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add something" }));
     expect(onAdd).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
+  });
+
+  it("lists the gaps in the panel, and a tap on one names it and still offers to add something there", async () => {
+    // The canonical day with its block ending at 15:10 and a meeting from 15:20: ten open minutes between them.
+    const gappy: Capacity = { ...day, busyMin: 180, gapMin: 10, committedMin: 130, spareMin: 140, busy: [...day.busy, { start: 920, end: 980 }], blocks: [{ start: 780, end: 910 }], free: [day.free[0], day.free[1], { start: 910, end: 920 }, { start: 980, end: 1080 }] };
+    const { button, onAdd } = setup({ c: gappy });
+    expect(button).toHaveAccessibleDescription("9h working − 3h in meetings − 10m in gaps too short to use − 1h 20m buffer (15% of your working day) − 2h 10m planned = 2h 20m spare");
+    pointer(button, "pointerdown", "touch");
+    fireEvent.click(button, { clientX: 375, detail: 1 });
+    const panel = screen.getByRole("group", { name: "Spare time breakdown" });
+    expect(panel).toHaveTextContent("Too short to use · 15:10–15:20 · 10m");
+    expect(within(panel).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["9h working", "−3h in meetings", "−10m in gaps too short to use", "−1h 20m buffer (15% of your working day)", "−2h 10m planned", "=2h 20m spare"]);
+    await userEvent.click(screen.getByRole("button", { name: "Add something" }));
+    expect(onAdd).toHaveBeenCalledTimes(1);
   });
 
   it("from the keyboard: Enter opens it, the arrows step along the day, and a meeting can be shown; Escape closes", async () => {

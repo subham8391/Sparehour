@@ -1936,15 +1936,17 @@ This is the product. If it is wrong, nothing else matters.
 #### Definition
 
 ```
-spare(day)  = work(day) − busy(day) − buffer(day) − committed(day) − unscheduled(day)
-buffer(day) = min(round5(15% × work(day)), work(day) − busy(day))        # 15% = buffer_pct
+spare(day)  = work(day) − busy(day) − gaps(day) − buffer(day) − committed(day) − unscheduled(day)
+gaps(day)   = Σ open stretches of the day shorter than 15 minutes                     # USABLE_GAP_MIN, 2026-11-15
+buffer(day) = min(round5(15% × work(day)), work(day) − busy(day) − gaps(day))        # 15% = buffer_pct
 ```
 
 | Term | Definition |
 |---|---|
 | `work(day)` | Σ lengths of the user's `work_hours` windows for that weekday, as local intervals |
 | `busy(day)` | Σ lengths of **merged** busy calendar intervals, each clipped to the work windows |
-| `buffer(day)` | **`buffer = min(round5(15% × work), work − busy)`** — settled formula; `15%` is `buffer_pct` |
+| `gaps(day)` | Σ lengths of the **open stretches shorter than 15 minutes**, where open = work windows − `busy` − `committed`, taken over the whole day (not from now). A stretch of exactly 15 minutes is open time. Added 2026-11-15, see "Gaps too short to use" below |
+| `buffer(day)` | **`buffer = min(round5(15% × work), work − busy − gaps)`** — settled formula; `15%` is `buffer_pct`; the `− gaps` in the cap is from 2026-11-15 |
 | `committed(day)` | Σ lengths of `time_blocks` on that day, merged and clipped to the work windows, **minus** any part already counted in `busy` (a block mirrored to Google appears in both) |
 | `unscheduled(day)` | Σ `coalesce(estimate_min, default_estimate_min)` over active tasks with `do_date = day` that have **no** time block |
 
@@ -1952,17 +1954,20 @@ Routine occurrences (§5.7) need **no special case**: they are ordinary tasks an
 
 **The buffer formula, and why it has two terms.** The first term, `15 % × work`, is a stable tax on the *workday*: it does not shrink as meetings fill the day, which is exactly when you need slack most (`15 % × (work − busy)` would give you *less* on your worst days). The second term caps the buffer at whatever is actually left after meetings, so on a day that is wall-to-wall meetings the buffer collapses to zero rather than pushing `spare` negative on its own — an overload warning must always be caused by *work you planned*, never by an accounting artefact. `round5` rounds to the nearest 5 minutes because a buffer of "1 h 21 min" is false precision. `buffer_pct` is a setting, default 15 (DECISIONS.md).
 
-**Reference day** (the canonical golden fixture, `capacity/__fixtures__/reference-day.json`):
+**Gaps too short to use (as built 2026-11-15; DECISIONS.md, amendment of that date).** The engine used to count every open minute, so ten minutes between two meetings were ten spare minutes. `USABLE_GAP_MIN = 15` (`src/core/capacity/index.ts`; the shortest estimate the app offers) is the shortest stretch a task fits in. `open = subtract(free, committedBlocks)` is what `Capacity.free` has always held; `gapMin` (a new field on `Capacity`) is the total of its stretches shorter than that, whatever made them: two meetings, a block beside a meeting or another block, either end of a work window (a break between two windows is not open time, so nothing is joined across it; windows that touch are merged first and are one stretch), a timed out-of-office that leaves a sliver. Gaps are **not** folded into the buffer: the buffer is for what comes up and needs usable time. They are treated exactly like `busy`, in the sum and in the buffer's cap, so the second property below still holds: gaps and the buffer never put a day over by themselves. `Capacity.free` is unchanged and still lists them: the timeline and the ribbon draw them, `chooseSlot` and a hand-drawn block may use them, and a block that fills one turns it from `gaps` into `committed`, so `spare` does not fall twice. The stretches are taken over the whole day, so the figure does not change as the clock passes through one (a finished task's block, which keeps only the part behind `now`, can leave one for the minutes before the meeting that follows it). *Who restates the number.* Each was moved to the engine's terms: the ribbon's breakdown (`ribbon-overlay.tsx` `breakdownTerms`: a term "10m in gaps too short to use" after the meetings when `gapMin > 0`; `ribbonSegments` names such a stretch "Too short to use" instead of "Free"), the days ahead for deadline pressure (`plan-input.ts` `aheadDays`), the morning plan's `fitsToday`, the push figures' `capacityMin` ("5h 30m fits today") and Claude's `capacityLine` ("gaps too short to use 10m" among its parts). Quick add's day line, Upcoming, the calendar's headers and the shutdown's tomorrow read `spareMin` and needed nothing. *Weight.* Today's shell goes from 318.9 KB to 319.0 KB; the other shells are unchanged.
+
+**Reference day** (the canonical golden fixture, `capacity/__fixtures__/reference-day.ts`):
 
 | Term | Value | Working |
 |---|---|---|
 | `work` | 9 h 00 = 540 min | 09:00–18:00 |
 | `busy` | 2 h 00 = 120 min | two meetings, merged and clipped |
-| `buffer` | **1 h 20 = 80 min** | `min(round5(540 × 0.15) = round5(81) = 80, 540 − 120 = 420)` |
+| `gaps` | 0 min | no open stretch is shorter than 15 minutes (three are exactly 15) |
+| `buffer` | **1 h 20 = 80 min** | `min(round5(540 × 0.15) = round5(81) = 80, 540 − 120 − 0 = 420)` |
 | `committed + unscheduled` | 2 h 20 = 140 min | planned estimates |
-| **`spare`** | **3 h 20 = 200 min** | `540 − 120 − 80 − 140` |
+| **`spare`** | **3 h 20 = 200 min** | `540 − 120 − 0 − 80 − 140` |
 
-Every change to this engine must reproduce this row exactly; it is the first test that runs.
+Every change to this engine must reproduce this row exactly; it is the first test that runs. *(2026-11-15: the fixture's prep block moved from 13:30–13:50 to 13:40–14:00, up to the 1:1 it prepares. Ending at 13:50 it left ten open minutes before the meeting, a gap under the new rule, and the day came to 3 h 10; the old layout is the second test that runs, with `gaps = 10` and `spare = 190`.)*
 
 **Why `committed` and `unscheduled` are separate.** Double-counting is the classic bug: a task with a 60-minute estimate *and* a 60-minute block must consume 60 minutes, not 120. Splitting the terms makes the invariant checkable (`committed ∩ unscheduled = ∅` by construction, because a task is in exactly one set).
 
@@ -2014,13 +2019,16 @@ capacityFor(day, ctx) -> Capacity
                       where t.do_date == day and t.state in ('inbox','active')
                         and t.id ∉ blockedTaskIds
 
-  # settled formula: a stable 15 % tax on the workday, capped by what meetings left
-  bufferMin := min( round5(workMin * ctx.settings.buffer_pct / 100),
-                    workMin − busyMin )
-  spareMin  := workMin − busyMin − bufferMin − commitMin − unschedMin
+  open      := subtract(free, blocks)                  # what is genuinely open
+  gapMin    := Σ length(g) for g in open if length(g) < USABLE_GAP_MIN   # 15; 2026-11-15
 
-  return { workMin, busyMin, bufferMin, commitMin, unschedMin, spareMin,
-           free: subtract(free, blocks),               # what is genuinely open
+  # settled formula: a stable 15 % tax on the workday, capped by what meetings and gaps left
+  bufferMin := min( round5(workMin * ctx.settings.buffer_pct / 100),
+                    workMin − busyMin − gapMin )
+  spareMin  := workMin − busyMin − gapMin − bufferMin − commitMin − unschedMin
+
+  return { workMin, busyMin, gapMin, bufferMin, commitMin, unschedMin, spareMin,
+           free: open,                                 # short stretches included: open, only not counted
            state: classify(spareMin, workMin),
            projectedFinish: projectFinish(day, ctx) }
 ```
@@ -2060,6 +2068,7 @@ projectFinish(day, ctx) -> LocalTime | null
         ++ [ unscheduled tasks for today, ordered by (day_sort_key) ]
   remaining := Σ durations of queue
   for gap in freeGapsAfter(cursor):                   # from capacityFor
+      if wholeLength(gap) < USABLE_GAP_MIN: continue  # 2026-11-15: by its whole length, not what is left of it
       take := min(gap.length, remaining)
       remaining -= take
       cursor    = gap.start + take
@@ -2078,9 +2087,10 @@ Server-side, the identical function is imported by the notification job to decid
 #### Tests
 
 - The **reference day** above (9 h, 2 h meetings → 80 min buffer, 140 min planned → 200 min spare), then ~40 golden fixtures: split work days, back-to-back meetings, a meeting straddling lunch, all-day OOO, declined invites, an event that starts before the workday and ends inside it, a block outside work hours, a day with no work hours, DST-transition days, and a **fully-booked day** (9 h of meetings → buffer 0, spare = −planned, never lower).
-- Property: `buffer ≤ work − busy` always holds, and `spare ≥ −(committed + unscheduled)` — the buffer alone can never produce an overload.
+- Property: `buffer ≤ work − busy − gaps` always holds, and `spare ≥ −(committed + unscheduled)` — the buffer and the gaps can never produce an overload by themselves.
+- **Gaps too short to use (2026-11-15):** ten minutes between two meetings; fifteen, which count, and fourteen, which do not; a block that stops short of a meeting and one that runs up to it; two blocks ten minutes apart and a block that cuts a stretch into two slivers; a block put into a gap by hand; a gap at the start and at the end of the day; a day whose gaps take the buffer's cap below its share; a split day and windows that touch; a timed out-of-office; the projected finish skipping a short stretch, using one the clock has eaten into, and spilling work only a gap could take. Properties: `gaps` is exactly the total of `free`'s stretches under 15 minutes, and unplanned work never finishes inside one.
 - Property: `spare` is **monotonic decreasing** in every subtracted term.
-- Property: adding a time block for a task that already had an estimate leaves `spare` unchanged (the no-double-count invariant).
+- Property: adding a time block for a task that already had an estimate leaves `spare` unchanged (the no-double-count invariant). Since 2026-11-15 the block may also make a gap beside itself, so the invariant is stated with it: `spare + committed + gaps + buffer` with the block equals `spare + unscheduled + gaps + buffer` without.
 - Property: `merge` output is sorted, disjoint, and has the same union measure as its input.
 - Property: for any interval set, `totalMinutes(subtract(W, B)) + totalMinutes(clip(B, W)) == totalMinutes(W)`.
 
@@ -2227,6 +2237,8 @@ sequenceDiagram
 - *Where the proposal lives.* In the island's React state, not in a local-only `plan_proposals` table: it is a pure function of the day, the removals and the seed, recomputed on every render (so locking a block, removing a proposed block, a finished task or a new meeting re-plans at once), and it never syncs because it is never written. A reload discards it, which a preview may.
 - *Approve* is `BlockRepo.approvePlan`: one `writeTransaction` that soft-deletes the replaced blocks still unlocked and `source = 'plan'` and inserts the chosen blocks with `source = 'plan'`, `task_id` and the task's title; one undo entry ("Planned 5 blocks", with the toast) whose undo deletes the batch and restores what it replaced. The pushing repository schedules the Google push after both, exactly as for manual blocks. The Pro gate is `canApprovePlan()` (returns true until billing exists; DECISIONS.md Q22).
 - *Tests.* `src/core/planning/index.test.ts` covers ordering, the back-pass, evenings, fixed times, splitting, pinned and replaced blocks, `now` mid-day, the no-work and nothing-fits days, the buffer, Shuffle and every sentence, with properties (no overlaps with each other, meetings or pinned blocks; inside working hours; never before now; never more than the free time; conservation; determinism under reordered inputs; every shuffle valid). Monotonicity is not asserted: with fixed times and first-fit it does not hold in general (freeing a slot can let an earlier task take a gap a later one had), so it is left to the conservation and feasibility properties.
+
+**As built (2026-11-15), gaps too short to use (§5.4; DECISIONS.md, amendment of that date).** The scheduler counts free time as the capacity engine does, so the plan and the day's number agree. `usableAhead(taken)` is the open time from now on, in stretches of at least `USABLE_GAP_MIN` judged by their whole length across the day once `taken` is out (so a stretch the clock has eaten into still counts to its end). `freeAheadMin = usableAhead([])`, which caps the buffer; the forward pass may take `usableAhead(placed) − bufferMin`, so a sliver a block leaves beside a meeting comes off what the next task may take; `Proposal.leftMin = usableAhead(placed)`, and the new `Proposal.gapMin` is the rest of what is open ahead, so `plannedMin + leftMin + gapMin` is still exactly the free time ahead (the conservation property, restated). At the start of a day, with every task placed at its estimate, `leftMin − bufferMin` is `spareMin` of the day once approved; a test builds that day through `capacityFor` and checks it. *Placement is not changed:* the gaps blocks are fitted into are as before (a ten-minute task may still take a ten-minute gap, where the shortest block allows it), and no reason sentence changed its meaning. Only the budget moved, and only by the minutes that are no longer counted. *Two things are documented rather than prevented.* A block that fits the budget is placed even when the sliver it leaves takes up to 14 minutes more of the usable time than the budget had, so the plan can leave less than the buffer by that much; and the plan does not choose its places to avoid slivers. The buffer line stays true through `BufferNote.gapMin`: with nothing but gaps left it reads "Every free minute is planned but 10m in gaps too short to use. There is no buffer left." The days ahead (`AheadDay.freeMin`, from `aheadDays`) leave their gaps out too; `typicalFreeMin`, the stand-in for a day that was not read, is unchanged.
 
 ---
 

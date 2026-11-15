@@ -145,12 +145,13 @@ describe("the readout starts from Today's spare figure", () => {
     { taskId: "draft", start: 900, end: 945 },
   ];
   const at = (minute: number) => toInstant(today, timeFromMinutes(minute), "UTC");
-  const capacity = () =>
+  const meeting = (id: string, start: number, end: number) => ({ id, startAt: at(start), endAt: at(end), startDate: null, endDate: null, allDay: false, busy: true, status: "confirmed" as const, selfResponse: "accepted" as const, eventType: "default" as const, isOurs: false, calendarRead: true });
+  const capacity = (more: ReturnType<typeof meeting>[] = []) =>
     capacityFor({
       day: today,
       settings: { timezone: "UTC", bufferPct: 10, defaultEstimateMin: 30 },
       workHours: [{ weekday: 1, start: localTime("09:00"), end: localTime("18:00") }],
-      events: [{ id: "e", startAt: at(600), endAt: at(660), startDate: null, endDate: null, allDay: false, busy: true, status: "confirmed", selfResponse: "accepted", eventType: "default", isOurs: false, calendarRead: true }],
+      events: [meeting("e", 600, 660), ...more],
       blocks: blocks.map((b, i) => ({ id: `b${i}`, taskId: b.taskId as TaskId | null, startAt: at(b.start), endAt: at(b.end) })),
       // What Today reads: TASKS_THROUGH_TODAY_SQL leaves out a task whose start date is still ahead.
       tasks: open.filter((t) => !t.startDate || compareDates(t.startDate, today) <= 0).map((t) => ({ id: t.id, state: t.state, doDate: t.doDate, estimateMin: t.estimateMin, evening: t.evening, daySortKey: null })),
@@ -170,6 +171,19 @@ describe("the readout starts from Today's spare figure", () => {
     expect(fits).toBe(365);
     expect(c.spareMin).toBe(290);
     expect(readout(picked, fits, 30).line).toBe("4h 50m to spare · 6h 05m fits today · 1h 15m picked · 2 tasks");
+  });
+
+  it("leaves out the gaps too short to use, so step 2 still opens on the hero's number", () => {
+    // A second meeting from 11:10: the ten minutes after the first hold no task (DECISIONS.md, amendment 2026-11-15).
+    const c = capacity([meeting("e2", 670, 720)]);
+    expect(c.gapMin).toBe(10);
+    const picked = onTodayTasks(open, today);
+    const fits = fitsToday(c, blocks, new Set(picked.filter((t) => !t.evening).map((t) => t.id)), 480);
+    // 540 working − 110 meetings − 10 gap − 55 buffer − 60 ad-hoc focus block.
+    expect(fits).toBe(305);
+    const r = readout(picked, fits, 30);
+    expect(r.fitsMin - r.pickedMin).toBe(c.spareMin);
+    expect(r.line).toBe("3h 50m to spare · 5h 05m fits today · 1h 15m picked · 2 tasks");
   });
 
   it("a block of a task that is not picked holds its time; a finished task's block only the part already spent", () => {

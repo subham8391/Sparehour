@@ -108,6 +108,16 @@ describe("dayFigures: the numbers Today shows, at send time", () => {
     expect(dayFigures(MONDAY)).toEqual({ badge: 5, hasCalendar: true, workDay: true, capacityMin: 370, meetings: 2, spareMin: 370 - 45 - 60, done: 7 });
   });
 
+  it("gaps too short to use are out of what fits, so the morning message says the figure Today shows", () => {
+    // A third meeting from 12:55 local (11:55Z), ten minutes after the block ends at 12:45: nothing fits in between.
+    const m3 = { ...MONDAY.events[0], id: "m3", start_at: "2026-10-05T11:55:00+00:00", end_at: "2026-10-05T12:25:00+00:00" };
+    const f = dayFigures({ ...MONDAY, events: [...MONDAY.events, m3] });
+    // 540 − 120 of meetings − the 10m gap − 80 buffer.
+    expect(f).toMatchObject({ capacityMin: 330, meetings: 3, spareMin: 330 - 45 - 60 });
+    const stored: PushPayload = { web_push: 8030, notification: { title: "Good morning.", body: "x", navigate: "/today" }, sh: { kind: "morning", actions: [] } };
+    expect(personalise("morning", stored, f).notification.title).toBe("Good morning. 5h 30m fits today.");
+  });
+
   it("a day without working hours has no capacity", () => {
     expect(dayFigures({ ...MONDAY, work_hours: [] })).toMatchObject({ workDay: false, capacityMin: 0, meetings: 0 });
   });
