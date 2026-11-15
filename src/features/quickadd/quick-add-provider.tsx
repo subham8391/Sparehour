@@ -154,20 +154,24 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
  * scrolls beneath it, and a painted one ended partway across a wide window
  * with no context pane (and wore the root paper on Color Field's per-view
  * pages), so the page simply runs on under it.
+ *
+ * `onAdd` is what the shell hands it: add a task where the person is (the `N` command), so on Today, or the day it
+ * was stepped to, the task lands on that day and on a project in that project (DECISIONS.md, amendment 2026-11-15).
+ * Without it the bar is plain quick add (`Q`), which files a line with no day in the Inbox.
  */
-export function QuickAddBar() {
+export function QuickAddBar({ onAdd }: { onAdd?: () => void }) {
   const { open } = useQuickAdd();
   return (
     <div className="hidden w-full max-w-210 shrink-0 px-6 sm:block md:px-10">
       <div className="border-t border-line pt-3 pb-4">
         <button
           type="button"
-          onClick={() => open()}
+          onClick={() => (onAdd ? onAdd() : open())}
           className="flex h-11 w-full items-center gap-3 rounded-lg border border-line-strong bg-surface px-3.5 text-left text-body-lg text-ink-3 transition-colors dur-fast hover:border-line-control hover:text-ink-2 active:bg-press"
         >
           <Icon name="plus" size={16} className="text-ink-2" />
           <span className="flex-1">Add a task</span>
-          <Kbd>Q</Kbd>
+          <Kbd>{onAdd ? "N" : "Q"}</Kbd>
         </button>
       </div>
     </div>
@@ -175,12 +179,12 @@ export function QuickAddBar() {
 }
 
 /** The phone FAB: 56 px, the look's primary colours (ink in Sky), a rounded square, 16 px above the tab bar. `hidden` while a sheet owns the screen. */
-export function QuickAddFab({ hidden = false }: { hidden?: boolean }) {
+export function QuickAddFab({ hidden = false, onAdd }: { hidden?: boolean; /** As the bar's: add where the person is. */ onAdd?: () => void }) {
   const { open } = useQuickAdd();
   return (
     <button
       type="button"
-      onClick={() => open()}
+      onClick={() => (onAdd ? onAdd() : open())}
       aria-label="Add a task"
       hidden={hidden}
       className="fixed right-5 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center btn-fill btn-fab rounded-fab transition-transform dur-fast motion-safe:active:scale-94 sm:hidden"

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { instant, localDate } from "@/core/time";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { registerTodayHandler, resetTodayRequests } from "@/features/today/today-request";
+import { ADD_HERE } from "./command-runs";
 import { COMMANDS, GROUP_ORDER, keyBindings, prefillHere, type CommandContext } from "./registry";
 import { registerViewKeys } from "./view-keys";
 
@@ -123,5 +124,18 @@ describe("the keys", () => {
     expect(await prefillHere(ctx({ pathname: "/today" }))).toBe("tomorrow ");
     window.history.replaceState(null, "", "/today?day=2026-10-13");
     expect(await prefillHere(ctx({ pathname: "/today" }))).toBe("13 oct ");
+  });
+
+  it("the shell's Add a task bar runs the same command, so a task added while looking at a day lands on it", async () => {
+    expect(ADD_HERE.id).toBe("create.task-here");
+    expect(ADD_HERE.shortcut).toBe("n");
+    window.history.replaceState(null, "", "/today?day=2026-10-08");
+    const onDay = ctx({ pathname: "/today" });
+    await ADD_HERE.run(onDay);
+    expect(onDay.quickAdd).toHaveBeenCalledWith("tomorrow ");
+    // Anywhere that is not a day or a project it is plain quick add: a line with no day still goes to the Inbox.
+    const elsewhere = ctx({ pathname: "/inbox" });
+    await ADD_HERE.run(elsewhere);
+    expect(elsewhere.quickAdd).toHaveBeenCalledWith(undefined);
   });
 });

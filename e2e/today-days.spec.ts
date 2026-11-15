@@ -68,6 +68,51 @@ test("] shows tomorrow — its tasks and timeline, blockable — the address kee
   await expect(row).toHaveCount(0);
 });
 
+// DECISIONS.md, amendment 2026-11-15: the user stepped Today to Monday, pressed "Add a task", typed a name and found
+// the task in the Inbox. The bar now adds where the person is, as `N` does.
+test("the Add a task bar on a later day files the task on that day; on the Inbox it still goes to the Inbox", async ({ page }) => {
+  const tomorrow = isoPlus(me.today, 1);
+  await openApp(page, `/today?day=${tomorrow}`);
+  await expect(page.getByRole("button", { name: "back to today" })).toBeVisible();
+  const bar = page.getByRole("button", { name: /^Add a task N$/ });
+  const box = page.getByRole("textbox", { name: "Task" });
+  // No day word in the title: it is the bar that names the day.
+  const title = uniqueTitle("bar on a later day");
+  await bar.click();
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue("tomorrow ");
+  await box.pressSequentially(title);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(box).toHaveCount(0);
+  // On the day that is shown, and in Postgres with that day.
+  await expect(page.getByRole("row").filter({ hasText: title })).toBeVisible();
+  expect(await waitForRow("select 1 from public.tasks where title = $1 and state = 'active' and do_date = $2", [title, tomorrow])).not.toBeNull();
+
+  // Today itself: the task is for today.
+  await openApp(page, "/today");
+  const todays = uniqueTitle("bar on this day");
+  await bar.click();
+  await expect(box).toHaveValue("today ");
+  await box.pressSequentially(todays);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await waitForRow("select 1 from public.tasks where title = $1 and do_date = $2", [todays, me.today])).not.toBeNull();
+
+  // Where there is no day to mean, it is plain quick add: no day, so the Inbox.
+  await openApp(page, "/inbox");
+  const loose = uniqueTitle("bar in the inbox");
+  await bar.click();
+  await expect(box).toHaveValue("");
+  await box.pressSequentially(loose);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await waitForRow("select 1 from public.tasks where title = $1 and state = 'inbox' and do_date is null", [loose])).not.toBeNull();
+});
+
 test("T with nothing selected comes back to today; [ steps to yesterday, read-only", async ({ page }) => {
   const yesterday = isoPlus(me.today, -1);
   await openApp(page, `/today?day=${isoPlus(me.today, 2)}`);

@@ -311,6 +311,9 @@ export const RUNS: readonly CommandRun[] = [
   { id: "app.shortcuts", shortcut: "?", run: (ctx) => ctx.openShortcuts() },
 ];
 
+/** `N`, for what does the same without the key: the shell's "Add a task" bar and the phone's add button. */
+export const ADD_HERE = RUNS.find((r) => r.id === "create.task-here") as CommandRun;
+
 /** Every command with a shortcut, for the keyboard layer (the registry's words ride along when they are passed in). */
 export function keyBindings(): Binding<CommandRun>[];
 export function keyBindings<T extends CommandRun>(commands: readonly T[]): Binding<T>[];

@@ -91,6 +91,22 @@ describe("<QuickAddProvider>", () => {
     expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue("");
   });
 
+  it("handed the shell's add-here, the bar and the FAB ask it instead and the bar names its key", async () => {
+    const onAdd = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <QuickAddProvider>
+        <QuickAddBar onAdd={onAdd} />
+        <QuickAddFab onAdd={onAdd} />
+      </QuickAddProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /Add a task N/ }));
+    await user.click(screen.getByRole("button", { name: "Add a task" }));
+    expect(onAdd).toHaveBeenCalledTimes(2);
+    // Add-here decides what the sheet opens with (the day shown, the project): the bar itself opens nothing.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("the bar and the FAB open it too", async () => {
     const user = setup();
     await user.click(screen.getByRole("button", { name: /Add a task Q/ }));

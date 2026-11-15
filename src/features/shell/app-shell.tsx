@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { readStorageFull, subscribeStorageFull } from "@/data/powersync";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
+import { ADD_HERE } from "@/features/commands/command-runs";
 import { KeyboardProvider, useCommands } from "@/features/commands/keyboard-provider";
 import { PaletteHost, PaletteProvider, usePalette } from "@/features/commands/palette-provider";
 import { PushDeepLink } from "@/features/notifications/push-deep-link";
@@ -107,7 +108,11 @@ function Frame({ children }: { children: ReactNode }) {
   const sync = useSyncChip();
   const detail = useTaskDetail();
   const palette = usePalette();
-  const { isMac, openShortcuts } = useCommands();
+  const { isMac, openShortcuts, run } = useCommands();
+  // "Add a task" adds where the person is, as `N` does: on Today (or the day it was stepped to) the task is filed
+  // on that day, on a project in that project, and anywhere else it is plain quick add. It used to be `Q` everywhere,
+  // so a task added while looking at Monday went to the Inbox (DECISIONS.md, amendment 2026-11-15).
+  const addHere = () => run(ADD_HERE);
   const [viewHidesFab, setViewHidesFab] = useState(false);
   useAppBadge(counts.today);
   const tabs = showsTabBar(pathname);
@@ -142,12 +147,12 @@ function Frame({ children }: { children: ReactNode }) {
             <FabRoomContext.Provider value={setViewHidesFab}>{children}</FabRoomContext.Provider>
           </SyncModelContext.Provider>
         </div>
-        {adds && <QuickAddBar />}
+        {adds && <QuickAddBar onAdd={addHere} />}
         <BulkBarIsland />
       </div>
       <TaskDetailPane />
       {tabs && <TabBar pathname={pathname} counts={counts} sync={sync} className="sm:hidden" />}
-      {adds && <QuickAddFab hidden={detail.selectedId !== null || viewHidesFab} />}
+      {adds && <QuickAddFab hidden={detail.selectedId !== null || viewHidesFab} onAdd={addHere} />}
     </div>
   );
 }
