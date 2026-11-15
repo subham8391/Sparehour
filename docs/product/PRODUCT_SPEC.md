@@ -442,6 +442,8 @@ This is the Llama Life "running total makes time feel real" mechanic (`07` §B13
 - **Writes to exactly one calendar**, chosen during onboarding and changeable in Settings. We never create, edit or delete anything on any other calendar. This is stated in plain words at connect time and again in Settings.
 - Sync target is **under 60 seconds** each way, with an explicit "Synced 12s ago" status and a manual Sync now. Beating TickTick's ~15-minute lag is a stated competitive goal (`05` §2 pain #4).
 
+**As built (2026-11-15), Outlook is read.** Outlook and Microsoft 365 calendars connect beside Google ones (DECISIONS.md, amendment of that date): each of the person's own calendars has "counts as busy", and its meetings are subtracted from the day like any other, as "Busy" (only the times are kept). It is one-way: no block is written to Outlook, and no Outlook calendar can be chosen as the write calendar. It is refreshed twice an hour, on Sync now, and when Today opens on a sync older than a quarter of an hour, so the 60-second target above does not hold for Outlook until Microsoft's push is built.
+
 ### 10.2 Blocks
 
 | Rule | Detail |

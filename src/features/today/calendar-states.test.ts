@@ -52,6 +52,21 @@ describe("calendarIssueFrom and calendarWrites (PRODUCT_SPEC.md §10.3 rule 5)",
     expect(issue?.key).toBe("error:acct:2026-10-07T09:12:00Z");
   });
 
+  it("an Outlook account's trouble is named as Outlook's, and never pauses blocking: blocks do not go there", () => {
+    const outlook = conn({ id: "ms", provider: "microsoft", email: "sam@contoso.com", can_write: 0 });
+    const lapsed = calendarIssueFrom([{ ...outlook, status: "needs_reauth" }, conn({})], writer);
+    expect(lapsed).toMatchObject({ kind: "reauth", provider: "microsoft", blocking: false, full: false });
+    expect(issueMessage(lapsed!)).toBe("Outlook (sam@contoso.com) needs reconnecting.");
+    expect(calendarWrites([{ ...outlook, status: "needs_reauth" }, conn({})], writer)).toEqual({ on: true, off: null });
+    const failed = calendarIssueFrom([{ ...outlook, last_error: "Couldn't reach Outlook (microsoft calendarView delta: 503)." }], []);
+    expect(failed).toMatchObject({ kind: "error", provider: "microsoft", blocking: false });
+    expect(issueMessage(failed!)).toMatch(/^Couldn't reach Outlook\. Showing your last sync from .+\.$/);
+    expect(issueMessage({ kind: "error", provider: "microsoft", email: null, lastSyncedAt: null })).toBe("Couldn't reach Outlook yet.");
+    // A Google account's lines are unchanged, with or without a provider on the issue.
+    expect(calendarIssueFrom([conn({ status: "revoked" })], writer)).toMatchObject({ provider: "google" });
+    expect(issueMessage({ kind: "error", email: null, lastSyncedAt: null })).toBe("Couldn't reach Google Calendar yet.");
+  });
+
   it("writes are on only with a write calendar whose account may write", () => {
     expect(calendarWrites([conn({})], writer).on).toBe(true);
     expect(calendarWrites([conn({ can_write: 0 })], writer).on).toBe(false);

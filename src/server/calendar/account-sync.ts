@@ -2,10 +2,12 @@
 // good, reconcile the calendar list, sync every calendar that reads, keep the
 // push channels alive, and record how it went where the client can see it.
 // Everything that talks to the outside world is a port, so the whole pass is
-// unit-tested with fakes.
+// unit-tested with fakes. The ports are handed the account, so whoever wires
+// them picks the provider by the account's `provider` (run.ts): Google, or
+// Outlook, which reads events only and writes nothing (§6.8).
 import { CURRENT_KEY_VERSION, openFromBase64, sealToBase64 } from "./crypto";
 import { APP_CREATED_SCOPE, EVENTS_OWNED_SCOPE, EVENTS_READ_SCOPE, type TokenGrant } from "./google";
-import { NeedsReauth, type CalendarProvider, type ProviderCalendar } from "./provider";
+import { CalendarUnreadable, NeedsReauth, providerLabel, type CalendarProvider, type ProviderCalendar } from "./provider";
 import { busyWindow, syncCalendarEvents, syncCalendarsBusy, windowAround, type BusySource, type CalendarRef, type MirrorStore } from "./sync";
 
 export { APP_CREATED_SCOPE };
@@ -79,8 +81,9 @@ export interface WatchPort {
 export interface AccountSyncDeps {
   key: Buffer;
   store: AccountStore;
-  providerFor: (accessToken: string) => CalendarProvider & Partial<WatchPort> & Partial<BusySource> & Partial<{ createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> }>;
-  refresh: (refreshToken: string) => Promise<TokenGrant>;
+  /** A client for the account's own provider. One without `freeBusy` (Outlook) reads every calendar event by event. */
+  providerFor: (accessToken: string, acct: ClaimedAccount) => CalendarProvider & Partial<WatchPort> & Partial<BusySource> & Partial<{ createCalendar(summary: string, timezone: string | null): Promise<ProviderCalendar> }>;
+  refresh: (refreshToken: string, acct: ClaimedAccount) => Promise<TokenGrant>;
   /** null when push channels cannot be used (no public HTTPS address, §6.4). */
   webhook: { address: string; channelToken: (calendarId: string, channelId: string) => string } | null;
   newId: () => string;
@@ -106,7 +109,7 @@ async function goodAccessToken(acct: ClaimedAccount, deps: AccountSyncDeps): Pro
   const expiresAt = acct.token_expires_at ? new Date(acct.token_expires_at).getTime() : 0;
   if (acct.access_b64 && expiresAt - deps.now().getTime() > REFRESH_AHEAD_MS) return openFromBase64(acct.access_b64, deps.key);
   if (!acct.refresh_b64) throw new NeedsReauth("no calendar access on file");
-  const grant = await deps.refresh(openFromBase64(acct.refresh_b64, deps.key));
+  const grant = await deps.refresh(openFromBase64(acct.refresh_b64, deps.key), acct);
   // Rotate on touch: whatever key version the row had, it is written back under the current one.
   await deps.store.saveTokens(acct.id, sealToBase64(grant.accessToken, deps.key), grant.expiresAt, grant.refreshToken ? sealToBase64(grant.refreshToken, deps.key) : acct.key_version !== CURRENT_KEY_VERSION ? sealToBase64(openFromBase64(acct.refresh_b64, deps.key), deps.key) : null);
   return grant.accessToken;
@@ -144,7 +147,7 @@ async function reconcileCalendars(acct: ClaimedAccount, provider: CalendarProvid
  * Once it exists, the blocks move to it only when the chosen calendar is one these permissions cannot write; no
  * write calendar at all is the person's "Keep blocks in Sparehour only" and stays.
  */
-async function ensureAppCalendar(acct: ClaimedAccount, provider: AccountSyncDeps["providerFor"] extends (t: string) => infer P ? P : never, calendars: CalendarRow[], deps: AccountSyncDeps): Promise<CalendarRow[]> {
+async function ensureAppCalendar(acct: ClaimedAccount, provider: ReturnType<AccountSyncDeps["providerFor"]>, calendars: CalendarRow[], deps: AccountSyncDeps): Promise<CalendarRow[]> {
   const scopes = acct.scopes ?? [];
   if (!scopes.includes(APP_CREATED_SCOPE) || !provider.createCalendar) return calendars;
   const ownsWrites = scopes.includes(EVENTS_OWNED_SCOPE);
@@ -186,26 +189,31 @@ async function keepChannels(acct: ClaimedAccount, provider: CalendarProvider & P
 export async function syncAccount(acct: ClaimedAccount, deps: AccountSyncDeps): Promise<AccountSyncResult> {
   try {
     const accessToken = await goodAccessToken(acct, deps);
-    const provider = deps.providerFor(accessToken);
+    const provider = deps.providerFor(accessToken, acct);
     const calendars = await ensureAppCalendar(acct, provider, await reconcileCalendars(acct, provider, deps), deps);
     const scopes = acct.scopes ?? [];
     // Full access reads every event; the default (§6.1 as amended) reads busy times only.
     const titles = scopes.includes(EVENTS_READ_SCOPE);
+    // Outlook has no busy-times-only reading: each calendar is read event by event, and its provider keeps no titles (§6.8).
+    const eventsOnly = !provider.freeBusy;
     const ref = (c: CalendarRow): CalendarRef => ({ id: c.id, spaceId: acct.space_id, userId: acct.user_id, externalId: c.external_id, syncToken: c.sync_token });
     const reading = calendars.filter((c) => c.read);
     // The app's own calendar is read in full either way (its scope covers it), so a block moved in Google comes back.
-    const inFull = titles ? reading : scopes.includes(APP_CREATED_SCOPE) ? reading.filter((c) => c.summary === APP_CALENDAR_NAME) : [];
+    const inFull = titles || eventsOnly ? reading : scopes.includes(APP_CREATED_SCOPE) ? reading.filter((c) => c.summary === APP_CALENDAR_NAME) : [];
     const busyOnly = reading.filter((c) => !inFull.includes(c));
     const window = windowAround(deps.today());
     let events = 0;
+    const unreadable: { summary: string; reason: string }[] = [];
     for (const c of inFull) {
       try {
         const out = await syncCalendarEvents(provider, deps.store.mirror, ref(c), window);
         events += out.upserted + out.removed;
       } catch (e) {
+        // One calendar the provider will not give must not keep the person's others from being read; it is named below.
+        if (e instanceof CalendarUnreadable) unreadable.push({ summary: c.summary, reason: e.message });
         // A calendar the person made and named "Sparehour" is not the app's: read it by busy times like the rest.
-        if (titles || e instanceof NeedsReauth) throw e;
-        busyOnly.push(c);
+        else if (titles || eventsOnly || e instanceof NeedsReauth) throw e;
+        else busyOnly.push(c);
       }
     }
     if (busyOnly.length) {
@@ -215,16 +223,23 @@ export async function syncAccount(acct: ClaimedAccount, deps: AccountSyncDeps): 
     }
     // Push channels need the events scope; busy-only calendars refresh on the reconcile, "Sync now" and Today's stale check.
     if (titles) await keepChannels(acct, provider, calendars, deps);
+    if (unreadable.length) {
+      // The rest is in; the line says which calendar is not, so "Counts as busy" can be switched off for it.
+      const message = `Couldn't read “${unreadable[0].summary}” from ${providerLabel(acct.provider)} (${unreadable[0].reason}).`;
+      await deps.store.finish(acct.id, "ok", message);
+      return { status: "error", calendars: calendars.length, events, error: message };
+    }
     await deps.store.finish(acct.id, "ok", null);
     return { status: "ok", calendars: calendars.length, events, error: null };
   } catch (e) {
+    const name = providerLabel(acct.provider);
     if (e instanceof NeedsReauth) {
-      const message = "Google Calendar access has lapsed. Reconnect to keep syncing.";
+      const message = `${name} access has lapsed. Reconnect to keep syncing.`;
       await deps.store.finish(acct.id, "needs_reauth", message);
       return { status: "needs_reauth", calendars: 0, events: 0, error: message };
     }
     const message = e instanceof Error ? e.message : String(e);
-    await deps.store.finish(acct.id, "ok", `Couldn't reach Google Calendar (${message}).`);
+    await deps.store.finish(acct.id, "ok", `Couldn't reach ${name} (${message}).`);
     return { status: "error", calendars: 0, events: 0, error: message };
   }
 }

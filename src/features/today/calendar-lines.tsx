@@ -15,6 +15,7 @@ import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRo
 import { BlockRepo } from "@/data/repositories/block-repo";
 import { CalendarRepo } from "@/data/repositories/calendar-repo";
 import { takesBlocks } from "@/features/calendar/blocks-go";
+import { connectHref, type CalendarProviderId } from "@/features/calendar/providers";
 import { calendarSyncNow } from "@/features/calendar/sync-now";
 import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
@@ -42,9 +43,9 @@ const session = () => window.sessionStorage;
 
 const BANNER = "flex flex-col gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-body-sm text-ink-2";
 
-/** Reconnect starts Google's consent again and comes back to Today (the same route Settings › Calendar uses), asking for
- *  full access again only when the account had it. */
-export const reconnectHref = (full: boolean): string => `/api/calendar/google/start?${full ? "purpose=full&" : ""}next=${encodeURIComponent("/today")}`;
+/** Reconnect starts the account's own consent again (Google's, or Outlook's) and comes back to Today (the same route
+ *  Settings › Calendar uses), asking Google for full access again only when the account had it. */
+export const reconnectHref = (full: boolean, provider: CalendarProviderId = "google"): string => connectHref(provider, "/today", full ? "full" : undefined);
 export const RECONNECT_HREF = reconnectHref(false);
 
 /** How old a sync may be when Today opens before it asks for another, and how often it asks at most. */
@@ -97,8 +98,8 @@ export function CalendarBanner({ onToday = true }: { onToday?: boolean }) {
       <section role="status" aria-label="Calendar access" className={BANNER}>
         <p className="text-pretty text-ink">{issueMessage(issue)}</p>
         {issue.blocking && <p className="text-pretty">Blocking is paused until you reconnect. Your blocks stay here, marked not synced.</p>}
-        {/* A full navigation: the route answers with a redirect to Google, which client routing cannot follow. */}
-        <a href={reconnectHref(issue.full)} className={cx(buttonClass({ variant: "secondary" }), "w-full sm:w-auto sm:self-start")}>
+        {/* A full navigation: the route answers with a redirect to Google or Microsoft, which client routing cannot follow. */}
+        <a href={reconnectHref(issue.full, issue.provider)} className={cx(buttonClass({ variant: "secondary" }), "w-full sm:w-auto sm:self-start")}>
           Reconnect
         </a>
       </section>
@@ -152,7 +153,7 @@ function WritePicker({ onKeepLocal }: { onKeepLocal: () => void }) {
   const repo = useMemo(() => new CalendarRepo(db), [db]);
   const { data } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   const { data: connections } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
-  const accounts = (connections ?? []).map((r) => ({ id: r.id, canWrite: r.can_write === 1, writesOwn: r.can_write_own === 1 }));
+  const accounts = (connections ?? []).map((r) => ({ id: r.id, provider: r.provider, canWrite: r.can_write === 1, writesOwn: r.can_write_own === 1 }));
   // Only where these permissions can write: the person's own calendars with full access, else the Sparehour calendar.
   const candidates = (data ?? []).filter((c) => takesBlocks({ accountId: c.calendar_account_id, summary: c.summary, accessRole: c.access_role }, accounts));
   return (

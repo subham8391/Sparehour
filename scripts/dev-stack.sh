@@ -51,6 +51,9 @@ grep -q '^ALLOW_DEV_SECRETS=' .env.local || printf 'ALLOW_DEV_SECRETS=1\n' >> .e
 # rest. 32 random bytes, base64, made once per machine. Google itself needs
 # GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET from a Cloud project —
 # see CLAUDE.md; without them the Settings panel says the calendar is not set up.
+# Outlook needs MICROSOFT_OAUTH_CLIENT_ID / MICROSOFT_OAUTH_CLIENT_SECRET from an app
+# registered in Microsoft Entra (docs/engineering/DEPLOY.md, step 9) and uses the same
+# key; without them Outlook is not offered at all.
 grep -q '^CALENDAR_TOKEN_KEY=' .env.local || printf 'CALENDAR_TOKEN_KEY=%s\n' "$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64"))')" >> .env.local
 
 # Web Push (SYSTEM_DESIGN.md §7): a VAPID key pair for this machine, the

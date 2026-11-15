@@ -182,6 +182,60 @@ Vercel or PowerSync changes (`app_connections` is not synced).
 
 Locally the same three settings are in `supabase/config.toml` (`[auth.oauth_server]`, and `site_url` on port 3100).
 
+### 9. Outlook / Microsoft 365 calendar (about 20 minutes)
+
+Outlook is offered only where the app has a Microsoft app registration (DECISIONS.md, amendment 2026-11-15;
+SYSTEM_DESIGN.md §6.8 "As built"). No database change and no PowerSync change: two variables in Vercel. The names
+below are Microsoft's as of 2026-11-15 (learn.microsoft.com: "How to register an app in Microsoft Entra ID", "How to
+add a redirect URI to your application", "Add and manage app credentials", "Web API app registration and API
+permissions").
+
+Microsoft's page asks for an Azure account with an active subscription (a free one will do) whose user is at least an
+Application Developer in its directory; a new account's own **Default Directory** is enough.
+
+1. **Register the app.** Sign in to the **Microsoft Entra admin center** (`https://entra.microsoft.com`). Browse to
+   **Entra ID** > **App registrations** and select **New registration**. **Name**: `Sparehour` (people see it on
+   Microsoft's consent screen). Under **Supported account types**, open the drop-down and choose **Any Entra ID
+   Tenant + Personal Microsoft accounts** (work, school and Outlook.com accounts; the app signs people in at the
+   `common` endpoint, which the single-tenant choice refuses). Select **Register**.
+2. **The client ID.** The app's **Overview** page opens. Copy **Application (client) ID**: this is
+   `MICROSOFT_OAUTH_CLIENT_ID`. It is not a secret.
+3. **The redirect URIs.** Under **Manage**, select **Authentication**. On the **Redirect URI configuration** tab,
+   select **Add Redirect URI**; on the **Select a platform to add redirect URI** pane, select the **Web** tile; enter
+   the **Redirect URI** `https://<app address>/api/calendar/microsoft/callback` (dev:
+   `https://sparehour-dev.vercel.app/api/calendar/microsoft/callback`); select **Configure**. Do the same once more
+   for local work with `http://localhost:3000/api/calendar/microsoft/callback` (Microsoft allows `http` for
+   `localhost` only, and ignores the port when it matches a localhost URI, so the build on 3100 is covered by the
+   same entry). The address must match to the letter: no trailing slash, no query string.
+4. **The permissions.** Select **API permissions** > **Add a permission** > **Microsoft Graph** > **Delegated
+   permissions**. Under **Select permissions**, tick `email`, `offline_access` and `openid` (the common ones are at
+   the top of the list), then search for `Calendars.ReadBasic` and tick it. Select **Add permissions**. `User.Read` is already in the
+   list (Microsoft adds it to every registration); leave it, the app does not ask for it. None of the four needs
+   **Grant admin consent**.
+5. **The client secret.** Select **Certificates & secrets** > **Client secrets** > **New client secret**. Add a
+   description (`sparehour-dev`), choose when it expires (24 months at most; Microsoft recommends under 12) and select
+   **Add**. Copy the **Value** now, not the Secret ID: it is never shown again after you leave the page. This is
+   `MICROSOFT_OAUTH_CLIENT_SECRET`. Note the expiry date: when it passes, Outlook accounts stop refreshing ("Couldn't
+   reach Outlook") until a new secret is in Vercel.
+6. **Vercel.** The project → **Settings → Environment Variables**, scope **Production**: add
+   `MICROSOFT_OAUTH_CLIENT_ID` and `MICROSOFT_OAUTH_CLIENT_SECRET`, both as Secret (the rule above: only
+   `NEXT_PUBLIC_*` is Config). `CALENDAR_TOKEN_KEY` and `NEXT_PUBLIC_APP_URL` are already there from step 2. Then a new
+   deployment (Deployments → ⋯ → Create Deployment → the branch → Deploy to Production): variables reach only
+   deployments made after them. Locally: the same two lines in `.env.local`, and restart the app.
+7. **Check it, with a real account** (nothing in this step has been run against Microsoft yet):
+   - Settings › Calendar shows **Connect Outlook**. Connect a personal Outlook.com account first: Microsoft's screen
+     should name Sparehour and ask to read your calendars and to keep access; back in Settings the account reads
+     "Outlook · Connected · busy times only", its calendars are listed, and Today subtracts the meetings as "Busy".
+   - If the account's line reads `microsoft calendarView delta: 403 …`, Graph refused the narrow permission for the
+     delta query: tell the developer (the fix is the one scope constant in `src/server/calendar/microsoft.ts`, and
+     the same change in the permission list of item 4).
+   - Then a work or school account. If it is in another organisation than the one the app is registered in,
+     Microsoft may say the app needs an administrator's approval, because Sparehour's publisher is not verified:
+     verification needs a Microsoft AI Cloud Partner Program account and a domain of the app's own (not
+     `*.onmicrosoft.com`; Microsoft's "Publisher verification overview" has the steps). Until then such accounts
+     need their administrator to approve the app; personal accounts, and accounts in the registering organisation,
+     do not.
+
 Write down every fix the first deploy needed, here, before building prod.
 
 **As built (dev, 2026-10-18).** Supabase `sparehour` in Tokyo (`ap-northeast-1`), PowerSync instance in India (`IN`),
@@ -218,6 +272,9 @@ Vercel, and these on top:
 - A custom domain, set as the Site URL and in `--url`.
 - Google: an OAuth client for prod (sign-in and Calendar), its redirect URIs on the prod address, and
   `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` in the Production scope (CLAUDE.md lists the redirect URIs).
+- Microsoft: an app registration for prod (step 9) with the prod address's redirect URI, and
+  `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` in the Production scope; with the prod domain,
+  publisher verification, so work accounts in other organisations can connect without their administrator.
 - Create the `production` branch from a `main` commit that has run on dev; Vercel deploys it to prod.
 
 ## Releasing
@@ -239,5 +296,6 @@ Until a deploy workflow does these from GitHub Actions, they are run by hand in 
 Run `scripts/new-env.mjs` for the environment and take only the value being rotated. The sync secret changes on both
 sides together (Vercel's `POWERSYNC_JWT_SECRET`, PowerSync's `k`), then a redeploy; open apps fetch a new token within
 five minutes. `PUSH_TICK_SECRET` changes in Vercel and in `private.app_config` together. `CALENDAR_TOKEN_KEY` has
-`key_version` for an online rotation (SYSTEM_DESIGN.md's secrets table). The VAPID keys cannot rotate without every device subscribing again: treat
+`key_version` for an online rotation (SYSTEM_DESIGN.md's secrets table). `MICROSOFT_OAUTH_CLIENT_SECRET` expires on the date
+chosen in Entra (step 9, item 5): make a new client secret there, put its Value in Vercel, redeploy, then delete the old one. The VAPID keys cannot rotate without every device subscribing again: treat
 them as permanent.

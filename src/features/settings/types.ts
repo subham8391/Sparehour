@@ -5,7 +5,7 @@ import type { ExportFormat } from "@/core/export";
 import type { TodaySort } from "@/core/today/sort-options";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo, SettingsPatch } from "@/data/repositories/settings-repo";
-import type { CalendarPanel } from "@/features/calendar/calendar-section";
+import type { CalendarPanelState } from "@/features/calendar/calendar-section";
 import type { PermissionCopy } from "@/features/notifications/push";
 import type { InstallState, PersistenceState } from "@/features/pwa/install";
 import type { MotionChoice } from "./motion";
@@ -72,7 +72,7 @@ export interface SettingsFormProps {
   /** Push state for this device; omitted where there is no browser. */
   notifications?: NotificationsPanel;
   /** Connected calendars (SCREENS.md §18); omitted outside the app shell. */
-  calendar?: CalendarPanel;
+  calendar?: CalendarPanelState;
   /** One-click export (PRODUCT_SPEC.md §19.1); omitted outside the app shell. */
   data?: { onExport: (format: ExportFormat) => void; busy: ExportFormat | null; error: string | null; lastFile: string | null };
   /** Reduce motion, kept on this device like the theme; omitted outside the app shell. */

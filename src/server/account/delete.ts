@@ -1,8 +1,10 @@
 // Account deletion's server half (SYSTEM_DESIGN.md §9.6; ruled 2026-10-06):
 // the account is marked (users.deleted_at and the auth user's app metadata,
 // in one database function), every connected calendar is let go at once —
-// its watch channels stopped at Google, its grant revoked, its tokens and
-// mirror dropped, as Disconnect does — and every session ends. A nightly job
+// its watch channels stopped at Google, its grant revoked there (an Outlook
+// account has neither: Microsoft offers an app no way to hand one grant back,
+// SYSTEM_DESIGN.md §6.8), its tokens and mirror dropped, as Disconnect does —
+// and every session ends. A nightly job
 // removes the account and every row with it after 30 days; signing in before
 // then offers Restore. The emailed receipt and the analytics deletion wait
 // until those services exist.
@@ -21,7 +23,7 @@ export interface TeardownPorts {
   /** An access token good for a minute or two, or null when there is none to be had. */
   accessToken(accountId: string): Promise<string | null>;
   stop(accessToken: string, channelId: string, resourceId: string): Promise<void>;
-  /** Drops the account's tokens, channels and mirror; resolves the refresh token in the clear ("" when none). */
+  /** Drops the account's tokens, channels and mirror; resolves the refresh token to revoke, in the clear ("" when there is none, or nowhere to revoke it). */
   disconnect(accountId: string, userId: string): Promise<string | null>;
   revoke(token: string): Promise<void>;
 }
@@ -75,6 +77,8 @@ export function liveTeardown(admin: SupabaseClient): TeardownPorts {
       const [acct] = (await store.claim(null, 1, true, accountId)) as ClaimedAccount[];
       if (!acct) return null;
       try {
+        // Channels are Google's; an account of another provider has none to stop and no token Google should see.
+        if (acct.provider !== "google") return null;
         const expiresAt = acct.token_expires_at ? new Date(acct.token_expires_at).getTime() : 0;
         if (acct.access_b64 && expiresAt - Date.now() > 60_000) return openFromBase64(acct.access_b64, key());
         const oauth = googleOAuth();
@@ -88,8 +92,12 @@ export function liveTeardown(admin: SupabaseClient): TeardownPorts {
     },
     stop: (accessToken, channelId, resourceId) => new GoogleCalendar(accessToken).stop(channelId, resourceId),
     disconnect: async (accountId, userId) => {
+      // Read first: the connection row that says whose account it is goes with the disconnect.
+      const provider = await store.providerOf(accountId, userId).catch(() => null);
       const sealed = await store.disconnect(accountId, userId);
       if (!sealed) return sealed;
+      // Only Google's grant can be handed back, and a token is never sent to a provider it did not come from.
+      if (provider !== "google") return "";
       try {
         return openFromBase64(sealed, key());
       } catch {

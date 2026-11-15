@@ -5,7 +5,10 @@
 // sync status with "Sync now", and disconnect with what it means. Since
 // 2026-10-21 (DECISIONS.md) an account reads busy times and writes to its own
 // "Sparehour" calendar unless the person turned on full access, which this
-// panel offers with Google's warning screen named first. Presentational.
+// panel offers with Google's warning screen named first. Since 2026-11-15
+// (DECISIONS.md) Outlook is offered beside Google wherever the server can
+// connect it: busy times only, and no blocks are written there, so an Outlook
+// calendar is never a place blocks can go. Presentational.
 import { useState } from "react";
 import { ERROR, HINT, LABEL, NOTE, ROW, VALUE } from "@/features/settings/rows";
 import { Button } from "@/ui/button";
@@ -15,9 +18,11 @@ import { Icon } from "@/ui/icons";
 import { Radio } from "@/ui/radio";
 import { Switch } from "@/ui/switch";
 import { APP_CALENDAR, takesBlocks, writableRole } from "./blocks-go";
+import { PROVIDER_NAME, connectHref, type CalendarProviderId } from "./providers";
 
 export interface CalendarAccountView {
   id: string;
+  provider: CalendarProviderId;
   email: string | null;
   status: "ok" | "needs_reauth" | "revoked";
   lastSyncedAt: string | null;
@@ -41,13 +46,16 @@ export interface CalendarView {
 }
 
 export interface CalendarPanel {
-  /** null while the page is still asking the server. */
+  /** Whether the server can connect Google; null while the page is still asking it. */
   configured: boolean | null;
+  /** True only once the server has said it can connect Outlook: until then, and where it cannot, Outlook is not shown at all. */
+  outlook: boolean;
   accounts: CalendarAccountView[];
   calendars: CalendarView[];
   notice: string | null;
   busy: boolean;
-  onConnect: () => void;
+  /** Leaves for the provider's consent; Google when none is named. */
+  onConnect: (provider?: CalendarProviderId) => void;
   /** Ask Google to let Sparehour keep a "Sparehour" calendar for the blocks (non-sensitive: no warning screen). */
   onAllowWrite: () => void;
   /** Ask Google for full access: titles, and blocks on the person's own calendars (sensitive: Google's warning screen). */
@@ -59,9 +67,32 @@ export interface CalendarPanel {
   onWriteTarget: (id: string | null) => void;
 }
 
+/** The panel without its three ways out to a consent screen: what the Settings shell's hook hands the section (use-calendar.ts). */
+export type CalendarPanelState = Omit<CalendarPanel, "onConnect" | "onAllowWrite" | "onFullAccess">;
+
+/** A full navigation: the start route answers with a redirect to Google or Microsoft, which client routing cannot follow. */
+const leavePage = (href: string): void => window.location.assign(new URL(href, window.location.origin).toString());
+
+/**
+ * Adds the ways out: connect a provider, let Google keep a "Sparehour" calendar, turn on Google's full access. They
+ * live here, in the section's own island, so the Settings shell carries none of it; each comes back to Settings.
+ */
+export function withConsent(state: CalendarPanelState, leave: (href: string) => void = leavePage): CalendarPanel {
+  return {
+    ...state,
+    onConnect: (provider = "google") => leave(connectHref(provider, "/settings")),
+    onAllowWrite: () => leave(connectHref("google", "/settings", "write")),
+    onFullAccess: () => leave(connectHref("google", "/settings", "full")),
+  };
+}
+
 export const PROMISE = {
   read: "We read all your calendars — just the times you're busy, so the spare-hours number is real.",
   write: "We write to one calendar only: the one you pick here. Your time blocks go there and nowhere else.",
+  /** Said where Outlook is offered: what is kept of it. */
+  outlookRead: "From Outlook we keep only the times you're busy.",
+  /** Said where Outlook is offered, and under the write calendar once it is connected: why none of its calendars is there. */
+  outlookWrite: "Sparehour can't put blocks in Outlook yet.",
 };
 
 /** "just now", "12s ago", "5m ago", "3h ago", else the date. */
@@ -119,8 +150,13 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
   const writeTarget = panel.calendars.find((c) => c.writeTarget) ?? null;
   const titlesFor = (c: CalendarView) => panel.accounts.find((a) => a.id === c.accountId)?.titles ?? true;
   const writesAnywhere = panel.accounts.some((a) => a.canWrite);
-  // Full access is offered while any working account reads busy times only or keeps blocks to its own calendar.
-  const fullOffer = panel.accounts.some((a) => a.status === "ok" && (!a.titles || !a.writesOwn));
+  const has = (provider: CalendarProviderId) => panel.accounts.some((a) => a.provider === provider);
+  // Full access is Google's (titles, blocks on the person's own calendars): offered while any working Google account
+  // reads busy times only or keeps blocks to its own calendar.
+  const fullOffer = panel.accounts.some((a) => a.provider === "google" && a.status === "ok" && (!a.titles || !a.writesOwn));
+  const canConnect = (provider: CalendarProviderId) => (provider === "microsoft" ? panel.outlook : panel.configured === true);
+  const mixed = has("google") && has("microsoft");
+  const providerFor = (c: CalendarView) => panel.accounts.find((a) => a.id === c.accountId)?.provider ?? "google";
 
   return (
     <>
@@ -136,12 +172,25 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
           <ul className="flex flex-col gap-1">
             <li className={HINT}>{PROMISE.read}</li>
             <li className={HINT}>{PROMISE.write}</li>
+            {panel.outlook && (
+              <li className={HINT}>
+                {PROMISE.outlookRead} {PROMISE.outlookWrite}
+              </li>
+            )}
           </ul>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="primary" onClick={panel.onConnect} disabled={panel.busy || panel.configured !== true}>
-              Connect Google Calendar
-            </Button>
-            {panel.configured === false && <span className={NOTE}>Google Calendar isn&rsquo;t set up on this server yet.</span>}
+            {/* Where only Outlook can be connected, Google's button would lead nowhere and is left out. */}
+            {!(panel.outlook && panel.configured === false) && (
+              <Button variant="primary" onClick={() => panel.onConnect("google")} disabled={panel.busy || panel.configured !== true}>
+                Connect Google Calendar
+              </Button>
+            )}
+            {panel.outlook && (
+              <Button variant="primary" onClick={() => panel.onConnect("microsoft")} disabled={panel.busy}>
+                Connect Outlook
+              </Button>
+            )}
+            {panel.configured === false && !panel.outlook && <span className={NOTE}>Google Calendar isn&rsquo;t set up on this server yet.</span>}
           </div>
         </div>
       ) : (
@@ -150,7 +199,7 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="flex min-w-0 flex-col">
                 <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                  <span className={LABEL}>Google Calendar</span>
+                  <span className={LABEL}>{PROVIDER_NAME[a.provider]}</span>
                   <span className={cx(VALUE, "min-w-0 truncate")}>{a.email ?? "—"}</span>
                 </span>
                 <span className={cx(NOTE, "num")}>
@@ -167,7 +216,7 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                     Sync now
                   </Button>
                 ) : (
-                  <Button variant="primary" onClick={panel.onConnect} disabled={panel.busy || panel.configured === false}>
+                  <Button variant="primary" onClick={() => panel.onConnect(a.provider)} disabled={panel.busy || (a.provider === "microsoft" ? !panel.outlook : panel.configured === false)}>
                     Reconnect
                   </Button>
                 )}
@@ -201,9 +250,11 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
             {panel.calendars.map((c) => (
               <li key={c.id} className={ROW}>
                 <span className="flex min-w-0 items-center gap-2">
-                  {/* The calendar's own colour from Google, a data value, not a token. */}
+                  {/* The calendar's own colour from its provider, a data value, not a token. */}
                   <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color ?? "var(--meet-fill)" }} aria-hidden="true" />
                   <span className={cx(LABEL, "truncate")}>{c.summary}</span>
+                  {/* With both connected, each calendar says whose it is: Outlook's is often just "Calendar". */}
+                  {mixed && <span className={cx(NOTE, "shrink-0")}>{providerFor(c) === "microsoft" ? "Outlook" : "Google"}</span>}
                   {!writable(c) && (
                     <Chip size="sm" icon={null}>
                       read-only
@@ -235,7 +286,10 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                 Keep blocks in Sparehour only
               </label>
             </div>
-            {!writesAnywhere && (
+            {/* No Outlook calendar is ever in the list above: nothing is written there, and the line says so. */}
+            {has("microsoft") && <p className={NOTE}>{PROMISE.outlookWrite}</p>}
+            {/* Showing blocks is Google's own step, offered once a Google account is connected. */}
+            {!writesAnywhere && has("google") && (
               <div className="flex flex-wrap items-center gap-3">
                 <Button variant="secondary" onClick={panel.onAllowWrite} disabled={panel.busy || panel.configured !== true}>
                   Show blocks in Google Calendar
@@ -264,9 +318,17 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
 
       {panel.accounts.length > 0 && (
         <div className={ROW}>
-          <Button variant="quiet" className="-ml-3.5" onClick={panel.onConnect} disabled={panel.busy || panel.configured !== true}>
-            <Icon name="plus" size={16} /> Add another Google account
-          </Button>
+          {/* One button for each provider the server can connect; Google's stays, disabled, while the server is still being asked. */}
+          <span className="-ml-3.5 flex flex-wrap items-center gap-x-1">
+            {(["google", "microsoft"] as const).map(
+              (provider) =>
+                (provider === "google" ? !(panel.outlook && panel.configured === false) : panel.outlook) && (
+                  <Button key={provider} variant="quiet" onClick={() => panel.onConnect(provider)} disabled={panel.busy || !canConnect(provider)}>
+                    <Icon name="plus" size={16} /> {has(provider) ? `Add another ${provider === "google" ? "Google" : "Outlook"} account` : `Connect ${PROVIDER_NAME[provider]}`}
+                  </Button>
+                ),
+            )}
+          </span>
         </div>
       )}
     </>

@@ -1,6 +1,15 @@
 // The provider-agnostic surface (SYSTEM_DESIGN.md §6.8): everything above it
 // — the sync engine, the account worker, the routes — speaks these types.
-// Google is the only implementation at M1; Outlook arrives at M3.
+// Google (google.ts) and Outlook over Microsoft Graph (microsoft.ts, read
+// only; DECISIONS.md, amendment 2026-11-15) implement it. The words in these
+// types are Google's, because the mirror and the capacity engine were built
+// on them; each provider maps its own onto them.
+
+/** The value of `calendar_accounts.provider` for each. */
+export type ProviderId = "google" | "microsoft";
+
+/** How a person knows each provider, for the lines the worker writes where they can read them. */
+export const providerLabel = (provider: string): string => (provider === "microsoft" ? "Outlook" : "Google Calendar");
 
 export interface ProviderCalendar {
   externalId: string;
@@ -53,6 +62,17 @@ export class FullSyncRequired extends Error {
   constructor() {
     super("full sync required");
     this.name = "FullSyncRequired";
+  }
+}
+
+/**
+ * This one calendar cannot be read (refused, gone, not something the provider will list events for) while the
+ * account itself is fine: the worker reads the account's other calendars and names this one.
+ */
+export class CalendarUnreadable extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CalendarUnreadable";
   }
 }
 

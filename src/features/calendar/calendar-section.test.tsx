@@ -2,11 +2,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { CalendarSettings, relativeTime, type CalendarPanel } from "./calendar-section";
+import { takesBlocks } from "./blocks-go";
+import { CalendarSettings, relativeTime, withConsent, type CalendarPanel } from "./calendar-section";
+import { connectHref, providerOf } from "./providers";
 import { consentOutcome, toAccountView, toCalendarView } from "./use-calendar";
 
 const panel = (over: Partial<CalendarPanel> = {}): CalendarPanel => ({
   configured: true,
+  // Outlook is there only once the server has said it can connect it.
+  outlook: false,
   accounts: [],
   calendars: [],
   notice: null,
@@ -23,7 +27,7 @@ const panel = (over: Partial<CalendarPanel> = {}): CalendarPanel => ({
 });
 
 // An account with full access (titles, and blocks on any calendar the person owns).
-const account = { id: "a1", email: "sam@gmail.com", status: "ok" as const, lastSyncedAt: new Date(Date.now() - 12_000).toISOString(), lastError: null, canWrite: true, titles: true, writesOwn: true };
+const account = { id: "a1", provider: "google" as const, email: "sam@gmail.com", status: "ok" as const, lastSyncedAt: new Date(Date.now() - 12_000).toISOString(), lastError: null, canWrite: true, titles: true, writesOwn: true };
 // The default since 2026-10-21: busy times only, and no writing yet.
 const busyAccount = { ...account, canWrite: false, titles: false, writesOwn: false };
 const calendars = [
@@ -146,8 +150,154 @@ describe("helpers", () => {
   });
 
   it("row mappers read the 0/1 columns and unknown statuses as ok", () => {
-    expect(toAccountView({ id: "a", provider: "google", email: "e", status: "weird", can_write: 1, last_synced_at: null, last_error: null })).toMatchObject({ status: "ok", canWrite: true, titles: false, writesOwn: false });
+    expect(toAccountView({ id: "a", provider: "google", email: "e", status: "weird", can_write: 1, last_synced_at: null, last_error: null })).toMatchObject({ provider: "google", status: "ok", canWrite: true, titles: false, writesOwn: false });
+    // An Outlook account as the server mirrors it: no write flags, no titles.
+    expect(toAccountView({ id: "m", provider: "microsoft", email: "e", status: "ok", can_write: 0, can_read_titles: 0, can_write_own: 0, last_synced_at: null, last_error: null })).toMatchObject({ provider: "microsoft", canWrite: false, titles: false, writesOwn: false });
     expect(toAccountView({ id: "a", provider: "google", email: "e", status: "ok", can_write: 1, can_read_titles: 1, can_write_own: 1, last_synced_at: null, last_error: null })).toMatchObject({ titles: true, writesOwn: true });
     expect(toCalendarView({ id: "c", calendar_account_id: "a", external_id: "x", summary: null, color: null, access_role: "owner", read: null, private: 1, write_target: 0, last_synced_at: null })).toMatchObject({ summary: "Untitled calendar", read: true, private: true, writeTarget: false });
+  });
+});
+
+describe("<CalendarSettings> with Outlook (DECISIONS.md, amendment 2026-11-15)", () => {
+  // As the server mirrors an Outlook account: busy times only, and nothing it can write.
+  const outlook = { id: "m1", provider: "microsoft" as const, email: "sam@contoso.com", status: "ok" as const, lastSyncedAt: new Date(Date.now() - 12_000).toISOString(), lastError: null, canWrite: false, titles: false, writesOwn: false };
+  const outlookCalendars = [
+    { id: "o1", accountId: "m1", summary: "Calendar", color: null, accessRole: "owner", read: true, private: false, writeTarget: false },
+    { id: "o2", accountId: "m1", summary: "Birthdays", color: null, accessRole: "reader", read: false, private: false, writeTarget: false },
+  ];
+
+  it("is not there at all unless the server says it can connect Outlook: no button, no word of it, connected or not", () => {
+    for (const configured of [true, false, null]) {
+      const empty = render(<CalendarSettings panel={panel({ configured })} />);
+      expect(screen.queryByRole("button", { name: /Outlook/ })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Outlook/)).not.toBeInTheDocument();
+      empty.unmount();
+    }
+    render(<CalendarSettings panel={panel({ accounts: [account], calendars })} />);
+    expect(screen.queryByRole("button", { name: /Outlook/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Outlook/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add another Google account" })).toBeEnabled();
+  });
+
+  it("with nothing connected, offers Outlook beside Google, each leaving for its own consent, and says what is kept of Outlook", async () => {
+    const user = userEvent.setup();
+    const p = panel({ outlook: true });
+    render(<CalendarSettings panel={p} />);
+    expect(screen.getByText("From Outlook we keep only the times you're busy. Sparehour can't put blocks in Outlook yet.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Connect Outlook" }));
+    expect(p.onConnect).toHaveBeenLastCalledWith("microsoft");
+    await user.click(screen.getByRole("button", { name: "Connect Google Calendar" }));
+    expect(p.onConnect).toHaveBeenLastCalledWith("google");
+    expect(p.onConnect).toHaveBeenCalledTimes(2);
+  });
+
+  it("where only Outlook can be connected, Google's button and its 'not set up' line are left out", () => {
+    render(<CalendarSettings panel={panel({ configured: false, outlook: true })} />);
+    expect(screen.getByRole("button", { name: "Connect Outlook" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Connect Google Calendar" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/isn.t set up on this server yet/)).not.toBeInTheDocument();
+  });
+
+  it("a connected Outlook account shows like a Google one: its name, status, Sync now, and its calendars with 'counts as busy'", async () => {
+    const user = userEvent.setup();
+    const p = panel({ outlook: true, accounts: [outlook], calendars: outlookCalendars });
+    render(<CalendarSettings panel={p} />);
+    expect(screen.getByText("Outlook")).toBeInTheDocument();
+    expect(screen.queryByText("Google Calendar")).not.toBeInTheDocument();
+    expect(screen.getByText("sam@contoso.com")).toBeInTheDocument();
+    expect(screen.getByText(/Connected · busy times only · synced 1\ds ago/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sync now" }));
+    expect(p.onSyncNow).toHaveBeenCalledTimes(1);
+    const busy = screen.getAllByRole("switch", { name: "Counts as busy" });
+    expect(busy.map((b) => b.getAttribute("aria-checked"))).toEqual(["true", "false"]); // Calendar counts; Birthdays, read-only, does not
+    await user.click(busy[1]);
+    expect(p.onRead).toHaveBeenCalledWith("o2", true);
+    // No titles are kept, so there are none to hide.
+    expect(screen.queryByRole("switch", { name: "Hide titles" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Disconnect…" }));
+    await user.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(p.onDisconnect).toHaveBeenCalledWith("m1");
+  });
+
+  it("read only: no Outlook calendar can take blocks, nothing of Google's is offered to it, and the line says why", () => {
+    render(<CalendarSettings panel={panel({ outlook: true, accounts: [outlook], calendars: outlookCalendars })} />);
+    expect(screen.getAllByRole("radio").map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Keep blocks in Sparehour only"]);
+    expect(screen.getByRole("radio")).toBeChecked();
+    expect(screen.getByText("Sparehour can't put blocks in Outlook yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show blocks in Google Calendar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Turn on full access" })).not.toBeInTheDocument();
+    // Another of the same, or Google beside it.
+    expect(screen.getByRole("button", { name: "Add another Outlook account" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Connect Google Calendar" })).toBeEnabled();
+  });
+
+  it("beside a Google account that writes anywhere, the picker still lists Google's calendars only, and each calendar says whose it is", () => {
+    // "Calendar" is the person's own in Outlook (owner), and still not offered: nothing is written there.
+    render(<CalendarSettings panel={panel({ outlook: true, accounts: [account, outlook], calendars: [...calendars, ...outlookCalendars] })} />);
+    expect(screen.getAllByRole("radio").map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Personal", "Keep blocks in Sparehour only"]);
+    expect(screen.getByText("Sparehour can't put blocks in Outlook yet.")).toBeInTheDocument();
+    const rows = screen.getAllByRole("listitem").map((li) => li.textContent ?? "");
+    expect(rows.find((t) => t.startsWith("Calendar"))).toMatch(/^CalendarOutlook/);
+    expect(rows.find((t) => t.startsWith("Personal"))).toMatch(/^PersonalGoogle/);
+    // Hide titles belongs to the Google account that reads them, not to Outlook's calendars.
+    expect(screen.getAllByRole("switch", { name: "Hide titles" })).toHaveLength(2);
+    expect(screen.getAllByRole("switch", { name: "Counts as busy" })).toHaveLength(4);
+    expect(takesBlocks({ accountId: "m1", summary: "Calendar", accessRole: "owner" }, [account, outlook])).toBe(false);
+    expect(takesBlocks({ accountId: "m1", summary: "Sparehour", accessRole: "owner" }, [account, outlook])).toBe(false);
+    // Whatever an Outlook account's row were to claim, none of its calendars takes blocks; a Google one with the same flags does.
+    const claims = { id: "m1", canWrite: true, writesOwn: true };
+    expect(takesBlocks({ accountId: "m1", summary: "Calendar", accessRole: "owner" }, [{ ...claims, provider: "microsoft" }])).toBe(false);
+    expect(takesBlocks({ accountId: "m1", summary: "Calendar", accessRole: "owner" }, [{ ...claims, provider: "google" }])).toBe(true);
+    expect(takesBlocks({ accountId: "m1", summary: "Calendar", accessRole: "owner" }, [claims])).toBe(true);
+  });
+
+  it("an Outlook account that needs reconnecting goes back to Microsoft's consent, not Google's; and waits where the server no longer can", async () => {
+    const user = userEvent.setup();
+    const p = panel({ outlook: true, accounts: [{ ...outlook, status: "needs_reauth" }] });
+    const view = render(<CalendarSettings panel={p} />);
+    expect(screen.getByText(/Needs reconnecting/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reconnect" }));
+    expect(p.onConnect).toHaveBeenCalledWith("microsoft");
+    view.unmount();
+    render(<CalendarSettings panel={panel({ outlook: false, accounts: [{ ...outlook, status: "needs_reauth" }] })} />);
+    expect(screen.getByRole("button", { name: "Reconnect" })).toBeDisabled();
+  });
+});
+
+describe("withConsent: the section's ways out to a consent screen", () => {
+  it("connects Google or Outlook from their own start routes, and Google's two later grants from Google's, each coming back to Settings", () => {
+    const leave = vi.fn();
+    const { onConnect, onAllowWrite, onFullAccess, ...state } = panel({ outlook: true });
+    const whole = withConsent(state, leave);
+    whole.onConnect();
+    whole.onConnect("google");
+    whole.onConnect("microsoft");
+    whole.onAllowWrite();
+    whole.onFullAccess();
+    expect(leave.mock.calls.map((c) => c[0])).toEqual([
+      "/api/calendar/google/start?next=%2Fsettings",
+      "/api/calendar/google/start?next=%2Fsettings",
+      "/api/calendar/microsoft/start?next=%2Fsettings",
+      "/api/calendar/google/start?purpose=write&next=%2Fsettings",
+      "/api/calendar/google/start?purpose=full&next=%2Fsettings",
+    ]);
+    // The rest of the panel is passed through as it came.
+    expect(whole).toMatchObject({ outlook: true, configured: true, onSyncNow: state.onSyncNow });
+    expect([onConnect, onAllowWrite, onFullAccess].every((f) => vi.mocked(f).mock.calls.length === 0)).toBe(true);
+  });
+});
+
+describe("providers", () => {
+  it("each provider's consent starts at its own route and comes back to where it was asked from", () => {
+    expect(connectHref("google", "/settings")).toBe("/api/calendar/google/start?next=%2Fsettings");
+    expect(connectHref("google", "/settings", "write")).toBe("/api/calendar/google/start?purpose=write&next=%2Fsettings");
+    expect(connectHref("google", "/today", "full")).toBe("/api/calendar/google/start?purpose=full&next=%2Ftoday");
+    expect(connectHref("microsoft", "/settings")).toBe("/api/calendar/microsoft/start?next=%2Fsettings");
+    // Outlook has one consent: a purpose is Google's and is not passed on.
+    expect(connectHref("microsoft", "/welcome", "full")).toBe("/api/calendar/microsoft/start?next=%2Fwelcome");
+  });
+
+  it("reads the connection's provider, taking anything unknown for Google, which came first", () => {
+    expect([providerOf("microsoft"), providerOf("google"), providerOf(null), providerOf("caldav")]).toEqual(["microsoft", "google", "google", "google"]);
   });
 });

@@ -165,6 +165,13 @@ export class SupabaseAccountStore implements AccountStore, PushStore, OurEventSt
     return (data as string | null) ?? null;
   }
 
+  /** Whose account this is (google, microsoft), read before a disconnect so a token is only ever handed back to its own provider. */
+  async providerOf(id: string, userId: string): Promise<string | null> {
+    const { data, error } = await this.db.from("calendar_connections").select("provider").eq("id", id).eq("user_id", userId).limit(1);
+    fail("calendar_connections provider", error);
+    return ((data ?? []) as { provider: string | null }[])[0]?.provider ?? null;
+  }
+
   /** Returns the sealed refresh token for revocation, or null when there was no such account for this person. */
   async disconnect(id: string, userId: string): Promise<string | null> {
     const { data, error } = await this.db.rpc("calendar_account_disconnect", { p_id: id, p_user: userId });

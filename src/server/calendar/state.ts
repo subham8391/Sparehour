@@ -1,7 +1,7 @@
 // The OAuth `state` parameter: who started the dance, why, and where to go
 // afterwards — signed, so the callback can trust it, and short-lived. No
 // table is needed; the signature is the record.
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 /** read: busy times (the default connect); write: the app-created calendar; full: titles and the person's own calendars. */
 export type ConsentPurpose = "read" | "write" | "full";
@@ -9,6 +9,8 @@ export type ConsentPurpose = "read" | "write" | "full";
 export interface OAuthState {
   userId: string;
   purpose: ConsentPurpose;
+  /** Whose consent this state was signed for. Absent on Google's (it came first); the Microsoft callback insists on its own. */
+  provider?: "google" | "microsoft";
   next: string;
   nonce: string;
   exp: number; // unix seconds
@@ -40,4 +42,14 @@ export function verifyState(token: string | null | undefined, secret: string, no
   } catch {
     return null;
   }
+}
+
+/**
+ * The PKCE pair for one consent (RFC 7636, which Microsoft recommends for every client): the verifier is derived from
+ * the state's nonce under the server's secret, so the callback works it out again from the state it verified and
+ * nothing is kept between the two requests. Someone who sees the state and the code still cannot redeem the code.
+ */
+export function pkceFor(nonce: string, secret: string): { verifier: string; challenge: string } {
+  const verifier = createHmac("sha256", `oauth-pkce:${secret}`).update(nonce).digest("base64url");
+  return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
 }

@@ -7,7 +7,7 @@
 ## What it is
 - **A Today that knows your time** — your working hours minus meetings minus a buffer, with a warning the moment you plan more than fits.
 - **A guilt-free planning loop** — tasks you didn't get to move quietly into a "Carried over" section instead of piling up as red overdue counts. Only real deadlines turn red.
-- **Calendar-native** — drag tasks into time blocks that sync with Google Calendar.
+- **Calendar-native** — drag tasks into time blocks that sync with Google Calendar; meetings from Google Calendar and from Outlook / Microsoft 365 are subtracted from your day.
 - **Calm and keyboard-first** — fast capture in plain English, Cmd+K for everything, installable as a web app (PWA).
 
 ## Docs

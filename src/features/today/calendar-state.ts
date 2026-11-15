@@ -5,10 +5,13 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { useQuery } from "@/data/powersync";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
+import { PROVIDER_NAME, providerOf, type CalendarProviderId } from "@/features/calendar/providers";
 
 export interface CalendarIssue {
   /** reauth: access lapsed or revoked; write_gone: the calendar blocks went to left Google; error: a sync failed. */
   kind: "reauth" | "write_gone" | "error";
+  /** Whose account it is: the banner names it, and Reconnect goes to its own consent. */
+  provider: CalendarProviderId;
   /** The account's address, and its last good sync, for the banner's words. */
   email: string | null;
   lastSyncedAt: string | null;
@@ -43,7 +46,7 @@ const lapsed = (r: CalendarConnectionRow) => r.status === "needs_reauth" || r.st
  */
 export function calendarIssueFrom(rows: readonly CalendarConnectionRow[], calendars: readonly CalendarLink[] = [], keptLocal: string | null = null): CalendarIssue | null {
   const writer = writeAccount(calendars);
-  const issue = (kind: CalendarIssue["kind"], r: CalendarConnectionRow, key: string, blocking: boolean): CalendarIssue => ({ kind, email: r.email, lastSyncedAt: r.last_synced_at, key: `${kind}:${r.id}:${key}`, blocking, full: r.can_read_titles === 1 });
+  const issue = (kind: CalendarIssue["kind"], r: CalendarConnectionRow, key: string, blocking: boolean): CalendarIssue => ({ kind, provider: providerOf(r.provider), email: r.email, lastSyncedAt: r.last_synced_at, key: `${kind}:${r.id}:${key}`, blocking, full: r.can_read_titles === 1 });
   const reauth = rows.find((r) => lapsed(r) && r.id === writer) ?? rows.find(lapsed);
   if (reauth) return issue("reauth", reauth, "", reauth.id === writer);
   const gone = writer === null ? rows.find((r) => r.write_lost_at && issue("write_gone", r, r.write_lost_at, true).key !== keptLocal) : undefined;
@@ -63,13 +66,15 @@ export function calendarWrites(rows: readonly CalendarConnectionRow[], calendars
   };
 }
 
-/** The banner's first line for an issue. */
-export function issueMessage(issue: Pick<CalendarIssue, "kind" | "email" | "lastSyncedAt">): string {
-  if (issue.kind === "reauth") return `Google Calendar${issue.email ? ` (${issue.email})` : ""} needs reconnecting.`;
+/** The banner's first line for an issue, naming the account's own calendar (Google's where none is given). */
+export function issueMessage(issue: Pick<CalendarIssue, "kind" | "email" | "lastSyncedAt"> & { provider?: CalendarProviderId }): string {
+  const name = PROVIDER_NAME[issue.provider ?? "google"];
+  if (issue.kind === "reauth") return `${name}${issue.email ? ` (${issue.email})` : ""} needs reconnecting.`;
+  // Blocks are written to Google only, so a write calendar that went was always one of Google's.
   if (issue.kind === "write_gone") return "The calendar your blocks went to is no longer in Google Calendar.";
   return issue.lastSyncedAt
-    ? `Couldn't reach Google Calendar. Showing your last sync from ${new Date(issue.lastSyncedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
-    : "Couldn't reach Google Calendar yet.";
+    ? `Couldn't reach ${name}. Showing your last sync from ${new Date(issue.lastSyncedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+    : `Couldn't reach ${name} yet.`;
 }
 
 /** Why blocking is paused, where a block would have been placed (the day pane), in plain words. */

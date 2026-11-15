@@ -1,9 +1,10 @@
 // Environment for the calendar integration (SYSTEM_DESIGN.md §9.4). Nothing
-// here is exposed to the browser; the login and settings pages ask a route
-// whether Google is configured rather than reading these.
+// here is exposed to the browser; the settings and first-run pages ask a route
+// which calendars this server can connect rather than reading these.
 import { timingSafeEqual } from "node:crypto";
 import { parseTokenKey } from "./crypto";
 import type { GoogleOAuthConfig } from "./google";
+import type { MicrosoftOAuthConfig } from "./microsoft";
 
 export function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
@@ -17,6 +18,22 @@ export function googleOAuth(): GoogleOAuthConfig | null {
 }
 
 export const googleConfigured = (): boolean => googleOAuth() !== null && Boolean(process.env.CALENDAR_TOKEN_KEY);
+
+/**
+ * Outlook / Microsoft 365 (DECISIONS.md, amendment 2026-11-15): an app registered in Microsoft Entra, its client id
+ * and a client secret. Without both, Outlook is not there at all: no button, no route.
+ */
+export function microsoftOAuth(): MicrosoftOAuthConfig | null {
+  const clientId = process.env.MICROSOFT_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  return { clientId, clientSecret, redirectUri: `${appUrl()}/api/calendar/microsoft/callback` };
+}
+
+export const microsoftConfigured = (): boolean => microsoftOAuth() !== null && Boolean(process.env.CALENDAR_TOKEN_KEY);
+
+/** Whether this server can connect any calendar; the routes that sync every account ask this. */
+export const calendarConfigured = (): boolean => googleConfigured() || microsoftConfigured();
 
 export const tokenKey = (): Buffer => parseTokenKey(process.env.CALENDAR_TOKEN_KEY);
 

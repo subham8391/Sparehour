@@ -1,7 +1,7 @@
 // Privacy (Settings › About; ruled 2026-10-06): a short, factual page — where
-// your data lives (SYSTEM_DESIGN.md §9.6 data map), what reaches Google and
-// your browser's push service, and that export is one click. Readable signed
-// in or not; outside the app shell, so nothing syncs here.
+// your data lives (SYSTEM_DESIGN.md §9.6 data map), what reaches Google,
+// Microsoft and your browser's push service, and that export is one click.
+// Readable signed in or not; outside the app shell, so nothing syncs here.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Wordmark } from "@/ui/brand";
@@ -35,6 +35,15 @@ export default function PrivacyPage() {
         <p className={P}>
           Sparehour reads your events to work out your free time and keeps a copy with your account. It writes only the time blocks you make, to the one calendar you choose. Disconnecting stops both and
           revokes its access.
+        </p>
+      </section>
+      <section className="flex flex-col gap-2">
+        <h2 className={H2}>Outlook, if you connect it</h2>
+        {/* DECISIONS.md, amendment 2026-11-15: Microsoft's narrowest calendar permission still covers titles; none is kept. */}
+        <p className={P}>
+          Sparehour reads when you&rsquo;re busy and keeps those times with your account: no meeting names, no guests, no notes. Microsoft&rsquo;s permission would let an app read a meeting&rsquo;s name; Sparehour
+          does not keep it. Nothing is written to Outlook. Disconnecting deletes Sparehour&rsquo;s keys to your calendar; to take Sparehour off the list of apps in your Microsoft account as well, remove
+          it there.
         </p>
       </section>
       <section className="flex flex-col gap-2">

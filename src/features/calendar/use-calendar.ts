@@ -1,12 +1,14 @@
 "use client";
 // The Calendar panel's state (SCREENS.md §18): connections and calendars from
-// the local database, whether the server can connect Google at all, the
-// outcome of a consent round trip (`?calendar=…`), and the actions.
+// the local database, which calendars the server can connect (Google, Outlook),
+// the outcome of a consent round trip (`?calendar=…`), and the actions that
+// stay on the page. Leaving for a consent screen is the section's own
+// (`withConsent`, calendar-section.tsx): this hook is in the Settings shell.
 import { useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import { CalendarRepo } from "@/data/repositories/calendar-repo";
-import type { CalendarAccountView, CalendarPanel, CalendarView } from "./calendar-section";
+import type { CalendarAccountView, CalendarPanelState, CalendarView } from "./calendar-section";
 import { CALENDAR_UNAVAILABLE, calendarSyncNow } from "./sync-now";
 
 const OUTCOME_COPY: Record<string, string> = {
@@ -31,6 +33,9 @@ export function consentOutcome(search: string): string | null {
 
 export const toAccountView = (r: CalendarConnectionRow): CalendarAccountView => ({
   id: r.id,
+  // Anything but Outlook is Google, which came first (providers.ts says the same for the islands; this file is in
+  // the Settings shell and takes nothing it can do without).
+  provider: r.provider === "microsoft" ? "microsoft" : "google",
   email: r.email,
   status: r.status === "needs_reauth" || r.status === "revoked" ? r.status : "ok",
   lastSyncedAt: r.last_synced_at,
@@ -51,12 +56,13 @@ export const toCalendarView = (r: CalendarFullRow): CalendarView => ({
   writeTarget: r.write_target === 1,
 });
 
-export function useCalendar(): CalendarPanel {
+export function useCalendar(): CalendarPanelState {
   const db = useLocalDatabase();
   const repo = useMemo(() => new CalendarRepo(db), [db]);
   const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
   const { data: calendarRows } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  // What /api/calendar/config said; null while it is being asked.
+  const [config, setConfig] = useState<{ google: boolean; microsoft: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   // The outcome of a consent that just finished is in the URL when the page opens (never on the server: this tree renders client-side only).
   const [notice, setNotice] = useState<string | null>(() => (typeof window === "undefined" ? null : consentOutcome(window.location.search)));
@@ -64,9 +70,9 @@ export function useCalendar(): CalendarPanel {
   useEffect(() => {
     let live = true;
     fetch("/api/calendar/config", { credentials: "include", cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<{ google: boolean }>) : { google: false }))
-      .then((j) => live && setConfigured(Boolean(j.google)))
-      .catch(() => live && setConfigured(false));
+      .then((r) => (r.ok ? (r.json() as Promise<{ google?: boolean; microsoft?: boolean }>) : {}))
+      .then((j: { google?: boolean; microsoft?: boolean }) => live && setConfig({ google: j.google === true, microsoft: j.microsoft === true }))
+      .catch(() => live && setConfig({ google: false, microsoft: false }));
     // Clear the outcome from the address so a refresh does not repeat it.
     const url = new URL(window.location.href);
     if (url.searchParams.has("calendar")) {
@@ -89,21 +95,12 @@ export function useCalendar(): CalendarPanel {
   };
 
   return {
-    configured,
+    configured: config ? config.google : null,
+    outlook: config?.microsoft === true,
     accounts: (connectionRows ?? []).map(toAccountView),
     calendars: (calendarRows ?? []).map(toCalendarView),
     notice,
     busy,
-    onConnect: () => {
-      // A full navigation: the route answers with a redirect to Google, which client routing cannot follow.
-      window.location.assign(new URL(`/api/calendar/google/start?next=${encodeURIComponent("/settings")}`, window.location.origin).toString());
-    },
-    onAllowWrite: () => {
-      window.location.assign(new URL(`/api/calendar/google/start?purpose=write&next=${encodeURIComponent("/settings")}`, window.location.origin).toString());
-    },
-    onFullAccess: () => {
-      window.location.assign(new URL(`/api/calendar/google/start?purpose=full&next=${encodeURIComponent("/settings")}`, window.location.origin).toString());
-    },
     onSyncNow: () => {
       // The one Sync now path, shared with the sync chip and Today's retry line (sync-now.ts).
       setBusy(true);

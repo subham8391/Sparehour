@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { signState, verifyState } from "./state";
+import { pkceFor, signState, verifyState } from "./state";
 
 describe("OAuth state", () => {
   const secret = "a-secret-that-is-long-enough-for-hmac";
@@ -25,5 +26,30 @@ describe("OAuth state", () => {
     expect(verifyState(null, secret)).toBeNull();
     const tampered = `${Buffer.from(JSON.stringify({ ...state, userId: "u2" })).toString("base64url")}.${token.split(".")[1]}`;
     expect(verifyState(tampered, secret)).toBeNull();
+  });
+
+  it("carries whose consent it was signed for, under the signature", () => {
+    const outlook = { ...state, provider: "microsoft" as const };
+    const token = signState(outlook, secret);
+    expect(verifyState(token, secret, 1_999_999_000)).toEqual(outlook);
+    const relabelled = `${Buffer.from(JSON.stringify({ ...state, provider: "microsoft" })).toString("base64url")}.${signState(state, secret).split(".")[1]}`;
+    expect(verifyState(relabelled, secret, 1_999_999_000)).toBeNull();
+  });
+});
+
+describe("pkceFor (RFC 7636)", () => {
+  const secret = "a-secret-that-is-long-enough-for-hmac";
+
+  it("gives a verifier of the allowed shape and its S256 challenge, the same again for the same nonce", () => {
+    const pair = pkceFor("nonce-1", secret);
+    expect(pair.verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(pair.challenge).toBe(createHash("sha256").update(pair.verifier).digest("base64url"));
+    expect(pkceFor("nonce-1", secret)).toEqual(pair);
+  });
+
+  it("cannot be worked out from the nonce alone: another secret, or another nonce, gives another verifier", () => {
+    const pair = pkceFor("nonce-1", secret);
+    expect(pkceFor("nonce-1", "another-secret").verifier).not.toBe(pair.verifier);
+    expect(pkceFor("nonce-2", secret).verifier).not.toBe(pair.verifier);
   });
 });

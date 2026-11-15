@@ -117,7 +117,7 @@ flowchart TB
 
   subgraph Ext["External"]
     GCAL["Google Calendar API v3"]
-    GRAPH["Microsoft Graph (M3)"]
+    GRAPH["Microsoft Graph<br/>(read, built 2026-11-15)"]
     PUSH["Web Push services<br/>APNs · FCM · Mozilla"]
     LLM["LLM provider<br/>OpenRouter (dev) · Anthropic (prod)"]
   end
@@ -2626,7 +2626,7 @@ A short-TTL write log (`(event_id, etag)` for 60 s after each of our writes) sup
 - **Workspace usage limits** (403 `quotaExceeded`) are separate abuse limits — e.g. &gt;100 000 events created in a short period, &gt;60 calendars created. Our write volume is a few events per user per day; the relevant defence is simply never bulk-creating, and the design never does.
 - **412 precondition failed** on an `If-Match` update → re-fetch, re-apply, retry once, then treat as an external edit (§6.6).
 
-### 6.8 Outlook / Microsoft Graph (M3)
+### 6.8 Outlook / Microsoft Graph (M3; the read side built 2026-11-15, see "As built" under the table)
 
 | Concern | Plan |
 |---|---|
@@ -2636,6 +2636,28 @@ A short-TTL write log (`(event_id, etag)` for 60 s after each of our writes) sup
 | Notifications | `POST /subscriptions`, max expiry **10 080 min (&lt;7 days)** for `event`; validation handshake must return the **URL-decoded** token as `text/plain` within **10 s**; every notification needs a 2xx within **3 s** or the endpoint gets throttled and eventually dropped. Handler therefore validates, enqueues, returns `202`. |
 | Lifecycle | Subscribe `lifecycleNotificationUrl` even though it is optional for calendar: the delivery token expires ~hourly and silently stops delivery. Handle `reauthorizationRequired` via `POST /subscriptions/{id}/reauthorize`. |
 | Code shape | `src/server/calendar/providers/{google,microsoft}.ts` implement one `CalendarProvider` interface (`listCalendars`, `syncEvents`, `upsertBlock`, `deleteBlock`, `watch`, `unwatch`). Everything above it is provider-agnostic from M1, even though only Google exists. |
+
+**As built (2026-11-15; DECISIONS.md, amendment of that date): Outlook is read, and only read.** Written from Microsoft's documentation and not yet run against a real account (no app registration exists); the pages read are listed at the top of `src/server/calendar/microsoft.ts`, with what each one settled. Where the table above was a plan, this is what stands:
+
+| Concern | As built |
+|---|---|
+| Sign-in | Microsoft identity platform v2.0, tenant `common` (work or school and personal accounts): `/oauth2/v2.0/authorize` with `response_type=code`, `response_mode=query`, `prompt=select_account`, no login hint, and PKCE (`S256`; the verifier is an HMAC of the signed state's nonce, so nothing is kept between the two requests, `state.ts` `pkceFor`). The state carries `provider: "microsoft"` and the callback refuses one signed for Google. `/oauth2/v2.0/token` redeems the code and refreshes; each refresh returns a new refresh token, which the worker stores. `invalid_grant`, `interaction_required` and `consent_required` are `NeedsReauth`; `invalid_client` (an expired secret) is a plain error. |
+| Scopes | `openid email offline_access Calendars.ReadBasic`. Microsoft has no permission for busy times alone. `event: delta` lists `Calendars.Read` as least privileged and `Calendars.ReadBasic` as accepted; `List calendars` and `List calendarView` name `Calendars.ReadBasic` as their least. That is the "contradiction" noted above, and the narrower one is what is asked for. **[UNVERIFIED against a real account: if Graph refuses the delta query under `Calendars.ReadBasic`, the account's line will say `microsoft calendarView delta: 403 …`, and the fix is the one constant `CALENDARS_READ_BASIC_SCOPE`.]** |
+| What is kept | `$select` is refused by the delta query, so Graph sends the whole event. `toProviderEvent` reads only id, etag, type, series id, original start, start, end, `isAllDay`, `isCancelled`, `isOrganizer`, `showAs` and `responseStatus`; `summary` is always null. The mapping to the mirror's (Google's) words, and what §5.4 then does with each, is the table in the file's header, tested row by row. |
+| Calendars | `GET /me/calendars?$top=100&$select=id,name,hexColor,isDefaultCalendar,canEdit,isSharedWithMe`, following `@odata.nextLink`. `isDefaultCalendar` is the primary; one the person can edit is "owner", one they cannot is "reader" (so the B4 default reads the first two and not the third); one shared with them is left out (`Calendars.Read.Shared` would be needed for its events). |
+| Events | `GET /me/calendars/{id}/calendarView/delta?startDateTime=…&endDateTime=…` over `[today−90d, today+400d]` (UTC), `Prefer: odata.maxpagesize=250`, then `@odata.nextLink` as given until `@odata.deltaLink`. The v1.0 reference shows the default calendar's path only; the per-calendar path follows from the conceptual page ("track each calendar individually") and from Graph's model, which binds `delta` to any collection of events. **[UNVERIFIED against a real account.]** No `Prefer: outlook.timezone` is sent, so times come in UTC; a time in any other zone is refused, not guessed at. |
+| Sync token | `calendars.sync_token` holds the day the window was asked for (`YYYY-MM-DD`) and Graph's delta link, joined by a bar (`syncTokenFor`). The engine (`sync.ts`) is unchanged: `pageToken` is the next link, `syncToken` this value. A link is only followed back to `https://graph.microsoft.com`. |
+| Full sync again | 410; a 4xx whose error codes (nested ones included) hold `syncStateNotFound`; a 400 or 404 on a link Graph issued; a sync token older than 30 days (the window must follow today; "re-baselined monthly" above); a token that is not in this shape. All are `FullSyncRequired`, which the engine already turns into a fresh full sync. |
+| `@removed` | Becomes a `cancelled` item holding only the id, which the engine removes. Graph also names events outside the window there; removing an id that is not in the mirror does nothing, which is the filter the Gotcha row asks for. |
+| Throttling | 429 and 503: wait `Retry-After` seconds when given (a wait over 32 s is left for the next pass), else the §6.7 backoff; five tries. |
+| One bad calendar | A 4xx about one calendar (refused, not found) is `CalendarUnreadable`: the worker reads the account's other calendars and records "Couldn't read “name” from Outlook (…)". Throttling and 5xx stop the pass. |
+| Worker | `account-sync.ts` is handed the account by its ports; `run.ts` picks the provider's client and token refresh by `provider` (`providerWiring`). A client without `freeBusy` (Outlook's) has every reading calendar synced through `listEvents`; no channels, no app calendar. An account whose provider the server no longer has variables for records "Outlook isn't set up on this server". |
+| Freshness | The reconcile (`/api/calendar/tick`, due every 55 minutes), "Sync now" (`/api/calendar/sync`) and Today's stale check. The Notifications and Lifecycle rows above are not built; note that the maximum for an Outlook event subscription is 10,080 minutes (under seven days), read 2026-11-15. |
+| Writing | None. `private.write_calendar_of` asks for a Google write scope, so no Outlook calendar's blocks are ever claimed; `writerFor` refuses a non-Google account; `takesBlocks` (both pickers) refuses one whatever its flags. `/api/calendar/sync` and `/tick` skip the block push on a server with Outlook alone. |
+| Disconnect | Tokens deleted and the mirror soft-deleted, as for Google. No revoke call exists for one app's grant at Microsoft, and the route (and account deletion, `server/account/delete.ts`) revoke at Google only for a Google account: before this change every account's token went to Google's revoke endpoint. |
+| Routes | `GET /api/calendar/microsoft/start` and `/callback`, the shape of Google's; both are 404 unless `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` and `CALENDAR_TOKEN_KEY` are set. `GET /api/calendar/config` answers `{ google, microsoft }`. |
+| Database | No migration: `provider` already allowed `microsoft`, and `calendar_connections.can_write`, `can_read_titles` and `can_write_own` come out false for it because `calendar_account_connect` works them out from Google's scope names. No stream or `apply_mutations` change. |
+| Publisher verification | For people in other organisations, Microsoft's risk-based step-up consent stops user consent to a newly registered multitenant app whose publisher is not verified, for permissions beyond sign-in. Verification needs a Microsoft AI Cloud Partner Program account and a domain that is not `*.onmicrosoft.com`. Personal accounts and the registering tenant are not affected. **[UNVERIFIED until the app is registered.]** |
 
 ---
 
@@ -2947,6 +2969,9 @@ The `service_role` key is used in exactly four places, all of them background jo
 | `VAPID_PRIVATE_KEY` | Vercel | **Not rotatable without resubscribing every device** — treat as permanent; store the public key in `NEXT_PUBLIC_VAPID_PUBLIC_KEY` |
 | `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY` | Vercel (prod / preview respectively) | Quarterly |
 | `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_WEBHOOK_TOKEN_SECRET` | Vercel | Quarterly |
+| `MICROSOFT_OAUTH_CLIENT_SECRET` (with `MICROSOFT_OAUTH_CLIENT_ID`, which is not a secret) | Vercel | Before it expires: Microsoft Entra limits a client secret to 24 months and recommends under 12. An expired one stops every Outlook refresh with `invalid_client`; the accounts stay connected and say "Couldn't reach Outlook" until a new secret is in place |
+
+**As built (2026-11-15).** Outlook is configured by `MICROSOFT_OAUTH_CLIENT_ID` and `MICROSOFT_OAUTH_CLIENT_SECRET` (`config.ts` `microsoftOAuth`, `microsoftConfigured`), from an app registered in the Microsoft Entra admin center with the redirect URI `<NEXT_PUBLIC_APP_URL>/api/calendar/microsoft/callback` (DEPLOY.md, step 9). Its tokens are sealed exactly as Google's are, with the same `CALENDAR_TOKEN_KEY` and `key_version`. Without both variables Outlook is absent: no button, and the two routes are 404.
 
 OAuth tokens: AES-256-GCM with a random 96-bit IV per value, `bytea` storage as `iv ‖ ciphertext ‖ tag`, key from env. Supabase Vault/`pgsodium` is the alternative; app-level encryption was chosen so the key never lives in the same system as the ciphertext — a database backup leak alone is not enough to impersonate a user against Google.
 
@@ -3279,6 +3304,8 @@ Single-key shortcuts (Linear-style, active when no input is focused): `q` quick 
 
 **As built (2026-10-08, the palette's coverage and the ? overlay, P37).** The registry is split three ways, as the 2026-10-06 note planned: `features/commands/command-runs.ts` (the keyboard layer every shell carries) holds only the commands with a key; the commands only the palette lists, and their run bodies, are `palette-runs.ts`; titles, groups, keywords and where the ? overlay lists each key are `registry.ts`. The last two load with the palette (`palette-host.tsx`) and the overlay (`shortcuts-dialog.tsx`, whose rows `key-rows.ts` builds from the registry plus one table of keys that are no command). The snooze presets now load with the first snooze key (the row ⋯ menu's island has them anyway), so no shell carries `tasks/snooze.ts`. A palette command can answer in the palette: `step` resolves to a question or a result (Sign out's confirmation with Settings' unsynced warning, from `features/account/sign-out.ts`, which Settings now loads only when someone signs out; Sync now's result, from `shell/sync-everything.ts`, shared with the sync chip's panel). Add time block is a request line like Today's others (`blocking/add-block-request.ts`), taken by Today's day pane while it shows today. A hardware keypress on a touch device stamps `data-keys` on `<html>` (`commands/hardware-keys.ts`); one unlayered rule in `globals.css` keys the kbd hints, the sidebar's `?` button (`data-keys-only`) and focus rings to it. Sizes against the wave-9 base: today 316.6 → 316.3 KB, inbox 303.1 → 302.9, settings 302.2 → 301.8, search 307.0 → 306.8, welcome 297.6 → 297.3; login 257.8 unchanged in KB (+34 bytes of that rule).
 
+**As built (2026-11-15, Outlook beside Google, §6.8).** A second calendar to connect grew no shell. The first run's calendar step (`features/welcome/calendar-step.tsx`) was in the welcome shell; it is now a `next/dynamic` island of `/welcome`, fetched in idle time only once `/api/calendar/config` has said there is a calendar to offer, with the page's own quiet line while it arrives. In Settings the shell keeps the panel's state (`use-calendar.ts`: the connections, which calendars the server can connect, the actions that stay on the page), and the three ways out to a consent screen are added in the Calendar section's island (`withConsent`, `features/calendar/calendar-section.tsx`), which is also the only Settings module that imports `features/calendar/providers.ts`. Today's calendar lines were already an island. After: today 318.9 KB, inbox 305.3, settings 305.4, search 309.3 (all as before), welcome 301.8 (from 302.2), login 259.9.
+
 ---
 
 ## 12. Repo structure, testing, CI, environments
@@ -3606,7 +3633,7 @@ flowchart LR
 | Phase | Contents | Days |
 |---|---|---|
 | L-A | Billing (Stripe), free/Pro gating, 30-day no-card trial, founding-member pricing | 7 |
-| L-B | Outlook / Microsoft Graph via the `CalendarProvider` interface | 8 |
+| L-B | Outlook / Microsoft Graph via the `CalendarProvider` interface (moved to M2 on 2026-11-14; the read side built 2026-11-15, §6.8; writing blocks and change notifications remain) | 8 |
 | L-C | MCP server + public REST API, OAuth 2.1 + PATs, scopes, propose-then-approve, `agent_actions` + undo | 9 |
 | L-D | `weeklyReviewSummary`, objectives ladder (month/quarter/year) | 6 |
 | L-E | Import from Todoist / TickTick / Things | 6 |

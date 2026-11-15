@@ -3,7 +3,7 @@
 // signed-in person, now, whether or not the hourly reconcile thinks it is due.
 import { NextResponse } from "next/server";
 import { createUserScopedClient } from "@/server/auth/supabase";
-import { googleConfigured } from "@/server/calendar/config";
+import { calendarConfigured, googleConfigured } from "@/server/calendar/config";
 import { pushUser, syncUser } from "@/server/calendar/run";
 
 export const runtime = "nodejs";
@@ -16,10 +16,11 @@ export async function POST() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  if (!googleConfigured()) return NextResponse.json({ error: "calendar_not_configured" }, { status: 503 });
+  if (!calendarConfigured()) return NextResponse.json({ error: "calendar_not_configured" }, { status: 503 });
   try {
     const report = await syncUser(user.id);
-    const push = await pushUser(user.id);
+    // Blocks are written to Google only; a server that connects Outlook alone has nothing to push.
+    const push = googleConfigured() ? await pushUser(user.id) : { written: 0, deleted: 0, adopted: 0, failed: 0 };
     return NextResponse.json({ accounts: Object.keys(report).length, report, push });
   } catch (e) {
     console.error("calendar sync failed", e);

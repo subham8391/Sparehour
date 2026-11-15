@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { APP_CREATED_SCOPE, defaultRead, syncAccount, type AccountStore, type AccountSyncDeps, type CalendarRow, type CalendarUpsert, type ClaimedAccount, type WatchPort } from "./account-sync";
 import { openFromBase64, sealToBase64 } from "./crypto";
 import { EVENTS_OWNED_SCOPE, EVENTS_READ_SCOPE, FREEBUSY_SCOPE } from "./google";
-import { NeedsReauth, type CalendarProvider, type ProviderCalendar, type ProviderEvent } from "./provider";
+import { CalendarUnreadable, NeedsReauth, type CalendarProvider, type ProviderCalendar, type ProviderEvent } from "./provider";
 import type { BusySource, CalendarRef, MirrorStore } from "./sync";
 
 const key = randomBytes(32);
@@ -109,7 +109,8 @@ describe("syncAccount", () => {
     const out = await syncAccount(account(), f.deps);
     expect(out).toEqual({ status: "ok", calendars: 3, events: 2, error: null });
     expect(f.deps.refresh).not.toHaveBeenCalled();
-    expect(f.deps.providerFor).toHaveBeenCalledWith("access");
+    // The ports are handed the account, so whoever wires them can pick the provider by it (run.ts).
+    expect(f.deps.providerFor).toHaveBeenCalledWith("access", expect.objectContaining({ id: "acct", provider: "google" }));
     expect(f.log).toEqual([
       "upsertCalendars primary(new read=true),holidays(new read=false),team",
       "softDelete id-gone",
@@ -126,9 +127,9 @@ describe("syncAccount", () => {
     const f = fakes({ remote: [cal("primary", { primary: true })] });
     const out = await syncAccount(account({ token_expires_at: new Date(NOW.getTime() + 60_000).toISOString() }), f.deps);
     expect(out.status).toBe("ok");
-    expect(f.deps.refresh).toHaveBeenCalledWith("refresh");
+    expect(f.deps.refresh).toHaveBeenCalledWith("refresh", expect.objectContaining({ provider: "google" }));
     expect(f.log[0]).toBe("tokens access=fresh refresh=kept");
-    expect(f.deps.providerFor).toHaveBeenCalledWith("fresh");
+    expect(f.deps.providerFor).toHaveBeenCalledWith("fresh", expect.objectContaining({ provider: "google" }));
   });
 
   it("without a refresh token, or when Google revokes the grant, the account needs reconnecting and the reason is recorded", async () => {
@@ -240,6 +241,61 @@ describe("syncAccount", () => {
       const out = await syncAccount(account({ scopes: [...busyScopes, APP_CREATED_SCOPE] }), f.deps);
       expect(out.status).toBe("ok");
       expect(f.provider.freeBusy.mock.calls[0][0]).toEqual(["mine"]);
+    });
+  });
+
+  describe("an Outlook account (SYSTEM_DESIGN.md §6.8; DECISIONS.md, amendment 2026-11-15)", () => {
+    const outlook = (over: Partial<ClaimedAccount> = {}) => account({ provider: "microsoft", external_account: "ms-sub", email: "sam@contoso.com", scopes: ["openid", "email", "Calendars.ReadBasic"], ...over });
+    /** Outlook's client as the worker sees it: calendars and events, and nothing else — no busy-times call, no channels, no calendar to create. */
+    function outlookFakes(opts: Parameters<typeof fakes>[0] = {}) {
+      const f = fakes(opts);
+      const provider = { listCalendars: f.provider.listCalendars, listEvents: f.provider.listEvents };
+      f.deps.providerFor = vi.fn<AccountSyncDeps["providerFor"]>(() => provider);
+      return { ...f, bare: provider };
+    }
+
+    it("reads every calendar that counts as busy event by event, opens no channels, makes no calendar, and is handed to the ports as itself", async () => {
+      const f = outlookFakes({ remote: [cal("default", { primary: true }), cal("birthdays", { accessRole: "reader" }), cal("side")], events: { default: [ev("a"), ev("b")], side: [ev("c")] }, webhook: true });
+      const out = await syncAccount(outlook(), f.deps);
+      expect(out).toEqual({ status: "ok", calendars: 3, events: 3, error: null });
+      expect(f.deps.providerFor).toHaveBeenCalledWith("access", expect.objectContaining({ provider: "microsoft" }));
+      expect(f.bare.listEvents.mock.calls.map((c) => c[0])).toEqual(["default", "side"]);
+      expect(f.provider.freeBusy).not.toHaveBeenCalled();
+      expect(f.provider.watch).not.toHaveBeenCalled();
+      expect(f.provider.createCalendar).not.toHaveBeenCalled();
+      expect(f.store.setWriteTarget).not.toHaveBeenCalled();
+      expect(f.log).toEqual(["upsertCalendars default(new read=true),birthdays(new read=false),side(new read=true)", "replace default:2", "token id-default:T-default", "replace side:1", "token id-side:T-side", "finish ok"]);
+    });
+
+    it("refreshes through its own provider and keeps the new refresh token Microsoft sends with each one", async () => {
+      const f = outlookFakes({ remote: [cal("default", { primary: true })] });
+      (f.deps.refresh as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ accessToken: "fresh", refreshToken: "rotated", expiresAt: new Date(NOW.getTime() + 3600_000), scopes: [], sub: null, email: null });
+      await syncAccount(outlook({ token_expires_at: new Date(NOW.getTime() - 1000).toISOString() }), f.deps);
+      expect(f.deps.refresh).toHaveBeenCalledWith("refresh", expect.objectContaining({ provider: "microsoft" }));
+      expect(f.log[0]).toBe("tokens access=fresh refresh=rotated");
+    });
+
+    it("says Outlook, not Google, when the grant lapses or it cannot be reached", async () => {
+      const lapsed = outlookFakes();
+      (lapsed.deps.refresh as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new NeedsReauth("invalid_grant"));
+      expect(await syncAccount(outlook({ access_b64: null }), lapsed.deps)).toMatchObject({ status: "needs_reauth", error: "Outlook access has lapsed. Reconnect to keep syncing." });
+      expect(lapsed.store.finish).toHaveBeenCalledWith("acct", "needs_reauth", "Outlook access has lapsed. Reconnect to keep syncing.");
+
+      const down = outlookFakes({ remote: [cal("default", { primary: true })] });
+      down.bare.listEvents.mockRejectedValueOnce(new Error("microsoft calendarView delta: 503"));
+      expect(await syncAccount(outlook(), down.deps)).toEqual({ status: "error", calendars: 0, events: 0, error: "microsoft calendarView delta: 503" });
+      expect(down.store.finish).toHaveBeenCalledWith("acct", "ok", "Couldn't reach Outlook (microsoft calendarView delta: 503).");
+    });
+
+    it("one calendar Graph refuses does not keep the others from being read, and the line names it", async () => {
+      const f = outlookFakes({ remote: [cal("team", { summary: "Team" }), cal("default", { primary: true })], events: { default: [ev("a")] } });
+      f.bare.listEvents.mockRejectedValueOnce(new CalendarUnreadable("microsoft calendarView delta: 403 erroraccessdenied"));
+      const out = await syncAccount(outlook(), f.deps);
+      const line = "Couldn't read “Team” from Outlook (microsoft calendarView delta: 403 erroraccessdenied).";
+      expect(out).toEqual({ status: "error", calendars: 2, events: 1, error: line });
+      expect(f.log).toContain("replace default:1");
+      expect(f.store.finish).toHaveBeenCalledWith("acct", "ok", line);
+      expect(f.store.finish).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The first run's route over an in-memory database: it waits for the account, confirms the hours and the zone in
-// one tap, offers the calendar where the server can connect one (once, with Google's answer said when it was no),
-// comes back to where it was after a reload, and ends on Today with the account stamped.
+// one tap, offers the calendar where the server can connect one (Google, Outlook or both; once, with the consent's
+// answer said when it was no), comes back to where it was after a reload, and ends on Today with the account stamped.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   undo: [] as { label: string; undo: () => Promise<void> }[],
   /** What /api/calendar/config answers: whether this server can connect Google, or a failure. */
   google: false as boolean | "down",
+  /** Whether it says it can connect Outlook; "unsaid" is a server that does not mention it at all. */
+  microsoft: "unsaid" as boolean | "unsaid",
 }));
 vi.mock("@/data/powersync", () => ({
   useQuery: (sql: string) => {
@@ -31,16 +33,35 @@ vi.mock("@/features/undo/undo-provider", () => ({ useUndoSink: () => ({ record: 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: h.replace }) }));
 vi.mock("@/features/welcome/welcome-rules", async (actual) => ({ ...(await actual<typeof import("@/features/welcome/welcome-rules")>()), detectedZone: () => "Europe/London" }));
 // The brain dump is its own island with its own tests; here it only has to be the step on screen.
-vi.mock("next/dynamic", () => ({
-  default: () =>
-    function BrainDumpStub({ onFinish }: { onFinish: () => void }) {
-      return (
-        <button type="button" onClick={onFinish}>
-          Brain dump
-        </button>
-      );
-    },
+vi.mock("@/features/welcome/brain-dump", () => ({
+  BrainDump: function BrainDumpStub({ onFinish }: { onFinish: () => void }) {
+    return (
+      <button type="button" onClick={onFinish}>
+        Brain dump
+      </button>
+    );
+  },
 }));
+// The page's islands (the brain dump, the calendar step) arrive a moment after they are asked for, as they do in the
+// browser: each is whatever its loader resolves to, and nothing is on screen until it has.
+vi.mock("next/dynamic", async () => {
+  const { createElement, useEffect, useState } = await import("react");
+  type Island = (props: Record<string, unknown>) => ReturnType<typeof createElement> | null;
+  return {
+    default: (load: () => Promise<Island>) =>
+      function Dynamic(props: Record<string, unknown>) {
+        const [loaded, setLoaded] = useState<{ island: Island } | null>(null);
+        useEffect(() => {
+          let live = true;
+          void load().then((island) => live && setLoaded({ island }));
+          return () => {
+            live = false;
+          };
+        }, []);
+        return loaded ? createElement(loaded.island, props) : null;
+      },
+  };
+});
 
 import WelcomePage from "./page";
 
@@ -55,13 +76,14 @@ beforeEach(() => {
   h.replace.mockClear();
   h.undo = [];
   h.google = false;
+  h.microsoft = "unsaid";
   window.localStorage.clear();
   window.history.replaceState(null, "", "/welcome");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
       if (url !== "/api/calendar/config" || h.google === "down") throw new Error("offline");
-      return new Response(JSON.stringify({ google: h.google }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ google: h.google, ...(h.microsoft === "unsaid" ? {} : { microsoft: h.microsoft }) }), { status: 200, headers: { "content-type": "application/json" } });
     }),
   );
 });
@@ -214,5 +236,99 @@ describe("/welcome, the calendar step (ONBOARDING.md step 2; DECISIONS.md, amend
       expect(screen.queryByRole("heading", { name: "Connect your calendar." })).not.toBeInTheDocument();
       view.unmount();
     }
+  });
+});
+
+describe("/welcome, the calendar step with Outlook (DECISIONS.md, amendment 2026-11-15)", () => {
+  const atCalendar = () => screen.findByRole("heading", { name: "Connect your calendar." });
+  const pastTheHours = () => window.localStorage.setItem("sparehour.first-run.hours", "u1");
+
+  it("where the server can connect both, both are offered, each leaving for its own consent and back to this page", async () => {
+    h.google = true;
+    h.microsoft = true;
+    pastTheHours();
+    render(<WelcomePage />);
+    await atCalendar();
+    expect(screen.getByRole("link", { name: "Connect Google Calendar" })).toHaveAttribute("href", "/api/calendar/google/start?next=%2Fwelcome");
+    expect(screen.getByRole("link", { name: "Connect Outlook" })).toHaveAttribute("href", "/api/calendar/microsoft/start?next=%2Fwelcome");
+    expect(screen.getByRole("button", { name: "Skip for now" })).toBeInTheDocument();
+    // Skip first, the ways to connect after it, where the thumb is on a phone.
+    expect([...document.querySelectorAll("footer a, footer button")].map((el) => el.textContent?.trim())).toEqual(["Skip for now", "Connect Outlook", "Connect Google Calendar"]);
+    // What is true of both: what is kept. Microsoft's permission covers a meeting's name, so "we don't see" is not said.
+    expect(screen.getByText("We read when you're busy.")).toBeInTheDocument();
+    expect(screen.getByText("We keep only the times.")).toBeInTheDocument();
+    expect(screen.queryByText("We don't see what your meetings are.")).not.toBeInTheDocument();
+    expect(screen.getByText("We don't change anything.")).toBeInTheDocument();
+    expect(screen.getByText(/With Outlook, Microsoft.s screen asks to let Sparehour read your calendars\. It has no narrower permission to ask for; the times are all we keep\./)).toBeInTheDocument();
+    // The later choices in Settings are Google's, and are said as Google's.
+    expect(screen.getByText(/With Google Calendar, meeting names and time blocks on your calendar are yours to add later in Settings\./)).toBeInTheDocument();
+  });
+
+  it("where the server can connect Outlook alone, the step is still offered, with Outlook only and no promise of later choices", async () => {
+    h.google = false;
+    h.microsoft = true;
+    const user = userEvent.setup();
+    render(<WelcomePage />);
+    await user.click(screen.getByRole("button", { name: "That’s right" }));
+    await atCalendar();
+    expect(screen.getByRole("link", { name: "Connect Outlook" })).toHaveAttribute("href", "/api/calendar/microsoft/start?next=%2Fwelcome");
+    expect(screen.queryByRole("link", { name: "Connect Google Calendar" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Without it, the number uses your working hours alone\./)).toBeInTheDocument();
+    expect(screen.queryByText(/yours to add later in Settings/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Skip for now" }));
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("sparehour.first-run.calendar")).toBe("u1");
+  });
+
+  it("Outlook is absent unless the server says it can connect it: not said, or said no, the step is Google's as it was", async () => {
+    for (const answer of ["unsaid", false] as const) {
+      h.google = true;
+      h.microsoft = answer;
+      pastTheHours();
+      const view = render(<WelcomePage />);
+      await atCalendar();
+      expect(screen.getByRole("link", { name: "Connect Google Calendar" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Outlook/ })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Outlook|Microsoft/)).not.toBeInTheDocument();
+      expect(screen.getByText("We don't see what your meetings are.")).toBeInTheDocument();
+      expect(screen.getByText(/Meeting names, and time blocks on your calendar, are yours to add later in Settings\./)).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it("back from Microsoft: connected goes on; a no stays with one calm line and every way on; a failure says the reason", async () => {
+    h.google = true;
+    h.microsoft = true;
+    pastTheHours();
+    window.history.replaceState(null, "", "/welcome?calendar=connected");
+    const connected = render(<WelcomePage />);
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("sparehour.first-run.calendar")).toBe("u1");
+    connected.unmount();
+
+    window.localStorage.removeItem("sparehour.first-run.calendar");
+    window.history.replaceState(null, "", "/welcome?calendar=denied&reason=access_denied");
+    const refused = render(<WelcomePage />);
+    await atCalendar();
+    expect(screen.getByRole("status")).toHaveTextContent("No problem. You can connect later from Settings.");
+    expect(screen.getByRole("link", { name: "Connect Outlook" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Connect Google Calendar" })).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+    refused.unmount();
+
+    window.history.replaceState(null, "", `/welcome?calendar=error&reason=${encodeURIComponent("Outlook didn't answer. Try again.")}`);
+    render(<WelcomePage />);
+    await atCalendar();
+    expect(screen.getByRole("status")).toHaveTextContent("Outlook didn't answer. Try again.");
+  });
+
+  it("is not offered once an Outlook calendar is connected", async () => {
+    h.google = true;
+    h.microsoft = true;
+    pastTheHours();
+    h.db.insert("calendar_connections", { id: "k1", provider: "microsoft", email: "sam@contoso.com", status: "ok" });
+    render(<WelcomePage />);
+    expect(await screen.findByRole("button", { name: "Brain dump" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Connect your calendar." })).not.toBeInTheDocument();
   });
 });

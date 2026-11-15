@@ -7,7 +7,7 @@ import type { CalendarIssue } from "./calendar-state";
 
 const h = vi.hoisted(() => ({
   calendars: [] as { id: string; summary: string; access_role: string | null; calendar_account_id: string }[],
-  connections: [] as { id: string; status: string; can_write: number; can_write_own: number; last_synced_at: string | null }[],
+  connections: [] as { id: string; provider?: string; status: string; can_write: number; can_write_own: number; last_synced_at: string | null }[],
   setWriteTarget: vi.fn(() => Promise.resolve()),
   dismissNotices: vi.fn(() => Promise.resolve()),
   calendarSyncNow: vi.fn(() => Promise.resolve({ ok: true, message: "Synced." })),
@@ -37,7 +37,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const issue = (over: Partial<CalendarIssue>): CalendarIssue => ({ kind: "error", email: "me@gmail.com", lastSyncedAt: "2026-10-07T09:12:00Z", key: "error:acct:t", blocking: false, full: false, ...over });
+const issue = (over: Partial<CalendarIssue>): CalendarIssue => ({ kind: "error", provider: "google", email: "me@gmail.com", lastSyncedAt: "2026-10-07T09:12:00Z", key: "error:acct:t", blocking: false, full: false, ...over });
 /** The banner reads the issue itself (useCalendarState); the test hands it one before rendering. */
 function banner(over: Partial<CalendarIssue>, onToday = true) {
   h.issue = issue(over);
@@ -60,6 +60,37 @@ describe("CalendarBanner", () => {
     expect(screen.getByRole("link", { name: "Reconnect" })).toHaveAttribute("href", reconnectHref(true));
     expect(reconnectHref(true)).toContain("purpose=full");
     expect(RECONNECT_HREF).not.toContain("purpose=");
+  });
+
+  it("an Outlook account that lapsed is named as Outlook, and Reconnect goes back through Microsoft's consent to Today", () => {
+    render(banner({ kind: "reauth", provider: "microsoft", email: "sam@contoso.com", blocking: false, key: "reauth:ms", full: false }));
+    const shown = screen.getByRole("status", { name: "Calendar access" });
+    expect(shown).toHaveTextContent("Outlook (sam@contoso.com) needs reconnecting.");
+    // It was never where blocks go, so blocking is not paused.
+    expect(shown).not.toHaveTextContent(/Blocking is paused/);
+    expect(screen.getByRole("link", { name: "Reconnect" })).toHaveAttribute("href", "/api/calendar/microsoft/start?next=%2Ftoday");
+    expect(reconnectHref(true, "microsoft")).toBe("/api/calendar/microsoft/start?next=%2Ftoday"); // full access is Google's word
+    expect(RECONNECT_HREF).toBe("/api/calendar/google/start?next=%2Ftoday");
+  });
+
+  it("Outlook unreachable: the line says Outlook and the last good sync", () => {
+    render(banner({ kind: "error", provider: "microsoft", key: "error:ms:t" }));
+    expect(screen.getByRole("status", { name: "Calendar sync" })).toHaveTextContent(/^Couldn't reach Outlook\. Showing your last sync from /);
+  });
+
+  it("the picker never offers an Outlook calendar, beside a Google account or alone", () => {
+    h.connections = [
+      { id: "acct", provider: "google", status: "ok", can_write: 1, can_write_own: 1, last_synced_at: new Date().toISOString() },
+      { id: "ms", provider: "microsoft", status: "ok", can_write: 0, can_write_own: 0, last_synced_at: new Date().toISOString() },
+    ];
+    h.calendars = [...h.calendars, { id: "c-outlook", summary: "Calendar", access_role: "owner", calendar_account_id: "ms" }];
+    const both = render(banner({ kind: "write_gone", blocking: true, key: "gone:acct:t1" }));
+    expect(screen.getAllByRole("radio").map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Work", "Keep blocks in Sparehour only"]);
+    both.unmount();
+    h.connections = [h.connections[1]];
+    h.calendars = [h.calendars[2]];
+    render(banner({ kind: "write_gone", blocking: true, key: "gone:acct:t2" }));
+    expect(screen.getAllByRole("radio").map((r) => r.closest("label")?.textContent?.trim())).toEqual(["Keep blocks in Sparehour only"]);
   });
 
   it("with busy times only, the picker offers just the Sparehour calendar, not the person's own", () => {
