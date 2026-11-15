@@ -48,7 +48,6 @@ export default function SettingsPage() {
   const calendar = useCalendar();
   const active = useSettingsSection();
   const motion = useSyncExternalStore(subscribeMotion, readMotion, () => "system" as MotionChoice);
-  const [testResult, setTestResult] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [unsynced, setUnsynced] = useState<number | null>(null);
   const { data: settings } = useQuery<UserSettingsRow & { id: string }>(SETTINGS_SQL);
@@ -190,8 +189,6 @@ export default function SettingsPage() {
       error: push.error,
       onEnable: () => void push.enable(),
       onDisable: () => void push.disable(),
-      onTest: () => void push.sendTest().then((n) => setTestResult(n > 0 ? `Sent to ${n} ${n === 1 ? "device" : "devices"}.` : "Nothing was reached — is this device subscribed?")),
-      testResult,
     },
     calendar,
     data: { onExport: (format) => void exporter.exportData(format), busy: exporter.busy, error: exporter.error, lastFile: exporter.lastFile },

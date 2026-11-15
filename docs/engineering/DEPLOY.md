@@ -138,7 +138,7 @@ select status, count(*) from cron.job_run_details group by status;  -- rows with
 - The dev address opens; sign in with the emailed code; the first run; add a task; the sync chip reads synced.
 - The same account on a phone shows the same task; add it to the home screen.
 - `<dev address>/sw.js` loads (the worker is built after `next build`; if it 404s, the build output missed it).
-- Settings → Notifications → send a test; turn reminders on and get one for a block.
+- Settings → Notifications → turn reminders on, then make a time block a few minutes ahead and get its reminder (there is no test button since 2026-11-15).
 - Push a small commit to `main`, reload: "A new version is ready", and Reload moves the page onto it.
 - The timers reach the app: `select status_code, created from net._http_response order by created desc limit 5;` in
   the SQL editor shows 200s once a minute (a 401 means the secret or the deployment protection).

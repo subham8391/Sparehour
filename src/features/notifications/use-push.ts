@@ -23,8 +23,6 @@ export interface PushApi {
   platform: PushPlatform;
   enable: () => Promise<void>;
   disable: () => Promise<void>;
-  /** Sends a test to this account's devices; resolves how many were reached. */
-  sendTest: () => Promise<number>;
 }
 
 async function registration(): Promise<ServiceWorkerRegistration | null> {
@@ -127,17 +125,6 @@ export function usePush(): PushApi {
     }
   }, []);
 
-  const sendTest = useCallback(async () => {
-    setError(null);
-    const res = await fetch("/api/push/test", { method: "POST" });
-    if (!res.ok) {
-      setError(res.status === 503 ? "Push is not configured on this server." : "Couldn't send the test.");
-      return 0;
-    }
-    const body = (await res.json()) as { sent: number };
-    return body.sent;
-  }, []);
-
   const copy = useMemo(() => permissionCopy(permission, platform, subscribed, workerAvailable), [permission, platform, subscribed, workerAvailable]);
-  return useMemo(() => ({ permission, subscribed, workerAvailable, busy, error, copy, platform, enable, disable, sendTest }), [permission, subscribed, workerAvailable, busy, error, copy, platform, enable, disable, sendTest]);
+  return useMemo(() => ({ permission, subscribed, workerAvailable, busy, error, copy, platform, enable, disable }), [permission, subscribed, workerAvailable, busy, error, copy, platform, enable, disable]);
 }

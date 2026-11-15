@@ -134,20 +134,18 @@ describe("Settings sections", () => {
   it("the device row states the permission honestly and offers the one useful action", async () => {
     const onEnable = vi.fn();
     const onDisable = vi.fn();
-    const onTest = vi.fn();
-    const base = { subscribed: false, busy: false, error: null, onEnable, onDisable, onTest, testResult: null };
+    const base = { subscribed: false, busy: false, error: null, onEnable, onDisable };
     const { user } = setup({ notifications: { ...base, copy: { headline: "Reminders are off.", detail: "Your browser will ask once.", steps: [], action: "enable" } } });
     expect(screen.getByText("Reminders are off.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Turn on reminders" }));
     expect(onEnable).toHaveBeenCalled();
     cleanup();
 
-    setup({ notifications: { ...base, subscribed: true, testResult: "Sent to 2 devices.", copy: { headline: "Reminders are on for this device.", detail: null, steps: [], action: "disable" } } });
-    await user.click(screen.getByRole("button", { name: "Send a test" }));
-    expect(onTest).toHaveBeenCalled();
+    setup({ notifications: { ...base, subscribed: true, copy: { headline: "Reminders are on for this device.", detail: null, steps: [], action: "disable" } } });
+    // On, the one thing to do is turn them off: there is no test button (removed 2026-11-15 at the user's word).
+    expect(screen.queryByRole("button", { name: "Send a test" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Turn off" }));
     expect(onDisable).toHaveBeenCalled();
-    expect(screen.getByText("Sent to 2 devices.")).toBeInTheDocument();
     cleanup();
 
     setup({ notifications: { ...base, copy: { headline: "Blocked in your browser.", detail: null, steps: ["Click the icon left of the address bar", "Notifications → Allow"], action: null } } });

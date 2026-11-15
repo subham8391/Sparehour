@@ -54,8 +54,6 @@ export interface NotificationsPanel {
   error: string | null;
   onEnable: () => void;
   onDisable: () => void;
-  onTest: () => void;
-  testResult: string | null;
 }
 
 export interface SettingsFormProps {

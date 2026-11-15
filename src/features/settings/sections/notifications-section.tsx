@@ -38,14 +38,9 @@ export function NotificationsSection(p: SettingsFormProps) {
               </Button>
             )}
             {n.copy.action === "disable" && (
-              <span className="flex items-center gap-1">
-                <Button variant="secondary" onClick={n.onTest} disabled={n.busy}>
-                  Send a test
-                </Button>
-                <Button variant="quiet" onClick={n.onDisable} disabled={n.busy}>
-                  Turn off
-                </Button>
-              </span>
+              <Button variant="quiet" onClick={n.onDisable} disabled={n.busy}>
+                Turn off
+              </Button>
             )}
           </div>
           {/* Safari on iPhone and iPad: the install coaching, which carries the Apple rule itself. */}
@@ -57,11 +52,6 @@ export function NotificationsSection(p: SettingsFormProps) {
                 <li key={s}>{s}</li>
               ))}
             </ol>
-          )}
-          {n.testResult && (
-            <p role="status" className={HINT}>
-              {n.testResult}
-            </p>
           )}
           {n.error && <p className={ERROR}>{n.error}</p>}
         </div>
