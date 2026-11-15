@@ -1,7 +1,7 @@
 // The older-Logbook request, read from the URL: what is given must be readable, a cursor goes back unrounded, and
 // the page asks for one row more than it returns.
 import { describe, expect, it } from "vitest";
-import { notThere, olderArgs, pageSize } from "./older";
+import { notThere, olderArgs, pageSize, rowId } from "./older";
 
 const read = (query: string) => olderArgs(new URLSearchParams(query));
 
@@ -39,6 +39,13 @@ describe("pageSize", () => {
 
 describe("notThere", () => {
   it("knows a database that has not got the table or the function yet", () => {
-    expect([notThere({ code: "PGRST202" }), notThere({ code: "42P01" }), notThere({ code: "42501" }), notThere(null)]).toEqual([true, true, false, false]);
+    expect([notThere({ code: "PGRST202" }), notThere({ code: "42883" }), notThere({ code: "42P01" }), notThere({ code: "42501" }), notThere(null)]).toEqual([true, true, true, false, false]);
+  });
+});
+
+describe("rowId", () => {
+  it("is a uuid, lower-cased, or nothing: what reaches the delete function is an id and only an id", () => {
+    const id = "3f2c7a1e-8d4b-4c6a-9e1f-0a2b3c4d5e6f";
+    expect([rowId(id), rowId(` ${id.toUpperCase()} `), rowId("1"), rowId(`${id}/x`), rowId(`${id}' or true --`), rowId(""), rowId(null), rowId(undefined)]).toEqual([id, id, null, null, null, null, null, null]);
   });
 });

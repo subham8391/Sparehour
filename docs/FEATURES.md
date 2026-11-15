@@ -42,7 +42,7 @@ Each feature is tagged with the milestone where it fits:
 | 3 priority levels + none | M1 | — |
 | Do-date + optional deadline + optional start date (hides until relevant) | M1 | Things, OmniFocus |
 | Someday state | M1 | Things, GTD |
-| Logbook of completed tasks. Finished tasks are kept (2026-11-14, replacing the one-week purge): the last week is on the device, everything before it is kept on the server and comes under "Show older" with a read-only view and Reopen; search, Claude's search and the export reach them too | M1 | Things |
+| Logbook of completed tasks. Finished tasks are kept (2026-11-14, replacing the one-week purge): the last week is on the device, everything before it is kept on the server and comes under "Show older" with a read-only view, Reopen and Delete for good (2026-11-15: asks once, no undo); search, Claude's search and the export reach them too, and Today stepped to a past day lists what was finished on it however old (2026-11-15) | M1 | Things |
 | Recurring tasks in plain language, incl. "after completion" repeats; future occurrences visible | M1 | Todoist (Notion fails at this) |
 | Markdown notes on tasks | M1 | Things |
 | Multi-select + bulk edit | M1 | Linear |

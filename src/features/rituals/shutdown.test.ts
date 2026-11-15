@@ -95,6 +95,9 @@ describe("shutdown copy", () => {
   it("summarises a closed day", () => {
     expect(closedLine([task(60), task(120)], 30, "18:42", 4)).toBe("Closed at 18:42 · 2 done · 3h · rated 4/5");
     expect(closedLine([], 30, "19:05", null)).toBe("Closed at 19:05 · 0 done");
+    // A day older than the device's week: no count is said, since the device does not hold the day's finished tasks.
+    expect(closedLine(null, 30, "18:42", 4)).toBe("Closed at 18:42 · rated 4/5");
+    expect(closedLine(null, 30, "19:05", null)).toBe("Closed at 19:05");
   });
 });
 

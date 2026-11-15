@@ -5,8 +5,12 @@
 // and note of another day Today was stepped to. An island out of Today's first download (SYSTEM_DESIGN.md
 // §11.6), fetched as the page mounts so it is in memory before the day it describes is known. The page keeps the
 // state (whether the pull-in list or the pile is open), so the island only draws it.
+// A day that has passed lists what was finished on it however old it is (DECISIONS.md, amendment 2026-11-15): the
+// device holds a week of finished tasks, so for a day before that the Done list asks the server for the day's own
+// and says, in words, when it is still asking, when there were none and when it could not ask.
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@/data/powersync";
 import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
 import { formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
@@ -14,13 +18,16 @@ import type { Task } from "@/core/types";
 import { toTask, type Settings } from "@/data/mappers";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
+import { toTaskRow, type FinishedRow } from "@/features/finished/finished";
+import { useFinishedDay, type FinishedDayStatus } from "@/features/finished/use-finished-day";
+import { useNow } from "@/features/shell/use-local-day";
 import type { TimelineBlock } from "./hooks/use-today";
 import { easiestMove, pullInSuggestions } from "@/features/rituals/morning-plan";
 import { closedLine } from "@/features/rituals/shutdown";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { MoveActions, RowAction } from "@/features/tasks/task-actions";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
-import { buttonClass } from "@/ui/button";
+import { Button, buttonClass } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -29,12 +36,34 @@ import { EYEBROW, SectionAction, SectionLabel } from "@/ui/section-label";
 
 const NOTHING_SQL = `select * from tasks where 0`;
 
-/** The day after its shutdown: what was finished, the rating, and the highlight (SCREENS.md §15). */
-export function ClosedDay({ done, defaultEstimateMin, closedAt, rating, highlights }: { done: readonly Task[]; defaultEstimateMin: number; closedAt: string; rating: number | null; highlights: string | null }) {
+// An older finished task's read-only view, with Reopen and Delete for good: fetched when one is opened.
+const FinishedPeekHost = dynamic(() => import("@/features/finished/finished-peek-host"), { ssr: false });
+
+/**
+ * How long a finished task stays in `tasks`, and so on the device: the nightly move files away what was finished
+ * more than a week ago, to the instant (DECISIONS.md, amendment 2026-11-14).
+ */
+const KEPT_MS = 7 * 24 * 60 * 60_000;
+
+/** A past day's two instants: its start, and the start of the day after. */
+type DayInstants = readonly [string, string];
+
+/** Whether a past day began before the week the device holds, so that some or all of what was finished on it is only on the server. */
+function olderThanDevice(day: DayInstants | false | undefined, now: { epochMilliseconds: number }): day is DayInstants {
+  return Boolean(day) && Date.parse((day as DayInstants)[0]) < now.epochMilliseconds - KEPT_MS;
+}
+
+/**
+ * The day after its shutdown: what was finished, the rating, and the highlight (SCREENS.md §15). For a day older
+ * than the device's week (`older`, its two instants) the line leaves the count out: the device does not hold that
+ * day's finished tasks, and the Done list below, which asks the server, has it.
+ */
+export function ClosedDay({ done, defaultEstimateMin, closedAt, rating, highlights, older }: { done: readonly Task[]; defaultEstimateMin: number; closedAt: string; rating: number | null; highlights: string | null; older?: DayInstants | false }) {
+  const now = useNow();
   return (
     <div className="rounded-xl border border-line bg-surface px-5 py-5">
       <p className="font-display text-pane font-medium text-ink">That&rsquo;s the day.</p>
-      <p className="mt-1.5 text-body-sm text-ink-2 num">{closedLine(done, defaultEstimateMin, closedAt, rating)}</p>
+      <p className="mt-1.5 text-body-sm text-ink-2 num">{closedLine(olderThanDevice(older, now) ? null : done, defaultEstimateMin, closedAt, rating)}</p>
       {highlights && <p className="mt-2 text-body text-pretty text-ink-2">Worth it: {highlights}</p>}
     </div>
   );
@@ -164,41 +193,160 @@ export function OverMove({ tasks, overMin, tomorrow, settings, onMove }: { tasks
   return null;
 }
 
-/** What was finished on the day (SCREENS.md §2.4 Show completed): Reopen (or U) brings one back; a day that has passed only reads. */
-export function DoneSection({ label, tasks, today, meta, selectedId, onSelect, onOpen, onReopen }: { label: string; tasks: readonly Task[]; today: LocalDate; meta: (t: Task) => ReactNode; selectedId: string | null; onSelect: (id: string) => void; onOpen: (id: string) => void; onReopen: ((id: string) => void) | null }) {
+const QUIET = "px-0.5 text-body-sm text-pretty text-ink-3";
+
+/** The Done list itself: its count and its rows. */
+function DoneList({ count, children }: { count: number; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2" aria-label={label}>
-      <SectionLabel className="px-0.5" count={tasks.length}>
+    <>
+      <SectionLabel className="px-0.5" count={count}>
         Done
       </SectionLabel>
-      <TaskList>
-        {tasks.map((t) => (
-          <TaskRow
-            key={t.id}
-            task={t}
-            today={today}
-            meta={meta(t)}
-            onOpen={() => onOpen(t.id)}
-            selected={selectedId === t.id}
-            onSelect={() => onSelect(t.id)}
-            actions={onReopen && <RowAction label="Reopen" primary title="Reopen (U)" onClick={() => onReopen(t.id)} />}
-          />
-        ))}
-      </TaskList>
+      <TaskList>{children}</TaskList>
+    </>
+  );
+}
+
+/**
+ * What was finished on the day (SCREENS.md §2.4 Show completed): Reopen (or U) brings one back; a day that has
+ * passed only reads. `older` is a past day's two instants (its start, and the next day's): when the day began
+ * before the week the device holds, what the server kept of it is listed with the device's own.
+ */
+export function DoneSection({
+  label,
+  tasks,
+  today,
+  meta,
+  selectedId,
+  onSelect,
+  onOpen,
+  onReopen,
+  older,
+  zone = "UTC",
+}: {
+  label: string;
+  tasks: readonly Task[];
+  today: LocalDate;
+  meta: (t: Task) => ReactNode;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onOpen: (id: string) => void;
+  onReopen: ((id: string) => void) | null;
+  older?: DayInstants | false;
+  zone?: string;
+}) {
+  const now = useNow();
+  const rows = tasks.map((t) => (
+    <TaskRow
+      key={t.id}
+      task={t}
+      today={today}
+      meta={meta(t)}
+      onOpen={() => onOpen(t.id)}
+      selected={selectedId === t.id}
+      onSelect={() => onSelect(t.id)}
+      actions={onReopen && <RowAction label="Reopen" primary title="Reopen (U)" onClick={() => onReopen(t.id)} />}
+    />
+  ));
+  if (olderThanDevice(older, now)) {
+    return (
+      // Keyed by the day: stepping to another starts again, with no view left open from the day before.
+      <OlderDone key={older[0]} label={label} from={older[0]} to={older[1]} zone={zone} today={today} meta={meta} have={tasks}>
+        {rows}
+      </OlderDone>
+    );
+  }
+  // A day inside the device's week is drawn from the device alone, as it always was.
+  if (tasks.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-2" aria-label={label}>
+      <DoneList count={tasks.length}>{rows}</DoneList>
     </section>
   );
 }
 
-/** How long a finished task stays on the device: the Logbook's week (older ones are kept on the server, DECISIONS.md 2026-11-14). */
-const KEPT_DAYS = 7;
-
-/** A day that has passed, above its blocks and what was finished on it: read-only, and why an old one is bare. */
-export function PastDay({ daysAgo }: { daysAgo: number }) {
+/**
+ * A past day older than the device holds (DECISIONS.md, amendment 2026-11-15): the day's finished tasks from the
+ * server, after any the device still lists (it may not have heard yet that one was filed away, so those are not
+ * listed twice). An older row is not on the device, so it has no keyboard selection and opens the read-only view,
+ * where it can be reopened or deleted for good.
+ */
+function OlderDone({ label, from, to, zone, today, meta, have, children }: { label: string; from: string; to: string; zone: string; today: LocalDate; meta: (t: Task) => ReactNode; have: readonly Task[]; children: ReactNode }) {
+  const day = useFinishedDay(from, to);
+  const [peek, setPeek] = useState<FinishedRow | null>(null);
+  const rows = useMemo(() => {
+    const here = new Set<string>(have.map((t) => t.id));
+    return day.rows.filter((f) => !here.has(f.id));
+  }, [day.rows, have]);
+  const count = have.length + rows.length;
+  const remove = day.remove;
   return (
-    <p className="text-body-sm text-pretty text-ink-2">
-      {daysAgo > KEPT_DAYS ? "Older finished tasks are in the Logbook, so only this day’s blocks and meetings are left to show." : "A day that has passed, as it was: what you finished, and its blocks and meetings."}
-    </p>
+    <section className="flex flex-col gap-2" aria-label={label}>
+      {count > 0 && (
+        <DoneList count={count}>
+          {children}
+          {rows.map((f) => {
+            const task = toTask(toTaskRow(f));
+            return <TaskRow key={f.id} task={task} today={today} meta={meta(task)} onOpen={() => setPeek(f)} />;
+          })}
+        </DoneList>
+      )}
+      <OlderNote status={day.status} empty={count === 0} onRetry={day.retry} />
+      {peek && (
+        <FinishedPeekHost
+          row={peek}
+          zone={zone}
+          today={today}
+          onGone={(id) => {
+            remove(id);
+            setPeek((p) => (p?.id === id ? null : p));
+          }}
+          onClose={() => setPeek(null)}
+        />
+      )}
+    </section>
   );
+}
+
+/** What the list says while an older day is being asked for, and when it cannot be had. Every state is words: nothing spins. */
+function OlderNote({ status, empty, onRetry }: { status: FinishedDayStatus; empty: boolean; onRetry: () => void }) {
+  if (status === "loading") {
+    return (
+      <p role="status" className={QUIET}>
+        Looking for what you finished on this day…
+      </p>
+    );
+  }
+  if (status === "ready" || status === "unavailable") {
+    // With rows on the list there is nothing to add; a server that keeps no older tasks has none to be missing.
+    if (!empty) return null;
+    return (
+      <p role="status" className={QUIET}>
+        {status === "ready" ? "Nothing was finished on this day." : "Finished tasks from this long ago are not available, so only this day’s blocks and meetings are left to show."}
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col items-start gap-2 px-0.5">
+      {status === "offline" ? (
+        <p role="status" className="text-body-sm text-pretty text-ink-2">
+          You’re offline. Older finished tasks need a connection, and will show here when you are back online.
+        </p>
+      ) : (
+        <p role="alert" className="text-body-sm text-pretty text-ink-2">
+          Couldn’t load what you finished on this day. Check the connection and try again.
+        </p>
+      )}
+      <Button variant="secondary" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+/** A day that has passed, above its blocks and what was finished on it: read-only. */
+export function PastDay() {
+  return <p className="text-body-sm text-pretty text-ink-2">A day that has passed, as it was: what you finished, and its blocks and meetings.</p>;
 }
 
 /**

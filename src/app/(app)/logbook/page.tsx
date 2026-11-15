@@ -8,7 +8,8 @@
 // The device holds a week of finished tasks; what was finished before that is
 // kept on the server and comes a page at a time under "Show older"
 // (DECISIONS.md, amendment 2026-11-14): those rows open a read-only view and
-// Reopen makes one a task again.
+// Reopen makes one a task again; Delete for good, in that view, removes one
+// from the server after asking once (amendment 2026-11-15).
 // A task the rollover dropped under the "expire" policy says "Expired", and
 // `?show=expired` (Review on Today's expired digest) lists only those.
 // Filters (project, area, tag, dates, done vs dropped) live in the URL and
@@ -138,6 +139,14 @@ export default function LogbookPage() {
       setPeek(null);
     },
     [db, undo, removeOlder],
+  );
+  // Deleted for good (the view asked and the server answered): the row leaves the list, and the view if it is still this one.
+  const forgetOlder = useCallback(
+    (id: string) => {
+      removeOlder(id);
+      setPeek((p) => (p?.id === id ? null : p));
+    },
+    [removeOlder],
   );
 
   const defaultEstimateMin = settings?.defaultEstimateMin ?? 30;
@@ -336,6 +345,7 @@ export default function LogbookPage() {
           zone={zone}
           today={today}
           onReopen={peek.occurrence_of ? undefined : () => void reopenOlder(peek)}
+          onDeleted={() => forgetOlder(peek.id)}
           onClose={() => setPeek(null)}
         />
       )}

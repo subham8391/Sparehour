@@ -2,7 +2,8 @@
 // Today stepped to another day (SCREENS.md §2.1, §24; DECISIONS.md "Today on another day"), rendered over an
 // in-memory database: the arrows and `[` / `]` step the day in the address, the header names the day and the way
 // back, a later day lists its own tasks without today's rituals or Carried over, `T` comes home, a reload keeps
-// the day, and a day that has passed shows what was finished on it, read-only.
+// the day, and a day that has passed shows what was finished on it, read-only: from the device inside the week it
+// holds, and asked of the server for a day older than that (DECISIONS.md, amendment 2026-11-15).
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
@@ -82,7 +83,25 @@ beforeEach(() => {
   });
   window.history.pushState(null, "", "/today");
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+/** The server's older finished tasks, answered to whoever asks; what was asked is kept. */
+function olderServer(rows: Record<string, unknown>[]) {
+  const asked: URL[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: unknown) => {
+      const url = new URL(String(input), "https://sparehour.test");
+      if (url.pathname !== "/api/logbook/older") return { ok: false, status: 404, json: async () => ({}) };
+      asked.push(url);
+      return { ok: true, status: 200, json: async () => ({ available: true, rows, more: false }) };
+    }),
+  );
+  return asked;
+}
 
 // The selection as the keyboard layer sees it, read beside the page once each render has committed.
 const seen: { selection: ReturnType<typeof useSelection> | null } = { selection: null };
@@ -182,6 +201,7 @@ describe("Today, stepped a day at a time", () => {
   });
 
   it("a day that has passed shows what was finished on it, to read only, and its note", async () => {
+    const asked = olderServer([]);
     window.history.pushState(null, "", `/today?day=${yesterday}`);
     view();
     await screen.findByRole("heading", { level: 1, name: title(yesterday) });
@@ -193,6 +213,34 @@ describe("Today, stepped a day at a time", () => {
     expect(rows().some((r) => r.includes("Draft the plan") || r.includes("Reply to the landlord"))).toBe(false);
     expect(screen.queryByRole("region", { name: /Spare time/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Today options" })).not.toBeInTheDocument();
+    // Yesterday is inside the week the device holds: the server is asked nothing.
+    expect(asked).toEqual([]);
+  });
+
+  it("a day older than the device's week asks the server for that day, between its two instants, and lists what comes", async () => {
+    const old = today.subtract({ days: 10 });
+    const asked = olderServer([{ id: "f1", space_id: "s1", title: "Filed the receipts", state: "done", priority: 0, evening: false, completed_at: `${old}T15:00:00+00:00`, checklist: null, tag_ids: null, blocks: null, occurrence_of: null, occurrence_date: null }]);
+    window.history.pushState(null, "", `/today?day=${old}`);
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(old) });
+    const done = await screen.findByRole("region", { name: `Done on ${formatDay(old, { today })}` });
+    expect(await within(done).findByRole("row")).toHaveTextContent("Filed the receipts");
+    expect(within(done).queryByRole("button", { name: /Reopen/ })).not.toBeInTheDocument();
+    expect(asked).toHaveLength(1);
+    // The day's bounds in the person's zone (UTC here): from its midnight, up to the next day's.
+    expect(asked[0].searchParams.get("from")).toBe(`${old}T00:00:00Z`);
+    expect(asked[0].searchParams.get("to")).toBe(`${old.add({ days: 1 })}T00:00:00Z`);
+    expect(await screen.findByText(/A day that has passed, as it was/)).toBeInTheDocument();
+    expect(screen.queryByText(/Older finished tasks are in the Logbook/)).not.toBeInTheDocument();
+  });
+
+  it("an old day with nothing finished on it says so, in place of the old dead end", async () => {
+    const old = today.subtract({ days: 12 });
+    olderServer([]);
+    window.history.pushState(null, "", `/today?day=${old}`);
+    view();
+    const done = await screen.findByRole("region", { name: `Done on ${formatDay(old, { today })}` });
+    expect(await within(done).findByText("Nothing was finished on this day.")).toBeInTheDocument();
   });
 });
 

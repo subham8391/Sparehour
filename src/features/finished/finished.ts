@@ -1,7 +1,9 @@
 // Finished tasks older than the Logbook syncs (DECISIONS.md, amendment 2026-11-14). A device keeps a week of what
 // was finished; the rest is kept on the server (`finished_tasks`, migration 20261114000100) and asked for a page
-// at a time: the Logbook's "Show older", search's older results, the export. A row is a task's own columns with
-// its steps, tags and blocks folded in, so it reads as a task row does and can come back as one.
+// at a time: the Logbook's "Show older", search's older results, a past day on Today, the export. A row is a
+// task's own columns with its steps, tags and blocks folded in, so it reads as a task row does and can come back as
+// one. One can also be deleted for good (amendment 2026-11-15): that call lives in `finished-delete.ts`, so the
+// screens that only read (Settings' export among them) do not carry it.
 import type { TaskRow } from "@/data/schema.client";
 
 export interface FinishedStep {

@@ -1,17 +1,21 @@
 // @vitest-environment jsdom
 // Search's older results: nothing is asked of the server until the button is pressed; then the matches with the
-// day each was finished, a read-only view, and Reopen, which makes one a task again and takes it off the list.
+// day each was finished, a read-only view, Reopen, which makes one a task again and takes it off the list, and
+// Delete for good, which takes it off the list only once the server has deleted it.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { localDate } from "@/core/time";
 import type { FinishedRow } from "./finished";
+import type { FinishedDeleted } from "./finished-delete";
 import type { Finished } from "./use-finished";
 
 const h = vi.hoisted(() => ({
   finished: null as unknown as Finished,
   asked: [] as unknown[],
   restored: [] as string[],
+  deleteFinished: vi.fn<(id: string, signal?: AbortSignal) => Promise<FinishedDeleted>>(),
 }));
+vi.mock("./finished-delete", () => ({ deleteFinished: h.deleteFinished }));
 vi.mock("./use-finished", () => ({
   useFinished: (q: unknown) => {
     h.asked.push(q);
@@ -58,6 +62,7 @@ beforeEach(() => {
   h.finished = state();
   h.asked = [];
   h.restored = [];
+  h.deleteFinished.mockReset();
 });
 
 describe("<OlderFound>", () => {
@@ -94,6 +99,50 @@ describe("<OlderFound>", () => {
     await waitFor(() => expect(h.finished.remove).toHaveBeenCalledWith("t1"));
     expect(h.restored).toEqual(["t1"]);
     expect(screen.queryByRole("dialog", { name: "Finished task" })).toBeNull();
+  });
+
+  it("Delete for good in the view asks once, then takes the row off the list and closes; a repeat's finished day can go too", async () => {
+    h.finished = state({ rows: [row(), row({ id: "c2", title: "Invoice run", occurrence_of: "t-run" })], more: false });
+    h.deleteFinished.mockResolvedValue("deleted");
+    show();
+    fireEvent.click(within(screen.getAllByRole("row")[0]).getByRole("button", { name: "Send the invoice" }));
+    let peek = screen.getByRole("dialog", { name: "Finished task" });
+    fireEvent.click(within(peek).getByRole("button", { name: "Delete for good" }));
+    // Asked, not done: nothing has gone anywhere yet.
+    expect(within(peek).getByRole("group", { name: "Delete for good? This cannot be undone." })).toBeInTheDocument();
+    expect(h.deleteFinished).not.toHaveBeenCalled();
+    expect(h.finished.remove).not.toHaveBeenCalled();
+    fireEvent.click(within(peek).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(h.finished.remove).toHaveBeenCalledWith("t1"));
+    expect(h.deleteFinished.mock.calls[0][0]).toBe("t1");
+    expect(h.restored).toEqual([]);
+    expect(screen.queryByRole("dialog", { name: "Finished task" })).toBeNull();
+
+    // One finished day of a repeat: no Reopen, but it can be deleted, by the finished row's own id.
+    fireEvent.click(within(screen.getAllByRole("row")[1]).getByRole("button", { name: "Invoice run" }));
+    peek = screen.getByRole("dialog", { name: "Finished task" });
+    expect(within(peek).queryByRole("button", { name: "Reopen" })).toBeNull();
+    fireEvent.click(within(peek).getByRole("button", { name: "Delete for good" }));
+    fireEvent.click(within(peek).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(h.finished.remove).toHaveBeenCalledWith("c2"));
+    expect(h.deleteFinished.mock.calls[1][0]).toBe("c2");
+  });
+
+  it("a delete the server did not make leaves the row on the list and the view open, saying so", async () => {
+    h.finished = state({ rows: [row()], more: false });
+    h.deleteFinished.mockRejectedValueOnce(new TypeError("Failed to fetch")).mockResolvedValueOnce("unavailable");
+    show();
+    fireEvent.click(within(screen.getByRole("row")).getByRole("button", { name: "Send the invoice" }));
+    const peek = screen.getByRole("dialog", { name: "Finished task" });
+    fireEvent.click(within(peek).getByRole("button", { name: "Delete for good" }));
+    fireEvent.click(within(peek).getByRole("button", { name: "Delete" }));
+    expect(await within(peek).findByRole("alert")).toHaveTextContent("Couldn’t delete it. Check the connection and try again.");
+    // Where the server has not got the delete yet: said, and nothing taken off.
+    fireEvent.click(within(peek).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(within(peek).getByRole("alert")).toHaveTextContent("Older tasks can’t be deleted here yet"));
+    expect(h.finished.remove).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Finished task" })).toBeInTheDocument();
+    expect(screen.getByRole("row")).toHaveTextContent("Send the invoice");
   });
 
   it("says when nothing older matches, when the search failed, and shows nothing where older tasks are not kept", () => {

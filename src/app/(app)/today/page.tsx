@@ -586,9 +586,9 @@ export default function TodayPage() {
         {onToday && <ExpiredDigest />}
         {blockNudge && <BlockNudge />}
         {/* A day that has passed is kept as it was, read-only: what was finished, its blocks and meetings. */}
-        {past && <PastDay daysAgo={-day.since(model.today, { largestUnit: "days" }).days} />}
+        {past && <PastDay />}
         {closedAt ? (
-          <ClosedDay done={doneToday} defaultEstimateMin={defaultEstimate} closedAt={closedAt} rating={plan?.day_rating ?? null} highlights={plan?.highlights ?? null} />
+          <ClosedDay done={doneToday} defaultEstimateMin={defaultEstimate} closedAt={closedAt} rating={plan?.day_rating ?? null} highlights={plan?.highlights ?? null} older={past && dayBounds} />
         ) : (
           !past &&
           model.capacity && (
@@ -786,9 +786,10 @@ export default function TodayPage() {
             />
           )}
 
-          {showDone && doneToday.length > 0 && (
+          {showDone && (past || doneToday.length > 0) && (
             // Show completed (SCREENS.md §2.4): the day's finished tasks under a Done divider at the bottom. A day that
-            // has passed shows them always, and only to read.
+            // has passed shows them always, and only to read; one older than the device's week of finished tasks is
+            // given its two instants, and the island asks the server for the rest (DECISIONS.md, amendment 2026-11-15).
             <DoneSection
               label={onToday ? "Done today" : `Done on ${formatDay(day, { today: model.today })}`}
               tasks={doneToday}
@@ -798,6 +799,8 @@ export default function TodayPage() {
               onSelect={sel.select}
               onOpen={detail.open}
               onReopen={past ? null : (id) => void model.repo.reopen(id)}
+              older={past && dayBounds}
+              zone={zone}
             />
           )}
         </div>

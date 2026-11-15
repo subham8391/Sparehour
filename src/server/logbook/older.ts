@@ -56,7 +56,15 @@ export function olderArgs(params: URLSearchParams): OlderArgs | null {
   };
 }
 
-/** The database has no finished_tasks yet (its migration has not run there): the app carries on without older ones. */
+/** A finished row's id as it arrives in an address (`DELETE /api/logbook/older/<id>`): a uuid, or null. */
+export function rowId(value: string | null | undefined): string | null {
+  return uuid(value?.trim() ?? null);
+}
+
+/**
+ * The database has no finished_tasks yet, or not the function asked for (its migration has not run there): the app
+ * carries on without older ones, and says plainly that one cannot be deleted.
+ */
 export function notThere(error: { code?: string | null } | null): boolean {
   return error?.code === "PGRST202" || error?.code === "42883" || error?.code === "42P01";
 }

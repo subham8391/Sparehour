@@ -24,11 +24,9 @@ describe("the stepped header", () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it("a day that has passed says it is kept as it was, and an old one why it is bare", () => {
-    const { rerender } = render(<PastDay daysAgo={1} />);
+  it("a day that has passed says it is kept as it was (what an old one lists is past-day-done.test.tsx)", () => {
+    render(<PastDay />);
     expect(screen.getByText(/A day that has passed, as it was/)).toBeInTheDocument();
-    rerender(<PastDay daysAgo={9} />);
-    expect(screen.getByText(/Older finished tasks are in the Logbook/)).toBeInTheDocument();
   });
 });
 

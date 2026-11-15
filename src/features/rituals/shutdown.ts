@@ -74,11 +74,14 @@ export function tomorrowLine(spareMin: number | null, planned: number): string {
   return `Tomorrow: ${formatMinutes(spareMin)} spare, ${load}.`;
 }
 
-/** The summary Today shows once the day is closed. */
-export function closedLine(done: readonly Task[], defaultEstimateMin: number, closedAt: string, rating: number | null): string {
-  const minutes = done.reduce((s, t) => s + (t.estimateMin ?? defaultEstimateMin), 0);
-  const parts = [`Closed at ${closedAt}`, `${done.length} done`];
-  if (done.length > 0) parts.push(formatMinutes(minutes));
+/**
+ * The summary Today shows once the day is closed. `done` is null for a day older than the device's week of finished
+ * tasks: what the device holds is not the day's count, so none is said (the day's Done list has it).
+ */
+export function closedLine(done: readonly Task[] | null, defaultEstimateMin: number, closedAt: string, rating: number | null): string {
+  const parts = [`Closed at ${closedAt}`];
+  if (done) parts.push(`${done.length} done`);
+  if (done && done.length > 0) parts.push(formatMinutes(done.reduce((s, t) => s + (t.estimateMin ?? defaultEstimateMin), 0)));
   if (rating) parts.push(`rated ${rating}/5`);
   return parts.join(" · ");
 }

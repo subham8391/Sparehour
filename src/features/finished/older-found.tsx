@@ -2,7 +2,8 @@
 // Search's older results (DECISIONS.md, amendment 2026-11-14): the device searches the tasks it holds, which
 // includes a week of finished ones; what was finished before that is kept on the server, so it is searched there,
 // and only when asked — a quiet button under the results, then the matches by the day they were finished, a
-// read-only view of each and Reopen. An island: nothing of it rides in the search screen's first download.
+// read-only view of each with Reopen and Delete for good (amendment 2026-11-15). An island: nothing of it rides in
+// the search screen's first download.
 import { useCallback, useMemo, useState } from "react";
 import { instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
@@ -46,6 +47,14 @@ export function OlderFound({ words, zone, today }: { words: string; zone: string
       setPeek(null);
     },
     [db, undo, remove],
+  );
+  // Deleted for good: off the results, and out of the view if it is still this one.
+  const forget = useCallback(
+    (id: string) => {
+      remove(id);
+      setPeek((p) => (p?.id === id ? null : p));
+    },
+    [remove],
   );
 
   if (!query.words || !older.available) return null;
@@ -102,6 +111,7 @@ export function OlderFound({ words, zone, today }: { words: string; zone: string
           zone={zone}
           today={today}
           onReopen={peek.occurrence_of ? undefined : () => void reopen(peek)}
+          onDeleted={() => forget(peek.id)}
           onClose={() => setPeek(null)}
         />
       )}
