@@ -65,7 +65,7 @@ Touch rules on every band: every target ≥ 44 × 44 px; every hover-only action
 | **Top command bar** | View title and date context · view-specific actions · sync indicator · avatar menu | Never scrolls away |
 | **Main pane** | The view | Max content width so lines stay scannable on wide monitors |
 | **Context pane** | Today → day timeline. Everywhere else → task detail when a task is open, otherwise hidden | Toggled with `Cmd+.`; width is draggable and remembered per view |
-| **Quick-add bar** | Always present at the bottom on desktop | `Q` focuses it from anywhere. **As built (2026-11-15):** pressing the bar (or the phone's add button) adds where you are, as `N` does: "today " on Today, the day Today was stepped to, a project's token on its page, empty elsewhere; its hint reads `N`. `Q` is still plain capture to the Inbox. |
+| **Quick-add bar** | Always present at the bottom on desktop | `Q` focuses it from anywhere. **As built (2026-11-15):** pressing the bar (or the phone's add button) adds where you are, as `N` does: on Today the task is for today, on a day Today was stepped to for that day, on a project in that project. The box opens empty; the day or the project is a chip in the strip from the start ("Tomorrow ×", "Wed 18 Nov ×", "Acme ×") with where the task will go, and its × sends the line to the Inbox instead. The bar's hint reads `N`. `Q` is still plain capture to the Inbox. |
 
 ### Keyboard focus model
 

@@ -6,7 +6,7 @@ import { instant, localDate } from "@/core/time";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { registerTodayHandler, resetTodayRequests } from "@/features/today/today-request";
 import { ADD_HERE } from "./command-runs";
-import { COMMANDS, GROUP_ORDER, keyBindings, prefillHere, type CommandContext } from "./registry";
+import { COMMANDS, GROUP_ORDER, addHere, keyBindings, type CommandContext } from "./registry";
 import { registerViewKeys } from "./view-keys";
 
 const byId = (id: string) => {
@@ -117,25 +117,28 @@ describe("the keys", () => {
     off();
   });
 
-  it("N on Today files the new task on the day shown", async () => {
+  it("N on Today files the new task on the day shown, with nothing typed for the person", async () => {
     window.history.replaceState(null, "", "/today");
-    expect(await prefillHere(ctx({ pathname: "/today" }))).toBe("today ");
+    expect(await addHere(ctx({ pathname: "/today" }))).toEqual({ day: "2026-10-07" });
     window.history.replaceState(null, "", "/today?day=2026-10-08");
-    expect(await prefillHere(ctx({ pathname: "/today" }))).toBe("tomorrow ");
+    expect(await addHere(ctx({ pathname: "/today" }))).toEqual({ day: "2026-10-08" });
     window.history.replaceState(null, "", "/today?day=2026-10-13");
-    expect(await prefillHere(ctx({ pathname: "/today" }))).toBe("13 oct ");
+    expect(await addHere(ctx({ pathname: "/today" }))).toEqual({ day: "2026-10-13" });
+    // On a project, that project; anywhere else there is no "here".
+    expect(await addHere(ctx({ pathname: "/project/p-1" }))).toEqual({ projectId: "p-1" });
+    expect(await addHere(ctx({ pathname: "/inbox" }))).toBeUndefined();
   });
 
-  it("the shell's Add a task bar runs the same command, so a task added while looking at a day lands on it", async () => {
+  it("the shell's Add a task bar runs the same command: the box opens empty and the day goes with it", async () => {
     expect(ADD_HERE.id).toBe("create.task-here");
     expect(ADD_HERE.shortcut).toBe("n");
     window.history.replaceState(null, "", "/today?day=2026-10-08");
     const onDay = ctx({ pathname: "/today" });
     await ADD_HERE.run(onDay);
-    expect(onDay.quickAdd).toHaveBeenCalledWith("tomorrow ");
+    expect(onDay.quickAdd).toHaveBeenCalledWith(undefined, { day: "2026-10-08" });
     // Anywhere that is not a day or a project it is plain quick add: a line with no day still goes to the Inbox.
     const elsewhere = ctx({ pathname: "/inbox" });
     await ADD_HERE.run(elsewhere);
-    expect(elsewhere.quickAdd).toHaveBeenCalledWith(undefined);
+    expect(elsewhere.quickAdd).toHaveBeenCalledWith(undefined, undefined);
   });
 });

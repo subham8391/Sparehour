@@ -2,7 +2,6 @@
 // comes back, and the day lives in the address — `/today?day=2026-10-08` — so a reload keeps it. Plain helpers,
 // small enough for the keyboard layer that every shell carries.
 import { localDate, type LocalDate } from "@/core/time";
-import { monthName } from "@/core/time/format-day";
 
 /** The day a `?day=` value names, or null for none, or one that is not a calendar date. */
 export function parseDay(value: string | null | undefined): LocalDate | null {
@@ -27,17 +26,6 @@ export function openDay(day: LocalDate, today: LocalDate, from?: { pathname: str
   const href = dayHref(day, today);
   if (!from || from.pathname === "/today") window.history.replaceState(null, "", href);
   else from.go(href);
-}
-
-/**
- * The words quick-add files a new task on `day` with, ahead of its title (`N`, a click on free time): "today ",
- * "tomorrow ", "9 oct ". A day that has passed takes new tasks on today.
- */
-export function dayWords(day: LocalDate, today: LocalDate): string {
-  const n = day.since(today, { largestUnit: "days" }).days;
-  if (n <= 0) return "today ";
-  if (n === 1) return "tomorrow ";
-  return `${day.day} ${monthName(day).toLowerCase()}${day.year === today.year ? "" : ` ${day.year}`} `;
 }
 
 /** "Tomorrow", "Yesterday", "In 3 days", "4 days ago": the day as the stepped header names it. */

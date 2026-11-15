@@ -7,6 +7,7 @@ import type { Instant, LocalDate } from "@/core/time";
 import type { Priority } from "@/core/types";
 import type { TaskPatch, TaskRepo, TaskState } from "@/data/repositories/task-repo";
 import type { PlanMode } from "@/features/planning/drawing";
+import type { AddHere } from "@/features/quickadd/quick-add-provider";
 import { requestRow } from "@/features/tasks/row-request";
 import { requestOrganize } from "@/features/tasks/organize";
 import type { SnoozePreset } from "@/features/tasks/snooze";
@@ -37,7 +38,7 @@ export interface CommandContext {
   zone: string;
   tasks: TaskRepo;
   go: (href: string) => void;
-  quickAdd: (prefill?: string) => void;
+  quickAdd: (prefill?: string, here?: AddHere) => void;
   /** Opens the task's detail; with a field, that field's picker opens with it, focused. */
   openTask: (id: string, field?: DetailField) => void;
   /** The task whose detail is open, if any: E there opens the panel's own Estimate field. */
@@ -181,23 +182,19 @@ export const projectIn = (pathname: string): string | null => {
 };
 
 /**
- * N (SCREENS.md §24 "Add a task in the current list"): quick-add opened with the words that file the task where
- * the person is — the project's token on a project, "today" on Today (or the later day it was stepped to) — and
- * empty anywhere else.
+ * N (SCREENS.md §24 "Add a task in the current list"), and the shell's Add a task bar: where a task added here is
+ * filed when its line does not say. On Today, the day shown (today, or the day it was stepped to); on a project,
+ * that project; anywhere else nothing, which is plain quick add. The box is left empty: quick add shows the day or
+ * the project as a chip (DECISIONS.md, amendment 2026-11-15; before it, the words were typed into the box).
  */
-export async function prefillHere(ctx: Pick<CommandContext, "pathname" | "projectName" | "today">): Promise<string | undefined> {
+export async function addHere(ctx: Pick<CommandContext, "pathname" | "today">): Promise<AddHere | undefined> {
   if (ctx.pathname === "/today") {
-    const { dayWords, parseDay } = await loadDays();
+    const { parseDay } = await loadDays();
     const search = typeof window === "undefined" ? "" : window.location.search;
-    return dayWords(parseDay(new URLSearchParams(search).get("day")) ?? ctx.today, ctx.today);
+    return { day: (parseDay(new URLSearchParams(search).get("day")) ?? ctx.today).toString() };
   }
   const id = projectIn(ctx.pathname);
-  if (!id) return undefined;
-  const name = await ctx.projectName(id);
-  if (!name) return undefined;
-  // The token rules live with the quick-add parser, which stays out of the shell (SYSTEM_DESIGN.md §11.6).
-  const { projectToken } = await import("@/features/quickadd/interpret");
-  return `${projectToken(name)} `;
+  return id ? { projectId: id } : undefined;
 }
 
 export const ON_TODAY = { path: "/today", reason: "on Today" };
@@ -260,7 +257,7 @@ export const RUNS: readonly CommandRun[] = [
 
   // ---- create
   { id: "create.task", shortcut: "q", run: (ctx) => ctx.quickAdd() },
-  { id: "create.task-here", shortcut: "n", run: async (ctx) => ctx.quickAdd(await prefillHere(ctx)) },
+  { id: "create.task-here", shortcut: "n", run: async (ctx) => ctx.quickAdd(undefined, await addHere(ctx)) },
 
   // ---- go to
   // `G` then the view's first letter.

@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
 // Today on another day (SCREENS.md §2.1, §24): the `?day=` address, the way a day is opened, the header's words for
-// it, and the words quick-add files a new task there with.
+// it.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parse } from "@/core/quickadd/parse";
-import { readTypedDate } from "@/core/quickadd/read-date";
-import { instant, localDate } from "@/core/time";
-import { dayHref, dayWords, daysAway, openDay, parseDay } from "./day-address";
+import { localDate } from "@/core/time";
+import { dayHref, daysAway, openDay, parseDay } from "./day-address";
 
 const TODAY = localDate("2026-10-07");
 
@@ -42,32 +40,5 @@ describe("the stepped header", () => {
     expect(daysAway(localDate("2026-10-06"), TODAY)).toBe("Yesterday");
     expect(daysAway(localDate("2026-10-10"), TODAY)).toBe("In 3 days");
     expect(daysAway(localDate("2026-10-03"), TODAY)).toBe("4 days ago");
-  });
-});
-
-describe("quick-add's words for the day shown", () => {
-  const ctx = { now: instant("2026-10-07T08:00:00Z"), zone: "UTC" };
-  it("files a new task on that day, read the way quick-add reads it", () => {
-    for (const iso of ["2026-10-07", "2026-10-08", "2026-10-13", "2026-11-02", "2027-01-15"]) {
-      const words = dayWords(localDate(iso), TODAY);
-      expect(readTypedDate(words, ctx)?.date.toString()).toBe(iso);
-    }
-    expect(dayWords(localDate("2026-10-08"), TODAY)).toBe("tomorrow ");
-    expect(dayWords(localDate("2026-10-13"), TODAY)).toBe("13 oct ");
-  });
-
-  it("ahead of the title the person types, as quick-add holds them", () => {
-    for (const [iso, typed] of [
-      ["2026-10-08", "Call the bank"],
-      ["2026-10-13", "Buy milk ~15m"],
-    ]) {
-      const r = parse(`${dayWords(localDate(iso), TODAY)}${typed}`, ctx);
-      expect(r.ok && r.draft.doDate?.toString()).toBe(iso);
-      expect(r.ok && r.draft.title).toBe(typed.replace(" ~15m", ""));
-    }
-  });
-
-  it("a day that has passed takes new tasks on today", () => {
-    expect(dayWords(localDate("2026-10-05"), TODAY)).toBe("today ");
   });
 });

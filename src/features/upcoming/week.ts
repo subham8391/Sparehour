@@ -5,7 +5,6 @@
 // keyboard goes between columns.
 import type { Capacity } from "@/core/capacity";
 import { compareDates, formatMinutes, type LocalDate } from "@/core/time";
-import { monthName } from "@/core/time/format-day";
 import { heroState } from "@/features/today/ribbon";
 
 export const WEEK_DAYS = 7;
@@ -93,14 +92,6 @@ export function weekTotalLine(readouts: readonly (DayReadout | null)[], current:
   // An over day adds nothing rather than taking away: the total is the room left on the days that have some.
   const spare = readouts.reduce((sum, r) => sum + (r?.kind === "spare" ? r.min : 0), 0);
   return `${formatMinutes(spare)} spare ${when}`;
-}
-
-/** What quick add opens with from a day's "+ Add": words the parser reads back as that day. */
-export function dayPrefill(day: LocalDate, today: LocalDate): string {
-  const ahead = day.since(today, { largestUnit: "days" }).days;
-  if (ahead === 0) return "today ";
-  if (ahead === 1) return "tomorrow ";
-  return `${day.day} ${monthName(day)} `;
 }
 
 /** `←` / `→` move a task a day, never onto a day already gone. */

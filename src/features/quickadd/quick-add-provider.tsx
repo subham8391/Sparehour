@@ -25,8 +25,18 @@ const QuickAdd = dynamic(() => loadQuickAdd().then((m) => m.QuickAddConnected), 
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
 
+/**
+ * Where a task added "here" is filed when its line does not say (DECISIONS.md, amendment 2026-11-15): the day Today
+ * is showing (ISO date) or the project whose page is open. Nothing is typed into the box for it; the sheet's strip
+ * shows it as a chip that can be taken off.
+ */
+export interface AddHere {
+  day?: string;
+  projectId?: string;
+}
+
 interface QuickAddApi {
-  open: (prefill?: string) => void;
+  open: (prefill?: string, here?: AddHere) => void;
 }
 
 const QuickAddContext = createContext<QuickAddApi | null>(null);
@@ -38,16 +48,16 @@ export function useQuickAdd(): QuickAddApi {
 }
 
 export function QuickAddProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState({ open: false, initial: "", key: 0 });
+  const [state, setState] = useState<{ open: boolean; initial: string; key: number; here: AddHere | null }>({ open: false, initial: "", key: 0, here: null });
   // Typing anywhere opens quick-add with the key (SCREENS.md §1 rule 4). Until the lazy sheet has taken focus every
   // further key lands here too: those are appended to the same opening, never a fresh sheet that drops the earlier ones.
   const open = useCallback(
-    (prefill = "") => setState((s) => (s.open && prefill && s.initial ? { ...s, initial: s.initial + prefill } : { open: true, initial: prefill, key: s.key + 1 })),
+    (prefill = "", here: AddHere | null = null) => setState((s) => (s.open && prefill && s.initial ? { ...s, initial: s.initial + prefill } : { open: true, initial: prefill, key: s.key + 1, here })),
     [],
   );
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
   /** A fresh sheet holding exactly `text`: what an Undo of a discard brings back, never appended to anything. */
-  const reopen = useCallback((text: string) => setState((s) => ({ open: true, initial: text, key: s.key + 1 })), []);
+  const reopen = useCallback((text: string) => setState((s) => ({ open: true, initial: text, key: s.key + 1, here: s.here })), []);
   useEffect(() => preloadOnIdle(loadQuickAdd), []);
   // The "Add a task" shortcut: the sheet opens and the mark comes off the address, so a reload does not repeat it.
   // A beat after mounting, and the mark only goes as the sheet opens, so a mount that is undone first loses nothing.
@@ -134,6 +144,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
           key={state.key}
           open={state.open}
           initial={state.initial}
+          here={state.here}
           ctx={{ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }}
           onClose={close}
           onSubmit={onSubmit}
@@ -156,8 +167,9 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
  * pages), so the page simply runs on under it.
  *
  * `onAdd` is what the shell hands it: add a task where the person is (the `N` command), so on Today, or the day it
- * was stepped to, the task lands on that day and on a project in that project (DECISIONS.md, amendment 2026-11-15).
- * Without it the bar is plain quick add (`Q`), which files a line with no day in the Inbox.
+ * was stepped to, the task lands on that day and on a project in that project, with nothing typed into the box for
+ * it (DECISIONS.md, amendment 2026-11-15). Without it the bar is plain quick add (`Q`), which files a line with no
+ * day in the Inbox.
  */
 export function QuickAddBar({ onAdd }: { onAdd?: () => void }) {
   const { open } = useQuickAdd();

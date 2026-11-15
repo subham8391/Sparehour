@@ -101,13 +101,13 @@ test("step 2: a click highlights a row, Space ticks it, E and the chip edit its 
   await expect(readout).toContainText("1h picked · 1 task");
   expect(await waitForRow("select id from public.tasks where title = $1 and estimate_min = 60", [pick])).not.toBeNull();
 
-  // N, with nothing focused: quick add, already saying "today ".
+  // N, with nothing focused: quick add, for today. The box is empty; the day is the strip's chip (amendment 2026-11-15).
   await page.getByText("Tick what you’ll work on.").click();
   await page.keyboard.press("n");
   const taskBox = page.getByRole("textbox", { name: "Task" });
   await expect(taskBox).toBeFocused();
-  await expect(taskBox).toHaveValue("today ");
-  await taskBox.press("End");
+  await expect(taskBox).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Remove “Today”" })).toBeVisible();
   await taskBox.pressSequentially(`${added} ~15m`);
   await taskBox.press("Enter");
   await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();

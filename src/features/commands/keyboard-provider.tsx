@@ -122,7 +122,7 @@ export function KeyboardProvider({ children, onOpenPalette }: { children: ReactN
       zone,
       tasks,
       go: (href) => router.push(href),
-      quickAdd: (prefill) => quickAdd.open(prefill),
+      quickAdd: (prefill, here) => quickAdd.open(prefill, here),
       openTask: (id, field) => detail.open(id, field),
       detailId: detail.selectedId,
       toggleDetail: () => detail.toggle(selection.selectedId),

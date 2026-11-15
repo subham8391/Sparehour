@@ -11,7 +11,7 @@ import { CALENDAR_RUNS } from "./calendar-commands";
 import { RUNS } from "./command-runs";
 import { PALETTE_RUNS, type PaletteRun } from "./palette-runs";
 
-export { availability, keyBindings, prefillHere, targets, type Availability, type CommandContext, type PaletteScope, type Theme } from "./command-runs";
+export { availability, keyBindings, addHere, targets, type Availability, type CommandContext, type PaletteScope, type Theme } from "./command-runs";
 export type { PaletteContext, PaletteStep, StepAction } from "./palette-runs";
 
 export type CommandGroup = "Create" | "Go to" | "Day" | "Selected task" | "List" | "View" | "App";

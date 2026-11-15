@@ -48,7 +48,7 @@ import { RailColumn, UnplannedButton, UnplannedStrip } from "@/features/upcoming
 import { useWeekCapacity } from "@/features/upcoming/use-week-capacity";
 import { useWeekKeys } from "@/features/upcoming/use-week-keys";
 import { useWeekBand, useWeekMode } from "@/features/upcoming/use-week-view";
-import { clampOffset, dayPrefill, dayReadout, shiftDay, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
+import { clampOffset, dayReadout, shiftDay, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
 import { WeekColumns, bandColumns, columnIds, dayLabel, type ColumnDay } from "@/features/upcoming/week-columns";
 import { Button, iconButtonClass } from "@/ui/button";
 import { CollapsedGroup } from "@/ui/collapsed-group";
@@ -495,7 +495,8 @@ export default function UpcomingPage() {
               renderDue={(t) => compactRow(t, { selectable: false })}
               renderStarting={(d) => startingGroup(d, true)}
               onDropDay={dropOnDay}
-              onAdd={(d) => quickAdd.open(dayPrefill(d.day, today))}
+              // A day's "+ Add": the task is for that day, carried beside the line and never typed into the box (DECISIONS.md, amendment 2026-11-15).
+              onAdd={(d) => quickAdd.open("", { day: d.day.toString() })}
             />
           ) : (
             <>

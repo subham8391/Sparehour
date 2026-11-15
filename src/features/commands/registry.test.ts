@@ -331,24 +331,17 @@ describe("command registry", () => {
     expect(ctx.tasks.complete).not.toHaveBeenCalled();
   });
 
-  it("N files the new task where the person is: the project's token on a project, today on Today, nothing elsewhere", async () => {
-    const onProject = ctxWith({ pathname: "/project/p1", projectName: vi.fn(async () => "Acme") });
+  it("N files the new task where the person is, with nothing typed for them: the project on a project, the day on Today, nothing elsewhere", async () => {
+    const onProject = ctxWith({ pathname: "/project/p1" });
     await byId("create.task-here").run(onProject);
-    expect(onProject.projectName).toHaveBeenCalledWith("p1");
-    expect(onProject.quickAdd).toHaveBeenCalledWith("#Acme ");
-    const spaced = ctxWith({ pathname: "/project/p2", projectName: vi.fn(async () => "Acme redesign") });
-    await byId("create.task-here").run(spaced);
-    expect(spaced.quickAdd).toHaveBeenCalledWith('#"Acme redesign" ');
+    expect(onProject.quickAdd).toHaveBeenCalledWith(undefined, { projectId: "p1" });
     const today = ctxWith({ pathname: "/today" });
     await byId("create.task-here").run(today);
-    expect(today.quickAdd).toHaveBeenCalledWith("today ");
+    expect(today.quickAdd).toHaveBeenCalledWith(undefined, { day: "2026-09-14" });
     const inbox = ctxWith({ pathname: "/inbox" });
     await byId("create.task-here").run(inbox);
-    expect(inbox.quickAdd).toHaveBeenCalledWith(undefined);
-    // A project that is not on this device opens an empty quick-add rather than a wrong token.
-    const missing = ctxWith({ pathname: "/project/gone", projectName: vi.fn(async () => null) });
-    await byId("create.task-here").run(missing);
-    expect(missing.quickAdd).toHaveBeenCalledWith(undefined);
+    expect(inbox.quickAdd).toHaveBeenCalledWith(undefined, undefined);
+    // A project that is not on this device is still named by its id: the sheet finds no such project and files nothing there.
   });
 
   it("the palette can add a project and an area, through Browse's own forms", async () => {

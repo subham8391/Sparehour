@@ -85,6 +85,95 @@ describe("<QuickAdd>", () => {
     });
   });
 
+  describe("opened from a day or a project (DECISIONS.md, amendment 2026-11-15)", () => {
+    const strip = (input: HTMLElement) => document.getElementById(input.getAttribute("aria-describedby") ?? "") as HTMLElement;
+
+    it("the box is empty, and the strip already says the day and where it goes", () => {
+      const { input } = setup({ here: { day: "2026-09-12" } });
+      expect(input).toHaveValue("");
+      expect(strip(input)).toHaveTextContent("Tomorrow");
+      expect(strip(input)).toHaveTextContent("Upcoming");
+      expect(within(strip(input)).getByRole("button", { name: "Remove “Tomorrow”" })).toBeInTheDocument();
+    });
+
+    it("a plain line is saved on that day, with only the words typed in the box", async () => {
+      const { user, input, onSubmit } = setup({ here: { day: "2026-09-14" } });
+      await user.type(input, "Buy milk ~15m");
+      expect(input).toHaveValue("Buy milk ~15m");
+      expect(strip(input)).toHaveTextContent("Mon 14 Sep");
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const { draft } = onSubmit.mock.calls[0][0];
+      expect(draft).toMatchObject({ title: "Buy milk", estimateMin: 15 });
+      expect(String(draft.doDate)).toBe("2026-09-14");
+      // The next line typed in the same sheet goes on that day too.
+      await user.type(input, "Post the letter{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+      expect(String(onSubmit.mock.calls[1][0].draft.doDate)).toBe("2026-09-14");
+    });
+
+    it("on today itself the task is for today", async () => {
+      const { user, input, onSubmit } = setup({ here: { day: "2026-09-11" } });
+      await user.type(input, "Buy milk{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(String(onSubmit.mock.calls[0][0].draft.doDate)).toBe("2026-09-11");
+      expect(strip(input)).toHaveTextContent("Today");
+    });
+
+    it("a day the line names wins, and its chip gives the words back as any other does", async () => {
+      const { user, input, onSubmit } = setup({ here: { day: "2026-09-14" } });
+      await user.type(input, "Buy milk tomorrow");
+      expect(within(strip(input)).getByRole("button", { name: "Remove “Tomorrow”" })).toHaveAttribute("title", "Keep these words in the title");
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(String(onSubmit.mock.calls[0][0].draft.doDate)).toBe("2026-09-12");
+    });
+
+    it("taking the day's chip off sends the line to the Inbox, and it stays off for this sheet", async () => {
+      const { user, input, onSubmit } = setup({ here: { day: "2026-09-14" } });
+      await user.type(input, "Renew passport");
+      const chip = within(strip(input)).getByRole("button", { name: "Remove “Mon 14 Sep”" });
+      expect(chip).toHaveAttribute("title", "Don't file it here");
+      await user.click(chip);
+      expect(input).toHaveValue("Renew passport");
+      expect(input).toHaveFocus();
+      expect(strip(input)).toHaveTextContent("Inbox");
+      expect(strip(input)).not.toHaveTextContent("Mon 14 Sep");
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0].draft.doDate).toBeNull();
+    });
+
+    it("a day that has passed takes the task on today", async () => {
+      const { user, input, onSubmit } = setup({ here: { day: "2026-09-01" } });
+      await user.type(input, "Buy milk{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(String(onSubmit.mock.calls[0][0].draft.doDate)).toBe("2026-09-11");
+    });
+
+    it("on a project the line is filed there without its name in the box; a #name typed wins", async () => {
+      const { user, input, onSubmit } = setup({ here: { projectId: "p1" } });
+      expect(input).toHaveValue("");
+      expect(strip(input)).toHaveTextContent("Acme");
+      await user.type(input, "Write the brief{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({ projectId: "p1" });
+      expect(screen.getByRole("status")).toHaveTextContent("Added “Write the brief” to Acme");
+      await user.type(input, "Fix the footer #Website{Enter}");
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+      expect(onSubmit.mock.calls[1][0]).toMatchObject({ projectId: "p2" });
+    });
+
+    it("a project that is not on this device files nothing there, and with no here the sheet is as it always was", async () => {
+      const gone = setup({ here: { projectId: "nope" } });
+      expect(strip(gone.input)).not.toHaveTextContent("Inbox");
+      await gone.user.type(gone.input, "Buy milk{Enter}");
+      await waitFor(() => expect(gone.onSubmit).toHaveBeenCalled());
+      expect(gone.onSubmit.mock.calls[0][0]).toMatchObject({ projectId: null });
+      expect(gone.onSubmit.mock.calls[0][0].draft.doDate).toBeNull();
+    });
+  });
+
   it("a save that fails keeps the words in the box and says why; the next save clears the message", async () => {
     const onSubmit = vi
       .fn<(s: QuickAddSubmission) => Promise<void>>()

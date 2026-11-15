@@ -63,7 +63,7 @@ test("the breakdown button reads the equation; Enter pins it, the arrows step to
   await expect(panel).toHaveCount(0);
   await expect(button).toHaveAttribute("aria-expanded", "false");
 
-  // Open it again at free time and add: quick add opens holding "today ".
+  // Open it again at free time and add: quick add opens for today, with an empty box and the day as its chip.
   await button.focus();
   await page.keyboard.press("Enter");
   await expect(panel).toBeVisible();
@@ -71,7 +71,8 @@ test("the breakdown button reads the equation; Enter pins it, the arrows step to
   await panel.getByRole("button", { name: "Add something" }).click();
   const box = page.getByRole("textbox", { name: "Task" });
   await expect(box).toBeFocused();
-  await expect(box).toHaveValue("today ");
+  await expect(box).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Remove “Today”" })).toBeVisible();
   await expect(panel).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(box).toHaveCount(0);

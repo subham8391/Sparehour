@@ -2,6 +2,7 @@
 // in, and the line read again with the token kept as title words when it files nothing. Pure, so the sheet and the
 // MCP server's add_task (src/server/mcp) file a line the same way.
 import { parse, type ParseContext, type ParseResult, type Range, type TaskDraft } from "@/core/quickadd";
+import type { LocalDate } from "@/core/time";
 import { bestProjectMatch, projectMatches, projectsNamed, type QuickAddProject } from "./interpret";
 
 export interface QuickAddSubmission {
@@ -69,6 +70,31 @@ export function fileLine(text: string, parsed: Parsed, projects: readonly QuickA
     project: project?.name ?? (create ? name : null),
     unfiled: null,
   };
+}
+
+/**
+ * Where a task added "here" goes when its line does not say (DECISIONS.md, amendment 2026-11-15): the day Today is
+ * showing, or the project whose page is open. Nothing is typed into the box for it; the strip shows it as a chip.
+ */
+export interface Here {
+  day: LocalDate | null;
+  project: QuickAddProject | null;
+}
+
+/** The draft as it will be saved from here: a line that names no day of its own takes the day shown. */
+export function draftHere(draft: TaskDraft, here: Here): TaskDraft {
+  return here.day && !draft.doDate ? { ...draft, doDate: here.day } : draft;
+}
+
+/**
+ * A filed line, placed here: the day shown unless the line named one, and the page's project unless the line named
+ * one (`named`: it had a `#name`, whether or not that filed anywhere).
+ */
+export function fileHere(f: Filed, named: boolean, here: Here): Filed {
+  const draft = draftHere(f.submission.draft, here);
+  const project = here.project && !named && !f.submission.projectId && !f.submission.createProjectName ? here.project : null;
+  if (draft === f.submission.draft && !project) return f;
+  return { ...f, submission: { ...f.submission, draft, projectId: project?.id ?? f.submission.projectId }, project: project?.name ?? f.project };
 }
 
 /** "Added “Email the accountant” to Q4 planning", or why a #name stayed in the title. */

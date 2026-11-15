@@ -24,6 +24,9 @@ function Opener() {
       <button type="button" onClick={() => open("Prefilled")}>
         open prefilled
       </button>
+      <button type="button" onClick={() => open(undefined, { day: "2099-01-05" })}>
+        open on a day
+      </button>
       {/* Typing anywhere: three keys reach the provider before the lazy sheet can take focus. */}
       <button
         type="button"
@@ -89,6 +92,20 @@ describe("<QuickAddProvider>", () => {
     await user.keyboard(" more{Escape}");
     await user.click(screen.getByRole("button", { name: /Add a task Q/ }));
     expect(await screen.findByRole("textbox", { name: "Task" })).toHaveValue("");
+  });
+
+  it("opened on a day, the box is empty and the day is the strip's chip, not words typed for the person", async () => {
+    const user = setup();
+    await user.click(screen.getByRole("button", { name: "open on a day" }));
+    const box = await screen.findByRole("textbox", { name: "Task" });
+    expect(box).toHaveValue("");
+    const strip = document.getElementById(box.getAttribute("aria-describedby") ?? "") as HTMLElement;
+    expect(within(strip).getByRole("button", { name: /^Remove “.*5 Jan 2099”$/ })).toHaveAttribute("title", "Don't file it here");
+    // A fresh opening without a day has none.
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /Add a task Q/ }));
+    const again = await screen.findByRole("textbox", { name: "Task" });
+    expect(document.getElementById(again.getAttribute("aria-describedby") ?? "")?.querySelector("button")).toBeNull();
   });
 
   it("handed the shell's add-here, the bar and the FAB ask it instead and the bar names its key", async () => {

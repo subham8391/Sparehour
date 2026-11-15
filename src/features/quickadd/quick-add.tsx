@@ -9,7 +9,7 @@
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { estimateToken } from "@/core/estimates";
 import { parse, type Range, type Span, type TaskDraft } from "@/core/quickadd";
-import type { Instant, LocalDate, LocalTime } from "@/core/time";
+import { compareDates, localDate, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 import { UsualLine } from "@/features/estimates/usual-line";
 import { Button } from "@/ui/button";
 import { chipButtonClass, chipClass, type ChipTone } from "@/ui/chip";
@@ -35,7 +35,7 @@ import {
   type QuickAddProject,
   type QuickAddTag,
 } from "./interpret";
-import { addedNotice, chooseProject, fileLine, type ProjectChoice, type QuickAddSubmission } from "./file-line";
+import { addedNotice, chooseProject, draftHere, fileHere, fileLine, type Here, type ProjectChoice, type QuickAddSubmission } from "./file-line";
 
 export interface QuickAddContext {
   now: Instant;
@@ -159,6 +159,12 @@ export interface QuickAddProps {
   dayLine?: (draft: TaskDraft) => ReactNode;
   /** What a task like this usually takes, when that is not what the line counts it as (core/estimates `suggestEstimate`). */
   usual?: (task: { estimateMin: number | null; projectId: string | null }) => number | null;
+  /**
+   * "Add a task" on a day of Today or on a project's page (DECISIONS.md, amendment 2026-11-15): where a line that
+   * does not say goes. The box stays empty; the strip shows the day or the project as a chip from the start, and
+   * its remove control sends the line to the Inbox instead.
+   */
+  here?: { day?: string; projectId?: string } | null;
 }
 
 export function QuickAdd({
@@ -178,6 +184,7 @@ export function QuickAdd({
   flushRef,
   dayLine,
   usual,
+  here = null,
 }: {
   open: boolean;
   initial?: string;
@@ -197,6 +204,7 @@ export function QuickAdd({
   flushRef?: Ref<QuickAddFlush>;
   dayLine?: (draft: TaskDraft) => ReactNode;
   usual?: (task: { estimateMin: number | null; projectId: string | null }) => number | null;
+  here?: { day?: string; projectId?: string } | null;
 }) {
   // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title
   // text while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
@@ -244,6 +252,24 @@ export function QuickAdd({
   const spans = result.ok ? result.spans : [];
   const warnings = result.ok ? result.warnings : [];
 
+  // Where a line that does not say goes, when the sheet was opened from a day or a project (`here`). A day that has
+  // passed takes new tasks on today. Each can be taken off for this opening of the sheet.
+  const [hereOff, setHereOff] = useState<{ day?: boolean; project?: boolean }>({});
+  const hereIso = here?.day && !hereOff.day ? here.day : null;
+  const hereProjectId = here?.projectId && !hereOff.project ? here.projectId : null;
+  const place = useMemo<Here>(() => {
+    const day = hereIso ? localDate(hereIso) : null;
+    return { day: day && compareDates(day, ctx.today) < 0 ? ctx.today : day, project: hereProjectId ? (projects.find((p) => p.id === hereProjectId) ?? null) : null };
+  }, [hereIso, hereProjectId, projects, ctx.today]);
+  /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
+  const needsName = !result.ok && value.trim() !== "";
+  // With nothing typed yet the strip already says where a task added here will go: an untitled draft stands in.
+  const blank = useMemo(() => {
+    const r = parse("x", parseCtx);
+    return r.ok ? r.draft : null;
+  }, [parseCtx]);
+  const shown = draft ?? (!needsName && (place.day || place.project) ? blank : null);
+
   const projectName = draft?.projectName ?? null;
   const choice: ProjectChoice = draft ? chooseProject(draft, projects, picked, createProject) : { project: null, create: false, collision: [] };
   // Named exactly (or picked): nothing to suggest. Two of that name: those two, told apart by area, and no Create (§5.4).
@@ -252,7 +278,10 @@ export function QuickAdd({
   const suggestions = projectName && !exact ? (collision ? choice.collision : projectMatches(projectName, projects).slice(0, 3)) : [];
   const willCreate = choice.create;
   // A partial name that fits one project is filed there on save, so the strip says so now: it is the contract.
-  const match = choice.project;
+  const match = choice.project ?? (projectName ? null : place.project);
+  /** The day or the project in the strip is the page's, not the line's: its chip takes it off rather than un-parse words. */
+  const dayIsHere = Boolean(place.day && shown && !shown.doDate);
+  const projectIsHere = Boolean(place.project && !projectName);
   const projectLabel = match ? projectOptionLabel(match, projects) : projectName ? (willCreate ? `new project ${projectName}` : `${collision ? choice.collision[0].name : projectName}?`) : null;
 
   // The `@tag` the caret is in: its matches as chips, and "Create @name" when no tag is called that (SCREENS.md §11).
@@ -261,12 +290,12 @@ export function QuickAdd({
   const tagKnown = tagSpan ? resolveTag(tagName, tags) : null;
   const tagSuggestions = tagSpan && !tagKnown ? tagMatches(tagName, tags).slice(0, 3) : [];
   const newTags = draft ? draft.tagNames.filter((t) => !resolveTag(t, tags)) : [];
-  const interpretation = draft ? interpret(shape ? shape(draft) : draft, ctx.today, projectLabel, newTags) : null;
+  /** The draft as the strip and the day line read it: placed here, then as the caller files it. */
+  const asSaved = (d: TaskDraft) => (shape ? shape(draftHere(d, place)) : draftHere(d, place));
+  const interpretation = shown ? interpret(asSaved(shown), ctx.today, projectLabel, newTags) : null;
   // What finished tasks say this one will take, when that is not what the line counts it as: one tap writes it in
   // as the line's estimate, in place of the one typed (DECISIONS.md, amendment 2026-11-15).
   const usualMin = draft && usual ? usual({ estimateMin: draft.estimateMin, projectId: match?.id ?? null }) : null;
-  /** Tokens and no words (`tomorrow ~30m`): the save is blocked and the strip asks for a name (§5.4). */
-  const needsName = !result.ok && value.trim() !== "";
 
   const syncScroll = () => {
     if (paintRef.current && inputRef.current) paintRef.current.scrollLeft = inputRef.current.scrollLeft;
@@ -337,7 +366,7 @@ export function QuickAdd({
     if (!result.ok || busy) return Promise.resolve(false);
     const text = value;
     const literal = line.literal;
-    const filed = fileLine(text, result, projects, parseCtx, choice, literal);
+    const filed = fileHere(fileLine(text, result, projects, parseCtx, choice, literal), Boolean(result.draft.projectName), place);
     setLine({ text: "", literal: [] });
     setCreateProject(false);
     setPicked(null);
@@ -428,7 +457,7 @@ export function QuickAdd({
           unnamed += 1;
           continue;
         }
-        const filed = fileLine(pasted, r, projects, parseCtx, chooseProject(r.draft, projects, null, false));
+        const filed = fileHere(fileLine(pasted, r, projects, parseCtx, chooseProject(r.draft, projects, null, false)), Boolean(r.draft.projectName), place);
         try {
           const id = await onSubmit(filed.submission);
           if (typeof id === "string") ids.push(id);
@@ -512,7 +541,10 @@ export function QuickAdd({
           {interpretation && interpretation.facts.length > 0 ? (
             interpretation.facts.map((f, i) => {
               const from = factSpans(f, spans).filter((s) => UNPARSEABLE.has(s.kind) || s.kind === "notes");
-              return <FactChip key={i} fact={f} first={i === 0} onRemove={from.length > 0 ? () => (unparse(from), inputRef.current?.focus()) : undefined} />;
+              // A day or a project that came with the page has no words to give back: its chip takes it off.
+              const off = f.kind === "day" && dayIsHere ? "day" : f.kind === "project" && projectIsHere ? "project" : null;
+              const remove = from.length > 0 ? () => unparse(from) : off ? () => setHereOff((o) => ({ ...o, [off]: true })) : undefined;
+              return <FactChip key={i} fact={f} first={i === 0} here={Boolean(off)} onRemove={remove && (() => (remove(), inputRef.current?.focus()))} />;
             })
           ) : needsName ? (
             <span className="text-ink-2">Give it a name</span>
@@ -527,7 +559,7 @@ export function QuickAdd({
             </span>
           )}
           {usualMin != null && <UsualLine inline minutes={usualMin} onUse={takeUsual} />}
-          {draft && dayLine?.(shape ? shape(draft) : draft)}
+          {draft && dayLine?.(asSaved(draft))}
         </p>
         {warnings.length > 0 && (
           // A parse warning is a note, not a failure: ink-2 and the alert glyph (DESIGN_SYSTEM.md §2, ruling R1).
@@ -641,7 +673,7 @@ function Frame({ inline, onClose, children }: { inline: boolean; onClose: () => 
  * §5.1 rule 3): a 44 px target on touch that leaves the chip its own size. Facts after the first carry a hidden
  * separator so the live region reads as the strip did.
  */
-function FactChip({ fact, first, onRemove }: { fact: Fact; first: boolean; onRemove?: () => void }) {
+function FactChip({ fact, first, here = false, onRemove }: { fact: Fact; first: boolean; /** It came with the page (the day shown, the project open), not from words in the line. */ here?: boolean; onRemove?: () => void }) {
   const look = FACT_CHIP[fact.kind];
   // A project that is only a guess stays neutral until it resolves or the person asks to create it.
   const tone = fact.kind === "project" && fact.tentative ? "neutral" : look.tone;
@@ -658,7 +690,7 @@ function FactChip({ fact, first, onRemove }: { fact: Fact; first: boolean; onRem
             type="button"
             onClick={onRemove}
             aria-label={`Remove “${text}”`}
-            title="Keep these words in the title"
+            title={here ? "Don't file it here" : "Keep these words in the title"}
             className="-my-3 flex size-11 shrink-0 items-center justify-center rounded-sm opacity-70 transition-opacity dur-fast hover:opacity-100 sm:my-0 sm:size-5.5 hit-touch"
           >
             <Icon name="close" size={10} strokeWidth={2} />

@@ -139,12 +139,12 @@ describe("the wide band", () => {
     expect(within(fri).getByText("Send the report").closest("li")).not.toHaveAttribute("aria-current");
   });
 
-  it("+ Add opens quick add with the day's words", () => {
+  it("+ Add opens quick add for that day, with an empty box", () => {
     view();
     fireEvent.click(within(day(/^Fri 9/)).getByRole("button", { name: "Add a task on Fri 9" }));
-    expect(h.quickAdd.open).toHaveBeenCalledWith("9 Oct ");
+    expect(h.quickAdd.open).toHaveBeenCalledWith("", { day: "2026-10-09" });
     fireEvent.click(within(day(/^Wed 7/)).getByRole("button", { name: "Add a task on Wed 7" }));
-    expect(h.quickAdd.open).toHaveBeenLastCalledWith("tomorrow ");
+    expect(h.quickAdd.open).toHaveBeenLastCalledWith("", { day: "2026-10-07" });
   });
 
   it("caps a long column with …N more, which opens it in place", () => {

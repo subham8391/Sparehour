@@ -133,7 +133,8 @@ export default function PlanPage() {
       }}
       onMoveToTomorrow={(id) => void model.repo.reschedule(id, tomorrow)}
       onEstimate={(id, minutes) => void model.repo.update(id, { estimateMin: minutes })}
-      onAddTask={() => quickAdd.open("today ")}
+      // A task added while planning the day is for today: carried beside the line, never typed into the box (DECISIONS.md, amendment 2026-11-15).
+      onAddTask={() => quickAdd.open("", { day: model.today.toString() })}
       blocking={{
         timeline: placerTimeline(placer, findTask, detail.open, paused),
         // Paused: nothing waits for a tap that could not place it; the step says why over the timeline instead.

@@ -38,7 +38,7 @@ import { useTaskDetail } from "@/features/tasks/task-detail";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useToday } from "@/features/today/hooks/use-today";
-import { dayWords, daysAway, openDay, parseDay } from "@/features/today/day-address";
+import { daysAway, openDay, parseDay } from "@/features/today/day-address";
 import { registerViewKeys } from "@/features/commands/view-keys";
 import { buttonClass, iconButtonClass } from "@/ui/button";
 import { Icon } from "@/ui/icons";
@@ -623,7 +623,8 @@ export default function TodayPage() {
                 meetings: model.meetings,
                 blocks: model.blocks,
                 // Free time clicked: "Add something" for the day shown (SCREENS.md §2.2).
-                onAdd: () => quickAdd.open(dayWords(day, model.today)),
+                // The box opens empty; the day is the sheet's chip, not words typed for the person (amendment 2026-11-15).
+                onAdd: () => quickAdd.open("", { day: day.toString() }),
                 addFor: onToday ? undefined : formatDay(day, { today: model.today }),
                 onMeeting: (m) => {
                   // From the wide band an open detail stands in the day pane's place, and a put-away pane comes back.

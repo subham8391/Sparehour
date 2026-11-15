@@ -80,8 +80,12 @@ test("the Add a task bar on a later day files the task on that day; on the Inbox
   const title = uniqueTitle("bar on a later day");
   await bar.click();
   await expect(box).toBeFocused();
-  await expect(box).toHaveValue("tomorrow ");
+  // The box is empty: nothing is typed for the person. The day is a chip under it, there before a word is typed.
+  await expect(box).toHaveValue("");
+  const sheet = page.getByRole("dialog", { name: "Add a task" });
+  await expect(sheet.getByRole("button", { name: "Remove “Tomorrow”" })).toBeVisible();
   await box.pressSequentially(title);
+  await expect(box).toHaveValue(title);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -94,12 +98,34 @@ test("the Add a task bar on a later day files the task on that day; on the Inbox
   await openApp(page, "/today");
   const todays = uniqueTitle("bar on this day");
   await bar.click();
-  await expect(box).toHaveValue("today ");
+  await expect(box).toHaveValue("");
+  await expect(sheet.getByRole("button", { name: "Remove “Today”" })).toBeVisible();
   await box.pressSequentially(todays);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
   await page.keyboard.press("Escape");
   expect(await waitForRow("select 1 from public.tasks where title = $1 and do_date = $2", [todays, me.today])).not.toBeNull();
+
+  // Two days ahead it is the date, still as a chip and not as words; taking the chip off sends the line to the Inbox.
+  const later = isoPlus(me.today, 2);
+  await openApp(page, `/today?day=${later}`);
+  const unplaced = uniqueTitle("bar chip taken off");
+  await bar.click();
+  await expect(box).toHaveValue("");
+  await box.pressSequentially(unplaced);
+  await sheet.getByRole("button", { name: /^Remove “/ }).first().click();
+  await expect(box).toHaveValue(unplaced);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await waitForRow("select 1 from public.tasks where title = $1 and state = 'inbox' and do_date is null", [unplaced])).not.toBeNull();
+  const kept = uniqueTitle("bar two days on");
+  await bar.click();
+  await box.pressSequentially(kept);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Added" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await waitForRow("select 1 from public.tasks where title = $1 and do_date = $2", [kept, later])).not.toBeNull();
 
   // Where there is no day to mean, it is plain quick add: no day, so the Inbox.
   await openApp(page, "/inbox");

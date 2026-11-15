@@ -3,7 +3,7 @@ import { capacityFor } from "@/core/capacity";
 import { DAY, REFERENCE_DAY, task } from "@/core/capacity/__fixtures__/reference-day";
 import { formatMinutes, instant, localDate } from "@/core/time";
 import { heroState } from "@/features/today/ribbon";
-import { clampOffset, dayPrefill, dayReadout, neighbourColumn, shiftDay, startOfWeek, stepInColumn, weekBand, weekColumns, weekTotalLine, weekWindow, type DayReadout } from "./week";
+import { clampOffset, dayReadout, neighbourColumn, shiftDay, startOfWeek, stepInColumn, weekBand, weekColumns, weekTotalLine, weekWindow, type DayReadout } from "./week";
 
 const TUE = localDate("2026-10-06");
 const iso = (days: { toString(): string }[]) => days.map((d) => d.toString());
@@ -100,14 +100,6 @@ describe("the week total", () => {
     expect(weekTotalLine([r("spare", 200), r("spare", 65), r("over", 20), r("spare", 160), r("off", 0), r("off", 0), r("spare", 250)], true)).toBe("11h 15m spare this week");
     expect(weekTotalLine([r("spare", 60)], false)).toBe("1h spare that week");
     expect(weekTotalLine([r("off", 0), null], true)).toBe("No working hours this week");
-  });
-});
-
-describe("the words quick add opens with for a day", () => {
-  it("reads back as that day", () => {
-    expect(dayPrefill(TUE, TUE)).toBe("today ");
-    expect(dayPrefill(TUE.add({ days: 1 }), TUE)).toBe("tomorrow ");
-    expect(dayPrefill(localDate("2026-10-14"), TUE)).toBe("14 Oct ");
   });
 });
 
