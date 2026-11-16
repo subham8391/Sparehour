@@ -150,10 +150,11 @@ export default function LogbookPage() {
   );
 
   const defaultEstimateMin = settings?.defaultEstimateMin ?? 30;
+  const rolloverHour = settings?.dayRolloverHour ?? 4;
   const allDays = useMemo(() => {
     const kept = splitFinished(olderRows);
-    return logbookDays({ done: [...(data ?? []), ...kept.done], completions: [...(completions ?? []), ...kept.completions], dropped, zone, defaultEstimateMin });
-  }, [data, completions, dropped, olderRows, zone, defaultEstimateMin]);
+    return logbookDays({ done: [...(data ?? []), ...kept.done], completions: [...(completions ?? []), ...kept.completions], dropped, zone, rolloverHour, defaultEstimateMin });
+  }, [data, completions, dropped, olderRows, zone, rolloverHour, defaultEstimateMin]);
   const expired = useMemo(() => allDays.flatMap((d) => d.dropped.filter((e) => e.expired)), [allDays]);
 
   // What the filters choose from: the projects, areas and tags the Logbook has in it.

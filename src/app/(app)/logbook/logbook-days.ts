@@ -1,7 +1,9 @@
 // The Logbook's shape (SCREENS.md §8): finished and dropped tasks, newest
-// first, grouped by the local day they were finished or dropped on; each
+// first, grouped by the day they were finished or dropped on; each
 // day's dropped tasks kept apart for their collapsed sub-group. Pure.
-import { formatTime, instant, type LocalDate } from "@/core/time";
+// The day is the person's own, which starts at the rollover hour: what is
+// ticked at 01:00 is under the day that was ending (SYSTEM_DESIGN.md D11).
+import { formatTime, instant, todayFor, type LocalDate } from "@/core/time";
 import type { Task, TaskId } from "@/core/types";
 import { normaliseTimestamp, toTask } from "@/data/mappers";
 import type { TaskRow } from "@/data/schema.client";
@@ -44,16 +46,20 @@ export function logbookDays(input: {
   completions: readonly CompletionRow[] | undefined;
   dropped: readonly TaskRow[] | undefined;
   zone: string;
+  /** The hour the person's day starts (user_settings.day_rollover_hour); 4 when left out. */
+  rolloverHour?: number;
   defaultEstimateMin: number;
 }): LogbookDay[] {
+  const daySettings = { timezone: input.zone, dayRolloverHour: input.rolloverHour ?? 4 };
   const stamped: Stamped[] = [];
   const add = (when: string | null | undefined, kind: LogbookKind, key: string, task: Task, expired = false, took: number | null = null) => {
     if (!when) return;
-    const zoned = instant(normaliseTimestamp(when)).toZonedDateTimeISO(input.zone);
+    const at = instant(normaliseTimestamp(when));
+    const zoned = at.toZonedDateTimeISO(input.zone);
     const entry: LogbookEntry = { key, task, kind, at: formatTime(zoned.toPlainTime()) };
     if (expired) entry.expired = true;
     if (took != null && took > 0) entry.tookMin = took;
-    stamped.push({ ms: zoned.epochMilliseconds, day: zoned.toPlainDate(), entry });
+    stamped.push({ ms: zoned.epochMilliseconds, day: todayFor(daySettings, at), entry });
   };
   for (const r of input.done ?? []) add(r.completed_at, "done", r.id, toTask(r), false, r.actual_min);
   // A repeat's length is its finished day's, never the rolling task's.

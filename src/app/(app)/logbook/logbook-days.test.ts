@@ -46,3 +46,26 @@ describe("logbookDays and what tasks took", () => {
     expect(days[1].minutes).toBe(60);
   });
 });
+
+describe("logbookDays and the day's own start", () => {
+  // London in winter: UTC. The day starts at 04:00.
+  const group = (rolloverHour?: number) =>
+    logbookDays({
+      done: [row({ id: "late", completed_at: "2026-11-16T01:00:00Z" }), row({ id: "evening", completed_at: "2026-11-15T21:00:00Z" }), row({ id: "morning", completed_at: "2026-11-16T04:00:00Z" })],
+      completions: [],
+      dropped: [],
+      zone: "Europe/London",
+      rolloverHour,
+      defaultEstimateMin: 30,
+    }).map((d) => `${d.day.toString()}: ${d.done.map((e) => `${e.key} ${e.at}`).join(", ")}`);
+
+  it("puts what was ticked after midnight under the day that was ending, with its own clock time", () => {
+    expect(group(4)).toEqual(["2026-11-16: morning 04:00", "2026-11-15: late 01:00, evening 21:00"]);
+    // Left out, it is the app's default hour.
+    expect(group()).toEqual(group(4));
+  });
+
+  it("follows the person's hour: at midnight the calendar day is the day", () => {
+    expect(group(0)).toEqual(["2026-11-16: morning 04:00, late 01:00", "2026-11-15: evening 21:00"]);
+  });
+});

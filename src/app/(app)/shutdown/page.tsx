@@ -6,7 +6,7 @@ import { Loading } from "../loading-view";
 import { useMemo } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { capacityFor } from "@/core/capacity";
-import { Temporal } from "@/core/time";
+import { dayInstants } from "@/core/time";
 import { toCapacityBlock, toCapacityEvent, toCapacityTask, toTask, toWorkWindow } from "@/data/mappers";
 import { BLOCKS_AROUND_SQL, CALENDARS_SQL, EVENTS_AROUND_SQL, WORK_HOURS_SQL, dayWindowParams } from "@/data/queries/today";
 import { DAY_NOTES_SQL, DAY_PLAN_SQL, DONE_BETWEEN_SQL, PLANNED_BETWEEN_SQL, dayRangeParams, monthsBack } from "@/data/queries/views";
@@ -39,12 +39,10 @@ export default function ShutdownPage() {
   const tomorrow = today.add({ days: 1 });
   const todayIso = today.toString();
 
-  // The local day as instants, for "completed today".
-  const [dayStart, dayEnd] = useMemo(() => {
-    const start = today.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
-    const end = tomorrow.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
-    return [start, end];
-  }, [today, tomorrow, zone]);
+  // The day as instants, for "completed today": from its rollover hour to the next, so what is ticked after midnight
+  // counts for the day being shut down.
+  const rolloverHour = settings?.dayRolloverHour ?? 4;
+  const [dayStart, dayEnd] = useMemo(() => dayInstants(today, { timezone: zone, dayRolloverHour: rolloverHour }).map(String), [today, zone, rolloverHour]);
   const months = useMemo(() => monthsBack(today, 1), [today]);
 
   const { data: users } = useQuery<{ id: string; personal_space_id: string | null }>(USER_SQL);

@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { keyBetween } from "@/core/ordering";
-import { Temporal, formatMinutes, formatTime, instant, type LocalDate } from "@/core/time";
+import { Temporal, dayInstants, formatMinutes, formatTime, instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { sortToday, type TodaySort } from "@/core/today/sort";
 import type { Task } from "@/core/types";
@@ -340,10 +340,9 @@ export default function TodayPage() {
   const localTimeOf = (iso: string) => formatTime(instant(normaliseTimestamp(iso)).toZonedDateTimeISO(zone).toPlainTime());
   const closedAt = plan?.shutdown_at ? localTimeOf(plan.shutdown_at) : null;
   const plannedAt = plan?.planned_at ? localTimeOf(plan.planned_at) : null;
-  const dayBounds = useMemo(() => {
-    const midnight = (d: LocalDate) => d.toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from("00:00") }).toInstant().toString();
-    return [midnight(day), midnight(day.add({ days: 1 }))] as [string, string];
-  }, [day, zone]);
+  // The day from its rollover hour to the next: a task ticked at 01:00 is done on the day that is ending.
+  const rolloverHour = model.settings?.dayRolloverHour ?? 4;
+  const dayBounds = useMemo(() => dayInstants(day, { timezone: zone, dayRolloverHour: rolloverHour }).map(String) as [string, string], [day, zone, rolloverHour]);
   const months = useMemo(() => monthsBack(day, 1), [day]);
   // What was finished on the day: the closed day's summary, Show completed, the all-done state and a past day's list
   // all read it. The logbook subscription is the one use-today already holds for block states: no extra sync.

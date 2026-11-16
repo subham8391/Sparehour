@@ -41,6 +41,16 @@ export const todayFor = (settings: DaySettings, now: Instant): LocalDate => {
     : z.toPlainDate();
 };
 
+/**
+ * A day as the person lives it, as two instants: from its rollover hour to the next day's. What was finished "on
+ * the day" lies between them, so a task ticked at 01:00 belongs to the day that is ending (SYSTEM_DESIGN.md D11),
+ * the same day `todayFor` says it still is.
+ */
+export const dayInstants = (day: LocalDate, settings: DaySettings): [Instant, Instant] => {
+  const at = (d: LocalDate) => d.toZonedDateTime({ timeZone: settings.timezone, plainTime: new Temporal.PlainTime(settings.dayRolloverHour) }).toInstant();
+  return [at(day), at(day.add({ days: 1 }))];
+};
+
 export const addDays = (d: LocalDate, days: number): LocalDate => d.add({ days });
 
 export const compareDates = (a: LocalDate, b: LocalDate): -1 | 0 | 1 =>

@@ -227,9 +227,10 @@ describe("Today, stepped a day at a time", () => {
     expect(await within(done).findByRole("row")).toHaveTextContent("Filed the receipts");
     expect(within(done).queryByRole("button", { name: /Reopen/ })).not.toBeInTheDocument();
     expect(asked).toHaveLength(1);
-    // The day's bounds in the person's zone (UTC here): from its midnight, up to the next day's.
-    expect(asked[0].searchParams.get("from")).toBe(`${old}T00:00:00Z`);
-    expect(asked[0].searchParams.get("to")).toBe(`${old.add({ days: 1 })}T00:00:00Z`);
+    // The day's bounds on the person's clock (UTC here): from its rollover hour to the next day's, so a task ticked
+    // after midnight is asked for with the day that was ending.
+    expect(asked[0].searchParams.get("from")).toBe(`${old}T04:00:00Z`);
+    expect(asked[0].searchParams.get("to")).toBe(`${old.add({ days: 1 })}T04:00:00Z`);
     expect(await screen.findByText(/A day that has passed, as it was/)).toBeInTheDocument();
     expect(screen.queryByText(/Older finished tasks are in the Logbook/)).not.toBeInTheDocument();
   });

@@ -4,6 +4,7 @@ import {
   addDays,
   compareDates,
   dateOf,
+  dayInstants,
   formatMinutes,
   formatTime,
   instant,
@@ -24,6 +25,30 @@ const ZONES = [
   "Australia/Lord_Howe",
   "Pacific/Chatham",
 ];
+
+describe("dayInstants", () => {
+  const london = { timezone: "Europe/London", dayRolloverHour: 4 };
+
+  it("runs from the day's rollover hour to the next day's, on the person's own clock", () => {
+    // 04:00 BST is 03:00Z while summer time lasts.
+    expect(dayInstants(localDate("2026-09-14"), london).map(String)).toEqual(["2026-09-14T03:00:00Z", "2026-09-15T03:00:00Z"]);
+    expect(dayInstants(localDate("2026-09-14"), { timezone: "Europe/London", dayRolloverHour: 0 }).map(String)).toEqual(["2026-09-13T23:00:00Z", "2026-09-14T23:00:00Z"]);
+  });
+
+  it("holds exactly the moments todayFor calls that day", () => {
+    const [from, to] = dayInstants(localDate("2026-09-14"), london);
+    expect(todayFor(london, from).toString()).toBe("2026-09-14");
+    expect(todayFor(london, to.subtract({ seconds: 1 })).toString()).toBe("2026-09-14");
+    expect(todayFor(london, from.subtract({ seconds: 1 })).toString()).toBe("2026-09-13");
+    expect(todayFor(london, to).toString()).toBe("2026-09-15");
+  });
+
+  it("keeps a day that loses or gains an hour whole", () => {
+    // The clocks go back at 02:00 on Sun 25 Oct 2026, inside the day that began at 04:00 on the Saturday: 25 hours.
+    const [from, to] = dayInstants(localDate("2026-10-24"), london);
+    expect(to.since(from).total("hours")).toBe(25);
+  });
+});
 
 describe("todayFor", () => {
   const london = { timezone: "Europe/London", dayRolloverHour: 4 };
