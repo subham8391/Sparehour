@@ -10,6 +10,7 @@ import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
 import { reviveBlocks, type BlockRow } from "./block-revive";
 import type { RecurringRow } from "./recurring-completion";
+import type { TimeOf, TimedChange } from "./timed-block";
 import { placeholders, quoted, restoreRow, type Tx, type UndoRecorder } from "./undo";
 
 export type { UndoRecorder } from "./undo";
@@ -47,6 +48,20 @@ export interface NewTaskContext {
 }
 
 export type TaskState = "someday" | "dropped" | "archived" | "active";
+
+/**
+ * A task with a day and a time holds that time on the day as a block (timed-block.ts; DECISIONS.md, amendment
+ * 2026-11-16). The rules load the first time a write touches a day, a time or a length, never with a shell, and
+ * always after the task's own write: a task is never kept waiting on them, and if they cannot be loaded or fail
+ * the task is saved all the same, without its block.
+ */
+const keepTimes = (db: LocalDatabase, ids: readonly string[], was: readonly TimeOf[] | null): Promise<TimedChange | null> =>
+  import("./timed-block").then((m) => m.keepTimedBlocks(db, ids, was)).catch(() => null);
+/** The day, time and length of `ids` as they are, read before a write changes them. */
+const timesOf = async (db: LocalDatabase, ids: readonly string[]): Promise<TimeOf[]> => {
+  const rows = await db.getAll<TimeOf>(`select id, do_date, do_time, estimate_min from tasks where id in (${placeholders(ids)})`, [...ids]);
+  return Array.isArray(rows) ? rows : [];
+};
 
 export class TaskRepo {
   constructor(
@@ -142,6 +157,8 @@ export class TaskRepo {
         ]);
       }
     });
+    // "Workout 8am ~2h" is on the timeline from the moment it is added.
+    if (draft.doDate && draft.doTime) await keepTimes(this.db, [id], null);
     return id;
   }
 
@@ -157,6 +174,8 @@ export class TaskRepo {
     await this.db.writeTransaction(async (tx) => {
       await tx.execute(`update tasks set deleted_at = ?, updated_at = ? where id in (${placeholders(ids)}) and deleted_at is null`, [now, now, ...ids]);
       await tx.execute(`update task_tags set deleted_at = ?, updated_at = ? where task_id in (${placeholders(ids)}) and deleted_at is null`, [now, now, ...ids]);
+      // The blocks their times made go with them.
+      await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where task_id in (${placeholders(ids)}) and deleted_at is null`, [now, now, ...ids]);
     });
   }
 
@@ -191,7 +210,18 @@ export class TaskRepo {
     return restoreRow(tx, "tasks", { ...before, id }, columns, at, held);
   }
 
-  private remember(id: string, before: Snapshot | null, columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = [], announce?: string, took = false): void {
+  private remember(
+    id: string,
+    before: Snapshot | null,
+    columns: readonly string[],
+    label: string,
+    toast: boolean,
+    released: readonly BlockRow[] = [],
+    announce?: string,
+    took = false,
+    /** What the write did to the block the task's time holds: taken back with it. */
+    also: TimedChange | null = null,
+  ): void {
     if (!this.history || !before) return;
     const title = quoted(before.title);
     this.history.record({
@@ -199,12 +229,13 @@ export class TaskRepo {
       toast,
       ...(announce ? { announce: announce.replace("{title}", title) } : {}),
       ...(took ? { took: { table: "tasks", id } } : {}),
-      rows: { tasks: [id], time_blocks: released.map((b) => b.id) },
+      rows: { tasks: [id], time_blocks: [...released.map((b) => b.id), ...(also?.ids ?? [])] },
       // One transaction: sync takes a done or deleted row off the device a moment after it uploads, and
       // that must not land between restore's presence check and its write (the write would hit nothing).
       undo: () =>
         this.db.writeTransaction(async (tx) => {
           const at = new Date().toISOString();
+          if (also) await also.undo(tx, at);
           await this.restore(tx, before, id, columns, at);
           if (released.length > 0) await reviveBlocks(tx, released, at);
         }),
@@ -237,16 +268,17 @@ export class TaskRepo {
   }
 
   /** One undo entry for a batch: "Moved 4 tasks to tomorrow" (or the title when it is one). */
-  private rememberMany(before: readonly RowSnapshot[], columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = []): void {
+  private rememberMany(before: readonly RowSnapshot[], columns: readonly string[], label: string, toast: boolean, released: readonly BlockRow[] = [], also: TimedChange | null = null): void {
     if (!this.history || before.length === 0) return;
     const what = before.length === 1 ? quoted(before[0].title) : `${before.length} tasks`;
     this.history.record({
       label: label.includes("{title}") ? label.replace("{title}", what) : `${label} ${what}`,
       toast,
-      rows: { tasks: before.map((r) => r.id), time_blocks: released.map((b) => b.id) },
+      rows: { tasks: before.map((r) => r.id), time_blocks: [...released.map((b) => b.id), ...(also?.ids ?? [])] },
       undo: () =>
         this.db.writeTransaction(async (tx) => {
           const at = new Date().toISOString();
+          if (also) await also.undo(tx, at);
           for (const row of before) await this.restore(tx, row, row.id, columns, at);
           if (released.length > 0) await reviveBlocks(tx, released, at);
         }),
@@ -266,9 +298,13 @@ export class TaskRepo {
     const before = touched.length ? await this.snapshot(id, touched) : null;
     const { sets, args } = buildSets(patch);
     if (sets.length === 0) return;
+    // A new day, time or length moves the block the task's time holds (timed-block.ts).
+    const timing = "doDate" in patch || "doTime" in patch || "estimateMin" in patch;
+    const was = timing ? await timesOf(this.db, [id]) : null;
     await this.db.execute(`update tasks set ${sets.join(", ")}, updated_at = ? where id = ?`, [...args, new Date().toISOString(), id]);
     const released = "doDate" in patch ? await this.releaseBlocks([id], patch.doDate ?? null) : [];
-    this.remember(id, before, touched, note ?? "Changed", Boolean(note), released);
+    const also = timing ? await keepTimes(this.db, [id], was) : null;
+    this.remember(id, before, touched, note ?? "Changed", Boolean(note), released, undefined, false, also);
   }
 
   /**
@@ -281,9 +317,12 @@ export class TaskRepo {
     const { sets, args } = buildSets(patch);
     if (sets.length === 0) return;
     const before = await this.snapshotMany(ids, touched);
+    const timing = "doDate" in patch || "doTime" in patch || "estimateMin" in patch;
+    const was = timing ? await timesOf(this.db, ids) : null;
     await this.db.execute(`update tasks set ${sets.join(", ")}, updated_at = ? where id in (${placeholders(ids)})`, [...args, new Date().toISOString(), ...ids]);
     const released = "doDate" in patch ? await this.releaseBlocks(ids, patch.doDate ?? null) : [];
-    this.rememberMany(before, touched, note ?? "Changed", Boolean(note), released);
+    const also = timing ? await keepTimes(this.db, ids, was) : null;
+    this.rememberMany(before, touched, note ?? "Changed", Boolean(note), released, also);
   }
 
   async complete(id: string): Promise<void> {
@@ -349,7 +388,9 @@ export class TaskRepo {
       id,
     ]);
     const released = await this.releaseBlocks([id], doDate);
-    this.remember(id, before, cols, doDate ? "Moved" : "Unscheduled", true, released);
+    // The task keeps its time when it moves to another day: that day's block is made at it.
+    const also = await keepTimes(this.db, [id], null);
+    this.remember(id, before, cols, doDate ? "Moved" : "Unscheduled", true, released, undefined, false, also);
   }
 
   /** Files the task under a heading of its project (null: under none). */
@@ -411,10 +452,11 @@ export class TaskRepo {
       id,
     ]);
     const released = await this.releaseBlocks([id], day);
+    const also = await keepTimes(this.db, [id], null);
     if (!before) return;
-    if (text(before.do_date) !== day.toString()) this.remember(id, before, cols, `Moved {title} to ${await this.dayWords(day)}`, true, released);
-    else if (Boolean(before.evening) !== evening) this.remember(id, before, cols, evening ? "Moved {title} to the evening" : "Moved {title} out of the evening", true, released);
-    else this.remember(id, before, cols, "Reordered", false, released, await this.placeWords(id, "day"));
+    if (text(before.do_date) !== day.toString()) this.remember(id, before, cols, `Moved {title} to ${await this.dayWords(day)}`, true, released, undefined, false, also);
+    else if (Boolean(before.evening) !== evening) this.remember(id, before, cols, evening ? "Moved {title} to the evening" : "Moved {title} out of the evening", true, released, undefined, false, also);
+    else this.remember(id, before, cols, "Reordered", false, released, await this.placeWords(id, "day"), false, also);
   }
 
   /** A drag into another section reads "Moved “X” to Budget" with a toast; within the same one it is a silent reorder. */

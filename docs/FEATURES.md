@@ -81,6 +81,7 @@ Each feature is tagged with the milestone where it fits:
 | Morning review: the first open of a new day asks what to do with each carried-over task (Keep · Tomorrow · Someday · Drop · a picked day); skipped after an evening shutdown or a morning plan; switchable in Settings | M1 | Sunsama |
 | Two-way Google Calendar: read all, write blocks to one | M1 | Sunsama, Todoist |
 | Drag to time-block | M1 | Sunsama, Akiflow |
+| A task with a time holds that time on the day: its block is made for it (built 2026-11-16; DECISIONS.md, amendment of that date) | M1 | Sunsama, Structured |
 | "Plan my day": suggest → preview → approve, explains each placement, lockable blocks. **Built 2026-10-01, ahead of M2, at the customer's request:** template explanations now, AI wording later (§7); the Pro gate waits for billing (DECISIONS.md Q22) | M2 (built early) | Morgen, Akiflow |
 | One-click "re-plan the rest of today" (built 2026-10-01 with Plan my day: the same scheduler from now on) | M2 (built early) | Akiflow |
 | Weekly review wizard (stalled projects, no next step, waiting-for follow-ups) | Later (parked 2026-11-14) | OmniFocus, FacileThings |

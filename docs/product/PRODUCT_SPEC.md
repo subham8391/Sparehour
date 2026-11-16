@@ -448,7 +448,7 @@ This is the Llama Life "running total makes time feel real" mechanic (`07` §B13
 
 | Rule | Detail |
 |---|---|
-| Creating | Drag a task from the Today list onto the timeline; drag on empty timeline space for an ad-hoc block; `B` on a selected task places it in the next free gap large enough for its estimate. On phones (M1): tap the task, then tap a slot |
+| Creating | Drag a task from the Today list onto the timeline; drag on empty timeline space for an ad-hoc block; `B` on a selected task places it in the next free gap large enough for its estimate. On phones (M1): tap the task, then tap a slot. **As built (2026-11-16):** a task with a day and a time has its block made for it at that time ("Workout 8am ~2h" is on the timeline from 08:00 to 10:00), and the block follows a change of the task's time, length or day while it is unlocked, not started and still where it was made (DECISIONS.md, amendment of that date) |
 | Default length | The task's `estimate_min`, snapped to 5 minutes; an ad-hoc drag snaps to 15 |
 | A block is not a completion | Completing the task marks the block done; deleting a block never changes the task |
 | Locked blocks | `locked = true` pins a block so re-plan and Plan-my-day (M2) will not move it. Toggle with `L` or the padlock |

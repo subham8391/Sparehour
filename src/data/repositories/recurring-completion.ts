@@ -65,17 +65,25 @@ export async function completeRecurring(
       await tx.execute(`update tasks set state = 'done', completed_at = ?, updated_at = ? where id = ?`, [now, now, task.id]);
     }
   });
+  // A repeat with a time holds that time on its next day too (timed-block.ts).
+  const also = next
+    ? await import("./timed-block").then(
+        (m) => m.keepTimedBlocks(db, [task.id], null),
+        () => null,
+      )
+    : null;
   if (!history) return;
   history.record({
     label: `Completed ${quoted(before.title)}`,
     toast: true,
     // How long this day of it took is the completion's to keep (took.ts), not the rolling task's.
     took: { table: "task_completions", id: completionId },
-    rows: { tasks: [task.id], task_completions: [completionId], checklist_items: ticked },
+    rows: { tasks: [task.id], task_completions: [completionId], checklist_items: ticked, ...(also ? { time_blocks: also.ids } : {}) },
     // One transaction: sync takes a done row off the device a moment after it uploads (see restoreRow).
     undo: () =>
       db.writeTransaction(async (tx) => {
         const at = new Date().toISOString();
+        if (also) await also.undo(tx, at);
         await tx.execute(`update task_completions set deleted_at = ?, updated_at = ? where id = ?`, [at, at, completionId]);
         await restoreRow(tx, "tasks", { ...before, id: task.id }, cols, at);
         if (ticked.length > 0) await tx.execute(`update checklist_items set done = 1, updated_at = ? where id in (${placeholders(ticked)}) and done = 0`, [at, ...ticked]);

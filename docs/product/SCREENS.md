@@ -222,7 +222,7 @@ Same rows, separate section, separate budget. Evening tasks never consume workin
 |---|---|
 | Range | The working day, plus one hour of padding either side. Scrollable to the full 24h; zoom with `+` / `-` (30m / 15m / 5m rows) |
 | Meetings `▦` | Read-only. Title, time, attendee count. Never draggable. Declined and free-marked events are hidden |
-| Blocks `▓` | Draggable, resizable from either edge, `L` toggles the padlock. Double-click renames. Click selects and shows the task in the detail panel |
+| Blocks `▓` | Draggable, resizable from either edge, `L` toggles the padlock. Double-click renames. Click selects and shows the task in the detail panel. **As built (2026-11-16):** a task added or edited with a time is here at that time without Block being pressed, as an ordinary block; its row carries the block's chip in place of the plain time (DECISIONS.md, amendment of that date) |
 | **Now-line** | A full-width line with the current time, updating each minute, auto-scrolled into view on open |
 | **Projected finish** `┆` | A marker at the projected finish time, labelled "done by 4:30pm". When it lands past the end of the day, it pins to the edge and reads "40m past the end of your day" |
 | Free gaps | Show a faint "drop a task here" affordance on drag-over |

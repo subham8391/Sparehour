@@ -137,6 +137,17 @@ test("the Add a task bar on a later day files the task on that day; on the Inbox
   await page.keyboard.press("Escape");
   expect(await waitForRow("select 1 from public.tasks where title = $1 and do_date = $2 and do_time = '08:00' and estimate_min = 120", [timed, later])).not.toBeNull();
   await expect(page.getByRole("row").filter({ hasText: timed })).toBeVisible();
+  // And it holds that time on the day without Block being pressed (DECISIONS.md, amendment 2026-11-16): one block,
+  // from 08:00 on the person's own clock, two hours long.
+  expect(
+    await waitForRow(
+      `select 1 from public.time_blocks b join public.tasks t on t.id = b.task_id
+        where t.title = $1 and b.deleted_at is null and not b.locked
+          and b.start_at = (t.do_date + t.do_time) at time zone $2 and b.end_at - b.start_at = interval '2 hours'`,
+      [timed, me.timezone],
+    ),
+  ).not.toBeNull();
+  expect((await withDb((c) => c.query("select count(*)::int as n from public.time_blocks b join public.tasks t on t.id = b.task_id where t.title = $1 and b.deleted_at is null", [timed]))).rows[0].n).toBe(1);
 
   // Where there is no day to mean, it is plain quick add: no day, so the Inbox.
   await openApp(page, "/inbox");
