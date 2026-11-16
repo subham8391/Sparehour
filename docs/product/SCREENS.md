@@ -296,6 +296,8 @@ PRODUCT_SPEC.md §11; the engine is SYSTEM_DESIGN.md §5.5. Opened from the head
 
 **As built (2026-10-07; DECISIONS.md "Medium and narrow Today").** The narrow sheet and the medium two panes are superseded: below 1180 px Today is one pane with the List · Day control, and `Cmd+.` switches it; three panes only from 1180 px, where `Cmd+.` puts the day pane away. On the phone the ribbon card and the ritual row (List · Day) stick under the top edge while the lists pass beneath them on paper; Plan my day and Review carried, on the line under it, scroll with the lists, and while Plan my day's preview is open nothing sticks, since its sheet needs the room.
 
+**As built (2026-11-16).** Block on a row brings the timeline up on the first free time still ahead: the timeline's scroller is turned to it and, below 1180 px, the Day card is brought into the page with it, so the next tap needs no scrolling. The "Tap a time for …" bar (and a block's "Tap a new time for …") stays at the top of whatever scrolls it, with its Cancel, while the hours are turned.
+
 ---
 
 ## 3. Upcoming · rolling 7 days — M1

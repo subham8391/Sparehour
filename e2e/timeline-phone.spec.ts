@@ -128,6 +128,34 @@ test("Today's Day view: Move… then a tap moves a block, a tap on an empty time
   expect(Math.abs(box.y - (top + (S + 120) * 2.2 + 1))).toBeLessThan(3);
 });
 
+test("Block on a row turns the Day view to the first free time, with its Tap a time bar, and the tap needs no scrolling", async ({ page }) => {
+  const title = uniqueTitle("phone free");
+  const busy = uniqueTitle("phone busy");
+  mine.push(title, busy);
+  const tomorrow = isoPlus(me.today, 1);
+  const FREE = 14 * 60;
+  await withDb(async (c) => {
+    await seedTask(c, me, title, { estimate: 30, doDate: tomorrow });
+    // Tomorrow is taken from midnight to 14:00, so its first free time is far below where the timeline opens.
+    await seedBlock(c, me, { taskId: null, title: busy, start: 24 * 60, end: 24 * 60 + FREE });
+  });
+  await openApp(page, `/today?day=${tomorrow}`);
+  const row = page.getByRole("row").filter({ hasText: title });
+  await row.getByRole("button", { name: "More actions" }).tap();
+  await page.getByRole("menuitem", { name: `Block ${title}` }).tap();
+
+  // The Day view comes up on the free time: the bar and the stretch are both on screen.
+  const timeline = page.getByTestId("timeline");
+  await expect(page.getByRole("status").filter({ hasText: `Tap a time for “${title}”` })).toBeInViewport();
+  await expect(timeline.locator("[data-free]").first()).toBeInViewport();
+
+  // So the very next tap lands on it, with nothing scrolled by hand.
+  const p = await pointAt(timeline, FREE + 31, false);
+  expect(p.y).toBeLessThan(780 - 60);
+  await page.touchscreen.tap(p.x, p.y);
+  await expectTaskBlocks(title, [span(FREE + 30, FREE + 60)]);
+});
+
 test("the morning plan: the summary pinned over, the Easiest move under it, groups folding under 44 px headers, and step 3's Block then a tap", async ({ page }) => {
   const huge = uniqueTitle("phone plan huge");
   const small = uniqueTitle("phone plan small");

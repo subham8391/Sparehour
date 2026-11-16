@@ -328,10 +328,13 @@ export function BlockToolbar({
   );
 }
 
-/** The bar over the timeline while something waits for a tap (SCREENS.md §2.8): what it is, and Cancel (or Escape). */
+/**
+ * The bar over the timeline while something waits for a tap (SCREENS.md §2.8): what it is, and Cancel (or Escape).
+ * It stays at the top of whatever scrolls it, so the hours can be turned to without losing it.
+ */
 export function PlacingBar({ text, onCancel }: { text: string; onCancel: () => void }) {
   return (
-    <div role="status" className="mb-3 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-ink px-3 py-1.5 text-body-sm text-ink-inverse sm:min-h-9 touch:min-h-11">
+    <div role="status" className="sticky top-2 z-20 mb-3 flex min-h-11 items-center justify-between gap-3 rounded-lg bg-ink px-3 py-1.5 text-body-sm text-ink-inverse sm:min-h-9 touch:min-h-11">
       <span className="min-w-0 truncate">{text}</span>
       <button type="button" onClick={onCancel} className="flex h-11 shrink-0 items-center rounded-sm px-2 font-medium underline decoration-ink-inverse/50 hover:decoration-ink-inverse sm:h-7 touch:h-11">
         Cancel

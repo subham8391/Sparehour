@@ -296,6 +296,35 @@ export function Timeline(p: TimelineProps) {
   const openAt = nowShown && nowMin > opening.start + 6 * 60 ? nowMin - 90 : opening.start;
   // A grid column leaves this to the grid, which scrolls every day at once.
   const column = Boolean(p.column);
+
+  // A task that starts waiting for a time (SCREENS.md §2.8) is shown where it can go: the first free stretch still
+  // ahead is turned into view, and where the timeline scrolls in its own box, the card around it (the "Tap a time"
+  // bar with it) is brought into the page. Like the opening, it waits for the timeline to have a size: Block on a
+  // row is what shows a phone's Day view.
+  const freeAhead = c.free.find((g) => g.end - Math.max(g.start, elapsed) >= FREE_LABEL_MIN) ?? c.free.find((g) => g.end > elapsed) ?? null;
+  const freeAt = freeAhead ? Math.max(freeAhead.start, elapsed) : null;
+  const freeLen = freeAhead && freeAt !== null ? freeAhead.end - freeAt : 0;
+  const wantsFree = useRef(false);
+  const showFree = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    showFree.current = () => {
+      const box = boxRef.current;
+      const root = rootRef.current;
+      // Not before the opening below has turned the scroller to the working day: it would turn it back.
+      if (!wantsFree.current || !box || !root || root.offsetHeight === 0 || !scrolledFor.current) return;
+      wantsFree.current = false;
+      const scroller = scrollerOf(box);
+      if (scroller && freeAt !== null) {
+        const top = root.getBoundingClientRect().top + (freeAt - start) * scale - scroller.getBoundingClientRect().top;
+        const room = scroller.clientHeight;
+        // Left alone when a good part of it already shows.
+        if (top < 0 || top + Math.min(freeLen * scale, room / 2) > room) scroller.scrollTop += top - room / 4;
+      }
+      if (scroller === box && typeof box.scrollIntoView === "function") (box.closest<HTMLElement>("[data-day-frame]") ?? box).scrollIntoView({ block: "nearest" });
+    };
+  });
+  const placingTitle = p.placing?.title ?? null;
+
   useEffect(() => {
     const box = boxRef.current;
     const root = rootRef.current;
@@ -313,10 +342,17 @@ export function Timeline(p: TimelineProps) {
     };
     turn();
     if (typeof ResizeObserver !== "function") return;
-    const watch = new ResizeObserver(turn);
+    const watch = new ResizeObserver(() => {
+      turn();
+      showFree.current();
+    });
     watch.observe(box);
     return () => watch.disconnect();
   }, [scale, openAt, nowShown, nowMin, column]);
+  useEffect(() => {
+    wantsFree.current = placingTitle !== null && !column;
+    showFree.current();
+  }, [placingTitle, column]);
 
   // `+` / `-` and the palette's block commands reach the timeline on screen.
   const runRef = useRef<(r: string) => void>(() => undefined);
@@ -518,6 +554,7 @@ export function Timeline(p: TimelineProps) {
           {gaps.map((g, i) => (
             <div
               key={`f${i}`}
+              data-free
               className="pointer-events-none absolute right-2 flex items-center justify-center rounded-sm bg-spare-soft/45 text-label font-semibold text-spare num"
               style={{ ...INSIDE, top: y(g.start) + 1, height: (g.end - g.start) * scale - 2 }}
             >

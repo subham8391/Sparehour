@@ -135,7 +135,7 @@ export function useAddBlock(day: PlacingDay, placer: PlacingApi, off: string | n
 
 function PaneFrame({ start, end, bufferPct, hint, note, bar, timeline }: Pick<DayPaneProps, "start" | "end" | "bufferPct" | "hint"> & { note?: string | null; bar?: ReactNode; timeline: ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
+    <div data-day-frame className="rounded-xl border border-line bg-surface bg-daylight px-4 pt-4 pb-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:bg-none lg:p-0">
       <h2 className="font-display text-pane font-medium text-ink">Your day</h2>
       <p className="mt-1 mb-4.5 text-body-sm text-ink-3 num">
         {formatTime(timeFromMinutes(start))} – {formatTime(timeFromMinutes(end))} · buffer {bufferPct}%
