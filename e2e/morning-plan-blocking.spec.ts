@@ -185,8 +185,21 @@ test("step 3: the picked tasks without a time sit beside the timeline; a drag, B
   await page.keyboard.press("b");
   await expect(page.getByRole("status").filter({ hasText: `Tap a time for “${keyed}”` })).toHaveCount(0);
   await expect(blockOn(timeline, keyed)).toBeAttached();
+  // Its estimate long, while the day has room. Between midnight and the rollover hour the app's today has already
+  // ended: B then puts the block at the day's very end, cut to what is left of it, so only the block itself is asked for.
+  const dayHasRoom = me.minute >= me.rollover * 60;
   await expect
-    .poll(async () => (await withDb((c) => c.query<{ n: number }>("select count(*)::int as n from public.time_blocks b join public.tasks t on t.id = b.task_id where t.title = $1 and b.deleted_at is null and b.end_at - b.start_at = interval '25 minutes'", [keyed]))).rows[0].n)
+    .poll(
+      async () =>
+        (
+          await withDb((c) =>
+            c.query<{ n: number }>(
+              "select count(*)::int as n from public.time_blocks b join public.tasks t on t.id = b.task_id where t.title = $1 and b.deleted_at is null and (not $2::boolean or b.end_at - b.start_at = interval '25 minutes')",
+              [keyed, dayHasRoom],
+            ),
+          )
+        ).rows[0].n,
+    )
     .toBe(1);
   await expect(toBlock).toHaveCount(0);
   await expect(left).toContainText("everything picked has a time");

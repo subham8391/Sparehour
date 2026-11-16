@@ -4,6 +4,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import type { Client } from "pg";
 import { seedKey, withDb, type DevAccount } from "./db";
+import { E2E_PREFIX } from "./helpers";
 
 /** "19:05" for a minute of the day, as the app writes it. */
 export function hhmm(minute: number): string {
@@ -89,8 +90,14 @@ export async function drag(
 /**
  * The first start, of a few, with `len` minutes clear of the account's blocks and meetings on its day: CI's seed
  * puts blocks and meetings inside the working day, so the evening comes first.
+ *
+ * What earlier specs left on the timeline is removed first (one worker, so nothing else is running): their rows wait
+ * for the global teardown, and a task typed with a time now holds that time as a block (DECISIONS.md, amendment
+ * 2026-11-16), so by the phone project every stretch could be taken and the last resort, midnight, puts a block
+ * where its own toolbar covers the next taps.
  */
 export async function quietStretch(c: Client, me: DevAccount, len = 240): Promise<number> {
+  await c.query("delete from public.time_blocks b where b.user_id = $1 and (b.title like $2 or b.task_id in (select t.id from public.tasks t where t.title like $2))", [me.uid, `${E2E_PREFIX}%`]);
   for (const start of [19 * 60, 20 * 60, 5 * 60, 0]) {
     const end = Math.min(24 * 60, start + len);
     const { rows } = await c.query<{ n: number }>(

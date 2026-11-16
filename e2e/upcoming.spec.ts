@@ -2,10 +2,8 @@
 // T moves the selected row to today, and the write reaches Postgres.
 import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { waitForRow } from "./db";
-import { clickTitle, openApp, quickAdd, uniqueTitle } from "./helpers";
-
-const ZONE = "Europe/London";
+import { devAccount, isoPlus, waitForRow, withDb } from "./db";
+import { clickTitle, DEV_USER, openApp, quickAdd, uniqueTitle } from "./helpers";
 
 /**
  * A day column shows six rows and folds the rest behind "…N more" (SCREENS.md §3); CI's seed fills days, so a
@@ -24,10 +22,14 @@ test("tomorrow's task is under tomorrow; T brings it to today", async ({ page })
   await openApp(page, "/upcoming");
   const title = uniqueTitle("upcoming");
   await quickAdd(page, `${title} tomorrow`);
-  // Day labels follow the account's zone (Europe/London), not the machine's: late in the evening they differ.
-  const label = (d: Date) => new RegExp(`^${d.toLocaleDateString("en-GB", { weekday: "short", timeZone: ZONE })} ${d.toLocaleDateString("en-GB", { day: "numeric", timeZone: ZONE })}`);
-  const tomorrow = new Date(Date.now() + 86_400_000);
-  const dayLabel = label(tomorrow);
+  // Days are the account's own: its zone, and a day that starts at its rollover hour, so between midnight and that
+  // hour "tomorrow" is still the calendar's today. Read from the account, never from this machine's clock.
+  const { today } = await withDb((c) => devAccount(c, DEV_USER.email));
+  const label = (iso: string) => {
+    const d = new Date(`${iso}T12:00:00Z`);
+    return new RegExp(`^${d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })} ${d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" })}`);
+  };
+  const dayLabel = label(isoPlus(today, 1));
   const column = page.getByRole("group", { name: dayLabel });
   const row = await rowIn(column, title);
 
@@ -38,8 +40,7 @@ test("tomorrow's task is under tomorrow; T brings it to today", async ({ page })
   await page.keyboard.press("Escape");
   await expect(row).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("t");
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: ZONE });
   expect(await waitForRow("select id from public.tasks where title = $1 and do_date = $2", [title, today])).not.toBeNull();
-  const todayLabel = label(new Date());
+  const todayLabel = label(today);
   await rowIn(page.getByRole("group", { name: todayLabel }), title);
 });

@@ -7,8 +7,8 @@ import { devAccount, freshMorning, morningBack, waitForRow, withDb, type ClosedD
 import { DEV_USER, openApp, uniqueTitle } from "./helpers";
 
 const DIALOG = "Review carried-over tasks";
-// The dev account's local day: Europe/London, rolling over at 04:00 (its day_rollover_hour), as the app reckons it.
-const LOCAL_TODAY = "(timezone('Europe/London', now()) - interval '4 hours')::date";
+// The dev account's own day, as the app reckons it: its zone and its rollover hour, read from its settings.
+const LOCAL_TODAY = `(select (timezone(s.timezone, now()) - make_interval(hours => s.day_rollover_hour))::date from public.user_settings s join public.users u on u.id = s.user_id where u.email = '${DEV_USER.email}')`;
 const PLAN = `select carry_reviewed_at from public.day_plans p join public.users u on u.id = p.user_id where u.email = $1 and p.date = ${LOCAL_TODAY} and p.carry_reviewed_at is not null`;
 
 const first = uniqueTitle("carried one");

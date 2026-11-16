@@ -7,8 +7,9 @@
 // before the do-date says so, and "Do it by then" moves the day.
 //
 // The tasks live in a project of their own, so the list holds only them
-// however crowded the account is. Typed words are read against the calendar
-// day in the account's zone (the app's Today waits for the rollover hour).
+// however crowded the account is. Typed words are read against the app's own
+// today, which starts at the account's rollover hour: at 1am "today" is still
+// the day that is ending.
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { devAccount, isoPlus, waitForRow, withDb, type DevAccount } from "./db";
@@ -21,14 +22,11 @@ const early = uniqueTitle("pick due early");
 const projectName = uniqueTitle("pickers");
 
 let me: DevAccount;
-/** The calendar date in the account's zone: what typed words like "today" mean. */
-let calendarToday = "";
 let projectId = "";
 
 test.beforeAll(async () => {
   await withDb(async (c) => {
     me = await devAccount(c, DEV_USER.email);
-    calendarToday = (await c.query<{ d: string }>("select timezone($1, now())::date::text as d", [me.timezone])).rows[0].d;
     projectId = (await c.query<{ id: string }>("insert into public.projects (id, space_id, name, state, sort_key) values (gen_random_uuid(), $1, $2, 'active', 'y0000000000000000000000051') returning id", [me.sid, projectName])).rows[0].id;
     const seed: [string, number | null, string | null, string | null, string][] = [
       [keyed, null, null, null, "a0"],
@@ -81,7 +79,7 @@ test("D, ⇧D, ⇧S, E and R open their pickers focused; 'fri 3pm' sets the day 
   await words.press("Enter");
   await expect(doPicker).toHaveCount(0);
   expect(
-    await waitForRow(`${TASK} and t.do_time = '15:00' and extract(isodow from t.do_date) = 5 and t.do_date between $2::date and $2::date + 7`, [keyed, calendarToday]),
+    await waitForRow(`${TASK} and t.do_time = '15:00' and extract(isodow from t.do_date) = 5 and t.do_date between $2::date and $2::date + 7`, [keyed, me.today]),
   ).not.toBeNull();
   await expect(panel.getByRole("button", { name: /^Do/ })).toContainText("15:00");
 
@@ -109,7 +107,7 @@ test("D, ⇧D, ⇧S, E and R open their pickers focused; 'fri 3pm' sets the day 
   await page.keyboard.type("today");
   await page.keyboard.press("Enter");
   await expect(starts).toHaveCount(0);
-  expect(await waitForRow(`${TASK} and t.start_date = $2::date`, [keyed, calendarToday])).not.toBeNull();
+  expect(await waitForRow(`${TASK} and t.start_date = $2::date`, [keyed, me.today])).not.toBeNull();
 
   // E: the Estimate popover with the minutes field focused.
   await page.keyboard.press("e");

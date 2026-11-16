@@ -2,8 +2,8 @@
 // Someday and can come back; a completed one is in the Logbook under today.
 import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { waitForRow, withDb } from "./db";
-import { openApp, quickAdd, uniqueTitle } from "./helpers";
+import { devAccount, waitForRow, withDb } from "./db";
+import { DEV_USER, openApp, quickAdd, uniqueTitle } from "./helpers";
 
 // This test's own rows, removed whether it passed or not: a retry, or the next spec in the shard, must not meet them
 // (a leftover "E2E done …" in the Inbox once matched another spec's "Done" button).
@@ -44,7 +44,8 @@ test("Someday parks a task and Today brings it back; the Logbook lists what was 
   const parkedRow = page.getByRole("row").filter({ hasText: parked });
   await expect(parkedRow).toBeVisible();
   await rowAction(parkedRow, "Today", true);
-  const today = new Date().toISOString().slice(0, 10);
+  // The app's today: the account's day, which starts at its rollover hour, not at midnight and not in UTC.
+  const { today } = await withDb((c) => devAccount(c, DEV_USER.email));
   expect(await waitForRow("select id from public.tasks where title = $1 and state = 'active' and do_date = $2", [parked, today])).not.toBeNull();
 
   await page.getByRole("link", { name: /^Inbox/ }).click();

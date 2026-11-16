@@ -1,22 +1,31 @@
 // Quick add says what a line would do to its day before it is saved (DECISIONS.md, amendment 2026-11-14): the
 // strip's last line reads "Leaves 2h 50m spare tomorrow" from the same capacity Upcoming shows, a line with no
 // estimate counts as the default and says so, and a line with no day, or one for the evening, says nothing.
-// Nothing is saved here. Working hours cover every day for the run, so the day named is always a working day.
+// Nothing is saved here. Working hours cover every day for the run, so the day named is always a working day, and
+// the account's open tasks through tomorrow are stood aside (afterAll puts them back exactly): before the day rolls
+// over, everything still open on the day that is ending is about to land on "tomorrow", and CI's crowded seed then
+// fills it past its end, so the line would say what spills instead of what is left.
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { addAllDayHours, devAccount, withDb } from "./db";
+import { addAllDayHours, devAccount, isoPlus, putBack, standAside, withDb, type StoodAside } from "./db";
 import { DEV_USER, openApp } from "./helpers";
 
 let hours: string[] = [];
+let stood: StoodAside[] = [];
 
 test.beforeAll(async () => {
   await withDb(async (c) => {
-    hours = await addAllDayHours(c, await devAccount(c, DEV_USER.email));
+    const me = await devAccount(c, DEV_USER.email);
+    hours = await addAllDayHours(c, me);
+    stood = await standAside(c, me, isoPlus(me.today, 2), 3);
   });
 });
 
 test.afterAll(async () => {
-  if (hours.length) await withDb((c) => c.query("delete from public.work_hours where id = any($1::uuid[])", [hours]));
+  await withDb(async (c) => {
+    if (hours.length) await c.query("delete from public.work_hours where id = any($1::uuid[])", [hours]);
+    await putBack(c, stood);
+  });
 });
 
 /** "2h 50m" → 170. */
