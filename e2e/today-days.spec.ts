@@ -70,7 +70,9 @@ test("] shows tomorrow — its tasks and timeline, blockable — the address kee
 
 // DECISIONS.md, amendment 2026-11-15: the user stepped Today to Monday, pressed "Add a task", typed a name and found
 // the task in the Inbox. The bar now adds where the person is, as `N` does.
-test("the Add a task bar on a later day files the task on that day; on the Inbox it still goes to the Inbox", async ({ page }) => {
+test("the Add a task bar on a later day files the task on that day, and a time typed there is that day's time", async ({ page }) => {
+  // Four tasks typed and read back from Postgres: more than the usual minute on a slow runner.
+  test.slow();
   const tomorrow = isoPlus(me.today, 1);
   await openApp(page, `/today?day=${tomorrow}`);
   await expect(page.getByRole("button", { name: "back to today" })).toBeVisible();
@@ -148,9 +150,13 @@ test("the Add a task bar on a later day files the task on that day; on the Inbox
     ),
   ).not.toBeNull();
   expect((await withDb((c) => c.query("select count(*)::int as n from public.time_blocks b join public.tasks t on t.id = b.task_id where t.title = $1 and b.deleted_at is null", [timed]))).rows[0].n).toBe(1);
+});
 
+test("the Add a task bar on the Inbox still files to the Inbox", async ({ page }) => {
   // Where there is no day to mean, it is plain quick add: no day, so the Inbox.
   await openApp(page, "/inbox");
+  const bar = page.getByRole("button", { name: /^Add a task N$/ });
+  const box = page.getByRole("textbox", { name: "Task" });
   const loose = uniqueTitle("bar in the inbox");
   await bar.click();
   await expect(box).toHaveValue("");
