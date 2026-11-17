@@ -18,7 +18,7 @@ import { MorningPlanFlow } from "@/features/rituals/morning-plan-flow";
 import { LazyPlanIsland, usePlanPreview } from "@/features/planning/use-plan-preview";
 import { useTomorrowSpare } from "@/features/rituals/use-tomorrow-spare";
 import { useNow } from "@/features/shell/use-local-day";
-import { minuteOnDay } from "@/features/today/day-minute";
+import { minuteFromDay, minuteOnDay } from "@/features/today/day-minute";
 import { useToday } from "@/features/today/hooks/use-today";
 import { useConvertToProject } from "@/features/tasks/use-convert";
 import { usePlacing } from "@/features/blocking/use-placing";
@@ -87,7 +87,7 @@ export default function PlanPage() {
     free: cap?.free ?? [],
     dayStart: cap?.windows[0]?.start ?? 9 * 60,
     dayEnd: cap?.windows[cap.windows.length - 1]?.end ?? 17 * 60,
-    nowMinute: nowMin,
+    nowMinute: minuteFromDay(now, zone, model.today),
     defaultEstimateMin: model.settings?.defaultEstimateMin ?? 30,
     findTask,
     // Calendar access revoked or the write calendar gone: blocking pauses here as on Today (PRODUCT_SPEC.md §10.3 rule 5).

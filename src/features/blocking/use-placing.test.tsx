@@ -55,6 +55,28 @@ describe("usePlacing", () => {
     expect(result.current.placer.selectedBlockId).toBe("new");
   });
 
+  it("B past midnight, on a day that has not rolled over yet, blocks the time it is on the next date: nothing here to show or select", async () => {
+    // 01:32 the next morning: the day's own free time is all behind.
+    const onPlaced = vi.fn();
+    const { result } = setup({ nowMinute: 1532, onPlaced });
+    await act(async () => result.current.blocking.blockTask("t2"));
+    expect(repo.create).toHaveBeenCalledWith({ spaceId: "s1", userId: "u1", taskId: "t2", title: "Task t2", startAt: "2026-10-08T01:30:00Z", endAt: "2026-10-08T02:00:00Z", late: true });
+    expect(onPlaced).not.toHaveBeenCalled();
+    expect(result.current.placer.selectedBlockId).toBeNull();
+    // What is left of a task already part blocked, as on the day itself.
+    repo.create.mockClear();
+    const part = setup({ nowMinute: 1532, blocks: [block("b1", "t1", 540, 630)] });
+    await act(async () => part.result.current.blocking.blockTask("t1"));
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ taskId: "t1", startAt: "2026-10-08T01:30:00Z", endAt: "2026-10-08T03:00:00Z", late: true }));
+    // One its blocks cover still just has its first block selected, on the day's own timeline.
+    repo.create.mockClear();
+    const covered = setup({ nowMinute: 1532, blocks: [block("b2", "t2", 540, 570)], onPlaced });
+    await act(async () => covered.result.current.blocking.blockTask("t2"));
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(onPlaced).toHaveBeenCalledTimes(1);
+    expect(covered.result.current.placer.selectedBlockId).toBe("b2");
+  });
+
   it("a task with a block takes a second one for what is left; one whose blocks cover it just has its first selected", async () => {
     const { result } = setup({ blocks: [block("b1", "t1", 540, 630)] });
     await act(async () => result.current.blocking.blockTask("t1"));

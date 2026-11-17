@@ -17,7 +17,7 @@ import { usePlacing, type PlacingState } from "@/features/blocking/use-placing";
 import { PENDING_BLOCKS_SQL, blockSync } from "@/features/today/block-sync";
 import { useCalendarState } from "@/features/today/calendar-state";
 import { placerTimeline } from "@/features/today/day-pane";
-import { minuteOnDay } from "@/features/today/day-minute";
+import { minuteFromDay, minuteOnDay } from "@/features/today/day-minute";
 import type { TimelineBlock } from "@/features/today/hooks/use-today";
 import { PlacingBar, Timeline, ZoomControl, drawnRange, useTimelineZoom, type TimelineProps } from "@/features/today/timeline";
 import { ReadoutText } from "@/features/upcoming/capacity-bar";
@@ -255,7 +255,7 @@ function PlacingColumn({
   isToday: boolean;
 }) {
   const windows = c.windows;
-  const nowMinute = isToday ? minuteOnDay(p.now, p.zone, d.day).minute : null;
+  const nowMinute = isToday ? minuteFromDay(p.now, p.zone, d.day) : null;
   const placer = usePlacing({
     day: d.day,
     zone: p.zone,

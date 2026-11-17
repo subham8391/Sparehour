@@ -298,6 +298,8 @@ PRODUCT_SPEC.md §11; the engine is SYSTEM_DESIGN.md §5.5. Opened from the head
 
 **As built (2026-11-16).** Block on a row brings the timeline up on the first free time still ahead: the timeline's scroller is turned to it and, below 1180 px, the Day card is brought into the page with it, so the next tap needs no scrolling. The "Tap a time for …" bar (and a block's "Tap a new time for …") stays at the top of whatever scrolls it, with its Cancel, while the hours are turned.
 
+**As built (2026-11-17).** Past midnight, while today has not rolled over yet (the rollover hour, 04:00 by default), today is drawn as a day that is over: the eyebrow says Evening, the ribbon is elapsed from end to end, Shutdown is offered and the timeline has no now line. `B` on a row (and the palette's Add time block) then blocks the time it is, which is on the next date: the screen stays as it is, the toast names the time ("Blocked “Draft” 01:30–02:00"), and the block is on the next day's timeline and in the Calendar (DECISIONS.md, amendment 2026-11-17).
+
 ---
 
 ## 3. Upcoming · rolling 7 days — M1

@@ -51,6 +51,17 @@ export function chooseSlot(free: readonly Interval[], fromMin: number, durationM
   return placeAt(Math.max(snapTo(dayEndMin), from), durationMin);
 }
 
+/**
+ * Where `B` puts a block once the clock has passed the day's midnight while the day still lasts (until its rollover
+ * hour): at the time it is, counted on from the day's midnight (01:30 is 1530), so on the next date. The day's own
+ * hours are all behind by then, and a block there would be made in the past. Null while now is on the day itself.
+ */
+export function lateSlot(nowMin: number, durationMin: number): Interval | null {
+  if (nowMin < 24 * 60) return null;
+  const start = snapTo(nowMin);
+  return { start, end: start + Math.max(durationMin, MIN_BLOCK_MIN) };
+}
+
 /** Where a pointer at `offsetPx` from the top of the timeline lands, snapped. */
 export function minuteAtOffset(offsetPx: number, pxPerMinute: number, dayStartMin: number, step = SNAP_MIN): number {
   return clampMinute(snapTo(dayStartMin + offsetPx / pxPerMinute, step));

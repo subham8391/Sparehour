@@ -56,6 +56,17 @@ describe("BlockRepo", () => {
     expect(history.record.mock.calls[2][0]).toMatchObject({ label: "Blocked “Draft the proposal”", toast: true, announce: "Blocked “Draft the proposal” 14:30–15:15" });
   });
 
+  it("a block made past midnight, where no timeline on screen draws it, names its time in the toast", async () => {
+    const { db, getOptional } = fakeDb();
+    getOptional.mockResolvedValue({ timezone: "Europe/London" });
+    const history = { record: vi.fn() };
+    const repo = new BlockRepo(db, history);
+    await repo.create({ spaceId: "s", userId: "u", taskId: "t1", title: "Draft the proposal", startAt: "2026-11-17T01:30:00Z", endAt: "2026-11-17T02:00:00Z", late: true });
+    expect(history.record.mock.calls[0][0]).toMatchObject({ label: "Blocked “Draft the proposal” 01:30–02:00", toast: true });
+    await repo.create({ spaceId: "s", userId: "u", taskId: null, title: "Block", startAt: "2026-11-17T01:30:00Z", endAt: "2026-11-17T02:00:00Z", late: true });
+    expect(history.record.mock.calls[1][0]).toMatchObject({ label: "Added a block 01:30–02:00", toast: true });
+  });
+
   it("undoing a removal after sync took the block off the device puts it back as it was, in one transaction", async () => {
     // Seen in the walkthrough: Remove, then Undo on the toast a few seconds later did nothing.
     const block = { id: "b1", space_id: "s", user_id: "u", task_id: "t1", title: "Draft", start_at: "2026-09-14T08:00:00Z", end_at: "2026-09-14T08:45:00Z", locked: 0, source: "manual", deleted_at: null };

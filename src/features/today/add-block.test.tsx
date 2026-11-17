@@ -63,6 +63,15 @@ describe("Add time block on today's day pane", () => {
     stop();
   });
 
+  it("past midnight, on a day that has not rolled over yet, the block is at the time it is on the next date, and the pane is left as it is", () => {
+    const d = day({ nowMinute: 1532 });
+    const p = placer();
+    renderHook(() => useAddBlock(d, p, null));
+    expect(requestAddBlock()).toBe(true);
+    expect(p.createAdHoc).toHaveBeenCalledWith(1530, 1560);
+    expect(d.onPlaced).not.toHaveBeenCalled();
+  });
+
   it("waits while the pane shows another day, and makes nothing while blocking is paused", () => {
     const p = placer();
     const { rerender } = renderHook(({ dd, off }) => useAddBlock(dd, p, off), { initialProps: { dd: day({ nowMinute: null }), off: null as string | null } });

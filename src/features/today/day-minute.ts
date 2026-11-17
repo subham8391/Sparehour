@@ -18,3 +18,14 @@ export function minuteOnDay(now: Instant, zone: string, day: LocalDate): DayMinu
   if (c > 0) return { minute: 24 * 60, onDay: false };
   return { minute: z.hour * 60 + z.minute, onDay: true };
 }
+
+/**
+ * The wall-clock minutes from `day`'s midnight to `now`, running on past 1440 once the clock is on a later date
+ * (01:30 the next morning is 1530); 0 before the day. Today lasts until its rollover hour, so this is how far into
+ * it now really is: what `B` reads, where `minuteOnDay` stops at the day's own last minute.
+ */
+export function minuteFromDay(now: Instant, zone: string, day: LocalDate): number {
+  const z = now.toZonedDateTimeISO(zone);
+  const days = day.until(z.toPlainDate(), { largestUnit: "days" }).days;
+  return days < 0 ? 0 : days * 24 * 60 + z.hour * 60 + z.minute;
+}

@@ -19,6 +19,11 @@ export interface NewBlock {
   title: string | null;
   startAt: string; // ISO instant
   endAt: string;
+  /**
+   * Made past midnight on a day that has not rolled over yet (`B` before the rollover hour): it is on the next date,
+   * where the timeline on screen does not draw it, so its toast names the time.
+   */
+  late?: boolean;
 }
 
 /** What Approve writes: the chosen blocks, and the plan's earlier blocks they replace. */
@@ -52,12 +57,14 @@ export class BlockRepo {
        values (?, ?, ?, ?, ?, ?, ?, 0, 'manual', 'local', ?, ?)`,
       [id, block.spaceId, block.userId, block.taskId, block.title, block.startAt, block.endAt, now, now],
     );
+    const span = this.history ? await this.span(block.startAt, block.endAt) : "";
+    // A block of your own (no task) is "a block" until it is named.
+    const made = block.taskId === null ? "Added a block" : block.title ? `Blocked “${block.title}”` : "Blocked time";
     this.history?.record({
-      // A block of your own (no task) is "a block" until it is named.
-      label: block.taskId === null ? "Added a block" : block.title ? `Blocked “${block.title}”` : "Blocked time",
+      label: block.late ? `${made} ${span}`.trim() : made,
       toast: true,
       rows: { time_blocks: [id] },
-      announce: `${block.title ? `Blocked “${block.title}”` : "Blocked time"} ${await this.span(block.startAt, block.endAt)}`.trim(),
+      announce: `${block.title ? `Blocked “${block.title}”` : "Blocked time"} ${span}`.trim(),
       undo: () => this.db.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [new Date().toISOString(), new Date().toISOString(), id]).then(() => undefined),
     });
     return id;
@@ -84,11 +91,12 @@ export class BlockRepo {
     if (before) {
       const what = quoted(block.title ?? before.title);
       const on = formatDay(day);
+      const span = await this.span(block.startAt, block.endAt);
       this.history?.record({
-        label: `Blocked ${what} on ${on}`,
+        label: block.late ? `Blocked ${what} on ${on} ${span}`.trim() : `Blocked ${what} on ${on}`,
         toast: true,
         rows: { tasks: [block.taskId], time_blocks: [id] },
-        announce: `Blocked ${what} on ${on} ${await this.span(block.startAt, block.endAt)}`.trim(),
+        announce: `Blocked ${what} on ${on} ${span}`.trim(),
         undo: () =>
           this.db.writeTransaction(async (tx) => {
             const at = new Date().toISOString();

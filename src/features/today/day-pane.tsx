@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatTime, timeFromMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
-import { chooseSlot } from "@/core/blocking";
+import { chooseSlot, lateSlot } from "@/core/blocking";
 import { onAddBlock } from "@/features/blocking/add-block-request";
 import { usePlacing, type PlacingApi, type PlacingDay } from "@/features/blocking/use-placing";
 import { PENDING_BLOCKS_SQL, blockSync } from "./block-sync";
@@ -112,6 +112,13 @@ export function useAddBlock(day: PlacingDay, placer: PlacingApi, off: string | n
   useEffect(() => {
     add.current = () => {
       if (off || day.nowMinute === null) return;
+      // Past midnight on a day that has not rolled over yet: at the time it is, on the next date (`B`'s rule), where
+      // this pane does not draw it, so there is no title to open.
+      const late = lateSlot(day.nowMinute, 30);
+      if (late) {
+        void placer.createAdHoc(late.start, late.end);
+        return;
+      }
       day.onPlaced?.();
       const slot = chooseSlot(day.free, Math.max(day.nowMinute, day.dayStart), 30, day.dayEnd);
       void placer.createAdHoc(slot.start, Math.min(slot.end, slot.start + 30)).then((id) => {

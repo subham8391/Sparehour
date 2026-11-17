@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockLength, chooseSlot, minuteAtOffset, nextFreeGap, overlaps, placeAt, resizeEnd, snapTo } from "./index";
+import { blockLength, chooseSlot, lateSlot, minuteAtOffset, nextFreeGap, overlaps, placeAt, resizeEnd, snapTo } from "./index";
 
 describe("blocking arithmetic", () => {
   it("B always finds somewhere: a fitting gap, else the widest gap shrunk, else after the day", () => {
@@ -15,6 +15,15 @@ describe("blocking arithmetic", () => {
     expect(chooseSlot(free, 1000, 60, 1080)).toEqual({ start: 1080, end: 1140 });
     expect(chooseSlot([], 1100, 60, 1080)).toEqual({ start: 1100, end: 1160 });
     expect(chooseSlot([], 1420, 60, 1080)).toEqual({ start: 1420, end: 1440 });
+  });
+  it("past the day's midnight B has no gap to look in: the block is at the time it is, counted on from that midnight", () => {
+    // Still on the day, however late: the chooser above answers.
+    expect(lateSlot(1439, 30)).toBeNull();
+    expect(lateSlot(600, 30)).toBeNull();
+    // 00:00 and 01:32 on the next date, snapped; never shorter than five minutes.
+    expect(lateSlot(1440, 30)).toEqual({ start: 1440, end: 1470 });
+    expect(lateSlot(1532, 45)).toEqual({ start: 1530, end: 1575 });
+    expect(lateSlot(1530, 0)).toEqual({ start: 1530, end: 1535 });
   });
   it("snaps to five minutes by default and to fifteen for ad-hoc drags", () => {
     expect(snapTo(553)).toBe(555);

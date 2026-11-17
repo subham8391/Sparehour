@@ -2,9 +2,10 @@
 // rows, the timeline's toolbar and the placing hook share it without carrying one another.
 import { timeFromMinutes, toInstant, type LocalDate } from "@/core/time";
 
-/** The ISO instant of a minute of `day` in `zone`; 24:00 is the next midnight. */
+/** The ISO instant of a minute of `day` in `zone`; 24:00 is the next midnight, and a minute past it is on the next date (1530 is 01:30 there). */
 export function instantAt(day: LocalDate, zone: string, minute: number): string {
-  return (minute >= 24 * 60 ? toInstant(day.add({ days: 1 }), timeFromMinutes(0), zone) : toInstant(day, timeFromMinutes(minute), zone)).toString();
+  const days = Math.floor(minute / (24 * 60));
+  return toInstant(days > 0 ? day.add({ days }) : day, timeFromMinutes(days > 0 ? minute - days * 24 * 60 : minute), zone).toString();
 }
 
 /** "09:30" → 570, "24:00" → 1440; null for anything else. */

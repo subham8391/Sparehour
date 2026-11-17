@@ -5,7 +5,7 @@
 // plan's last step, and written for any day so the Calendar and day stepping can take it as they are.
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useQuery } from "@/data/powersync";
-import { blockLength, chooseSlot, coveredMinutes, placeAt, snapTo } from "@/core/blocking";
+import { blockLength, chooseSlot, coveredMinutes, lateSlot, placeAt, snapTo } from "@/core/blocking";
 import type { Interval } from "@/core/capacity";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
@@ -27,7 +27,10 @@ export interface PlacingDay {
   /** The working day, in minutes of the day; `B` starts no earlier than its start, and spills past its end. */
   dayStart: number;
   dayEnd: number;
-  /** The minute it is now when `day` is today; null on any other day. */
+  /**
+   * The minute it is now when `day` is today, counted on past 1440 once the clock has passed midnight and the day has
+   * not rolled over yet (`minuteFromDay`); null on any other day.
+   */
   nowMinute: number | null;
   defaultEstimateMin: number;
   findTask: (id: string) => Task | undefined;
@@ -87,9 +90,12 @@ export function usePlacing(d: PlacingDay) {
     if (d.off) return null;
     const user = users?.[0];
     if (!user?.personal_space_id) return null;
-    const block = { spaceId: user.personal_space_id, userId: user.id, taskId: task?.id ?? null, title, startAt: atMinute(start), endAt: atMinute(end) };
+    // Past the day's midnight (`B` before the rollover hour): the block is on the next date, where this day's timeline
+    // does not draw it, so there is nothing here to select and its toast names the time instead.
+    const late = start >= 24 * 60;
+    const block = { spaceId: user.personal_space_id, userId: user.id, taskId: task?.id ?? null, title, startAt: atMinute(start), endAt: atMinute(end), ...(late ? { late } : {}) };
     const id = task && d.movesTasks && !task.doDate?.equals(d.day) ? await repo.createOnTaskDay({ ...block, taskId: task.id }, d.day) : await repo.create(block);
-    setSelectedBlockId(id);
+    if (!late) setSelectedBlockId(id);
     return id;
   };
   /** A new block for the task at `startMin` (several blocks per task are allowed, PRODUCT_SPEC.md §10.2). */
@@ -125,19 +131,28 @@ export function usePlacing(d: PlacingDay) {
   };
 
   // `B`, the palette and the detail's "Block it": what is left of the task, in the next free gap that fits, from now.
-  // A task its blocks already cover just has its first block selected.
+  // A task its blocks already cover just has its first block selected. Past midnight on a day that has not rolled
+  // over yet, the day's own hours are all behind: the block goes at the time it is, on the next date.
   const blockInNextGap = (taskId: string) => {
     const task = d.findTask(taskId);
     if (!task) return;
-    d.onPlaced?.();
     setPlacing(null);
     const existing = ofTask(task.id);
     const whole = blockLength(task.estimateMin, d.defaultEstimateMin);
-    if (existing.length > 0 && whole - coveredMinutes(existing) < 15) {
+    const covered = existing.length > 0 && whole - coveredMinutes(existing) < 15;
+    const length = nextBlockLength(task, existing, d.defaultEstimateMin);
+    const late = covered ? null : lateSlot(d.nowMinute ?? 0, length);
+    // The screen shows this day's timeline for what is made or selected on it; a block past midnight is not there.
+    if (!late) d.onPlaced?.();
+    if (covered) {
       setSelectedBlockId(existing[0].id);
       return;
     }
-    const slot = chooseSlot(d.free, Math.max(d.nowMinute ?? 0, d.dayStart), nextBlockLength(task, existing, d.defaultEstimateMin), d.dayEnd);
+    if (late) {
+      void create(task, task.title, late.start, late.end);
+      return;
+    }
+    const slot = chooseSlot(d.free, Math.max(d.nowMinute ?? 0, d.dayStart), length, d.dayEnd);
     void placeTask(task, slot.start);
   };
   const blockRef = useRef(blockInNextGap);

@@ -22,6 +22,7 @@ import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon
 import { useTaskDrag } from "@/features/today/task-drag";
 import { loadDragAdapter } from "@/features/tasks/drag-adapter";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
+import { minuteFromDay } from "@/features/today/day-minute";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualActions, RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
@@ -280,10 +281,10 @@ export default function TodayPage() {
   const dayStart = windows[0]?.start ?? 9 * 60;
   const dayEnd = windows[windows.length - 1]?.end ?? 17 * 60;
   const defaultEstimate = model.settings?.defaultEstimateMin ?? 30;
-  const nowMinute = (() => {
-    const z = now.toZonedDateTimeISO(zone);
-    return z.hour * 60 + z.minute;
-  })();
+  // How far into today now is: past midnight the day still lasts until its rollover hour, so it runs on past 1440
+  // (what `B` reads); for everything drawn or decided here the day's own hours are then all behind.
+  const nowFromDay = minuteFromDay(now, zone, model.today);
+  const nowMinute = Math.min(nowFromDay, 24 * 60);
   const findTask = (id: string): Task | undefined => [...model.carried, ...model.todayTasks, ...model.eveningTasks].find((t) => t.id === id);
   // The selected block, and tap-to-schedule: "Block…" on a row, then a tap on the timeline (Escape lets go). The
   // placing itself — B, drops, moves, copies, blocks of your own — runs in the day pane's island (use-placing.ts).
@@ -844,7 +845,7 @@ export default function TodayPage() {
               free: model.capacity.free,
               dayStart,
               dayEnd,
-              nowMinute: onToday ? nowMinute : null,
+              nowMinute: onToday ? nowFromDay : null,
               defaultEstimateMin: defaultEstimate,
               findTask,
               onPlaced: () => setView("day"),

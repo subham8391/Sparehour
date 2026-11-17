@@ -245,6 +245,22 @@ describe("Today, stepped a day at a time", () => {
   });
 });
 
+describe("Today past midnight, before the day rolls over (DECISIONS.md, amendment 2026-11-17)", () => {
+  it("the day that is ending is drawn as behind: its evening, the whole ribbon elapsed, Shutdown offered", async () => {
+    // 01:30 on the 17th: with the day turning at 04:00 today is still the 16th, and every working hour of it is over.
+    vi.spyOn(Temporal.Now, "instant").mockReturnValue(Temporal.Instant.from("2026-11-17T01:30:00Z"));
+    db.insert("tasks", { id: "late-1", title: "Finish the deck", space_id: "s1", state: "active", deleted_at: null, sort_key: "z1", day_sort_key: "z1", start_date: null, evening: 0, do_date: "2026-11-16", estimate_min: 60 });
+    const { container } = view();
+    expect(await screen.findByRole("heading", { level: 1, name: formatDay(Temporal.PlainDate.from("2026-11-16"), { weekday: "long", month: "long", today: Temporal.PlainDate.from("2026-11-16") }) })).toBeInTheDocument();
+    await waitFor(() => expect(rows().some((r) => r.includes("Finish the deck"))).toBe(true));
+    expect(screen.getByText("Today · Evening")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Shutdown/ }).length).toBeGreaterThan(0);
+    // Not a ribbon with the whole working day still ahead.
+    const elapsed = container.querySelector<HTMLElement>(".ribbon-elapsed");
+    expect(elapsed?.style.width).toBe("100%");
+  });
+});
+
 describe("what the merged units draw on a stepped day", () => {
   it("a later day draws its tasks as started there, though a start date is still ahead of today (rows' dimming)", async () => {
     db.insert("tasks", { id: "tom-start", title: "Pitch the deck", space_id: "s1", state: "active", deleted_at: null, sort_key: "z", day_sort_key: "z", start_date: tomorrow.toString(), do_date: tomorrow.toString(), evening: 0 });
