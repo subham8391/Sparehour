@@ -1,4 +1,4 @@
-// The estimate presets (PRODUCT_SPEC.md §9.2): 15m · 30m · 45m · 1h · 1h 30m · 2h · 3h · 4h, plus minutes typed in.
+// The estimate presets (PRODUCT_SPEC.md §9.2): 15m · 30m · 45m · 1h · 1h 30m · 2h · 3h · 4h, plus a length typed in (minutes, or hours and minutes).
 // One list for every picker that offers them: the row's chip, the detail's Estimate field, E and the bulk bar.
 import { formatMinutes } from "@/core/time";
 

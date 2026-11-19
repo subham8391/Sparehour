@@ -41,11 +41,12 @@ test("the detail panel edits every field, and each write lands in Postgres", asy
 
   // Estimate.
   await panel.getByRole("button", { name: /^Estimate/ }).click();
-  const minutes = page.getByRole("dialog", { name: "Estimate" }).getByLabel("Minutes");
-  await minutes.fill("45");
+  const minutes = page.getByRole("dialog", { name: "Estimate" }).getByLabel("Length");
+  // Hours and minutes, as a person writes them.
+  await minutes.fill("2h 30m");
   await minutes.press("Enter");
   await dismiss("Estimate");
-  expect(await waitForRow(`${TASK} and t.estimate_min = 45`, [title])).not.toBeNull();
+  expect(await waitForRow(`${TASK} and t.estimate_min = 150`, [title])).not.toBeNull();
 
   // Priority.
   await panel.getByRole("button", { name: /^Priority/ }).click();

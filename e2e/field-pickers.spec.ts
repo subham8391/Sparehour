@@ -109,10 +109,10 @@ test("D, ⇧D, ⇧S, E and R open their pickers focused; 'fri 3pm' sets the day 
   await expect(starts).toHaveCount(0);
   expect(await waitForRow(`${TASK} and t.start_date = $2::date`, [keyed, me.today])).not.toBeNull();
 
-  // E: the Estimate popover with the minutes field focused.
+  // E: the Estimate popover with the length field focused.
   await page.keyboard.press("e");
   const estimate = page.getByRole("dialog", { name: "Estimate" });
-  await expect(estimate.getByRole("spinbutton", { name: "Minutes" })).toBeFocused();
+  await expect(estimate.getByRole("textbox", { name: "Length" })).toBeFocused();
   await page.keyboard.type("25");
   await page.keyboard.press("Enter");
   await expect(estimate).toHaveCount(0);
@@ -158,7 +158,7 @@ test("with two rows ticked, E sets both estimates in one write, and one ⌘Z tak
   await expect(sheet).toBeVisible();
   // Never the detail: one picker for both rows.
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);
-  const minutes = sheet.getByRole("spinbutton", { name: "Minutes" });
+  const minutes = sheet.getByRole("textbox", { name: "Length" });
   await minutes.fill("40");
   await minutes.press("Enter");
   await expect(sheet).toHaveCount(0);

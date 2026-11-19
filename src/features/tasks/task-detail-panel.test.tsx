@@ -163,11 +163,39 @@ describe("<TaskDetailPanel>", () => {
     await user.click(screen.getByRole("button", { name: "1h 30m" }));
     expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: 90 });
     await user.click(screen.getByRole("button", { name: /^Estimate/ }));
-    await user.type(screen.getByRole("spinbutton", { name: "Minutes" }), "50{Enter}");
+    await user.type(screen.getByRole("textbox", { name: "Length" }), "50{Enter}");
     expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: 50 });
     await user.click(screen.getByRole("button", { name: /^Estimate/ }));
     await user.click(screen.getByRole("button", { name: "No estimate" }));
     expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: null });
+  });
+
+  it("the typed length reads hours and minutes, shows what it read, and says so when it cannot", async () => {
+    const { user, onPatch } = setup();
+    await user.click(screen.getByRole("button", { name: /^Estimate/ }));
+    const box = screen.getByRole("textbox", { name: "Length" });
+    await user.type(box, "2h 30m");
+    expect(box).toHaveAccessibleDescription("2h 30m");
+    await user.keyboard("{Enter}");
+    expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: 150 });
+
+    await user.click(screen.getByRole("button", { name: /^Estimate/ }));
+    await user.type(screen.getByRole("textbox", { name: "Length" }), "1.5h");
+    await user.click(screen.getByRole("button", { name: "Set" }));
+    expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: 90 });
+
+    // More than a day, or not a length: nothing is written, and the box says what it takes.
+    onPatch.mockClear();
+    await user.click(screen.getByRole("button", { name: /^Estimate/ }));
+    const again = screen.getByRole("textbox", { name: "Length" });
+    await user.type(again, "30h{Enter}");
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(again).toBeInvalid();
+    expect(again).toHaveAccessibleDescription("Type minutes, or hours like 1h 30m. Up to 24h.");
+    await user.clear(again);
+    expect(again).not.toBeInvalid();
+    await user.type(again, "2:15{Enter}");
+    expect(onPatch).toHaveBeenLastCalledWith({ estimateMin: 135 });
   });
 
   it("a finished task has a Took field: the same picker records how long it took, and Not recorded clears it", async () => {
@@ -178,7 +206,7 @@ describe("<TaskDetailPanel>", () => {
     await user.click(screen.getByRole("button", { name: "1h" }));
     expect(onTook).toHaveBeenLastCalledWith(60);
     await user.click(screen.getByRole("button", { name: /^Took/ }));
-    await user.type(screen.getByRole("spinbutton", { name: "Minutes" }), "50{Enter}");
+    await user.type(screen.getByRole("textbox", { name: "Length" }), "50{Enter}");
     expect(onTook).toHaveBeenLastCalledWith(50);
     cleanup();
     const again = setup({ task: { ...task, state: "done" }, took: 50, onTook });
@@ -392,7 +420,7 @@ describe("<TaskDetailPanel> field pickers asked for by key (SCREENS.md §24)", (
     const view = { task, projectName: "Acme", areaName: "Work", projects: [], now: instant("2026-09-14T08:03:00Z"), zone: "Europe/London", today, onPatch: vi.fn(), onComplete: vi.fn(), onReopen: vi.fn(), onSomeday: vi.fn(), onDrop: vi.fn(), onClose: vi.fn() };
     const { rerender } = render(<TaskDetailPanel {...view} fieldRequest={{ name: "estimate", seq: 1 }} />);
     expect(screen.getByRole("dialog", { name: "Estimate" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("spinbutton", { name: "Minutes" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Length" })).toHaveFocus());
     rerender(<TaskDetailPanel {...view} fieldRequest={{ name: "repeat", seq: 2 }} />);
     expect(screen.getByRole("dialog", { name: "Repeat" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Repeat" })).toHaveFocus());

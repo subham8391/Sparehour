@@ -69,7 +69,7 @@ test("a project: E on the selected row opens the same presets; a task not starte
   await expect(keyed).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("e");
   const presets = page.getByRole("dialog", { name: "Estimate" });
-  await expect(presets.getByRole("spinbutton", { name: "Minutes" })).toBeFocused();
+  await expect(presets.getByRole("textbox", { name: "Length" })).toBeFocused();
   await presets.getByRole("button", { name: "15m", exact: true }).click();
   expect(await waitForRow(`${TASK} and estimate_min = 15`, [T.keyed])).not.toBeNull();
   await expect(page.getByRole("complementary", { name: "Task" })).toHaveCount(0);

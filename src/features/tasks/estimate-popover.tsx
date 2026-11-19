@@ -1,6 +1,6 @@
 "use client";
 // The row's estimate chip, clicked (SCREENS.md §2.4 "Click to edit inline with the preset chips"; PRODUCT_SPEC.md
-// §9.2): the presets 15m · 30m · 45m · 1h · 1h 30m · 2h · 3h · 4h, minutes typed in and No estimate — the detail's
+// §9.2): the presets 15m · 30m · 45m · 1h · 1h 30m · 2h · 3h · 4h, a length typed in and No estimate — the detail's
 // own picker — in a popover beside the chip from `sm` up, a bottom sheet on a phone (E there, or a screen reader's
 // button). A choice is one undoable write with its toast. Lazy: no shell carries it (row-islands.tsx).
 import { useCallback, useEffect, useState } from "react";
@@ -70,7 +70,7 @@ function Popover({ anchor, onClose, children }: { anchor: HTMLElement | null; on
   const panelRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
-      // With a keyboard the minutes field takes focus, as the detail's picker does for E; a touch screen keeps its keyboard down.
+      // With a keyboard the length field takes focus, as the detail's picker does for E; a touch screen keeps its keyboard down.
       const typed = !window.matchMedia?.("(hover: none)").matches && el.querySelector<HTMLElement>("[data-autofocus]");
       (typed || el.querySelector<HTMLElement>("button") || el).focus({ preventScroll: true });
       return place(el);

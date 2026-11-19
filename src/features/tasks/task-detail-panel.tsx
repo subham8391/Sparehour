@@ -12,6 +12,7 @@ import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
 import { occurrencesAfter } from "@/core/recurrence";
 import { compareDates, formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
+import { parseLength } from "@/core/time/parse-length";
 import type { ChecklistItem, MissPolicy, Priority, RecurrenceException, RecurrenceMode, TagRef, Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { Button } from "@/ui/button";
@@ -895,7 +896,7 @@ function GuessChip() {
   );
 }
 
-/** The estimate picker: the preset chips, minutes typed in (focused when the picker is opened by `E`), and No estimate (`clear` names it). */
+/** The estimate picker: the preset chips, a length typed in (focused when the picker is opened by `E`), and No estimate (`clear` names it). */
 export function EstimatePicker({ value, onChange, clear = "No estimate" }: { value: number | null; onChange: (minutes: number | null) => void; clear?: string }) {
   return (
     <>
@@ -906,40 +907,64 @@ export function EstimatePicker({ value, onChange, clear = "No estimate" }: { val
           </button>
         ))}
       </div>
-      <MinutesInput onSubmit={onChange} />
+      <LengthInput onSubmit={onChange} />
       {value != null && <Clear onClick={() => onChange(null)}>{clear}</Clear>}
     </>
   );
 }
 
-function MinutesInput({ onSubmit }: { onSubmit: (minutes: number) => void }) {
+/**
+ * A length typed in: minutes ("150") or hours and minutes ("2h 30m", "2h", "1.5h", "2:30"), up to a day. What it
+ * reads is shown under the box before it is set; what it cannot read is said, and nothing is written.
+ */
+function LengthInput({ onSubmit }: { onSubmit: (minutes: number) => void }) {
   const [v, setV] = useState("");
+  const [missed, setMissed] = useState(false);
+  const hintId = useId();
+  const read = parseLength(v);
   const commit = () => {
-    const m = Math.round(Number(v));
-    if (Number.isFinite(m) && m > 0) onSubmit(m);
+    if (read != null) onSubmit(read);
+    else if (v.trim()) setMissed(true);
   };
   return (
-    <label className="flex items-center gap-2 text-body-sm text-ink-2">
-      <input
-        type="number"
-        inputMode="numeric"
-        min={1}
-        data-autofocus
-        aria-label="Minutes"
-        placeholder="minutes"
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            commit();
-          }
-        }}
-        className={cx(FIELD_INPUT, "w-28")}
-      />
-      <Button variant="secondary" onClick={commit}>
-        Set
-      </Button>
-    </label>
+    <div className="flex flex-col">
+      <label className="flex items-center gap-2 text-body-sm text-ink-2">
+        <input
+          data-autofocus
+          aria-label="Length"
+          aria-describedby={hintId}
+          aria-invalid={missed || undefined}
+          placeholder="45 or 1h 30m"
+          value={v}
+          autoComplete="off"
+          autoCapitalize="none"
+          enterKeyHint="done"
+          onChange={(e) => {
+            setV(e.target.value);
+            setMissed(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          className={FIELD_INPUT}
+        />
+        <Button variant="secondary" onClick={commit}>
+          Set
+        </Button>
+      </label>
+      <p id={hintId} aria-live="polite" className="text-body-sm text-ink-2 num">
+        {missed ? (
+          <span className="block pt-1">Type minutes, or hours like 1h 30m. Up to 24h.</span>
+        ) : read != null ? (
+          <span className="flex items-center gap-1 pt-1">
+            <Icon name="arrow-right" size={12} className="shrink-0 text-ink-3" />
+            {formatMinutes(read)}
+          </span>
+        ) : null}
+      </p>
+    </div>
   );
 }
