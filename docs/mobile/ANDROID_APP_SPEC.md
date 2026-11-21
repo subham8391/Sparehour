@@ -132,9 +132,17 @@ Builds so far are made with Expo's build service, profile `preview` (`mobile/eas
 
 ## 9. What the first version has
 
-In scope, in the order of §10: sign-in; Today (list, spare-time ribbon, timeline, blocks, swipes); quick add; Inbox; task detail; Upcoming; the morning plan and shutdown; Settings (hours, planning, appearance with every look, account); reminders; the bottom strip and status bar following the look at once.
+**Everything the web app has on a phone.** Ruled by the user on 2026-11-21, after a build whose Inbox, Week and Browse tabs said "Not in the app yet": the app is to have what the web version has, and no build is handed over for installing until all of it is built and checked. So the first version is not a subset. It is the web app's phone experience, screen for screen:
 
-Not in the first version: the Calendar's week grid, search, the Logbook's older pages, the keyboard palette (a phone has none), connected apps, the data export, Outlook set-up. They stay on the web, reachable in the browser, and come later as wanted.
+- The four tabs: Today (the ribbon, the sections, the Day timeline with blocks), Inbox with triage, Week (the web's Upcoming), Browse (areas, projects, Someday, the Logbook, Settings, Search).
+- What opens from them: a task's detail, a project's page, an area's page, quick add, search.
+- The rituals: the first run, the morning plan, the shutdown, the carried-over review, Clear the slate.
+- Settings: working hours, planning, appearance with every look, notifications, the calendar, connected apps, data, the account.
+- Sign-in by emailed code and by Google; reminders; the bottom strip and status bar following the look at once.
+
+Two parts need the user's own accounts before they can work, and are prepared up to that point: Google sign-in (an Android client in the Google Cloud project) and reminders (a Firebase project for Android's push service).
+
+A phone has no keyboard palette and no multi-day calendar grid in the web's phone navigation either; those are the web's desktop parts and are not rebuilt.
 
 Every phone screen keeps the web's rules for itself: 44-point targets, a tap path for every drag, only missed deadlines in red, "carried over" never "overdue".
 
