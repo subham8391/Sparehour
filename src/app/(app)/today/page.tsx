@@ -285,7 +285,9 @@ export default function TodayPage() {
   // (what `B` reads); for everything drawn or decided here the day's own hours are then all behind.
   const nowFromDay = minuteFromDay(now, zone, model.today);
   const nowMinute = Math.min(nowFromDay, 24 * 60);
-  const findTask = (id: string): Task | undefined => [...model.carried, ...model.todayTasks, ...model.eveningTasks].find((t) => t.id === id);
+  // The day's open tasks, as listed: what a block can be for (B, a drop, "Add at" on a tap).
+  const dayTasks = [...model.carried, ...model.todayTasks, ...model.eveningTasks];
+  const findTask = (id: string): Task | undefined => dayTasks.find((t) => t.id === id);
   // The selected block, and tap-to-schedule: "Block…" on a row, then a tap on the timeline (Escape lets go). The
   // placing itself — B, drops, moves, copies, blocks of your own — runs in the day pane's island (use-placing.ts).
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -848,6 +850,7 @@ export default function TodayPage() {
               nowMinute: onToday ? nowFromDay : null,
               defaultEstimateMin: defaultEstimate,
               findTask,
+              tasks: dayTasks,
               onPlaced: () => setView("day"),
               state: { selectedBlockId, setSelectedBlockId, placing: placingId, setPlacing: setPlacingId },
             }}

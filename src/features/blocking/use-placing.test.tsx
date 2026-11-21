@@ -109,6 +109,33 @@ describe("usePlacing", () => {
     expect(repo.create).toHaveBeenLastCalledWith(expect.objectContaining({ taskId: null, title: "Block", startAt: "2026-10-07T12:00:00Z", endAt: "2026-10-07T13:00:00Z" }));
   });
 
+  it("Add at: offers the day's tasks, those without a block first, each with its next block's length", () => {
+    const { result } = setup({ tasks: [...tasks, task("t3", null)], blocks: [block("b1", "t1", 600, 690)] });
+    expect(result.current.placer.addable).toEqual([
+      { id: "t2", title: "Task t2", minutes: 30, blocked: false },
+      { id: "t3", title: "Task t3", minutes: 30, blocked: false },
+      // Half of its three hours is blocked: the next block is the other half.
+      { id: "t1", title: "Task t1", minutes: 90, blocked: true },
+    ]);
+    // A screen that hands no tasks over offers none: the sheet then asks only for a name.
+    expect(setup().result.current.placer.addable).toEqual([]);
+  });
+
+  it("Add at: blocks the task picked over exactly the minutes chosen, or makes a block of your own under the name typed", async () => {
+    const { result } = setup();
+    await act(async () => void (await result.current.placer.addAt({ taskId: "t1" }, 720, 765)));
+    expect(repo.create).toHaveBeenLastCalledWith({ spaceId: "s1", userId: "u1", taskId: "t1", title: "Task t1", startAt: "2026-10-07T12:00:00Z", endAt: "2026-10-07T12:45:00Z" });
+    expect(result.current.placer.selectedBlockId).toBe("new");
+    await act(async () => void (await result.current.placer.addAt({ title: " Lunch " }, 780, 810)));
+    expect(repo.create).toHaveBeenLastCalledWith({ spaceId: "s1", userId: "u1", taskId: null, title: "Lunch", startAt: "2026-10-07T13:00:00Z", endAt: "2026-10-07T13:30:00Z" });
+    // A task that has left the day is not blocked, and with blocking paused nothing is made.
+    repo.create.mockClear();
+    await act(async () => void (await result.current.placer.addAt({ taskId: "gone" }, 720, 750)));
+    const paused = setup({ off: "reauth" });
+    await act(async () => void (await paused.result.current.placer.addAt({ title: "Lunch" }, 720, 750)));
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
   it("tap-to-schedule: the next tap places the waiting task; Escape lets go", async () => {
     const { result } = setup();
     act(() => result.current.placer.setPlacing("t2"));

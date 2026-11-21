@@ -186,6 +186,7 @@ export default function CalendarPage() {
           zone={zone}
           defaultEstimateMin={settings?.defaultEstimateMin ?? 30}
           findTask={findTask}
+          tasks={todays}
           state={{ selectedBlockId, setSelectedBlockId, placing: placingId, setPlacing: setPlacingId }}
           focus={focus}
           off={off}

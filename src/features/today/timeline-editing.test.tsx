@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Capacity } from "@/core/capacity";
@@ -67,6 +67,7 @@ function handlers() {
     onOpenTask: vi.fn(),
     onRenameBlock: vi.fn(),
     onCreateBlock: vi.fn(async () => "new"),
+    onAddBlock: vi.fn(),
   };
 }
 const draw = (extra: Partial<TimelineProps> = {}) => <Timeline c={capacity} now={now} zone="UTC" blocks={blocks} {...extra} />;
@@ -316,15 +317,53 @@ describe("blocks of your own (PRODUCT_SPEC.md §10.2)", () => {
     expect(h.onSelectBlock).toHaveBeenCalledWith(null);
   });
 
-  it("on touch a tap on empty space offers New block here, half an hour", async () => {
+  it("on touch a tap on empty space offers New block here, which asks what to add and writes nothing until Add", async () => {
     const user = userEvent.setup();
     const h = handlers();
-    render(draw(h));
+    const addable = [{ id: "t7", title: "Call the bank", minutes: 45, blocked: false }];
+    render(draw({ ...h, addable }));
+    const timeline = screen.getByTestId("timeline");
+    const tap = () => {
+      fireEvent.pointerDown(timeline, { clientY: 727 * PX_PER_MIN, pointerType: "touch" });
+      fireEvent.click(timeline, { clientY: 727 * PX_PER_MIN });
+    };
+    tap();
+    await user.click(screen.getByRole("button", { name: /New block here/ }));
+    // Nothing is made by the offer: the sheet opens for the time tapped, and the offer is gone.
+    const sheet = await screen.findByRole("dialog", { name: "Add at 12:00" });
+    expect(screen.queryByRole("button", { name: /New block here/ })).not.toBeInTheDocument();
+    expect(h.onCreateBlock).not.toHaveBeenCalled();
+    expect(h.onAddBlock).not.toHaveBeenCalled();
+    // Cancel: still nothing, and a tap inside the sheet was not a tap on the timeline.
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Add at 12:00" })).not.toBeInTheDocument();
+    expect(h.onAddBlock).not.toHaveBeenCalled();
+    expect(h.onSelectBlock).not.toHaveBeenCalled();
+
+    // A task from the day: its own length.
+    tap();
+    await user.click(screen.getByRole("button", { name: /New block here/ }));
+    await user.click(within(await screen.findByRole("dialog", { name: "Add at 12:00" })).getByRole("radio", { name: /Call the bank/ }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    expect(h.onAddBlock).toHaveBeenLastCalledWith({ taskId: "t7" }, 720, 765);
+    expect(screen.queryByRole("dialog", { name: "Add at 12:00" })).not.toBeInTheDocument();
+
+    // A block of your own, by name, half an hour unless changed.
+    tap();
+    await user.click(screen.getByRole("button", { name: /New block here/ }));
+    await user.type(within(await screen.findByRole("dialog", { name: "Add at 12:00" })).getByRole("textbox", { name: "Name" }), "Lunch{Enter}");
+    expect(h.onAddBlock).toHaveBeenLastCalledWith({ title: "Lunch" }, 720, 750);
+    expect(h.onCreateBlock).not.toHaveBeenCalled();
+  });
+
+  it("where nothing can be added (blocking paused, a day that has passed) a touch tap offers nothing", () => {
+    const h = handlers();
+    render(draw({ ...h, onAddBlock: undefined }));
     const timeline = screen.getByTestId("timeline");
     fireEvent.pointerDown(timeline, { clientY: 727 * PX_PER_MIN, pointerType: "touch" });
     fireEvent.click(timeline, { clientY: 727 * PX_PER_MIN });
-    await user.click(screen.getByRole("button", { name: /New block here/ }));
-    expect(h.onCreateBlock).toHaveBeenCalledWith(720, 750);
+    expect(screen.queryByRole("button", { name: /New block here/ })).not.toBeInTheDocument();
+    expect(h.onSelectBlock).toHaveBeenCalledWith(null);
   });
 
   it("a mouse click on empty space still lets go of the selection, and a task waiting still takes the tap", () => {

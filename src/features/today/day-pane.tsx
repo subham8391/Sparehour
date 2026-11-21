@@ -21,8 +21,8 @@ export type DrawnDay = Pick<TimelineProps, "c" | "now" | "zone" | "blocks" | "pr
 
 /**
  * The timeline's handlers, from the placing hook: the same writes, and the same Google push, on every path. With
- * blocking paused (`off`, PRODUCT_SPEC.md §10.3 rule 5) nothing new lands — no drop, no drawn block, no copy, no
- * tap-to-place — while the blocks already there can still be moved, locked, renamed or removed.
+ * blocking paused (`off`, PRODUCT_SPEC.md §10.3 rule 5) nothing new lands — no drop, no drawn block, no "Add at", no
+ * copy, no tap-to-place — while the blocks already there can still be moved, locked, renamed or removed.
  */
 export function placerTimeline(placer: PlacingApi, findTask: (id: string) => Task | undefined, onOpenTask: (taskId: string) => void, off: string | null = null): Omit<TimelineProps, keyof DrawnDay> {
   const handlers: Omit<TimelineProps, keyof DrawnDay> = {
@@ -39,12 +39,15 @@ export function placerTimeline(placer: PlacingApi, findTask: (id: string) => Tas
     onToggleLock: (id, locked) => void placer.repo.setLocked(id, locked),
     onRenameBlock: (id, title) => void placer.repo.rename(id, title),
     onCreateBlock: placer.createAdHoc,
+    // A tap on an empty time, on touch: "New block here" asks which task or what name, and how long, before it writes.
+    onAddBlock: (what, startMin, endMin) => void placer.addAt(what, startMin, endMin),
+    addable: placer.addable,
     onOpenTask,
     placing: placer.placingTask ? { title: placer.placingTask.title } : null,
     onTapSlot: placer.tapSlot,
   };
   if (!off) return handlers;
-  return { ...handlers, onDropTask: undefined, onCreateBlock: undefined, onDuplicateBlock: undefined, onTapSlot: undefined, placing: null };
+  return { ...handlers, onDropTask: undefined, onCreateBlock: undefined, onAddBlock: undefined, onDuplicateBlock: undefined, onTapSlot: undefined, placing: null };
 }
 
 export interface DayPaneProps {
@@ -158,7 +161,7 @@ function PaneFrame({ start, end, bufferPct, hint, note, bar, timeline }: Pick<Da
       {hint && (
         <p className="mt-4 text-body-sm text-pretty text-ink-3">
           <span className="max-sm:hidden">Drag a task here, tap “Block” on a row and then a time, or select a task and press B. Drag on an empty stretch for a block of your own.</span>
-          <span className="sm:hidden">Tap “Block” on a task, then a time here — or tap an empty time for a block of your own.</span>
+          <span className="sm:hidden">Tap “Block” on a task, then a time here — or tap an empty time to add a task or a block of your own there.</span>
         </p>
       )}
     </div>

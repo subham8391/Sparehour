@@ -1,6 +1,7 @@
 // The timeline and the morning plan on a phone at 360 px (SCREENS.md §2.6, §2.8 and §14 "Responsive", the
 // "As built 2026-10-07" notes; CLAUDE.md "a tap path for every drag", 44 px targets): on Today's Day view a
-// selected block's Move… waits for a tap, a tap on an empty time offers "New block here", and the − / + control
+// selected block's Move… waits for a tap, a tap on an empty time offers "New block here", which asks what to add
+// ("Add at 19:40": a task of the day or a name, and how long) and writes nothing until Add, and the − / + control
 // zooms; in the morning plan the summary is pinned at the top of step 2 in the over colour with the Easiest move
 // under it, each group folds under a 44 px header with its count, and step 3 places a task with its Block and
 // then a tap on the timeline. Every write is read back from Postgres.
@@ -55,19 +56,24 @@ test.beforeEach(async ({ page }) => {
 
 const span = (start: number, end: number) => `${hhmm(start)}–${hhmm(end)}`;
 
+/** How many blocks the account has, whatever their day. */
+const liveBlocks = () => withDb(async (c) => (await c.query<{ n: number }>("select count(*)::int as n from public.time_blocks where user_id = $1 and deleted_at is null", [me.uid])).rows[0].n);
+
 /** At least a 44 px target (DESIGN_SYSTEM.md §4a). */
 async function expectTouchTarget(target: import("@playwright/test").Locator) {
   const box = (await target.boundingBox())!;
   expect(box.height).toBeGreaterThanOrEqual(44);
 }
 
-test("Today's Day view: Move… then a tap moves a block, a tap on an empty time offers New block here, and − / + zoom", async ({ page }) => {
+test("Today's Day view: Move… then a tap moves a block, a tap on an empty time offers New block here, which asks before it adds, and − / + zoom", async ({ page }) => {
   const title = uniqueTitle("phone move");
   const named = uniqueTitle("phone own");
-  mine.push(title, named);
+  const picked = uniqueTitle("phone pick");
+  mine.push(title, named, picked);
   await withDb(async (c) => {
     const id = await seedTask(c, me, title, { estimate: 30 });
     await seedBlock(c, me, { taskId: id, title, start: S, end: S + 30 });
+    await seedTask(c, me, picked, { estimate: 45 });
   });
   await openApp(page, "/today");
   await page.getByRole("button", { name: "Day", exact: true }).tap();
@@ -88,7 +94,9 @@ test("Today's Day view: Move… then a tap moves a block, a tap on an empty time
   await expectBlockAt(block, S + 120, S + 150);
   await expectTaskBlocks(title, [span(S + 120, S + 150)]);
 
-  // A tap on an empty time lets go of the block; the next one offers a block of your own there, half an hour.
+  const blocksBefore = await liveBlocks();
+  // A tap on an empty time lets go of the block; the next one offers a block there. The offer makes nothing: it
+  // opens "Add at", which asks for a task of the day or a name, and how long.
   p = await pointAt(timeline, S + 247);
   await page.touchscreen.tap(p.x, p.y);
   await expect(block).toHaveAttribute("aria-pressed", "false");
@@ -98,12 +106,44 @@ test("Today's Day view: Move… then a tap moves a block, a tap on an empty time
   await expect(offer).toBeVisible();
   await expectTouchTarget(offer);
   await offer.tap();
-  const name = timeline.getByRole("textbox", { name: "Block name" });
-  await expect(name).toBeFocused();
-  await name.fill(named);
-  await name.press("Enter");
+  const sheet = page.getByRole("dialog", { name: `Add at ${hhmm(S + 240)}` });
+  await expect(sheet).toBeVisible();
+  const add = sheet.getByRole("button", { name: "Add", exact: true });
+  await expect(add).toBeDisabled();
+  // Cancel writes nothing: no block is drawn, and the account has as many as before.
+  await sheet.getByRole("button", { name: "Cancel" }).tap();
+  await expect(sheet).toHaveCount(0);
+  await expect(timeline.getByRole("textbox", { name: "Block name" })).toHaveCount(0);
+  expect(await liveBlocks()).toBe(blocksBefore);
+
+  // A block of your own, under the name typed, half an hour unless another length is picked.
+  p = await pointAt(timeline, S + 247);
+  await page.touchscreen.tap(p.x, p.y);
+  await offer.tap();
+  await sheet.getByRole("textbox", { name: "Name" }).fill(named);
+  await expectTouchTarget(add);
+  await add.tap();
+  await expect(sheet).toHaveCount(0);
   await expectBlockAt(blockOn(timeline, named), S + 240, S + 270);
   await expectOwnBlocks(named, [span(S + 240, S + 270)]);
+
+  // A task of the day: its row says how long its block would be, and Add blocks it at the time tapped. The new block
+  // is selected, so the first tap lets go of it and the next one offers.
+  p = await pointAt(timeline, S + 67);
+  await page.touchscreen.tap(p.x, p.y);
+  p = await pointAt(timeline, S + 67);
+  await page.touchscreen.tap(p.x, p.y);
+  await timeline.getByRole("button", { name: `New block here ${hhmm(S + 60)}` }).tap();
+  const later = page.getByRole("dialog", { name: `Add at ${hhmm(S + 60)}` });
+  const row = later.getByRole("radio", { name: picked });
+  await expectTouchTarget(row);
+  await expect(row).toContainText("45m");
+  await row.tap();
+  await expect(row).toBeChecked();
+  await later.getByRole("button", { name: "Add", exact: true }).tap();
+  await expect(later).toHaveCount(0);
+  await expectBlockAt(blockOn(timeline, picked), S + 60, S + 105);
+  await expectTaskBlocks(picked, [span(S + 60, S + 105)]);
 
   // The zoom's tap path: − / + over the timeline, 44 px each.
   const zoom = page.getByRole("group", { name: "Timeline zoom" });

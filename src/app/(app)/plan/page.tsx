@@ -90,6 +90,7 @@ export default function PlanPage() {
     nowMinute: minuteFromDay(now, zone, model.today),
     defaultEstimateMin: model.settings?.defaultEstimateMin ?? 30,
     findTask,
+    tasks: onToday,
     // Calendar access revoked or the write calendar gone: blocking pauses here as on Today (PRODUCT_SPEC.md §10.3 rule 5).
     off: writes.off,
   });

@@ -62,6 +62,7 @@ describe("DayPane", () => {
     const handlers = placerTimeline(placer, () => undefined, () => undefined, off);
     expect(handlers.onDropTask).toBeUndefined();
     expect(handlers.onCreateBlock).toBeUndefined();
+    expect(handlers.onAddBlock).toBeUndefined();
     expect(handlers.onDuplicateBlock).toBeUndefined();
     expect(handlers.onTapSlot).toBeUndefined();
     expect(handlers.placing).toBeNull();

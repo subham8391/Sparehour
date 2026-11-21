@@ -300,6 +300,8 @@ PRODUCT_SPEC.md §11; the engine is SYSTEM_DESIGN.md §5.5. Opened from the head
 
 **As built (2026-11-17).** Past midnight, while today has not rolled over yet (the rollover hour, 04:00 by default), today is drawn as a day that is over: the eyebrow says Evening, the ribbon is elapsed from end to end, Shutdown is offered and the timeline has no now line. `B` on a row (and the palette's Add time block) then blocks the time it is, which is on the next date: the screen stays as it is, the toast names the time ("Blocked “Draft” 01:30–02:00"), and the block is on the next day's timeline and in the Calendar (DECISIONS.md, amendment 2026-11-17).
 
+**As built (2026-11-21).** On touch, "New block here" no longer makes a block. It opens the sheet **Add at 20:30** (a bottom sheet on the phone): the time and length on a line under the heading ("20:30–21:00 · 30m"), **A task** (the day's open tasks as 44 px radio rows, each with the length its block would have, "has a block" on one that already has one that day, those without first), **Or a block of your own** (a name box), **How long** (15m · 30m · 45m · 1h · 1h 30m · 2h, plus the picked task's own length), then Cancel and Add. Add is off until a task is picked or a name typed. Where the screen has no tasks to offer the sheet asks only for a name. A mouse or pen still draws a block by dragging (DECISIONS.md, amendment 2026-11-21).
+
 ---
 
 ## 3. Upcoming · rolling 7 days — M1

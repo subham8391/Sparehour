@@ -53,7 +53,23 @@ export interface PlacingDay {
   movesTasks?: boolean;
   /** Whether `B` places on this day; false where several days are on screen and another one answers it. Default true. */
   answersB?: boolean;
+  /**
+   * The open tasks a tap on an empty time offers for the new block ("Add at 14:30", DECISIONS.md, amendment
+   * 2026-11-21), in the order the screen lists them. Left out, the sheet asks only for a name.
+   */
+  tasks?: readonly Task[];
 }
+
+/** A task the "Add at" sheet offers: how long its next block would be, and whether the day already has one for it. */
+export interface AddableTask {
+  id: string;
+  title: string;
+  minutes: number;
+  blocked: boolean;
+}
+
+/** What the "Add at" sheet adds: a block for a task, or one of your own under a name. */
+export type AddWhat = { taskId: string } | { title: string };
 
 export interface PlacingState {
   selectedBlockId: string | null;
@@ -105,6 +121,22 @@ export function usePlacing(d: PlacingDay) {
   };
   /** An ad-hoc block, with no task (a lunch, deep work): drawn on empty space, or "New block here". */
   const createAdHoc = (start: number, end: number) => create(null, "Block", start, end);
+  /**
+   * The "Add at" sheet's choices (a tap on an empty time, then "New block here"): the day's tasks, those without a
+   * block here first, each with the length its next block would have.
+   */
+  const addable: AddableTask[] = (d.tasks ?? [])
+    .map((t) => {
+      const existing = ofTask(t.id);
+      return { id: t.id, title: t.title, minutes: nextBlockLength(t, existing, d.defaultEstimateMin), blocked: existing.length > 0 };
+    })
+    .sort((a, b) => Number(a.blocked) - Number(b.blocked));
+  /** The sheet's Add: a block for the task picked, or one of your own under the name typed, over exactly these minutes. */
+  const addAt = (what: AddWhat, start: number, end: number): Promise<string | null> => {
+    if ("title" in what) return create(null, what.title.trim() || "Block", start, end);
+    const task = d.findTask(what.taskId);
+    return task ? create(task, task.title, start, end) : Promise.resolve(null);
+  };
   /** Moved, keeping its length, snapped to five minutes; a locked block stays put. */
   const moveBlock = (id: string, startMin: number) => {
     const b = blockOf(id);
@@ -194,6 +226,8 @@ export function usePlacing(d: PlacingDay) {
     tapSlot,
     placeTask,
     createAdHoc,
+    addable,
+    addAt,
     moveBlock,
     resizeBlock,
     duplicateBlock,

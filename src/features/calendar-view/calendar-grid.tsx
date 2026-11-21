@@ -45,6 +45,8 @@ export interface CalendarGridProps {
   defaultEstimateMin: number;
   /** The task a drop, a tap or `B` places: today's open tasks. */
   findTask: (id: string) => Task | undefined;
+  /** The tasks a tap on an empty time offers for the new block ("Add at"): today's, the rail's own. */
+  tasks?: readonly Task[];
   /** The selected block and the task waiting for a tap, shared by every day on screen. */
   state: PlacingState;
   /** The day `B` places on; null when no day on screen can take a block. */
@@ -266,6 +268,7 @@ function PlacingColumn({
     nowMinute,
     defaultEstimateMin: p.defaultEstimateMin,
     findTask: p.findTask,
+    tasks: p.tasks,
     off: p.off,
     state: p.state,
     movesTasks: true,

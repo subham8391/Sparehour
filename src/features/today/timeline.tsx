@@ -6,17 +6,20 @@
 // its "done by" pill, or, when the plan runs over, a marker pinned at the day's end; and the past dimmed by a
 // token swap (a block whose task is finished too, struck through with a check). A task row dragged over it shows
 // a ghost block snapped to five minutes; dropping creates the block. A drag on empty space draws a block of your
-// own snapped to fifteen; on touch a tap there offers "New block here". Every drag has a tap and a keyboard path:
+// own snapped to fifteen; on touch a tap there offers "New block here", which asks what to add (add-at-sheet.tsx)
+// before anything is written. Every drag has a tap and a keyboard path:
 // the selected block's toolbar (block-tools.tsx) and its keys — L locks, Backspace removes, Enter opens, Shift+↑/↓
 // resizes, Escape lets go. The whole 24 hours scroll, opening on the working day; the hours outside the work
 // windows are dimmed but stay usable (SCREENS.md §2.6).
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
 import { blockLength, drawnBlock, minuteAtOffset, placeAt, pxPerMinute, resizeEnd, resizeStart, stepZoom, ZOOM_STEPS, type ZoomStep } from "@/core/blocking";
 import type { Capacity, Interval } from "@/core/capacity";
 import { subtract } from "@/core/capacity/intervals";
 import { formatMinutes, formatTime, timeFromMinutes, type Instant } from "@/core/time";
 import { asDragData } from "@/features/blocking/drag";
+import type { AddableTask, AddWhat } from "@/features/blocking/use-placing";
 import type { PlanGhost } from "@/features/planning/drawing";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
@@ -29,6 +32,10 @@ import { registerTimeline } from "./timeline-request";
 
 export { PlacingBar } from "./block-tools";
 
+// "Add at 14:30", what "New block here" opens: fetched when the offer is first shown, so no timeline carries it.
+const loadAddAt = () => import("./add-at-sheet");
+const AddAtSheet = lazy(() => loadAddAt().then((m) => ({ default: m.AddAtSheet })));
+
 /** The default scale, the 30-minute zoom step: 66 px per hour (DESIGN_SYSTEM.md §5). */
 export const PX_PER_MIN = 1.1;
 /** The padding drawn either side of the working day (SCREENS.md §2.6). */
@@ -38,7 +45,7 @@ const DAY_MIN = 24 * 60;
 const FREE_LABEL_MIN = 30;
 /** How far a pointer goes on empty space before it is drawing a block rather than clicking. */
 const DRAW_PX = 6;
-/** "New block here" on touch: half an hour (PRODUCT_SPEC.md §10.2). */
+/** "New block here" on touch starts no later than half an hour before midnight (PRODUCT_SPEC.md §10.2). */
 const TAP_BLOCK_MIN = 30;
 
 // ---- the zoom, one per device (SCREENS.md §2.6), shared by every timeline on screen
@@ -101,8 +108,15 @@ export interface TimelineProps {
   onToggleLock?: (id: string, locked: boolean) => void;
   onOpenTask?: (taskId: string) => void;
   onRenameBlock?: (id: string, title: string) => void;
-  /** An ad-hoc block: drawn on empty space, or "New block here". Resolves to its id, which then opens for a name. */
+  /** An ad-hoc block drawn on empty space. Resolves to its id, which then opens for a name. */
   onCreateBlock?: (startMin: number, endMin: number) => Promise<string | null>;
+  /**
+   * On touch, a tap on an empty time offers "New block here", and that opens "Add at 14:30" (DECISIONS.md, amendment
+   * 2026-11-21): this is its Add, a block for a task or one of your own under a name. Without it a tap offers nothing.
+   */
+  onAddBlock?: (what: AddWhat, startMin: number, endMin: number) => void;
+  /** The tasks that sheet offers; none, and it asks only for a name. */
+  addable?: readonly AddableTask[];
   /** Tap-to-schedule (SCREENS.md §2.8): a task is waiting for a time; a tap on a free spot places it. */
   placing?: { title: string } | null;
   onTapSlot?: (startMin: number) => void;
@@ -189,6 +203,8 @@ export function Timeline(p: TimelineProps) {
   const [resizing, setResizing] = useState<{ id: string; start: number; end: number } | null>(null);
   const [drawing, setDrawing] = useState<Interval | null>(null);
   const [offer, setOffer] = useState<number | null>(null);
+  /** "Add at": the minute the sheet is open for. */
+  const [adding, setAdding] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [armed, setArmed] = useState<Armed | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -437,7 +453,7 @@ export function Timeline(p: TimelineProps) {
 
   // Drawing a block of your own (PRODUCT_SPEC.md §10.2): a mouse or pen drag on empty space, past a few pixels,
   // draws a ghost snapped to fifteen minutes; letting go makes the block and opens it for a name. A touch drag
-  // scrolls instead, and a tap offers "New block here".
+  // scrolls instead, and a tap offers "New block here", which asks what to add.
   const waiting = Boolean(p.placing || armed);
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     lastPointer.current = e.pointerType;
@@ -480,17 +496,19 @@ export function Timeline(p: TimelineProps) {
       p.onTapSlot(minuteAt(e.clientY));
       return;
     }
-    // On touch, a tap on an empty slot with nothing selected offers a block of your own there; any other tap lets go.
-    if (lastPointer.current === "touch" && p.onCreateBlock && !p.selectedBlockId && offer === null) {
+    // On touch, a tap on an empty slot with nothing selected offers a block there; any other tap lets go.
+    if (lastPointer.current === "touch" && p.onAddBlock && !p.selectedBlockId && offer === null) {
       setOffer(Math.min(DAY_MIN - TAP_BLOCK_MIN, Math.floor(minuteAt(e.clientY) / 15) * 15));
+      void loadAddAt().catch(() => undefined);
       return;
     }
     setOffer(null);
     p.onSelectBlock?.(null);
   };
-  const createAt = (from: number) => {
+  // The offer never writes: it opens the sheet that asks which task or what name, and how long.
+  const askAt = (from: number) => {
     setOffer(null);
-    void p.onCreateBlock?.(from, from + TAP_BLOCK_MIN).then((id) => id && setRenaming(id));
+    setAdding(from);
   };
 
   // The ruler: an hour line and label per hour, a fainter line per row (half hours at the default zoom, with
@@ -679,9 +697,9 @@ export function Timeline(p: TimelineProps) {
             </div>
           )}
           {offer !== null && (
-            // Touch: a block of your own where the tap was, half an hour, ready to rename and resize.
+            // Touch: a block where the tap was. Nothing is made yet; the sheet it opens asks what and how long.
             <div className="absolute right-2 z-10 flex items-start" style={{ ...INSIDE, top: y(offer) }} onClick={(e) => e.stopPropagation()}>
-              <button type="button" onClick={() => createAt(offer)} className="flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-surface px-3 text-body-sm font-medium text-ink shadow-raised">
+              <button type="button" aria-haspopup="dialog" onClick={() => askAt(offer)} className="flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-surface px-3 text-body-sm font-medium text-ink shadow-raised">
                 New block here <span className="text-ink-3 num">{hhmm(offer)}</span>
               </button>
             </div>
@@ -719,6 +737,16 @@ export function Timeline(p: TimelineProps) {
       <p aria-live="polite" className="sr-only">
         {said}
       </p>
+      {/* At the end of the document, so no scroll box clips it; a tap inside is not a tap on the timeline or the page under it. */}
+      {adding !== null &&
+        createPortal(
+          <div className="contents" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+            <Suspense fallback={null}>
+              <AddAtSheet at={adding} tasks={p.addable ?? []} onAdd={(what, from, to) => p.onAddBlock?.(what, from, to)} onClose={() => setAdding(null)} />
+            </Suspense>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
