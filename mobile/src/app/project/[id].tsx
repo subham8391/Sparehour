@@ -1,6 +1,2 @@
-// A project's page. Its screen is not built for the phone yet (ANDROID_APP_SPEC.md §10).
-import { ComingSoon } from "~/screens/coming-soon";
-
-export default function Route() {
-  return <ComingSoon title="Project" back />;
-}
+// A project's page, opened from Browse, an area or a task (/project/<id>) and pushed over it.
+export { ProjectPage as default } from "~/screens/project/project";

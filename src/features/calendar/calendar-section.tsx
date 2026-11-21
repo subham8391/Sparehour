@@ -17,33 +17,15 @@ import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { Radio } from "@/ui/radio";
 import { Switch } from "@/ui/switch";
-import { APP_CALENDAR, takesBlocks, writableRole } from "./blocks-go";
+import { takesBlocks, writableRole } from "./blocks-go";
+import type { CalendarAccountView, CalendarView } from "./calendar-views";
+import { BLOCKS_STAY, DISCONNECT_KEEPS, PROMISE, accountStatusLine, relativeTime, writeCalendarLabel } from "./calendar-words";
 import { PROVIDER_NAME, connectHref, type CalendarProviderId } from "./providers";
 
-export interface CalendarAccountView {
-  id: string;
-  provider: CalendarProviderId;
-  email: string | null;
-  status: "ok" | "needs_reauth" | "revoked";
-  lastSyncedAt: string | null;
-  lastError: string | null;
-  canWrite: boolean;
-  /** Full access: events come with titles. Otherwise busy times only. */
-  titles: boolean;
-  /** Blocks may go to any calendar the person owns; otherwise only to the app-created "Sparehour" calendar. */
-  writesOwn: boolean;
-}
-
-export interface CalendarView {
-  id: string;
-  accountId: string | null;
-  summary: string;
-  color: string | null;
-  accessRole: string | null;
-  read: boolean;
-  private: boolean;
-  writeTarget: boolean;
-}
+// The rows as the panel reads them and the panel's own words are free of the web's screen parts (calendar-views.ts,
+// calendar-words.ts): the Android app's Calendar section reads and says the same. Handed on, so imports are unchanged.
+export type { CalendarAccountView, CalendarView };
+export { PROMISE, relativeTime };
 
 export interface CalendarPanel {
   /** Whether the server can connect Google; null while the page is still asking it. */
@@ -84,26 +66,6 @@ export function withConsent(state: CalendarPanelState, leave: (href: string) => 
     onAllowWrite: () => leave(connectHref("google", "/settings", "write")),
     onFullAccess: () => leave(connectHref("google", "/settings", "full")),
   };
-}
-
-export const PROMISE = {
-  read: "We read all your calendars — just the times you're busy, so the spare-hours number is real.",
-  write: "We write to one calendar only: the one you pick here. Your time blocks go there and nowhere else.",
-  /** Said where Outlook is offered: what is kept of it. */
-  outlookRead: "From Outlook we keep only the times you're busy.",
-  /** Said where Outlook is offered, and under the write calendar once it is connected: why none of its calendars is there. */
-  outlookWrite: "Sparehour can't put blocks in Outlook yet.",
-};
-
-/** "just now", "12s ago", "5m ago", "3h ago", else the date. */
-export function relativeTime(iso: string | null, now: Date = new Date()): string {
-  if (!iso) return "not yet";
-  const s = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000));
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.round(s / 60)}m ago`;
-  if (s < 86_400) return `${Math.round(s / 3600)}h ago`;
-  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 /** Google reports owner/writer/reader/freeBusyReader; a row without a role (older data) is not held against the calendar. */
@@ -203,11 +165,7 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                   <span className={cx(VALUE, "min-w-0 truncate")}>{a.email ?? "—"}</span>
                 </span>
                 <span className={cx(NOTE, "num")}>
-                  {a.status === "ok"
-                    ? `Connected${a.titles ? "" : " · busy times only"} · ${a.lastSyncedAt ? `synced ${relativeTime(a.lastSyncedAt, now)}` : "waiting for the first sync"}`
-                    : a.status === "needs_reauth"
-                      ? "Needs reconnecting — your meetings stopped updating."
-                      : "Access was revoked."}
+                  {accountStatusLine(a, now)}
                 </span>
               </span>
               <span className="flex flex-wrap items-center gap-1">
@@ -222,7 +180,7 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                 )}
                 {confirming === a.id ? (
                   <span className="flex flex-wrap items-center gap-1 pl-2 text-body-sm text-ink-2">
-                    Your blocks stay, unsynced.
+                    {DISCONNECT_KEEPS}
                     {/* Disconnect is one of the two destructive actions in the product (DESIGN_SYSTEM.md §2). */}
                     <Button variant="quiet" tone="destructive" onClick={() => panel.onDisconnect(a.id)} disabled={panel.busy}>
                       Disconnect
@@ -278,12 +236,12 @@ export function CalendarSettings({ panel, onChanged }: { panel: CalendarPanel; o
                 // The 44 px radio pulls left so its 20 px circle sits on the row's text edge.
                 <label key={c.id} className="-ml-3 flex items-center gap-2 text-body text-ink">
                   <Radio name="write-calendar" checked={c.writeTarget} onChange={changed(() => panel.onWriteTarget(c.id))} />
-                  {c.summary === APP_CALENDAR ? "The Sparehour calendar in your Google Calendar" : c.summary}
+                  {writeCalendarLabel(c)}
                 </label>
               ))}
               <label className="-ml-3 flex items-center gap-2 text-body text-ink-2">
                 <Radio name="write-calendar" checked={writeTarget === null} onChange={changed(() => panel.onWriteTarget(null))} />
-                Keep blocks in Sparehour only
+                {BLOCKS_STAY}
               </label>
             </div>
             {/* No Outlook calendar is ever in the list above: nothing is written there, and the line says so. */}

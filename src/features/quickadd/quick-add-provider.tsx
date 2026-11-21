@@ -14,6 +14,7 @@ import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { Icon } from "@/ui/icons";
 import type { QuickAddSubmission } from "./quick-add";
+import { SPACE_SQL, saveSubmission } from "./save-submission";
 import { Kbd } from "@/ui/kbd";
 
 // The sheet carries the natural-language parser and the project and tag lists
@@ -22,8 +23,6 @@ import { Kbd } from "@/ui/kbd";
 // mounted on the first open.
 const loadQuickAdd = () => import("./quick-add-connected");
 const QuickAdd = dynamic(() => loadQuickAdd().then((m) => m.QuickAddConnected), { ssr: false });
-
-const SPACE_SQL = `select personal_space_id from users limit 1`;
 
 /**
  * Where a task added "here" is filed when its line does not say (DECISIONS.md, amendment 2026-11-15): the day Today
@@ -84,17 +83,9 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 
   const onSubmit = useCallback(
     async (s: QuickAddSubmission): Promise<string> => {
-      // Right after the first sync the watch query can lag the data by a beat; read the row directly rather than fail.
-      const sid = spaceId ?? (await db.getOptional<{ personal_space_id: string | null }>(SPACE_SQL))?.personal_space_id ?? null;
-      if (!sid) throw new Error("Your account is still loading — try again in a moment.");
-      let projectId = s.projectId;
-      if (!projectId && s.createProjectName) {
-        // Two quick lines can both name the same new project before the list catches up: the second one joins the first.
-        const existing = await db.getOptional<{ id: string }>(`select id from projects where deleted_at is null and lower(name) = lower(?) limit 1`, [s.createProjectName]);
-        // The sheet's own island makes it (quick-add-connected.tsx): it sent this line, so it is already in memory.
-        projectId = existing?.id ?? (await (await loadQuickAdd()).createProject(db, s.createProjectName, sid));
-      }
-      const id = await tasks.create(s.draft, { spaceId: sid, projectId });
+      // The space, the project the line names and the task (save-submission.ts). A new project is made by the sheet's
+      // own island (quick-add-connected.tsx): it sent this line, so it is already in memory.
+      const id = await saveSubmission({ db, tasks, spaceId, makeProject: async (...made) => (await loadQuickAdd()).createProject(...made) }, s);
       // The first meaningful action is the moment to ask the browser to keep our storage (§10.4).
       pwa?.requestPersist();
       return id;

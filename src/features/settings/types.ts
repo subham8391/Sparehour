@@ -2,49 +2,16 @@
 // device's panels, and the callbacks that write. Presentational sections:
 // values in, patches out; the page owns the data and the undo.
 import type { ExportFormat } from "@/core/export";
-import type { TodaySort } from "@/core/today/sort-options";
-import type { MissPolicy } from "@/core/types";
-import type { OpenTo, SettingsPatch } from "@/data/repositories/settings-repo";
+import type { SettingsPatch } from "@/data/repositories/settings-repo";
 import type { CalendarPanelState } from "@/features/calendar/calendar-section";
 import type { PermissionCopy } from "@/features/notifications/push";
 import type { InstallState, PersistenceState } from "@/features/pwa/install";
 import type { MotionChoice } from "./motion";
 import type { Segment } from "./settings-rules";
+import type { SettingsValues } from "./settings-values";
 
-export interface SettingsValues {
-  timezone: string;
-  weekStart: number;
-  dayRolloverHour: number;
-  bufferPct: number;
-  defaultEstimateMin: number;
-  carryAskAfter: number;
-  autoSomedayDays: number;
-  /** The morning review of carried-over tasks on the first open of a new day. */
-  carryReview: boolean;
-  eveningStartsAt: string;
-  eveningEndsAt: string;
-  theme: "system" | "light" | "dark";
-  /** The look's id (features/looks/catalog.ts). */
-  look: string;
-  notifyBlockStart: boolean;
-  notifyDeadline: boolean;
-  notifyMorning: boolean;
-  notifyShutdown: boolean;
-  /** "HH:MM" when a time was chosen; empty for the time derived from working hours. */
-  morningNudgeTime: string;
-  shutdownNudgeTime: string;
-  quietHoursStart: string;
-  quietHoursEnd: string;
-  /** Minutes before a block's start its reminder fires: 0, 5, 10 or 15. */
-  blockStartLeadMin: number;
-  badgeEnabled: boolean;
-  defaultMissPolicy: MissPolicy;
-  defaultView: OpenTo;
-  /** Today's sort, as its ⋯ menu sets it (SCREENS.md §18 Planning "sort defaults"). */
-  todaySort: TodaySort;
-  /** Today's Show completed. */
-  showCompleted: boolean;
-}
+// The values themselves are in settings-values.ts, free of the web's screen parts: the Android app reads them too.
+export type { SettingsValues };
 
 /** This device's push state (SYSTEM_DESIGN.md §7.3), owned by the page. */
 export interface NotificationsPanel {

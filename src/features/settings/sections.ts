@@ -1,9 +1,8 @@
 // Settings' sections (SCREENS.md §18): their order, their names in the URL
 // (/settings#calendar), and the one-line summary each shows in the phone's
 // section list. Pure, so the order, the parsing and the words are tested.
-import type { MotionChoice } from "./motion";
 import { hoursSummary, type Segment } from "./settings-rules";
-import type { SettingsValues } from "./types";
+import type { MotionChoice, SettingsValues } from "./settings-values";
 
 export type SectionKey = "account" | "working-hours" | "calendar" | "connections" | "notifications" | "planning" | "appearance" | "data" | "app" | "about";
 

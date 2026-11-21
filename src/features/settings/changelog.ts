@@ -8,6 +8,13 @@ export interface ChangelogEntry {
   items: readonly string[];
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "6 Oct 2026" from "2026-10-06". */
+export function changelogDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${MONTHS[(m ?? 1) - 1]} ${y}`;
+}
+
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     date: "2026-10-07",

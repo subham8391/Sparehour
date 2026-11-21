@@ -2,27 +2,10 @@
 // out run this one path, and say the same words when changes are still waiting to upload. Loaded when someone signs
 // out, never with a shell (SYSTEM_DESIGN.md §11.6).
 import type { LocalDatabase } from "@/data/powersync";
+import { waitForUploads } from "./leaving";
 
-/** What signing out does, under the button and in the palette's question. */
-export const SIGN_OUT_NOTE = "Signing out removes your data from this device. It stays safe in your account.";
-
-/** Changes not uploaded yet would go with the device's data (PRODUCT_SPEC.md §5.4: offline work is kept): say so. */
-export function unsyncedLine(n: number): string {
-  return `${n === 1 ? "1 change hasn’t" : `${n} changes haven’t`} reached your account yet. Signing out now loses ${n === 1 ? "it" : "them"}.`;
-}
-export const UNSYNCED_NOTE = "Once you’re back online it syncs by itself, then signing out is safe.";
-export const loseLabel = (n: number): string => (n === 1 ? "Sign out and lose it" : "Sign out and lose them");
-
-/** Changes still waiting to upload. A connection that is up gets a few seconds to send them first. */
-export async function waitForUploads(db: Pick<LocalDatabase, "getUploadQueueStats">): Promise<number> {
-  const until = Date.now() + 8000;
-  let { count } = await db.getUploadQueueStats();
-  while (count > 0 && navigator.onLine && Date.now() < until) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    ({ count } = await db.getUploadQueueStats());
-  }
-  return count;
-}
+// The words and the wait for uploads are in leaving.ts, shared with the Android app; handed on, so imports are unchanged.
+export { SIGN_OUT_NOTE, UNSYNCED_NOTE, loseLabel, unsyncedLine, waitForUploads } from "./leaving";
 
 /**
  * Clears this device and ends its session, then loads the sign-in page. Unless `anyway`, queued changes first get a

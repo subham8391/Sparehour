@@ -2,7 +2,7 @@
 // on for the signed-in person, now, rather than at the next reconcile. Cheap
 // when there is nothing to do.
 import { NextResponse } from "next/server";
-import { createUserScopedClient } from "@/server/auth/supabase";
+import { requestUser } from "@/server/auth/request-user";
 import { googleConfigured } from "@/server/calendar/config";
 import { pushUser } from "@/server/calendar/run";
 
@@ -10,11 +10,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function POST() {
-  const supabase = await createUserScopedClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function POST(request: Request) {
+  // The browser's cookie session, or the phone app's access token (server/auth/request-user.ts).
+  const { user } = await requestUser(request);
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   if (!googleConfigured()) return NextResponse.json({ written: 0, deleted: 0, adopted: 0, failed: 0, skipped: "calendar_not_configured" });
   try {

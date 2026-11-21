@@ -6,7 +6,7 @@
 // for ever, since a request that does not answer is given up on, and being offline or without the table is told
 // apart from an error. Back online, it asks again by itself.
 import { useCallback, useEffect, useState } from "react";
-import { fetchFinished, type FinishedQuery, type FinishedRow } from "./finished";
+import { fetchFinished, type ApiFetch, type FinishedQuery, type FinishedRow } from "./finished";
 
 /** `offline`: the browser says there is no connection. `unavailable`: the server keeps no older tasks yet. */
 export type FinishedDayStatus = "loading" | "ready" | "offline" | "unavailable" | "error";
@@ -32,8 +32,11 @@ interface State {
   rows: FinishedRow[];
 }
 
-/** `from` inclusive and `to` exclusive: the day's two instants in the person's zone, as the Logbook's date filter builds them. */
-export function useFinishedDay(from: string, to: string): FinishedDay {
+/**
+ * `from` inclusive and `to` exclusive: the day's two instants in the person's zone, as the Logbook's date filter builds
+ * them. `api` is how the app's own routes are called where that is not the browser's `fetch` (the Android app's).
+ */
+export function useFinishedDay(from: string, to: string, api?: ApiFetch): FinishedDay {
   const key = `${from} ${to}`;
   const [state, setState] = useState<State>({ key, status: "loading", rows: [] });
   const [attempt, setAttempt] = useState(0);
@@ -55,7 +58,7 @@ export function useFinishedDay(from: string, to: string): FinishedDay {
         for (;;) {
           clearTimeout(timer);
           timer = setTimeout(() => controller.abort(), WAIT_MS);
-          const page = await fetchFinished({ from, to, limit: PAGE, after }, controller.signal);
+          const page = await fetchFinished({ from, to, limit: PAGE, after }, controller.signal, api);
           if (!page.available) return settle("unavailable");
           const fresh = page.rows.filter((r) => !seen.has(r.id));
           for (const r of fresh) seen.add(r.id);
@@ -76,7 +79,7 @@ export function useFinishedDay(from: string, to: string): FinishedDay {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [key, from, to, attempt]);
+  }, [key, from, to, attempt, api]);
 
   const retry = useCallback(() => {
     setState((now) => ({ ...now, status: "loading" }));
@@ -86,7 +89,8 @@ export function useFinishedDay(from: string, to: string): FinishedDay {
   // The connection is back: what could not be fetched is asked for again without a press.
   const waiting = current.status === "offline" || current.status === "error";
   useEffect(() => {
-    if (!waiting) return;
+    // The Android app has no such event to listen for: there, Try again is the way.
+    if (!waiting || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
     window.addEventListener("online", retry);
     return () => window.removeEventListener("online", retry);
   }, [waiting, retry]);

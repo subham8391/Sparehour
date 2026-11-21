@@ -6,6 +6,7 @@
 import { LookPicker } from "@/features/looks/look-picker";
 import { Segmented } from "@/ui/segmented";
 import { HINT, LABEL, ROW } from "../rows";
+import { LOOK_HINT, THEMES } from "../section-words";
 import { Section, useSavedFlash } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
 
@@ -16,7 +17,7 @@ export function AppearanceSection(p: SettingsFormProps) {
       <div className="flex flex-col gap-3 px-4 py-3">
         <span className="flex min-w-0 flex-col">
           <span className={LABEL}>Look</span>
-          <span className={HINT}>Colours, type and shapes. Every look works the same; it follows you to every device.</span>
+          <span className={HINT}>{LOOK_HINT}</span>
         </span>
         <LookPicker
           value={p.values.look}
@@ -30,11 +31,7 @@ export function AppearanceSection(p: SettingsFormProps) {
         <span className={LABEL}>Theme</span>
         <Segmented
           label="Theme"
-          options={[
-            { value: "light", label: "Light" },
-            { value: "dark", label: "Dark" },
-            { value: "system", label: "System" },
-          ]}
+          options={THEMES}
           value={p.values.theme}
           onChange={(theme) => {
             p.onChange({ theme });

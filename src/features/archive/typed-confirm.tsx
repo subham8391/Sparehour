@@ -7,12 +7,10 @@ import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/field";
 import { Sheet } from "@/ui/sheet";
+import { CONFIRM_FAILED, CONFIRM_WORD, confirms } from "./confirm-words";
 
-/** The word to type. */
-export const CONFIRM_WORD = "delete";
-
-/** Whether what was typed confirms: the word, any case, spaces around it ignored. */
-export const confirms = (typed: string): boolean => typed.trim().toLowerCase() === CONFIRM_WORD;
+// The word and what confirms are in confirm-words.ts, shared with the Android app; handed on, so imports are unchanged.
+export { CONFIRM_WORD, confirms };
 
 export function TypedConfirmSheet({
   title,
@@ -40,7 +38,7 @@ export function TypedConfirmSheet({
     if (!ready) return;
     setBusy(true);
     setError(null);
-    const failed = await onConfirm().catch(() => "Something stopped it — nothing was deleted. Try again.");
+    const failed = await onConfirm().catch(() => CONFIRM_FAILED);
     if (failed) {
       setError(failed);
       setBusy(false);

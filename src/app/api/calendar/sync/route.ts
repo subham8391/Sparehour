@@ -2,7 +2,7 @@
 // foreground after a while (SYSTEM_DESIGN.md §6.4): every account of the
 // signed-in person, now, whether or not the hourly reconcile thinks it is due.
 import { NextResponse } from "next/server";
-import { createUserScopedClient } from "@/server/auth/supabase";
+import { requestUser } from "@/server/auth/request-user";
 import { calendarConfigured, googleConfigured } from "@/server/calendar/config";
 import { pushUser, syncUser } from "@/server/calendar/run";
 
@@ -10,11 +10,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function POST() {
-  const supabase = await createUserScopedClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function POST(request: Request) {
+  // The browser's cookie session, or the phone app's access token (server/auth/request-user.ts).
+  const { user } = await requestUser(request);
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   if (!calendarConfigured()) return NextResponse.json({ error: "calendar_not_configured" }, { status: 503 });
   try {

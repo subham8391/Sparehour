@@ -4,7 +4,7 @@
 // cards, one row per setting with the label on the left and its control on
 // the right (DESIGN_SYSTEM.md §4a "Settings"); on the phone a wide control
 // wraps under its label.
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cx } from "@/ui/cx";
 import { Input } from "@/ui/field";
 import { Icon } from "@/ui/icons";
@@ -12,18 +12,10 @@ import { ListCard } from "@/ui/list-card";
 import { SectionLabel } from "@/ui/section-label";
 import { Switch } from "@/ui/switch";
 import { HINT, LABEL, ROW } from "./rows";
+import { readNumber } from "./settings-rules";
 
-/** The "Saved" that follows a change for a second and a half. */
-export function useSavedFlash(): [boolean, () => void] {
-  const [at, setAt] = useState(0);
-  const [hiddenAt, setHiddenAt] = useState(0);
-  useEffect(() => {
-    if (!at) return;
-    const t = setTimeout(() => setHiddenAt(at), 1500);
-    return () => clearTimeout(t);
-  }, [at]);
-  return [at !== 0 && hiddenAt !== at, () => setAt(Date.now())];
-}
+// The "Saved" that follows a change for a second and a half: its own module (saved-flash.ts), shared with the Android app.
+export { useSavedFlash } from "./saved-flash";
 
 /** The "Saved" that follows a change: always in the tree so the live region exists before it speaks. */
 export function SavedStatus({ on }: { on: boolean }) {
@@ -102,8 +94,8 @@ export function NumberRow({ id, label, unit, value, min, max, step, onChange }: 
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value);
-              const v = Number(e.target.value);
-              if (e.target.value !== "" && Number.isFinite(v) && v >= min && v <= max) onChange(v);
+              const v = readNumber(e.target.value, min, max);
+              if (v !== null) onChange(v);
             }}
             onBlur={() => setDraft(String(value))}
             className="num"

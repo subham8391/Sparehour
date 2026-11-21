@@ -24,13 +24,16 @@ import type { PlanGhost } from "@/features/planning/drawing";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import type { MenuHandle } from "@/ui/popover";
-import { Block, BlockToolbar, INSET, PlacingBar, TWO_LINE_PX, hhmm, laneStyle, rangeLine, type Armed } from "./block-tools";
+import { Block, BlockToolbar, INSET, PlacingBar, TWO_LINE_PX, laneStyle, type Armed } from "./block-tools";
 import { minuteOnDay } from "./day-minute";
 import type { TimelineBlock, TimelineMeeting } from "./hooks/use-today";
 import { layoutLanes } from "./overlap";
+import { DAY_MIN, drawnRange, firstFreeAhead, hhmm, landing, meetingTitle, namedGaps, offerAt, openingMinute, rangeLine } from "./timeline-geometry";
 import { registerTimeline } from "./timeline-request";
 
 export { PlacingBar } from "./block-tools";
+// Where the timeline opens is arithmetic of its own (timeline-geometry.ts), handed on from here.
+export { drawnRange } from "./timeline-geometry";
 
 // "Add at 14:30", what "New block here" opens: fetched when the offer is first shown, so no timeline carries it.
 const loadAddAt = () => import("./add-at-sheet");
@@ -38,15 +41,8 @@ const AddAtSheet = lazy(() => loadAddAt().then((m) => ({ default: m.AddAtSheet }
 
 /** The default scale, the 30-minute zoom step: 66 px per hour (DESIGN_SYSTEM.md §5). */
 export const PX_PER_MIN = 1.1;
-/** The padding drawn either side of the working day (SCREENS.md §2.6). */
-const PAD_MIN = 60;
-const DAY_MIN = 24 * 60;
-/** A free gap shorter than this is not worth naming. */
-const FREE_LABEL_MIN = 30;
 /** How far a pointer goes on empty space before it is drawing a block rather than clicking. */
 const DRAW_PX = 6;
-/** "New block here" on touch starts no later than half an hour before midnight (PRODUCT_SPEC.md §10.2). */
-const TAP_BLOCK_MIN = 30;
 
 // ---- the zoom, one per device (SCREENS.md §2.6), shared by every timeline on screen
 const ZOOM_KEY = "sparehour:timeline-zoom";
@@ -142,32 +138,6 @@ interface Ghost {
   start: number;
   end: number;
   label: string;
-}
-
-/** The one event that fills a busy interval names it; two overlapping ones, or a private calendar, read "Busy". */
-function meetingTitle(b: Interval, meetings: readonly TimelineMeeting[] | undefined): string {
-  const inside = (meetings ?? []).filter((m) => m.start >= b.start && m.end <= b.end);
-  return inside.length === 1 ? inside[0].title : "Busy";
-}
-
-/**
- * Where the timeline opens (SCREENS.md §2.6): the working day plus an hour either side, widened to take in
- * everything drawn on it (a 07:30 block is allowed, PRODUCT_SPEC.md §10.2) and the now line, in whole hours
- * inside the day. Without working hours it falls back to 09:00–17:00, as the Today page does. The whole day
- * scrolls; this is the stretch it opens on.
- */
-export function drawnRange(windows: readonly Interval[], drawn: readonly Interval[], nowMin: number | null): Interval {
-  let start = (windows[0]?.start ?? 9 * 60) - PAD_MIN;
-  let end = (windows[windows.length - 1]?.end ?? 17 * 60) + PAD_MIN;
-  for (const d of drawn) {
-    start = Math.min(start, d.start);
-    end = Math.max(end, d.end);
-  }
-  if (nowMin !== null) {
-    start = Math.min(start, nowMin);
-    end = Math.max(end, nowMin);
-  }
-  return { start: Math.max(0, Math.floor(start / 60) * 60), end: Math.min(DAY_MIN, Math.ceil(end / 60) * 60) };
 }
 
 /** The element that scrolls the timeline: its own box, or the pane around it. */
@@ -294,14 +264,12 @@ export function Timeline(p: TimelineProps) {
   const sendTimes = (kind: Armed["kind"], from: number, to: number) => {
     if (!selected) return;
     setArmed(null);
-    const len = selected.end - selected.start;
-    const resize = kind === "move" && to - from !== len;
     // What is read out is where it lands: a move or a copy keeps its length, snapped to five minutes.
-    const at = resize ? { start: from, end: Math.min(DAY_MIN, to) } : placeAt(from, len);
-    if (kind === "copy") p.onDuplicateBlock?.(selected.id, from);
-    else if (resize) p.onResizeBlock?.(selected.id, at.start, at.end);
+    const at = landing(kind, selected, from, to);
+    if (at.how === "copy") p.onDuplicateBlock?.(selected.id, from);
+    else if (at.how === "resize") p.onResizeBlock?.(selected.id, at.start, at.end);
     else p.onMoveBlock?.(selected.id, from);
-    say(`${kind === "copy" ? "Copied to" : resize ? "Now" : "Moved to"} ${hhmm(at.start)}–${hhmm(at.end)}`);
+    say(at.said);
   };
 
   // Opening on the working day, and keeping the now line (or else the minute at the top) in view when the zoom
@@ -309,7 +277,7 @@ export function Timeline(p: TimelineProps) {
   // is turned to the morning, and again whenever the scroller is another element: a window narrowed below the wide
   // band moves the scrolling from the day pane to the card's own box, which started at midnight.
   const scrolledFor = useRef<{ scale: number; scroller: HTMLElement } | null>(null);
-  const openAt = nowShown && nowMin > opening.start + 6 * 60 ? nowMin - 90 : opening.start;
+  const openAt = openingMinute(opening, nowShown ? nowMin : null);
   // A grid column leaves this to the grid, which scrolls every day at once.
   const column = Boolean(p.column);
 
@@ -317,7 +285,7 @@ export function Timeline(p: TimelineProps) {
   // ahead is turned into view, and where the timeline scrolls in its own box, the card around it (the "Tap a time"
   // bar with it) is brought into the page. Like the opening, it waits for the timeline to have a size: Block on a
   // row is what shows a phone's Day view.
-  const freeAhead = c.free.find((g) => g.end - Math.max(g.start, elapsed) >= FREE_LABEL_MIN) ?? c.free.find((g) => g.end > elapsed) ?? null;
+  const freeAhead = firstFreeAhead(c.free, elapsed);
   const freeAt = freeAhead ? Math.max(freeAhead.start, elapsed) : null;
   const freeLen = freeAhead && freeAt !== null ? freeAhead.end - freeAt : 0;
   const wantsFree = useRef(false);
@@ -498,7 +466,7 @@ export function Timeline(p: TimelineProps) {
     }
     // On touch, a tap on an empty slot with nothing selected offers a block there; any other tap lets go.
     if (lastPointer.current === "touch" && p.onAddBlock && !p.selectedBlockId && offer === null) {
-      setOffer(Math.min(DAY_MIN - TAP_BLOCK_MIN, Math.floor(minuteAt(e.clientY) / 15) * 15));
+      setOffer(offerAt(minuteAt(e.clientY)));
       void loadAddAt().catch(() => undefined);
       return;
     }
@@ -519,7 +487,7 @@ export function Timeline(p: TimelineProps) {
   const labelHidden = (m: number) => (nowShown && Math.abs(m - nowMin) <= reach) || (finishMin !== null && Math.abs(m - finishMin) <= reach + 2);
   const rows = Array.from({ length: 60 / zoom - 1 }, (_, i) => (i + 1) * zoom);
   // Free gaps of half an hour or more are content: named in spare, and the tap-to-schedule targets. The part already gone is not free.
-  const gaps = c.free.map((g) => ({ start: Math.max(g.start, elapsed), end: g.end })).filter((g) => g.end - g.start >= FREE_LABEL_MIN);
+  const gaps = namedGaps(c.free, elapsed);
   // The dashed outline under a pointer: a dragged row or block, or a block being drawn.
   const shade: Ghost | null = ghost ?? (drawing && { ...drawing, label: "New block" });
   const bar = armed && armedBlock ? (armed.kind === "move" ? `Tap a new time for “${armedBlock.title}”` : `Tap a time for a copy of “${armedBlock.title}”`) : null;

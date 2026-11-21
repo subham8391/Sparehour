@@ -13,13 +13,11 @@ import { fieldClass } from "@/ui/field";
 import { Icon } from "@/ui/icons";
 import { EYEBROW } from "@/ui/section-label";
 import { Sheet } from "@/ui/sheet";
+import { OWN_MIN, addAtEnd, addAtLengths } from "./add-at";
 import { hhmm } from "./block-tools";
 
-const DAY_MIN = 24 * 60;
-/** The lengths offered; a task's own length joins them when it is not one of these. */
-export const ADD_LENGTHS: readonly number[] = [15, 30, 45, 60, 90, 120];
-/** A block of your own starts at half an hour, as "New block here" always made it. */
-const OWN_MIN = 30;
+// The lengths offered and where the block ends are the sheet's arithmetic (add-at.ts), which the Android app's sheet shares.
+export { ADD_LENGTHS } from "./add-at";
 
 const ROW = "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-body text-ink hover:bg-hover aria-checked:bg-surface-2 aria-checked:font-medium";
 const PICK = chipButtonClass();
@@ -42,8 +40,8 @@ export function AddAtSheet({ at, tasks, onAdd, onClose }: AddAtSheetProps) {
   const lengthId = useId();
   const label = `Add at ${hhmm(at)}`;
   // A block ends on the day it starts: late in the evening a long one stops at midnight.
-  const end = Math.min(DAY_MIN, at + minutes);
-  const lengths = [...new Set([...ADD_LENGTHS, minutes])].sort((a, b) => a - b);
+  const end = addAtEnd(at, minutes);
+  const lengths = addAtLengths(minutes);
   const ready = taskId !== null || name.trim() !== "";
   const add = () => {
     if (!ready) return;

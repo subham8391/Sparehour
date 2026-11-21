@@ -13,6 +13,7 @@ const local = (owners: string[]) => {
   return {
     order,
     getAll: jest.fn(async () => owners.map((id) => ({ id }))),
+    execute: jest.fn(async (sql: string) => void order.push(sql)),
     disconnectAndClear: jest.fn(async () => void order.push("clear")),
     connect: jest.fn(async () => void order.push("connect")),
   };
@@ -31,7 +32,8 @@ describe("connectFor", () => {
   it("clears another account's copy before it connects", async () => {
     const db = local(["u2"]);
     await connectFor("u1", db as never);
-    expect(db.order).toEqual(["clear", "connect"]);
+    // Zeroed as it goes and compacted after, so nothing of the last account stays readable in the file.
+    expect(db.order).toEqual(["PRAGMA secure_delete = ON", "clear", "VACUUM", "connect"]);
   });
 
   it("does not connect when the copy could not be cleared: someone else's rows are never synced into", async () => {

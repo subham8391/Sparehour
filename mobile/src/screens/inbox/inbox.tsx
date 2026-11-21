@@ -1,12 +1,11 @@
 // The Inbox on the phone (ANDROID_APP_SPEC.md §10; SCREENS.md §5), wired to the phone's own database. Everything it
 // knows comes from the web app's own code, used as it is: the queue's statement (INBOX_SQL), each row's age, the
 // write behind every triage choice (features/inbox/triage.ts, triage-fields.ts), the snooze presets and Move to…
-// (features/tasks/snooze.ts, move-to-day.ts), the quick-add parser behind the + button, and the repository that
-// writes and records the undo the app's one toast offers. The drawing is inbox-view.tsx; Triage all is triage-walk.tsx.
+// (features/tasks/snooze.ts, move-to-day.ts), quick add behind the + button (quick-add/quick-add.tsx), and the
+// repository that writes and records the undo the app's one toast offers. The drawing is inbox-view.tsx; Triage all is triage-walk.tsx.
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { parse } from "@/core/quickadd/parse";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { INBOX_SQL } from "@/data/queries/views";
 import type { TaskRow } from "@/data/schema.client";
@@ -21,12 +20,10 @@ import { useMoveProjects } from "@/features/tasks/use-move-projects";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Icon } from "~/ui/icon";
 import { useColours } from "~/ui/theme";
-import { AddSheet } from "../add-sheet";
+import { useQuickAdd } from "../quick-add/quick-add";
 import { inboxRows } from "./inbox-rows";
 import { InboxView } from "./inbox-view";
 import { TriageWalk } from "./triage-walk";
-
-const SPACE_SQL = `select personal_space_id from users limit 1`;
 
 export function Inbox() {
   const c = useColours();
@@ -38,21 +35,10 @@ export function Inbox() {
   const { data, isLoading } = useQuery<TaskRow>(INBOX_SQL);
   const projectNames = useProjectNames();
   const choices = useMoveProjects();
-  const { data: spaces } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
-  const spaceId = spaces?.[0]?.personal_space_id ?? null;
-  const [adding, setAdding] = useState(false);
+  const quickAdd = useQuickAdd();
   const [walking, setWalking] = useState<readonly string[] | null>(null);
 
   const rows = inboxRows(data ?? [], projectNames, today, zone);
-
-  // A line with no day and no project stays here; a day or a project files it (the repository's rule, PRODUCT_SPEC.md
-  // §5.1 rule 5). Days are counted from the person's today, as quick add counts them.
-  const add = (line: string): boolean => {
-    const parsed = parse(line, { now, zone, today, eveningStartsAt: settings?.eveningStartsAt });
-    if (!parsed.ok || !spaceId) return false;
-    void repo.create(parsed.draft, { spaceId });
-    return true;
-  };
 
   return (
     <View style={styles.fill}>
@@ -78,10 +64,10 @@ export function Inbox() {
         onTriageAll={() => setWalking(rows.map((r) => r.task.id))}
         bottomRoom={88}
       />
-      <Pressable accessibilityRole="button" accessibilityLabel="Add to Inbox" onPress={() => setAdding(true)} style={[styles.fab, { backgroundColor: c.ink }]}>
+      {/* Plain capture: a line with no day and no project stays here; a day or a project files it (PRODUCT_SPEC.md §5.1 rule 5). */}
+      <Pressable accessibilityRole="button" accessibilityLabel="Add to Inbox" onPress={() => quickAdd.open()} style={[styles.fab, { backgroundColor: c.ink }]}>
         <Icon name="plus" size={26} color={c.paper} strokeWidth={2} />
       </Pressable>
-      <AddSheet open={adding} onAdd={add} onClose={() => setAdding(false)} hint="A line with no day stays in the Inbox. A day or a project files it." />
       <TriageWalk ids={walking} onClose={() => setWalking(null)} />
     </View>
   );

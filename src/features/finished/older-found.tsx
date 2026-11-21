@@ -5,9 +5,8 @@
 // read-only view of each with Reopen and Delete for good (amendment 2026-11-15). An island: nothing of it rides in
 // the search screen's first download.
 import { useCallback, useMemo, useState } from "react";
-import { instant, type LocalDate } from "@/core/time";
-import { formatDay } from "@/core/time/format-day";
-import { normaliseTimestamp, toTask } from "@/data/mappers";
+import type { LocalDate } from "@/core/time";
+import { toTask } from "@/data/mappers";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { restoreFinished } from "@/data/repositories/finished-restore";
 import { useProjectNames } from "@/features/projects/use-project-names";
@@ -18,17 +17,11 @@ import { Button } from "@/ui/button";
 import { SectionLabel } from "@/ui/section-label";
 import { toTaskRow, type FinishedRow } from "./finished";
 import { FinishedPeek } from "./finished-peek";
+import { OLDER_FOUND_PAGE as PAGE, finishedDay } from "./finished-words";
 import { useFinished } from "./use-finished";
 
 const TAGS_BY_ID_SQL = `select id, lower(name) as name from tags where deleted_at is null`;
 const NO_TAG_IDS = `select id, name from tags where 0`;
-const PAGE = 20;
-
-/** The day a row was finished, in the person's zone: "Tue 3 Mar", with the year when it is another one. */
-function finishedDay(f: FinishedRow, zone: string, today: LocalDate): string | null {
-  if (!f.completed_at) return null;
-  return formatDay(instant(normaliseTimestamp(f.completed_at)).toZonedDateTimeISO(zone).toPlainDate(), { today });
-}
 
 export function OlderFound({ words, zone, today }: { words: string; zone: string; today: LocalDate }) {
   const query = useMemo(() => ({ words: words.trim(), limit: PAGE }), [words]);
@@ -77,7 +70,7 @@ export function OlderFound({ words, zone, today }: { words: string; zone: string
               meta={
                 <>
                   {f.project_id && projectNames.has(f.project_id) && <span>{projectNames.get(f.project_id)}</span>}
-                  <span className="num">{finishedDay(f, zone, today)}</span>
+                  <span className="num">{finishedDay(f.completed_at, zone, today)}</span>
                 </>
               }
               actions={f.occurrence_of ? undefined : <RowAction label="Reopen" primary onClick={() => void reopen(f)} />}

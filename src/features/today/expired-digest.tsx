@@ -8,11 +8,10 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@/data/powersync";
+import { EXPIRED_SQL, expiredLine } from "@/features/rollover/expired";
 import { useAnnouncement } from "@/features/rollover/use-announcement";
 import { buttonClass, iconButtonClass } from "@/ui/button";
 import { Icon } from "@/ui/icons";
-
-const EXPIRED_SQL = `select expired_at from tasks where deleted_at is null and state = 'dropped' and expired_at is not null`;
 
 export default function ExpiredDigest() {
   const { data } = useQuery<{ expired_at: string | null }>(EXPIRED_SQL);
@@ -21,7 +20,7 @@ export default function ExpiredDigest() {
   if (count === 0) return null;
   return (
     <p role="status" className="flex items-center gap-1 rounded-xl border border-line bg-surface py-1 pr-1 pl-4 text-body-sm text-ink-2">
-      <span className="min-w-0 flex-1 text-pretty">{count === 1 ? "1 time-sensitive task" : `${count} time-sensitive tasks`} expired overnight</span>
+      <span className="min-w-0 flex-1 text-pretty">{expiredLine(count)}</span>
       <Link href="/logbook?show=expired" onClick={dismiss} className={buttonClass({ variant: "link", size: "compact" })}>
         Review
       </Link>

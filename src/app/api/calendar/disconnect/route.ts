@@ -5,7 +5,8 @@
 // sent to a provider it did not come from. Blocks stay local and are marked
 // unsynced by the account row going away.
 import { NextResponse, type NextRequest } from "next/server";
-import { serviceRoleClient, createUserScopedClient } from "@/server/auth/supabase";
+import { requestUser } from "@/server/auth/request-user";
+import { serviceRoleClient } from "@/server/auth/supabase";
 import { openFromBase64 } from "@/server/calendar/crypto";
 import { isUuid, tokenKey } from "@/server/calendar/config";
 import { revokeToken } from "@/server/calendar/google";
@@ -15,10 +16,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createUserScopedClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The browser's cookie session, or the phone app's access token (server/auth/request-user.ts).
+  const { user } = await requestUser(req);
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as { id?: string };
   if (!isUuid(body.id)) return NextResponse.json({ error: "id required" }, { status: 400 });

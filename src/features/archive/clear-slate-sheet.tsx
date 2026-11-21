@@ -13,25 +13,16 @@ import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Radio } from "@/ui/radio";
 import { Sheet } from "@/ui/sheet";
+import { SLATE_FAILED, SLATE_KEEPS, SLATE_SCOPES as SCOPES, slateConfirmLabel, slateCount, slateQuestion } from "./confirm-words";
+
+// The scopes, the question and the guarantee are in confirm-words.ts, shared with the Android app; handed on, so imports are unchanged.
+export { slateQuestion };
 
 export interface ClearSlateProps {
   /** The person's today, YYYY-MM-DD. */
   today: string;
   onClose: () => void;
 }
-
-const tasksWord = (n: number) => (n === 1 ? "1 task" : `${n} tasks`);
-
-/** The confirmation's question and guarantee, verbatim from PRODUCT_SPEC.md §8.5 rule 4. */
-export function slateQuestion(n: number): string {
-  if (n === 0) return "Nothing to archive here.";
-  return `Archive ${tasksWord(n)}? Nothing is deleted — you can bring the whole batch back for 30 days.`;
-}
-
-const SCOPES: readonly { value: SlateScope; label: string; hint: string }[] = [
-  { value: "today", label: "Today only", hint: "Everything dated today or earlier, Carried over included" },
-  { value: "backlog", label: "Today + backlog", hint: "Adds active tasks with no date" },
-];
 
 export default function ClearSlateSheet({ today, onClose }: ClearSlateProps) {
   const db = useLocalDatabase();
@@ -41,7 +32,7 @@ export default function ClearSlateSheet({ today, onClose }: ClearSlateProps) {
   const [scope, setScope] = useState<SlateScope>("today");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const count = (s: SlateScope) => (counts ? Number(counts.today) + (s === "backlog" ? Number(counts.backlog) : 0) : null);
+  const count = (s: SlateScope) => slateCount(counts, s);
   const n = count(scope);
 
   const confirm = async () => {
@@ -51,7 +42,7 @@ export default function ClearSlateSheet({ today, onClose }: ClearSlateProps) {
       await clearTheSlate(db, undo ?? undefined, scope, today);
       onClose();
     } catch {
-      setError("Couldn’t archive them — nothing changed. Try again.");
+      setError(SLATE_FAILED);
       setBusy(false);
     }
   };
@@ -76,14 +67,14 @@ export default function ClearSlateSheet({ today, onClose }: ClearSlateProps) {
         <p role="status" className="text-body text-pretty text-ink">
           {n === null ? "Counting…" : slateQuestion(n)}
         </p>
-        <p className="text-body-sm text-pretty text-ink-3">The Inbox and repeating tasks stay as they are.</p>
+        <p className="text-body-sm text-pretty text-ink-3">{SLATE_KEEPS}</p>
         {error && <p className="text-body-sm text-pretty text-deadline">{error}</p>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button variant="primary" onClick={() => void confirm()} disabled={busy || !n}>
-            {busy ? "Archiving…" : n ? `Archive ${tasksWord(n)}` : "Archive"}
+            {slateConfirmLabel(n, busy)}
           </Button>
         </div>
       </div>

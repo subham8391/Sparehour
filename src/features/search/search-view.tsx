@@ -6,7 +6,7 @@ import { VIEW_COLUMN } from "@/features/shell/view-header";
 import Link from "next/link";
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { LocalDate } from "@/core/time";
-import type { Task, TaskState } from "@/core/types";
+import type { Task } from "@/core/types";
 import { dayChip } from "@/features/tasks/day-chip";
 import { DayChipTag } from "@/features/tasks/day-chip-tag";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
@@ -18,6 +18,7 @@ import { Icon } from "@/ui/icons";
 import { EmptyCard, ListCard } from "@/ui/list-card";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { EYEBROW, SectionLabel } from "@/ui/section-label";
+import { FILTER_STATES as STATES, datePresets } from "./filter-choices";
 import { STATE_LABEL, filterLabel, hasFilters, type FilterKey, type SearchFilters, type Snippet } from "./search";
 
 export interface SearchHit {
@@ -65,7 +66,6 @@ const FILTER = cx(buttonClass({ variant: "secondary" }), "pr-0.5 pl-3 text-body-
 const FILTER_MENU = cx(buttonClass({ variant: "quiet" }), "pr-3 pl-8");
 // The × inside a filter: the chip's own height on the phone, 32 px inside the 36 px chip above.
 const FILTER_REMOVE = cx(iconButtonClass({ size: "touch" }), "rounded-sm text-ink-3 sm:size-8 touch:size-11");
-const STATES: TaskState[] = ["inbox", "active", "someday", "done", "dropped"];
 
 export function SearchView(p: SearchViewProps) {
   const { filters, onFiltersChange } = p;
@@ -108,17 +108,7 @@ export function SearchView(p: SearchViewProps) {
     e.preventDefault();
     inputRef.current?.focus();
   };
-  const day = (d: LocalDate) => d.toString();
-  const presets = (): { label: string; from: string; to: string }[] => {
-    const t = p.today;
-    const dow = t.dayOfWeek;
-    const monday = t.subtract({ days: dow - 1 });
-    return [
-      { label: "Today", from: day(t), to: day(t) },
-      { label: "This week", from: day(monday), to: day(monday.add({ days: 6 })) },
-      { label: "This month", from: day(t.with({ day: 1 })), to: day(t.with({ day: t.daysInMonth })) },
-    ];
-  };
+  const presets = () => datePresets(p.today);
 
   return (
     // Focusable from script only: ↓ in the field hands focus here so the list keys work (see onKey).

@@ -5,8 +5,9 @@
 // THEME_BOOTSTRAP); globals.css and the motion-safe / motion-reduce variants
 // read the attribute. Only Settings writes it, so this lives outside the shell.
 import { MOTION_KEY } from "@/features/commands/theme";
+import type { MotionChoice } from "./settings-values";
 
-export type MotionChoice = "system" | "reduce";
+export type { MotionChoice };
 const MOTION_EVENT = "sparehour:motion";
 
 /** This device's motion choice: what the head script stamped from storage. */

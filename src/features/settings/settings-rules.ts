@@ -139,6 +139,15 @@ export function longestDayMinutes(week: readonly (readonly Segment[])[]): number
   return Math.max(0, ...lengths) || 540;
 }
 
+/**
+ * A number as it is typed into one of Settings' number rows: its value once that is inside the row's bounds, null
+ * while it is not (empty, half-typed, out of range), so nothing is saved until it can be.
+ */
+export function readNumber(typed: string, min: number, max: number): number | null {
+  const v = Number(typed);
+  return typed !== "" && Number.isFinite(v) && v >= min && v <= max ? v : null;
+}
+
 /** The day can roll over between midnight and 06:00 (DECISIONS.md engineering rulings). */
 export const ROLLOVER_HOURS = [0, 1, 2, 3, 4, 5, 6] as const;
 

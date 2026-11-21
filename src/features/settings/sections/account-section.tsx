@@ -13,6 +13,7 @@ import { cx } from "@/ui/cx";
 import { SectionAction } from "@/ui/section-label";
 import { Select } from "@/ui/select";
 import { HINT, NOTE, ROW, LABEL, VALUE } from "../rows";
+import { DELETE_ACCOUNT_NOTE, SIGN_IN_METHODS_OFFLINE, zoneOffer } from "../section-words";
 import { canonicalZone, timeZoneHint, timeZoneOptions } from "../settings-rules";
 import { Section, useSavedFlash } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
@@ -68,7 +69,7 @@ export function AccountSection(p: SettingsFormProps) {
             {methods === null ? (
               <span className={cx(VALUE, "text-ink-3")}>Checking…</span>
             ) : methods === "unknown" || methods.length === 0 ? (
-              <span className={HINT}>Shown when you’re online</span>
+              <span className={HINT}>{SIGN_IN_METHODS_OFFLINE}</span>
             ) : (
               <span className={VALUE}>{methods.join(" · ")}</span>
             )}
@@ -87,7 +88,7 @@ export function AccountSection(p: SettingsFormProps) {
                 </option>
               ))}
             </Select>
-            {hint && <SectionAction onClick={() => change({ timezone: canonicalZone(p.detectedTimeZone as string) })}>{hint} — use it</SectionAction>}
+            {hint && <SectionAction onClick={() => change({ timezone: canonicalZone(p.detectedTimeZone as string) })}>{zoneOffer(hint)}</SectionAction>}
           </span>
         </div>
       </Section>
@@ -121,7 +122,7 @@ export function AccountSection(p: SettingsFormProps) {
         <Button variant="secondary" tone="destructive" onClick={() => setDeleting(true)} className="self-start">
           Delete account
         </Button>
-        <p className={NOTE}>Everything in your account goes, after 30 days to change your mind.</p>
+        <p className={NOTE}>{DELETE_ACCOUNT_NOTE}</p>
       </section>
       {deleting && (
         <DeleteAccountSheet

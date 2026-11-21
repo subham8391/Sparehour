@@ -167,12 +167,12 @@ describe("calendar routes", () => {
   });
 
   it("sync now runs every account of the signed-in person", async () => {
-    const res = await sync();
+    const res = await sync(req("/api/calendar/sync", { method: "POST" }));
     expect(await res.json()).toEqual({ accounts: 1, report: { "acct-1": { status: "ok", calendars: 1, events: 2, error: null } }, push: { written: 1, deleted: 0, adopted: 0, failed: 0 } });
     expect(syncUser).toHaveBeenCalledWith("u1");
     expect(pushUser).toHaveBeenCalledWith("u1");
     sessionUser = null;
-    expect((await sync()).status).toBe(401);
+    expect((await sync(req("/api/calendar/sync", { method: "POST" }))).status).toBe(401);
   });
 
   it("the tick needs the jobs secret and syncs what is due", async () => {
@@ -184,22 +184,24 @@ describe("calendar routes", () => {
   });
 
   it("push writes the signed-in person's pending blocks, and says so when the calendar is not set up", async () => {
-    expect(await (await push()).json()).toEqual({ written: 1, deleted: 0, adopted: 0, failed: 0 });
+    // The route takes its caller from the request (the browser's cookie here; the phone app sends a bearer token).
+    const asked = () => push(req("/api/calendar/push", { method: "POST" }));
+    expect(await (await asked()).json()).toEqual({ written: 1, deleted: 0, adopted: 0, failed: 0 });
     expect(pushUser).toHaveBeenCalledWith("u1");
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "");
-    expect(await (await push()).json()).toMatchObject({ skipped: "calendar_not_configured" });
+    expect(await (await asked()).json()).toMatchObject({ skipped: "calendar_not_configured" });
     sessionUser = null;
-    expect((await push()).status).toBe(401);
+    expect((await asked()).status).toBe(401);
   });
 
   it("sync now and the tick run where only Outlook is set up, without the block push that is Google's; with neither, they do not run", async () => {
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "");
-    expect((await sync()).status).toBe(503);
+    expect((await sync(req("/api/calendar/sync", { method: "POST" }))).status).toBe(503);
     expect(await (await tick(req("/api/calendar/tick", { method: "POST", headers: { "x-push-secret": "jobs" } }))).json()).toEqual({ skipped: "calendar_not_configured" });
     expect(syncUser).not.toHaveBeenCalled();
     vi.stubEnv("MICROSOFT_OAUTH_CLIENT_ID", "mid");
     vi.stubEnv("MICROSOFT_OAUTH_CLIENT_SECRET", "msecret");
-    expect(await (await sync()).json()).toMatchObject({ accounts: 1, push: { written: 0, deleted: 0, adopted: 0, failed: 0 } });
+    expect(await (await sync(req("/api/calendar/sync", { method: "POST" }))).json()).toMatchObject({ accounts: 1, push: { written: 0, deleted: 0, adopted: 0, failed: 0 } });
     expect(syncUser).toHaveBeenCalledWith("u1");
     expect(pushUser).not.toHaveBeenCalled();
     expect((await tick(req("/api/calendar/tick", { method: "POST", headers: { "x-push-secret": "jobs" } }))).status).toBe(200);

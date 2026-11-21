@@ -17,6 +17,15 @@ export function finishedWhen(completedAt: string | null, zone: string, today?: L
   return `${formatDay(at.toPlainDate(), { weekday: "long", month: "long", today })} · ${formatTime(at.toPlainTime())}`;
 }
 
+/** How many older matches search asks the server for at a time. */
+export const OLDER_FOUND_PAGE = 20;
+
+/** The day a row was finished, in the person's zone, as a list says it: "Tue 3 Mar", with the year when it is another one. */
+export function finishedDay(completedAt: string | null, zone: string, today?: LocalDate): string | null {
+  if (!completedAt) return null;
+  return formatDay(instant(normaliseTimestamp(completedAt)).toZonedDateTimeISO(zone).toPlainDate(), { today });
+}
+
 /** Where it was filed, its estimate, what it took and its deadline, as the one line under when it was finished. */
 export function finishedFacts(row: Pick<FinishedRow, "estimate_min" | "actual_min" | "deadline">, projectName: string | null | undefined, today?: LocalDate): string[] {
   return [projectName, row.estimate_min ? formatMinutes(row.estimate_min) : null, row.actual_min ? `took ${formatMinutes(row.actual_min)}` : null, row.deadline ? `due ${formatDay(localDate(String(row.deadline).slice(0, 10)), { today })}` : null].filter((fact): fact is string => Boolean(fact));

@@ -10,10 +10,14 @@ import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { ListCard } from "@/ui/list-card";
 import { SectionLabel } from "@/ui/section-label";
-import { CHANGELOG } from "../changelog";
+import { CHANGELOG, changelogDate } from "../changelog";
 import { HINT, LABEL, ROW, VALUE } from "../rows";
+import { PRIVACY_HINT } from "../section-words";
 import { Section } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
+
+// A change's date as it is written lives with the changelog (changelog.ts), shared with the Android app's About.
+export { changelogDate };
 
 /** A pointer that hovers or aims finely means a keyboard is likely to hand; a bare touch screen has neither. */
 const KEYBOARD = "(any-hover: hover), (any-pointer: fine)";
@@ -23,13 +27,6 @@ function subscribeKeyboard(onChange: () => void): () => void {
   const query = window.matchMedia(KEYBOARD);
   query.addEventListener?.("change", onChange);
   return () => query.removeEventListener?.("change", onChange);
-}
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-/** "6 Oct 2026" from "2026-10-06". */
-export function changelogDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return `${d} ${MONTHS[(m ?? 1) - 1]} ${y}`;
 }
 
 export function AboutSection(p: SettingsFormProps) {
@@ -56,7 +53,7 @@ export function AboutSection(p: SettingsFormProps) {
         <Link href="/privacy" className={cx(ROW, "text-ink transition-colors dur-fast hover:bg-hover focus-visible:-outline-offset-2 active:bg-press last:rounded-b-xl")}>
           <span className="flex min-w-0 flex-col">
             <span className={LABEL}>Privacy</span>
-            <span className={HINT}>Where your data lives, and what leaves this device</span>
+            <span className={HINT}>{PRIVACY_HINT}</span>
           </span>
           <Icon name="chevron-right" size={16} className="shrink-0 text-ink-3" />
         </Link>

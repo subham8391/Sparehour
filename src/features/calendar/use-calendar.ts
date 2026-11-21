@@ -8,7 +8,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
 import { CalendarRepo } from "@/data/repositories/calendar-repo";
-import type { CalendarAccountView, CalendarPanelState, CalendarView } from "./calendar-section";
+import type { CalendarPanelState } from "./calendar-section";
+import { disconnectNotice, toAccountView, toCalendarView } from "./calendar-views";
 import { CALENDAR_UNAVAILABLE, calendarSyncNow } from "./sync-now";
 
 const OUTCOME_COPY: Record<string, string> = {
@@ -31,30 +32,9 @@ export function consentOutcome(search: string): string | null {
   return outcome === "error" && params.get("reason") ? (params.get("reason") as string) : (OUTCOME_COPY[outcome] ?? null);
 }
 
-export const toAccountView = (r: CalendarConnectionRow): CalendarAccountView => ({
-  id: r.id,
-  // Anything but Outlook is Google, which came first (providers.ts says the same for the islands; this file is in
-  // the Settings shell and takes nothing it can do without).
-  provider: r.provider === "microsoft" ? "microsoft" : "google",
-  email: r.email,
-  status: r.status === "needs_reauth" || r.status === "revoked" ? r.status : "ok",
-  lastSyncedAt: r.last_synced_at,
-  lastError: r.last_error,
-  canWrite: r.can_write === 1,
-  titles: r.can_read_titles === 1,
-  writesOwn: r.can_write_own === 1,
-});
-
-export const toCalendarView = (r: CalendarFullRow): CalendarView => ({
-  id: r.id,
-  accountId: r.calendar_account_id,
-  summary: r.summary ?? "Untitled calendar",
-  color: r.color,
-  accessRole: r.access_role,
-  read: r.read !== 0,
-  private: r.private === 1,
-  writeTarget: r.write_target === 1,
-});
+// How a row reads as an account or a calendar is in calendar-views.ts, shared with the Android app; handed on, so
+// imports are unchanged.
+export { toAccountView, toCalendarView };
 
 export function useCalendar(): CalendarPanelState {
   const db = useLocalDatabase();
@@ -109,7 +89,7 @@ export function useCalendar(): CalendarPanelState {
         .finally(() => setBusy(false));
     },
     onDisconnect: (id) => {
-      void post("/api/calendar/disconnect", { id }).then((res) => setNotice(res.ok ? "Disconnected. Your blocks stay, unsynced." : "Couldn't disconnect just now."));
+      void post("/api/calendar/disconnect", { id }).then((res) => setNotice(disconnectNotice(res.ok)));
     },
     onRead: (id, read) => void repo.setRead(id, read),
     onPrivate: (id, isPrivate) => void repo.setPrivate(id, isPrivate),

@@ -9,51 +9,11 @@ import type { Capacity, Interval } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import type { RibbonShape } from "@/features/looks/look-shape";
 import { cx } from "@/ui/cx";
+import { dayGeometry, type DayGeometry } from "./day-geometry";
 import { RibbonLabelRow, RibbonTicks } from "./ribbon";
 
-/** The over-tail never takes more than this share, as on the standard ribbon. */
-const TAIL_MAX = 0.2;
-
-export interface DayGeometry {
-  day: number;
-  end: number;
-  /** Where a minute falls along the day, 0 to 1, clamped. */
-  at: (m: number) => number;
-  now?: number;
-  /** The share of the day already gone. */
-  elapsed: number;
-  finish?: number;
-  /** The overrun as a share of the day, capped; 0 when the plan fits. */
-  tail: number;
-  busy: readonly Interval[];
-  unanswered: readonly Interval[];
-  blocks: readonly Interval[];
-  /** Whole hours inside the day. */
-  hours: number[];
-}
-
-export function dayGeometry(c: Capacity, nowMin?: number): DayGeometry {
-  const day = c.windows[0].start;
-  const end = c.windows[c.windows.length - 1].end;
-  const span = end - day;
-  const at = (m: number) => Math.min(1, Math.max(0, (m - day) / span));
-  const finishMin = c.projectedFinish ? c.projectedFinish.hour * 60 + c.projectedFinish.minute : undefined;
-  const hours: number[] = [];
-  for (let h = Math.ceil(day / 60) * 60; h <= end; h += 60) hours.push(h);
-  return {
-    day,
-    end,
-    at,
-    now: nowMin !== undefined && nowMin >= day && nowMin <= end ? nowMin : undefined,
-    elapsed: nowMin === undefined ? 0 : at(nowMin),
-    finish: finishMin !== undefined && finishMin >= day && finishMin <= end ? finishMin : undefined,
-    tail: c.overflowMin > 0 ? Math.min(c.overflowMin / span, TAIL_MAX) : 0,
-    busy: c.busy,
-    unanswered: c.unanswered ?? [],
-    blocks: c.blocks,
-    hours,
-  };
-}
+// The day's geometry lives in day-geometry.ts, free of this file's drawing; it is handed on from here.
+export { dayGeometry, type DayGeometry } from "./day-geometry";
 
 const pc = (x: number) => `${x * 100}%`;
 /** The drawn day's width when an overrun takes the tail end, as on the standard ribbon. */

@@ -1,9 +1,11 @@
 // Sky on the phone (ANDROID_APP_SPEC.md §9). The colours are the web's own names and values (../../../src/app/
 // globals.css, the :root block and its dark twin); a stylesheet cannot be read by a phone app, so they are written
 // out again here and must be kept in step by hand until the looks are generated for both (§10, step 6). Light or
-// dark follows the phone's own setting, as the web's "System" theme does.
+// dark follows the phone's own setting, as the web's "System" theme does, unless Settings › Appearance chose one for
+// this phone (theme-choice.ts).
 import { useColorScheme } from "react-native";
 import type { DayPart } from "@/features/looks/look";
+import { useThemeChoice } from "./theme-choice";
 
 const light = {
   paper: "#e8f0fa",
@@ -68,8 +70,12 @@ export function sky(scheme: Scheme, part: DayPart): readonly [string, string, st
   return scheme === "dark" ? SKY_DARK : SKY[part];
 }
 
+/** Light or dark as it is drawn now: this phone's choice in Settings › Appearance, or the phone's own setting on System. */
 export function useScheme(): Scheme {
-  return useColorScheme() === "dark" ? "dark" : "light";
+  const system = useColorScheme();
+  const choice = useThemeChoice();
+  if (choice !== "system") return choice;
+  return system === "dark" ? "dark" : "light";
 }
 
 export function useColours(): Colours {

@@ -4,7 +4,7 @@
 // non-working days, the buffer with its live preview, when the evening and
 // the day start, and the first day of the week. A day's stretches save
 // together, so one ⌘Z restores the whole day.
-import { useId, useState } from "react";
+import { useId } from "react";
 import { Button, iconButtonClass } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
 import { cx } from "@/ui/cx";
@@ -13,22 +13,11 @@ import { Select } from "@/ui/select";
 import { Slider } from "@/ui/slider";
 import { TimeField } from "@/ui/time-field";
 import { ERROR, HINT, LABEL, ROW, VALUE } from "../rows";
-import {
-  DEFAULT_SEGMENT,
-  ROLLOVER_HOURS,
-  WEEKDAYS,
-  bufferPreview,
-  longestDayMinutes,
-  mergeSegments,
-  nextSegment,
-  rolloverLabel,
-  segmentsError,
-  segmentsLabel,
-  segmentsOverlap,
-  type Segment,
-} from "../settings-rules";
+import { BUFFER, EVENING_ENDS_HINT, workingDayLabel } from "../section-words";
+import { ROLLOVER_HOURS, WEEKDAYS, bufferPreview, longestDayMinutes, rolloverLabel, type Segment } from "../settings-rules";
 import { Section, useSavedFlash } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
+import { useWorkDay } from "../work-day";
 
 export function HoursSection(p: SettingsFormProps) {
   const { values } = p;
@@ -59,7 +48,7 @@ export function HoursSection(p: SettingsFormProps) {
           </label>
           <span className="text-body-sm text-ink-2 num">{bufferPreview(values.bufferPct, longest)}</span>
         </div>
-        <Slider id={bufferId} min={0} max={30} step={5} value={values.bufferPct} onChange={(e) => change({ bufferPct: Number(e.target.value) })} />
+        <Slider id={bufferId} {...BUFFER} value={values.bufferPct} onChange={(e) => change({ bufferPct: Number(e.target.value) })} />
       </div>
       <div className={ROW}>
         <label htmlFor="evening" className={LABEL}>
@@ -74,7 +63,7 @@ export function HoursSection(p: SettingsFormProps) {
             Evening ends at
           </label>
           <span id="evening-ends-hint" className={HINT}>
-            This Evening&rsquo;s time runs from the end of your working hours until then.
+            {EVENING_ENDS_HINT}
           </span>
         </span>
         <TimeField id="evening-ends" aria-describedby="evening-ends-hint" value={values.eveningEndsAt} onChange={(v) => v && change({ eveningEndsAt: v })} />
@@ -112,33 +101,9 @@ export function HoursSection(p: SettingsFormProps) {
  * while they are being typed (the day counts them as one); when focus leaves the day they are joined, with a note.
  */
 export function WorkDayRow({ name, segments, onChange }: { name: string; segments: readonly Segment[]; onChange: (segments: Segment[]) => void }) {
-  const saved = segmentsLabel(segments);
-  const [draft, setDraft] = useState<Segment[]>(segments.length > 0 ? [...segments] : [DEFAULT_SEGMENT]);
-  const [seen, setSeen] = useState(saved);
-  const [note, setNote] = useState<string | null>(null);
-  if (seen !== saved) {
-    setSeen(saved);
-    if (segments.length > 0) setDraft([...segments]);
-  }
-  const on = segments.length > 0;
-  const error = on ? segmentsError(draft) : null;
-  const next = nextSegment(draft);
+  // What an edit saves, and the joining when focus leaves the day, are the day's own rules (work-day.ts), shared with the Android app.
+  const { draft, on, error, next, note, edit, remove, add, toggle, settle } = useWorkDay(segments, onChange);
   const id = useId();
-
-  const commit = (list: Segment[]) => {
-    setDraft(list);
-    setNote(null);
-    if (!segmentsError(list)) onChange(list);
-  };
-  const edit = (i: number, part: Partial<Segment>) => commit(draft.map((s, j) => (j === i ? { ...s, ...part } : s)));
-  // Focus left the day: overlapping stretches become one, and the row says so.
-  const settle = () => {
-    if (!on || segmentsError(draft) || !segmentsOverlap(draft)) return;
-    const merged = mergeSegments(draft);
-    setDraft(merged);
-    onChange(merged);
-    setNote(`Overlapping hours were joined: ${segmentsLabel(merged)}.`);
-  };
 
   return (
     <div
@@ -149,7 +114,7 @@ export function WorkDayRow({ name, segments, onChange }: { name: string; segment
     >
       {/* The 44 px checkbox pulls left so its 20 px box sits on the row's text edge. */}
       <label className="-ml-3 flex items-center gap-2">
-        <Checkbox checked={on} onChange={(e) => onChange(e.target.checked ? (segmentsError(draft) ? [DEFAULT_SEGMENT] : mergeSegments(draft)) : [])} aria-label={`${name} is a working day`} />
+        <Checkbox checked={on} onChange={(e) => toggle(e.target.checked)} aria-label={workingDayLabel(name)} />
         <span className={cx(LABEL, "w-24")}>{name}</span>
       </label>
       {on ? (
@@ -160,7 +125,7 @@ export function WorkDayRow({ name, segments, onChange }: { name: string; segment
               <span className="text-ink-3">–</span>
               <TimeField id={`${id}-end-${i}`} aria-label={i === 0 ? `${name} end` : `${name} end ${i + 1}`} value={seg.end} onChange={(v) => edit(i, { end: v })} />
               {draft.length > 1 ? (
-                <button type="button" aria-label={`Remove ${name} ${seg.start}–${seg.end}`} onClick={() => commit(draft.filter((_, j) => j !== i))} className={iconButtonClass()}>
+                <button type="button" aria-label={`Remove ${name} ${seg.start}–${seg.end}`} onClick={() => remove(i)} className={iconButtonClass()}>
                   <Icon name="close" size={16} />
                 </button>
               ) : (
@@ -170,7 +135,7 @@ export function WorkDayRow({ name, segments, onChange }: { name: string; segment
             </span>
           ))}
           {next && (
-            <Button variant="link" size="compact" className="text-ink-2" onClick={() => commit([...draft, next])}>
+            <Button variant="link" size="compact" className="text-ink-2" onClick={add}>
               <Icon name="plus" size={14} /> Add hours
             </Button>
           )}

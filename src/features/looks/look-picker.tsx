@@ -7,7 +7,8 @@ import { useEffect, useId, useState } from "react";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
-import { readyLooks, shownLooks, type Swatch } from "./catalog";
+import type { Swatch } from "./catalog";
+import { useLookChoices } from "./look-choices";
 
 /** Whether the page is drawn dark right now: an explicit choice, or the device's when none is stamped. */
 function useDrawnDark(): boolean {
@@ -43,15 +44,11 @@ function Preview({ s }: { s: Swatch }) {
 
 export function LookPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const dark = useDrawnDark();
-  const [open, setOpen] = useState(false);
-  // The look the person arrived on, and any they try, stay in sight when the rest are folded away again, so the
-  // way back is one tap.
-  const [tried, setTried] = useState<readonly string[]>([value]);
-  const keep = tried.includes(value) ? tried : [...tried, value];
-  const looks = shownLooks(open, keep);
-  const rest = readyLooks().length - shownLooks(false, keep).length;
+  // Which looks are on show, and which stay in sight once tried, is the picker's own rule (look-choices.ts), shared
+  // with the Android app.
+  const { looks, rest, open, moreLabel, toggle, tried } = useLookChoices(value);
   const pick = (id: string) => {
-    setTried((t) => (t.includes(id) ? t : [...t, id]));
+    tried(id);
     onChange(id);
   };
   const groupId = useId();
@@ -79,8 +76,8 @@ export function LookPicker({ value, onChange }: { value: string; onChange: (id: 
         })}
       </fieldset>
       {rest > 0 && (
-        <Button variant="link" aria-expanded={open} aria-controls={groupId} onClick={() => setOpen((o) => !o)}>
-          {open ? "Fewer looks" : `More looks (${rest})`}
+        <Button variant="link" aria-expanded={open} aria-controls={groupId} onClick={toggle}>
+          {moreLabel}
         </Button>
       )}
     </div>

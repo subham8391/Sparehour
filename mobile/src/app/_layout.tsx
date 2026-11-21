@@ -10,7 +10,9 @@ import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "~/auth/session";
 import { missingConfig } from "~/config";
+import { QuickAddProvider } from "~/screens/quick-add/quick-add";
 import { SignIn } from "~/screens/sign-in";
+import { BlockWrites } from "~/screens/today/block-writes";
 import { SyncProvider } from "~/sync/database";
 import { useAppFonts } from "~/ui/fonts";
 import { font, useColours } from "~/ui/theme";
@@ -47,7 +49,12 @@ function Gate() {
     <SyncProvider userId={session.user.id} failed={() => <Notice title="Your data could not be opened" body="Close the app and open it again. If it stays like this, sign in again." />}>
       {/* Every shared repository records its undo here, whichever screen made the write. */}
       <UndoProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.paper } }} />
+        {/* A block changed on any screen is sent on to the calendar the phone's way (screens/today/block-writes.tsx). */}
+        <BlockWrites>
+          <QuickAddProvider>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.paper } }} />
+          </QuickAddProvider>
+        </BlockWrites>
       </UndoProvider>
     </SyncProvider>
   );

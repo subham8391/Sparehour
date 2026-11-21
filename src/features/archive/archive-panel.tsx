@@ -18,11 +18,8 @@ import { Icon } from "@/ui/icons";
 import { ListCard } from "@/ui/list-card";
 import { SectionLabel } from "@/ui/section-label";
 import ClearSlateSheet from "./clear-slate-sheet";
-import { batchLabel, deletedNotice, deletePermanently, groupBatches, tasksWord, type ArchiveBatch } from "./batches";
+import { ARCHIVE, EVERY_ARCHIVED, EVERY_DROPPED, SHOWN_TITLES, archivedCount, batchLabel, batchWhat, deleteLabel, deleteSays, deleteTitle, deletedNotice, deletePermanently, droppedCount, groupBatches, moreTitles, restoredNotice, type ArchiveBatch } from "./batches";
 import { TypedConfirmSheet } from "./typed-confirm";
-
-/** How many titles a batch lists when opened; the rest are counted. */
-const SHOWN_TITLES = 50;
 
 interface Doomed {
   /** "the archived batch from Tue 6 Oct", "every dropped task". */
@@ -59,7 +56,7 @@ export function ArchivePanel({ timezone, dayRolloverHour }: { timezone: string; 
     setRestoring(key);
     try {
       const n = await restoreBatch(db, undo ?? undefined, batch.key);
-      setNotice(n > 0 ? `Brought back ${tasksWord(n)}.` : null);
+      setNotice(restoredNotice(n));
     } finally {
       setRestoring(null);
     }
@@ -73,7 +70,7 @@ export function ArchivePanel({ timezone, dayRolloverHour }: { timezone: string; 
       setDoomed(null);
       return null;
     } catch (e) {
-      return e instanceof Error ? e.message : "Couldn’t delete them just now. Nothing was deleted — try again.";
+      return e instanceof Error ? e.message : ARCHIVE.failed;
     }
   };
 
@@ -83,7 +80,7 @@ export function ArchivePanel({ timezone, dayRolloverHour }: { timezone: string; 
         <div className={ROW}>
           <span className="flex min-w-0 flex-col">
             <span className={LABEL}>Clear the slate</span>
-            <span className={HINT}>Archive Today, or Today and the backlog, in one batch. Nothing is deleted.</span>
+            <span className={HINT}>{ARCHIVE.slateHint}</span>
           </span>
           <Button variant="secondary" onClick={() => setSlateOpen(true)}>
             Clear the slate…
@@ -91,9 +88,9 @@ export function ArchivePanel({ timezone, dayRolloverHour }: { timezone: string; 
         </div>
       </Group>
 
-      <Group title="Archive" note={<p className={NOTE}>Archived tasks stay here until you delete them. Restoring a batch puts each task back where it was, or in Carried over if its day has passed.</p>}>
+      <Group title="Archive" note={<p className={NOTE}>{ARCHIVE.note}</p>}>
         {batches.length === 0 ? (
-          <p className={cx(ROW, HINT)}>Nothing archived.</p>
+          <p className={cx(ROW, HINT)}>{ARCHIVE.none}</p>
         ) : (
           batches.map((b) => {
             const label = batchLabel(b, today);
@@ -110,14 +107,14 @@ export function ArchivePanel({ timezone, dayRolloverHour }: { timezone: string; 
                         {t.title}
                       </li>
                     ))}
-                    {b.tasks.length > SHOWN_TITLES && <li className="text-ink-3">and {tasksWord(b.tasks.length - SHOWN_TITLES)} more</li>}
+                    {b.tasks.length > SHOWN_TITLES && <li className="text-ink-3">{moreTitles(b.tasks.length - SHOWN_TITLES)}</li>}
                   </ul>
                 </details>
                 <span className="flex flex-wrap gap-2">
                   <Button variant="secondary" onClick={() => void restore(b)} disabled={restoring !== null} aria-label={`Restore ${label}`}>
                     {restoring === (b.key ?? "") ? "Restoring…" : "Restore"}
                   </Button>
-                  <Button variant="quiet" tone="destructive" onClick={() => setDoomed({ what: `the batch archived ${label.split(" · ")[0]}`, ids: b.tasks.map((t) => t.id) })} aria-label={`Delete ${label} permanently`}>
+                  <Button variant="quiet" tone="destructive" onClick={() => setDoomed({ what: batchWhat(label), ids: b.tasks.map((t) => t.id) })} aria-label={`Delete ${label} permanently`}>
                     Delete
                   </Button>
                 </span>
@@ -127,22 +124,22 @@ export function ArchivePanel({ timezone, dayRolloverHour }: { timezone: string; 
         )}
       </Group>
 
-      <Group title="Delete permanently" note={<p className={NOTE}>A permanent delete can’t be undone. Export first if you might want these again.</p>}>
+      <Group title="Delete permanently" note={<p className={NOTE}>{ARCHIVE.deleteNote}</p>}>
         <div className={ROW}>
           <span className="flex min-w-0 flex-col">
             <span className={LABEL}>Archived tasks</span>
-            <span className={cx(HINT, "num")}>{archivedIds.length === 0 ? "None" : tasksWord(archivedIds.length)}</span>
+            <span className={cx(HINT, "num")}>{archivedCount(archivedIds.length)}</span>
           </span>
-          <Button variant="secondary" tone="destructive" disabled={archivedIds.length === 0} onClick={() => setDoomed({ what: "every archived task", ids: archivedIds })}>
+          <Button variant="secondary" tone="destructive" disabled={archivedIds.length === 0} onClick={() => setDoomed({ what: EVERY_ARCHIVED, ids: archivedIds })}>
             Delete…
           </Button>
         </div>
         <div className={ROW}>
           <span className="flex min-w-0 flex-col">
             <span className={LABEL}>Dropped tasks</span>
-            <span className={cx(HINT, "num")}>{droppedIds.length === 0 ? "None" : `${tasksWord(droppedIds.length)}, kept in the Logbook`}</span>
+            <span className={cx(HINT, "num")}>{droppedCount(droppedIds.length)}</span>
           </span>
-          <Button variant="secondary" tone="destructive" disabled={droppedIds.length === 0} onClick={() => setDoomed({ what: "every dropped task", ids: droppedIds })}>
+          <Button variant="secondary" tone="destructive" disabled={droppedIds.length === 0} onClick={() => setDoomed({ what: EVERY_DROPPED, ids: droppedIds })}>
             Delete…
           </Button>
         </div>
@@ -157,16 +154,14 @@ export function ArchivePanel({ timezone, dayRolloverHour }: { timezone: string; 
       {slateOpen && <ClearSlateSheet today={today.toString()} onClose={() => setSlateOpen(false)} />}
       {doomed && (
         <TypedConfirmSheet
-          title={`Delete ${tasksWord(doomed.ids.length)} permanently?`}
-          confirmLabel={`Delete ${tasksWord(doomed.ids.length)}`}
+          title={deleteTitle(doomed.ids.length)}
+          confirmLabel={deleteLabel(doomed.ids.length)}
           busyLabel="Deleting…"
           onConfirm={confirmDelete}
           onClose={() => setDoomed(null)}
         >
-          <p>
-            This deletes {doomed.what} — {tasksWord(doomed.ids.length)} with their steps, tags and notes — from every device and your account.
-          </p>
-          <p>It can’t be undone, and Undo won’t bring them back.</p>
+          <p>{deleteSays(doomed.what, doomed.ids.length)}</p>
+          <p>{ARCHIVE.final}</p>
         </TypedConfirmSheet>
       )}
     </>

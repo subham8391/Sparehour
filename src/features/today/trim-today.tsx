@@ -12,9 +12,10 @@ import { Button } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { cx } from "@/ui/cx";
 import { Sheet } from "@/ui/sheet";
+import { FITS_CLOSE_MS, trimOrder, trimReadout } from "./trim-order";
 
-/** How long "Now fits" stays before the panel closes itself. */
-export const FITS_CLOSE_MS = 1200;
+// The panel's order, readout and timing are its rules (trim-order.ts), which the Android app's sheet shares.
+export { FITS_CLOSE_MS, trimOrder, trimReadout } from "./trim-order";
 
 export interface TrimTodayProps {
   /** Today's open daytime tasks (not the evening's: they never use working-hours time). */
@@ -27,15 +28,6 @@ export interface TrimTodayProps {
   onDrop: (id: string) => void;
   onClose: () => void;
 }
-
-/** The tasks as the panel lists them: largest estimate first, the hand order between equals. */
-export function trimOrder(tasks: readonly Task[], defaultEstimateMin: number): Task[] {
-  const at = new Map(tasks.map((t, i) => [t.id, i]));
-  return [...tasks].sort((a, b) => (b.estimateMin ?? defaultEstimateMin) - (a.estimateMin ?? defaultEstimateMin) || (at.get(a.id) ?? 0) - (at.get(b.id) ?? 0));
-}
-
-/** The readout: "40m more than fits", or "Now fits". */
-export const trimReadout = (overMin: number): string => (overMin > 0 ? `${formatMinutes(overMin)} more than fits` : "Now fits");
 
 const ACTION = "h-11 px-2.5 text-body-sm sm:h-8 touch:h-11";
 

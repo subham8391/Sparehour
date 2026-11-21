@@ -4,7 +4,7 @@
 // date and how to change one's mind. Outside the app shell: nothing syncs here.
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { deleteAfter, deletionDay } from "@/features/account/deletion";
+import { DELETED_SIGNED_OUT, deleteAfter, deletedHeadline, deletionDay } from "@/features/account/deletion";
 import { RestoreAccount } from "@/features/account/restore-account";
 import { createUserScopedClient } from "@/server/auth/supabase";
 import { Wordmark } from "@/ui/brand";
@@ -28,7 +28,7 @@ export default async function DeletedAccountPage({ searchParams }: { searchParam
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-5 py-10 sm:px-8">
       <Wordmark className="mb-4" />
       <p className={EYEBROW}>Account</p>
-      <h1 className="font-display text-title font-book text-balance text-ink">{day ? `Your account will be deleted on ${day}.` : "Your account is set to be deleted."}</h1>
+      <h1 className="font-display text-title font-book text-balance text-ink">{deletedHeadline(day)}</h1>
       {user ? (
         <>
           <p className="text-body-lg text-pretty text-ink-2">Everything is still here until then. Restore it and carry on where you left off; a connected calendar needs connecting again.</p>
@@ -36,7 +36,7 @@ export default async function DeletedAccountPage({ searchParams }: { searchParam
         </>
       ) : (
         <>
-          <p className="text-body-lg text-pretty text-ink-2">You’re signed out on every device. Changed your mind? Sign in before then and you can restore everything.</p>
+          <p className="text-body-lg text-pretty text-ink-2">{DELETED_SIGNED_OUT}</p>
           <Link href="/login" className={cx(buttonClass({ variant: "secondary", block: true }), "mt-2 sm:w-auto sm:self-start")}>
             Sign in
           </Link>

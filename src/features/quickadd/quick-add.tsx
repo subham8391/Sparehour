@@ -36,6 +36,7 @@ import {
   type QuickAddTag,
 } from "./interpret";
 import { addedNotice, chooseProject, draftHere, fileHere, fileLine, type Here, type ProjectChoice, type QuickAddSubmission } from "./file-line";
+import { NEEDS_NAME, PLACEHOLDER, PLACEHOLDER_NARROW, STRIP_HINT, SUGGESTIONS, UNPARSEABLE, WARNING_TEXT, couldNotSave, reason } from "./quick-add-words";
 
 export interface QuickAddContext {
   now: Instant;
@@ -57,7 +58,6 @@ export type QuickAddSave = (submission: QuickAddSubmission) => Promise<string | 
 export type QuickAddFlush = () => Promise<boolean>;
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const reason = (e: unknown) => (e instanceof Error && e.message ? e.message : "try again.");
 
 // Tokens in the line are told apart by weight of colour alone: a project is
 // the meet token, everything else steps back to ink-2 (D11: no green, no
@@ -92,19 +92,6 @@ const FACT_CHIP: Record<Fact["kind"], { tone: ChipTone; icon: IconName | null }>
   note: { tone: "neutral", icon: null },
 };
 
-const SUGGESTIONS: { label: string; insert: string }[] = [
-  { label: "today", insert: "today" },
-  { label: "tmrw", insert: "tomorrow" },
-  { label: "evening", insert: "evening" },
-  { label: "~15m", insert: "~15m" },
-  { label: "~30m", insert: "~30m" },
-  { label: "~45m", insert: "~45m" },
-  { label: "~1h", insert: "~1h" },
-  { label: "#project", insert: "#" },
-  { label: "@tag", insert: "@" },
-  { label: "!1", insert: "!1" },
-];
-
 /** A suggestion or a project match: the chip that is a button (DESIGN_SYSTEM.md §5 "Chips"). */
 const SUGGEST = chipButtonClass();
 // One row that scrolls sideways on a phone, the chip cut off at the edge fading out (the scroll affordance, DESIGN_SYSTEM.md
@@ -113,10 +100,6 @@ const CHIP_ROW = "-mx-1 -my-1 flex items-center gap-1.5 overflow-x-auto px-1 py-
 
 /** The line itself: the field look at 48 px and 16 px type on every width, so iOS never zooms. The border turns ink on focus, so no ring. */
 const LINE = "h-12 w-full rounded-lg border border-line-control px-3.5 text-base outline-none placeholder:text-ink-4 focus:border-ink focus-visible:outline-none";
-
-/** The long example runs past the end of the box at 412 px, so the phone gets the short invitation. */
-const PLACEHOLDER = "Add a task — e.g. Draft proposal fri 3pm ~45m #acme !1";
-const PLACEHOLDER_NARROW = "Add a task…";
 
 /** True below `sm`, read once the sheet is up rather than guessed on the server. */
 function useNarrow(): boolean {
@@ -131,9 +114,6 @@ function useNarrow(): boolean {
   }, []);
   return narrow;
 }
-
-/** The spans a Backspace right after them, or a chip's remove control, can turn back into words. */
-const UNPARSEABLE: ReadonlySet<Span["kind"]> = new Set(["datetime", "evening", "estimate", "priority", "project", "tag", "deadline", "start", "recurrence"]);
 
 export interface QuickAddProps {
   open: boolean;
@@ -388,7 +368,7 @@ export function QuickAdd({
         },
         (e: unknown) => {
           setNotice(null);
-          setError(`Couldn't save “${filed.title}”: ${reason(e)}`);
+          setError(couldNotSave(filed.title, e));
           // The words come back unless something new has been typed since.
           setLine((now) => (now.text.trim() === "" ? { text, literal } : now));
           return false;
@@ -471,7 +451,7 @@ export function QuickAdd({
         } catch (err) {
           const left = lines.length - i - 1;
           setLine((now) => (now.text.trim() === "" ? { text: pasted, literal: [] } : now));
-          setError(`Couldn't save “${filed.title}”: ${reason(err)}${left > 0 ? ` ${plural(left, "line after it was", "lines after it were")} not saved either.` : ""}`);
+          setError(`${couldNotSave(filed.title, err)}${left > 0 ? ` ${plural(left, "line after it was", "lines after it were")} not saved either.` : ""}`);
           break;
         }
       }
@@ -553,9 +533,9 @@ export function QuickAdd({
               return <FactChip key={i} fact={f} first={i === 0} here={Boolean(off)} onRemove={remove && (() => (remove(), inputRef.current?.focus()))} />;
             })
           ) : needsName ? (
-            <span className="text-ink-2">Give it a name</span>
+            <span className="text-ink-2">{NEEDS_NAME}</span>
           ) : (
-            <span className="text-ink-3">{hint ?? "Dates, times, ~estimates, #projects, @tags and !priority are understood."}</span>
+            <span className="text-ink-3">{hint ?? STRIP_HINT}</span>
           )}
           {interpretation && (
             <span className="inline-flex items-center gap-1">
@@ -706,9 +686,3 @@ function FactChip({ fact, first, here = false, onRemove }: { fact: Fact; first: 
     </>
   );
 }
-
-const WARNING_TEXT: Record<string, string> = {
-  deadline_before_do_date: "Due before you plan to do it.",
-  deadline_moved_to_first_occurrence: "The deadline was before the first repeat, so it moved to that day.",
-  do_date_moved_to_start_date: "“after” sets when it starts, so the day became the start date.",
-};

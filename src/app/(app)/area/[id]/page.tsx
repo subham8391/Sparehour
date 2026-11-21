@@ -8,16 +8,13 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useMemo, useState } from "react";
-import { useQuery } from "@/data/powersync";
 import { keyBetween } from "@/core/ordering";
 import type { TaskDraft } from "@/core/quickadd";
-import { formatMinutes, localDate } from "@/core/time";
-import { toTask } from "@/data/mappers";
-import { AREA_PROJECT_CARDS_SQL, AREA_TASKS_SQL, progressLabel, weekProgress, type AreaProjectCardRow } from "@/data/queries/area";
-import type { ProjectStateRow } from "@/data/queries/nav";
-import { AREA_FINISHED_PROJECTS_SQL, AREA_SQL, logbookStream } from "@/data/queries/views";
-import type { AreaRow, TaskRow as TaskRowType } from "@/data/schema.client";
+import { localDate } from "@/core/time";
+import { weekProgress } from "@/data/queries/area";
 import { FinishedProjects } from "@/features/projects/finished-projects";
+import { cardDeadline, cardFigures, projectsWord } from "@/features/projects/page-rules";
+import { useAreaPage } from "@/features/projects/use-area-page";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
@@ -56,19 +53,12 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);
   const parseCtx = useMemo(() => ({ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }), [now, zone, today, settings?.eveningStartsAt]);
-  // The progress bars count what was finished in the last week, so the logbook's recent months are subscribed.
-  const weekAgo = useMemo(() => `${today.subtract({ days: 7 }).toString()}T00:00:00.000Z`, [today]);
-  const stream = useMemo(() => ({ ...logbookStream(today), ttl: 60 * 60 }), [today]);
-  const { data: areas, isLoading } = useQuery<AreaRow>(AREA_SQL, [id]);
-  const { data: projects } = useQuery<AreaProjectCardRow>(AREA_PROJECT_CARDS_SQL, [settings?.defaultEstimateMin ?? 30, id, weekAgo], { streams: [stream] });
-  const { data: finished } = useQuery<ProjectStateRow>(AREA_FINISHED_PROJECTS_SQL, [id]);
-  const { data: taskRows } = useQuery<TaskRowType>(AREA_TASKS_SQL, [id]);
-  const tasks = useMemo(() => (taskRows ?? []).map(toTask), [taskRows]);
+  // What the page reads is the Android app's too (features/projects/use-area-page.ts).
+  const { area, projects, finished, tasks, isLoading } = useAreaPage(id, today, settings?.defaultEstimateMin ?? 30);
   const sel = useListSelection([tasks.map((t) => t.id)]);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [name, setName] = useState("");
-  const area = areas?.[0];
 
   if (!isLoading && !area) {
     return (
@@ -119,7 +109,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
       <ViewHeader
         eyebrow="Area"
         title={<InlineTitle value={area.name ?? "Untitled area"} label="Area name" onSave={(n) => void areaRepo.rename(area.id, n)} className="font-display text-title font-book text-balance text-ink" />}
-        subtitle={projects ? <span className="num">{`${projects.length} ${projects.length === 1 ? "project" : "projects"}`}</span> : undefined}
+        subtitle={projects ? <span className="num">{projectsWord(projects.length)}</span> : undefined}
         compactActions={
           <MenuButton label="Area actions">
             {(close) => (
@@ -142,11 +132,8 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
                   <span className="block h-full rounded-pill bg-ink-3" style={{ width: `${Math.round(share * 100)}%` }} />
                 </span>
                 <span className="flex flex-wrap items-center gap-2 text-body-sm text-ink-2 num">
-                  <span>
-                    {progressLabel(p.done_week, p.open_count)}
-                    {p.open_count > 0 && ` · ~${formatMinutes(p.open_min)}`}
-                  </span>
-                  {(p.next_deadline ?? p.deadline) && <DeadlineChip deadline={localDate((p.next_deadline ?? p.deadline) as string)} today={today} />}
+                  <span>{cardFigures(p)}</span>
+                  {cardDeadline(p) && <DeadlineChip deadline={localDate(cardDeadline(p) as string)} today={today} />}
                 </span>
               </Link>
             </li>
@@ -219,7 +206,7 @@ export default function AreaPage({ params }: PageProps<"/area/[id]">) {
       </section>
 
       {/* Finished projects stay reachable from their area, collapsed (PRODUCT_SPEC.md §6). */}
-      <FinishedProjects projects={finished ?? []} />
+      <FinishedProjects projects={finished} />
       {deleting && <OrganiseSheet target={{ kind: "area", id: area.id, name: area.name ?? "Untitled area" }} step="delete" onClose={() => setDeleting(false)} onDeleted={() => router.push("/browse")} />}
     </main>
   );

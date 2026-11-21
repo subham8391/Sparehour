@@ -12,6 +12,7 @@ import { Switch } from "@/ui/switch";
 import { TimeField } from "@/ui/time-field";
 import { ERROR, HINT, LABEL, NOTE, ROW } from "../rows";
 import { BLOCK_LEADS, leadLabel, nudgeHint, suggestedNudgeTime } from "../notify-rules";
+import { BADGE_HINT, NEVER_LATE, QUIET_HOURS_HINT } from "../section-words";
 import { Section, SwitchRow, useSavedFlash } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
 
@@ -95,7 +96,7 @@ export function NotificationsSection(p: SettingsFormProps) {
       <div className={ROW}>
         <span className="flex min-w-0 flex-col">
           <span className={LABEL}>Quiet hours</span>
-          <span className={HINT}>Anything due in these hours is dropped, not saved for the morning.</span>
+          <span className={HINT}>{QUIET_HOURS_HINT}</span>
         </span>
         <span className="flex items-center gap-2">
           <TimeField aria-label="Quiet hours start" value={values.quietHoursStart} onChange={(v) => v && change({ quietHoursStart: v })} />
@@ -112,11 +113,11 @@ export function NotificationsSection(p: SettingsFormProps) {
       <SwitchRow
         id="n-badge"
         label="Badge on the app icon"
-        hint="Today’s remaining tasks, once reminders are allowed. It clears when you close the day."
+        hint={BADGE_HINT}
         checked={values.badgeEnabled}
         onChange={(v) => change({ badgeEnabled: v })}
       />
-      <p className={cx(NOTE, "px-4 py-2.5")}>Never a count of what&rsquo;s late.</p>
+      <p className={cx(NOTE, "px-4 py-2.5")}>{NEVER_LATE}</p>
     </Section>
   );
 }

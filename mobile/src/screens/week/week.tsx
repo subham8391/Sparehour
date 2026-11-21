@@ -1,13 +1,12 @@
 // The Week tab on the phone (the web's Upcoming; ANDROID_APP_SPEC.md §10, step 4), wired to the phone's own database.
 // Everything it knows is the web app's own code, used as it is: the statements the web's page reads, the week's
 // window and readouts (features/upcoming/week.ts), the days built from the rows (agenda.ts), what lies past the week
-// (later.ts), the capacity engine behind every bar (use-week-capacity.ts), the quick-add parser behind the + buttons
-// and the repository that writes. The drawing is week-view.tsx.
+// (later.ts), the capacity engine behind every bar (use-week-capacity.ts), quick add behind the + buttons
+// (quick-add/quick-add.tsx) and the repository that writes. The drawing is week-view.tsx.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { parse } from "@/core/quickadd/parse";
-import { compareDates, localDate, type LocalDate } from "@/core/time";
+import { compareDates, localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { toTask } from "@/data/mappers";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
@@ -20,17 +19,15 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useWorkingSetSynced } from "@/features/shell/use-working-set";
 import { moveToDay } from "@/features/tasks/move-to-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
-import { capacityRange, dayLabel, laterReadout, nextSevenDays, nothingAhead, rangeTitle, weekDays } from "@/features/upcoming/agenda";
+import { capacityRange, laterReadout, nextSevenDays, nothingAhead, rangeTitle, weekDays } from "@/features/upcoming/agenda";
 import { laterGroups } from "@/features/upcoming/later";
 import { useWeekCapacity } from "@/features/upcoming/use-week-capacity";
 import { clampOffset, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
 import { Icon } from "~/ui/icon";
 import { useColours } from "~/ui/theme";
-import { AddSheet } from "../add-sheet";
+import { useQuickAdd } from "../quick-add/quick-add";
 import { useWeekMode } from "./use-week-mode";
 import { WeekView } from "./week-view";
-
-const SPACE_SQL = `select personal_space_id from users limit 1`;
 
 export function Week() {
   const c = useColours();
@@ -56,8 +53,6 @@ export function Week() {
   const { data: laterRows } = useQuery<TaskRow>(PLANNED_AFTER_SQL, [to, todayIso]);
   const { data: startingRows } = useQuery<TaskRow>(STARTING_LATER_SQL, [todayIso]);
   const { data: dueRows } = useQuery<TaskRow>(DUE_FROM_SQL, [compareDates(first, today) < 0 ? from : todayIso]);
-  const { data: spaces } = useQuery<{ personal_space_id: string | null }>(SPACE_SQL);
-  const spaceId = spaces?.[0]?.personal_space_id ?? null;
   const projectNames = useProjectNames();
 
   const starting = useMemo(() => (startingRows ?? []).map(toTask), [startingRows]);
@@ -88,16 +83,9 @@ export function Week() {
   // "Nothing scheduled beyond today." (SCREENS.md §21): no day after today has anything, here or further on.
   const noneAhead = loaded && synced && offset === 0 && later.length === 0 && nothingAhead(days);
 
-  // The + buttons: the sheet is for the day it was opened on, or for no day from the screen's own +.
-  const [adding, setAdding] = useState<{ day: LocalDate | null } | null>(null);
-  const add = (line: string): boolean => {
-    const parsed = parse(line, { now, zone, today, eveningStartsAt: settings?.eveningStartsAt });
-    if (!parsed.ok || !spaceId) return false;
-    // A day's "+": the task is for that day unless the line names another, as the web's "+ Add" on a day files it.
-    const day = adding?.day ?? null;
-    void repo.create(day && !parsed.draft.doDate ? { ...parsed.draft, doDate: day } : parsed.draft, { spaceId });
-    return true;
-  };
+  // The + buttons: a day's "+ Add" opens quick add on that day (a line that names no day of its own is for it); the
+  // screen's own + is plain capture, as on the web.
+  const quickAdd = useQuickAdd();
   // The repository records the undo; the toast with Undo is the app's one (ui/undo-provider.tsx).
   const complete = (task: Task) => void repo.complete(task.id);
 
@@ -130,19 +118,13 @@ export function Week() {
         onOpen={(task) => router.push(`/task/${task.id}`)}
         // Today on that day; today itself is plain Today, as the web addresses it (features/today/day-address.ts).
         onOpenDay={(day) => router.push(day.equals(today) ? "/" : `/?day=${day.toString()}`)}
-        onAdd={(day) => setAdding({ day })}
+        onAdd={(day) => quickAdd.open(day ? { day } : undefined)}
         onPlace={(task, day) => void moveToDay(db, repo, task.id, day)}
         bottomRoom={88}
       />
-      <Pressable accessibilityRole="button" accessibilityLabel="Add a task" onPress={() => setAdding({ day: null })} style={[styles.fab, { backgroundColor: c.ink }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Add a task" onPress={() => quickAdd.open()} style={[styles.fab, { backgroundColor: c.ink }]}>
         <Icon name="plus" size={26} color={c.paper} strokeWidth={2} />
       </Pressable>
-      <AddSheet
-        open={adding !== null}
-        onAdd={add}
-        onClose={() => setAdding(null)}
-        hint={adding?.day ? `For ${dayLabel({ day: adding.day })}, unless the line names another day. A time and ~30m are understood, as on the web.` : undefined}
-      />
     </View>
   );
 }

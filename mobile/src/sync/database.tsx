@@ -28,13 +28,23 @@ export const BUILD = `android-${Constants.expoConfig?.version ?? "dev"}`;
  */
 export async function connectFor(userId: string, local: PowerSyncDatabase = database()): Promise<void> {
   const owners = (await local.getAll<{ id: string }>("select id from users")).map((r) => r.id);
-  if (isForeign(owners, userId)) await local.disconnectAndClear();
+  if (isForeign(owners, userId)) await clearCopy(local);
   void local.connect(new PhoneConnector({ appUrl: config.appUrl, powersyncUrl: config.powersyncUrl, token: accessToken, build: BUILD })).catch(() => undefined);
+}
+
+/**
+ * Leaving nothing of an account readable on the phone, as the web does when it clears a device: deleted rows are
+ * zeroed as they go and the file is compacted after, both best effort.
+ */
+async function clearCopy(local: PowerSyncDatabase): Promise<void> {
+  await local.execute("PRAGMA secure_delete = ON").catch(() => undefined);
+  await local.disconnectAndClear();
+  await local.execute("VACUUM").catch(() => undefined);
 }
 
 /** Signing out removes the account's data from this phone, as on the web; it stays safe in the account. */
 export async function signOut(local: PowerSyncDatabase = database()): Promise<void> {
-  await local.disconnectAndClear();
+  await clearCopy(local);
   await supabase().auth.signOut({ scope: "local" });
 }
 

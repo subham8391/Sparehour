@@ -13,24 +13,18 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
 import type { Capacity } from "@/core/capacity";
-import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
+import { formatMinutes } from "@/core/time";
 import { useRibbonShape } from "@/features/looks/look-shape";
 import { cx } from "@/ui/cx";
-import { heroState, type HeroState } from "./hero-state";
+import { heroState } from "./hero-state";
 import type { RibbonOverlayProps } from "./ribbon-overlay";
+import { CALENDAR_PATIENCE_MS, TAIL_MAX_PCT, WELL_OVER_MIN, noWorkDayLine, outsideHoursLine, overSentence, ribbonLabels, spokenMinutes } from "./ribbon-words";
 
 // The ribbon's hands — the breakdown, the segment names, a click on free time or a meeting (SCREENS.md §2.2) — are
 // not needed for the first paint: an island, fetched when the browser is idle (`preloadRibbonOverlay`).
 const loadRibbonOverlay = () => import("./ribbon-overlay");
 export const preloadRibbonOverlay = () => loadRibbonOverlay();
 const RibbonOverlay = dynamic(loadRibbonOverlay, { ssr: false });
-
-/** Hour labels this close to a cursor's time yield to it: 35 min is 49 px on a 760 px track, 32 px on a phone's. */
-const YIELD_MIN = 35;
-/** Below 340 px of track only every second hour is labelled and a cursor clears a wider berth. */
-const YIELD_NARROW_MIN = 60;
-/** The over-tail never takes more than this share of the card, so a wild overrun cannot squeeze the day to nothing. */
-const TAIL_MAX_PCT = 20;
 
 export interface RibbonProps {
   c: Capacity;
@@ -55,74 +49,12 @@ export interface RibbonProps {
   calendarLoading?: boolean;
 }
 
-/** How long the calendar may take before the ribbon says it is drawing working hours only (SCREENS.md §21). */
-export const CALENDAR_PATIENCE_MS = 4000;
-
-/** Over by more than this, the ribbon offers Trim today inline (PRODUCT_SPEC.md §9.4 "Well over"). */
-export const WELL_OVER_MIN = 120;
-
-/** The over state's one sentence: the spill (or the overage) and, when there is one, the suggested move. */
-export function overSentence(h: Pick<HeroState, "min" | "spill">, suggestion?: string | null): string {
-  return `${h.spill ?? `${formatMinutes(h.min)} more than fits`}${suggestion ? ` — move ${suggestion} to tomorrow` : ""}`;
-}
-
-/** "3 hours 20 minutes", for the live region: a screen reader reads "3h 20m" letter by letter in places. */
-export function spokenMinutes(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  const part = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-  if (h === 0) return part(m, "minute");
-  return m === 0 ? part(h, "hour") : `${part(h, "hour")} ${part(m, "minute")}`;
-}
-
-/**
- * SCREENS.md §2.2, non-working day: "No working hours today · 3 things planned"; an out-of-office day says so instead
- * (SYSTEM_DESIGN.md §5.4), and another day Today was stepped to is "that day".
- */
-export function noWorkDayLine(planned: number | undefined, { outOfOffice = false, otherDay = false }: { outOfOffice?: boolean; otherDay?: boolean } = {}): string {
-  const line = `${outOfOffice ? "Out of office" : "No working hours"} ${otherDay ? "that day" : "today"}`;
-  return planned ? `${line} · ${planned} ${planned === 1 ? "thing" : "things"} planned` : line;
-}
-
-export interface RibbonLabel {
-  min: number;
-  text: string;
-  kind: "hour" | "now" | "finish";
-  /** `narrow` hides the label on a track under 340 px; `always` hides it because a cursor's time sits there. */
-  hide: "never" | "narrow" | "always";
-}
-
 // The hero's state and its rule live in hero-state.ts, free of this file's drawing; they are handed on from here
 // so every import of them from the ribbon stays as it was.
 export { heroState, type HeroState } from "./hero-state";
 
-/** "1h planned outside working hours" (PRODUCT_SPEC.md §10.2). */
-export const outsideHoursLine = (min: number) => `${formatMinutes(min)} planned outside working hours`;
-
-/**
- * The labels under the ticks: every whole hour, the now time and the finish
- * time. Hour labels within YIELD_MIN of a cursor yield to it; on a narrow
- * track the odd hours go too, and the berth widens to YIELD_NARROW_MIN. When
- * the finish sits inside the now label's berth the now label wins, as the
- * finish is already named in the card's prose.
- */
-export function ribbonLabels(day: number, end: number, nowMin?: number, finishMin?: number): RibbonLabel[] {
-  const within = (m: number | undefined): m is number => m !== undefined && m >= day && m <= end;
-  const now = within(nowMin) ? nowMin : undefined;
-  const finishShown = within(finishMin) && (now === undefined || Math.abs(finishMin - now) >= YIELD_MIN);
-  const finish = finishShown ? finishMin : undefined;
-  const cursors = [now, finish].filter((m): m is number => m !== undefined);
-  const near = (h: number, berth: number) => cursors.some((m) => Math.abs(h - m) < berth);
-  const labels: RibbonLabel[] = [];
-  const firstHour = Math.ceil(day / 60) * 60;
-  for (let h = firstHour, i = 0; h <= end; h += 60, i++) {
-    const hide = near(h, YIELD_MIN) ? "always" : i % 2 === 1 || near(h, YIELD_NARROW_MIN) ? "narrow" : "never";
-    labels.push({ min: h, text: formatTime(timeFromMinutes(h)).slice(0, 2), kind: "hour", hide });
-  }
-  if (now !== undefined) labels.push({ min: now, text: formatTime(timeFromMinutes(now)), kind: "now", hide: "never" });
-  if (finish !== undefined) labels.push({ min: finish, text: formatTime(timeFromMinutes(finish)), kind: "finish", hide: now !== undefined && Math.abs(finish - now) < YIELD_NARROW_MIN ? "narrow" : "never" });
-  return labels;
-}
+// The ribbon's words and its labels live in ribbon-words.ts, free of this file's drawing, for the same reason.
+export { CALENDAR_PATIENCE_MS, WELL_OVER_MIN, noWorkDayLine, outsideHoursLine, overSentence, ribbonLabels, spokenMinutes, type RibbonLabel } from "./ribbon-words";
 
 /** Engraved ticks under a horizontal day: whole hours only, so a half-hour start keeps the tile on the clock. */
 export function RibbonTicks({ day, end }: { day: number; end: number }) {

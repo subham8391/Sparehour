@@ -5,15 +5,12 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { use, useMemo, useState, useSyncExternalStore } from "react";
-import { useQuery } from "@/data/powersync";
 import type { TaskDraft } from "@/core/quickadd";
-import { formatMinutes, localDate } from "@/core/time";
-import { toHeading, toProject, toTask } from "@/data/mappers";
-import { AREAS_SQL, type AreaRow } from "@/data/queries/nav";
-import { PROJECT_DONE_SQL, PROJECT_HEADINGS_SQL, PROJECT_SQL, PROJECT_TASKS_SQL, doneByHeading, logbookStream } from "@/data/queries/views";
-import type { HeadingRow, ProjectRow, TaskRow as TaskRowType } from "@/data/schema.client";
+import { localDate } from "@/core/time";
 import { HeadingSection } from "@/features/projects/heading-section";
-import { groupByHeading, summarise, type HeadingGroup } from "@/features/projects/organise";
+import type { HeadingGroup } from "@/features/projects/organise";
+import { keyAtEndOf, projectActions, summaryWords, type ProjectAction } from "@/features/projects/page-rules";
+import { useProjectPage } from "@/features/projects/use-project-page";
 import { planDrop, type Edge } from "@/features/tasks/reorder";
 import { useListSelection } from "@/features/selection/selection-provider";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
@@ -73,10 +70,8 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
   const { today, zone, settings } = useLocalDay(now);
   const parseCtx = useMemo(() => ({ now, zone, today, eveningStartsAt: settings?.eveningStartsAt }), [now, zone, today, settings?.eveningStartsAt]);
 
-  const { data: projectRows, isLoading } = useQuery<ProjectRow>(PROJECT_SQL, [id]);
-  const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
-  const { data: headingRows } = useQuery<HeadingRow>(PROJECT_HEADINGS_SQL, [id]);
-  const { data: taskRows, isLoading: loadingTasks } = useQuery<TaskRowType>(PROJECT_TASKS_SQL, [id]);
+  // What the page reads and how it is put together is the Android app's too (features/projects/use-project-page.ts).
+  const { project, area, headings, tasks, someday, groups, doneGroups, summary, isLoading, loadingTasks } = useProjectPage(id, today, settings?.defaultEstimateMin ?? 30);
   /** Sections whose completed tasks are shown ("" is the tasks under no heading). */
   const [doneShown, setDoneShown] = useState<ReadonlySet<string>>(new Set());
   /** Headings folded away. */
@@ -86,20 +81,7 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
   const [newHeading, setNewHeading] = useState("");
   const [movingArea, setMovingArea] = useState(false);
   const wide = useSyncExternalStore(subscribeWide, readWide, () => false);
-  // Each heading's "Show completed · N" counts what was finished in the last week, so the week is always on hand.
-  const weekAgo = useMemo(() => `${today.subtract({ days: 7 }).toString()}T00:00:00.000Z`, [today]);
-  const { data: doneRows } = useQuery<TaskRowType>(PROJECT_DONE_SQL, [id, weekAgo], { streams: [{ ...logbookStream(today), ttl: 60 * 60 }] });
 
-  const project = projectRows?.[0] ? toProject(projectRows[0]) : null;
-  const area = (areaRows ?? []).find((a) => a.id === project?.areaId) ?? null;
-  const headings = useMemo(() => (headingRows ?? []).map(toHeading), [headingRows]);
-  const tasks = useMemo(() => (taskRows ?? []).map(toTask), [taskRows]);
-  const open = useMemo(() => tasks.filter((t) => t.state === "inbox" || t.state === "active"), [tasks]);
-  const someday = useMemo(() => tasks.filter((t) => t.state === "someday"), [tasks]);
-  const done = useMemo(() => (doneRows ?? []).map(toTask), [doneRows]);
-  const groups = useMemo(() => groupByHeading(open, headings), [open, headings]);
-  const doneGroups = useMemo(() => doneByHeading(done, new Set(headings.map((h) => h.id))), [done, headings]);
-  const summary = summarise(tasks, settings?.defaultEstimateMin ?? 30);
   // Below 640 px the notes start folded to their first line (SCREENS.md §9 "Responsive"); wider, open when there are any.
   const notesShown = notesOpen ?? (Boolean(project?.notes) && wide);
   const keyOf = (g: HeadingGroup) => g.heading?.id ?? "";
@@ -158,11 +140,7 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
     void tasksRepo.setOrder(taskId, keyBetween(before?.sortKey ?? null, after?.sortKey ?? null));
   };
   // Under another heading, at the end of its section.
-  const moveToHeading = (taskId: string, headingId: string | null) => {
-    const target = groups.find((x) => (x.heading?.id ?? null) === headingId);
-    const last = target?.tasks[target.tasks.length - 1];
-    void tasksRepo.setOrder(taskId, keyBetween(last?.sortKey ?? null, null), headingId);
-  };
+  const moveToHeading = (taskId: string, headingId: string | null) => void tasksRepo.setOrder(taskId, keyAtEndOf(groups, headingId), headingId);
   // A heading moves with its tasks (they are filed under it): one key, by a drag or by Move up / Move down.
   const keyedHeadings = headings.map((h) => ({ id: h.id, key: h.sortKey }));
   const dropHeading = (sourceId: string, targetId: string, edge: Edge) => {
@@ -183,6 +161,13 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
     void headingRepo.create(project.id, project.spaceId, title);
     setNewHeading("");
   };
+  // The header's ⋯ (features/projects/page-rules.ts): a state to set, the area picker, or a copy.
+  const act = (action: ProjectAction) => {
+    if (action.state) void projectRepo.setState(project.id, action.state);
+    else if (action.id === "move") setMovingArea(true);
+    // SCREENS.md §9 header ⋯: a copy named "… (copy)" with its headings and open tasks, which then opens.
+    else requestOrganize({ kind: "duplicate-project", id: project.id });
+  };
 
   return (
     <main className={VIEW_COLUMN}>
@@ -199,43 +184,20 @@ export default function ProjectPage({ params, searchParams }: PageProps<"/projec
         title={<InlineTitle value={project.name} label="Project name" onSave={(name) => void projectRepo.rename(project.id, name)} className={TITLE} />}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
-            <span className="num">
-              {summary.open} open · ~{formatMinutes(summary.minutes)}
-            </span>
+            <span className="num">{summaryWords(summary)}</span>
             {project.deadline && <DeadlineChip deadline={project.deadline} today={today} />}
             {project.state !== "active" && <Chip>{project.state}</Chip>}
           </span>
         }
         compactActions={
           <MenuButton label="Project actions">
-            {(close) => (
-              <>
-                {project.state === "active" ? (
-                  <>
-                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (void projectRepo.setState(project.id, "done"), close())}>
-                      Mark complete
-                    </button>
-                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (void projectRepo.setState(project.id, "someday"), close())}>
-                      Move to Someday
-                    </button>
-                    <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (void projectRepo.setState(project.id, "archived"), close())}>
-                      Archive
-                    </button>
-                  </>
-                ) : (
-                  <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (void projectRepo.setState(project.id, "active"), close())}>
-                    Back to active
-                  </button>
-                )}
-                <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (setMovingArea(true), close())}>
-                  Move to area…
+            {(close) =>
+              projectActions(project.state).map((action) => (
+                <button key={action.id} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (act(action), close())}>
+                  {action.label}
                 </button>
-                {/* SCREENS.md §9 header ⋯: a copy named "… (copy)" with its headings and open tasks, which then opens. */}
-                <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (requestOrganize({ kind: "duplicate-project", id: project.id }), close())}>
-                  Duplicate
-                </button>
-              </>
-            )}
+              ))
+            }
           </MenuButton>
         }
       />

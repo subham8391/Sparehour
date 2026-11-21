@@ -9,22 +9,17 @@
 // the files say so too.
 import { useCallback, useEffect, useState } from "react";
 import type { ExportFormat } from "@/core/export";
-import type { LocalDate } from "@/core/time";
-import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
-import { logbookStream } from "@/data/queries/shell";
-import { fetchAllFinished, type FinishedRow } from "@/features/finished/finished";
+import { useLocalDatabase } from "@/data/powersync";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
+import { FINISHED_TASKS_OFFLINE } from "./finished-wait";
+
+// The wait for finished tasks is in finished-wait.ts, shared with the Android app; handed on, so imports are unchanged.
+export { FINISHED_TASKS_OFFLINE, FINISHED_TASKS_WAIT_MS, fetchFinishedTasks, fetchOlderFinished, type FinishedTasks } from "./finished-wait";
 
 // The file builders and the zip library are an island (SYSTEM_DESIGN.md §11.6): fetched once Settings is idle,
 // so the first export never waits on the network and still works offline.
 const loadBuild = () => import("./build");
-
-/** How long the export waits for finished tasks with a connection, and without one (time for an earlier sync to be recognised). */
-export const FINISHED_TASKS_WAIT_MS = { online: 15_000, offline: 2_000 } as const;
-
-/** Shown beside "Saved …" when the finished tasks could not be fetched. */
-export const FINISHED_TASKS_OFFLINE = "Saved without finished tasks: the export needs a connection to include them. Export again once you're online.";
 
 export interface ExportApi {
   exportData: (format: ExportFormat) => Promise<void>;
@@ -32,45 +27,6 @@ export interface ExportApi {
   error: string | null;
   /** Last export, for the "Saved sparehour-export-….json" line. */
   lastFile: string | null;
-}
-
-export interface FinishedTasks {
-  /** True once every finished task (the logbook stream's months) is on this device. */
-  synced: boolean;
-  /** Lets go of the subscription; the stream's TTL keeps the rows cached for a while after. */
-  release: () => void;
-}
-
-/**
- * Subscribes the logbook stream for every month a finished task can still be in and waits for its first sync,
- * at most `timeoutMs`. The same months as the Logbook and search, so an earlier visit makes this immediate.
- */
-export async function fetchFinishedTasks(db: Pick<LocalDatabase, "syncStream">, today: LocalDate, timeoutMs: number): Promise<FinishedTasks> {
-  const { name, parameters } = logbookStream(today);
-  const subscription = await db.syncStream(name, parameters).subscribe({ ttl: 60 * 60 });
-  const abort = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const synced = await Promise.race([
-    subscription.waitForFirstSync(abort.signal).then(
-      () => true,
-      () => false,
-    ),
-    new Promise<boolean>((resolve) => {
-      timer = setTimeout(() => resolve(false), timeoutMs);
-    }),
-  ]);
-  clearTimeout(timer);
-  abort.abort();
-  return { synced, release: () => subscription.unsubscribe() };
-}
-
-/** The finished tasks the server keeps beyond the device's week; null when they could not be fetched. */
-export async function fetchOlderFinished(fetchAll: () => Promise<FinishedRow[]> = fetchAllFinished): Promise<FinishedRow[] | null> {
-  try {
-    return await fetchAll();
-  } catch {
-    return null;
-  }
 }
 
 function saveBlob(name: string, blob: Blob): void {
@@ -97,21 +53,18 @@ export function useExport(): ExportApi {
     async (format: ExportFormat) => {
       setBusy(format);
       setError(null);
-      let finished: FinishedTasks | null = null;
       try {
-        finished = await fetchFinishedTasks(db, today, db.currentStatus?.connected ? FINISHED_TASKS_WAIT_MS.online : FINISHED_TASKS_WAIT_MS.offline);
-        const [{ buildExport, readSnapshot, withFinished }, older] = await Promise.all([loadBuild(), fetchOlderFinished()]);
-        const snapshot = await readSnapshot((sql, params) => db.getAll(sql, params));
-        // Complete only with both halves: the week the device syncs, and what the server keeps from before it.
-        const complete = finished.synced && older !== null;
-        const { name, blob } = buildExport(format, older ? withFinished(snapshot, older) : snapshot, new Date(), { finishedTasks: complete });
+        // Gathering the rows (the finished week waited for, the older ones fetched) is the island's too: gather.ts,
+        // shared with the Android app. Complete only with both halves.
+        const { buildExport, gatherExport } = await loadBuild();
+        const { snapshot, complete } = await gatherExport(db, today);
+        const { name, blob } = buildExport(format, snapshot, new Date(), { finishedTasks: complete });
         saveBlob(name, blob);
         setLastFile(name);
         if (!complete) setError(FINISHED_TASKS_OFFLINE);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
-        finished?.release();
         setBusy(null);
       }
     },

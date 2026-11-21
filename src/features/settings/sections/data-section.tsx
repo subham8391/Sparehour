@@ -6,14 +6,9 @@ import { ArchivePanel } from "@/features/archive/archive-panel";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { ERROR, HINT, LABEL, NOTE, ROW } from "../rows";
+import { EXPORT_FORMATS as FORMATS, EXPORT_HINT } from "../section-words";
 import { Section } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
-
-const FORMATS = [
-  ["json", "JSON"],
-  ["markdown", "Markdown"],
-  ["csv", "CSV"],
-] as const;
 
 export function DataSection(p: SettingsFormProps) {
   const data = p.data;
@@ -25,7 +20,7 @@ export function DataSection(p: SettingsFormProps) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="flex min-w-0 flex-col">
               <span className={LABEL}>Export everything</span>
-              <span className={HINT}>Tasks, checklists, projects, areas, tags, blocks, day plans and settings, from this device — no server needed.</span>
+              <span className={HINT}>{EXPORT_HINT}</span>
             </span>
             <span className="flex flex-wrap gap-2">
               {FORMATS.map(([format, label]) => (

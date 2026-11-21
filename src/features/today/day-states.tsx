@@ -19,6 +19,7 @@ import { toTask, type Settings } from "@/data/mappers";
 import { OPEN_TASKS_SQL } from "@/data/queries/views";
 import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { toTaskRow, type FinishedRow } from "@/features/finished/finished";
+import { olderThanDevice, type DayInstants } from "@/features/finished/older-than-device";
 import { useFinishedDay, type FinishedDayStatus } from "@/features/finished/use-finished-day";
 import { useNow } from "@/features/shell/use-local-day";
 import type { TimelineBlock } from "./hooks/use-today";
@@ -38,20 +39,6 @@ const NOTHING_SQL = `select * from tasks where 0`;
 
 // An older finished task's read-only view, with Reopen and Delete for good: fetched when one is opened.
 const FinishedPeekHost = dynamic(() => import("@/features/finished/finished-peek-host"), { ssr: false });
-
-/**
- * How long a finished task stays in `tasks`, and so on the device: the nightly move files away what was finished
- * more than a week ago, to the instant (DECISIONS.md, amendment 2026-11-14).
- */
-const KEPT_MS = 7 * 24 * 60 * 60_000;
-
-/** A past day's two instants: its start, and the start of the day after. */
-type DayInstants = readonly [string, string];
-
-/** Whether a past day began before the week the device holds, so that some or all of what was finished on it is only on the server. */
-function olderThanDevice(day: DayInstants | false | undefined, now: { epochMilliseconds: number }): day is DayInstants {
-  return Boolean(day) && Date.parse((day as DayInstants)[0]) < now.epochMilliseconds - KEPT_MS;
-}
 
 /**
  * The day after its shutdown: what was finished, the rating, and the highlight (SCREENS.md §15). For a day older

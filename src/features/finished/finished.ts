@@ -101,11 +101,11 @@ export async function fetchFinished(q: FinishedQuery, signal?: AbortSignal, api?
 }
 
 /** Every finished task there is, for the export: pages of 100 until there are no more (or `max` rows). */
-export async function fetchAllFinished(signal?: AbortSignal, max = 100_000): Promise<FinishedRow[]> {
+export async function fetchAllFinished(signal?: AbortSignal, max = 100_000, api?: ApiFetch): Promise<FinishedRow[]> {
   const all: FinishedRow[] = [];
   let after: FinishedQuery["after"] = null;
   for (;;) {
-    const page = await fetchFinished({ limit: 100, after }, signal);
+    const page = await fetchFinished({ limit: 100, after }, signal, api);
     all.push(...page.rows);
     const last = page.rows[page.rows.length - 1];
     if (!page.available || !page.more || !last || all.length >= max) return all;

@@ -11,7 +11,7 @@ import { useLocalDatabase } from "@/data/powersync";
 import { TypedConfirmSheet } from "@/features/archive/typed-confirm";
 import { Button } from "@/ui/button";
 import { clearThisDevice } from "./clear-device";
-import { DELETED_THINGS, requestAccountDeletion } from "./deletion";
+import { DELETED_THINGS, DELETE_ACCOUNT, requestAccountDeletion } from "./deletion";
 
 export interface DeleteAccountExport {
   onExport: () => void;
@@ -31,7 +31,7 @@ export interface DeleteAccountSheetProps {
   onDeleted?: (deleteAfter: string) => Promise<void>;
 }
 
-const FALLBACK = "Couldn’t delete your account just now. Nothing changed — try again.";
+const FALLBACK = DELETE_ACCOUNT.failed;
 
 export default function DeleteAccountSheet({ onClose, exporter, request = requestAccountDeletion, onDeleted }: DeleteAccountSheetProps) {
   const db = useLocalDatabase() as Parameters<typeof clearThisDevice>[0] | null;
@@ -62,15 +62,15 @@ export default function DeleteAccountSheet({ onClose, exporter, request = reques
   };
 
   return (
-    <TypedConfirmSheet title="Delete your account?" confirmLabel="Delete account" busyLabel="Deleting…" onConfirm={confirm} onClose={onClose}>
+    <TypedConfirmSheet title={DELETE_ACCOUNT.title} confirmLabel={DELETE_ACCOUNT.confirm} busyLabel={DELETE_ACCOUNT.busy} onConfirm={confirm} onClose={onClose}>
       <p className="text-ink">{DELETED_THINGS}</p>
-      <p>Connected calendars are disconnected and you’re signed out on every device at once. You have 30 days to change your mind: sign in before then and you can restore everything. After that it’s gone for good.</p>
+      <p>{DELETE_ACCOUNT.after}</p>
       {exporter && (
         <div className="flex flex-col items-start gap-1.5">
           <Button variant="secondary" onClick={exporter.onExport} disabled={exporter.busy}>
-            {exporter.busy ? "Preparing…" : "Export your data first"}
+            {exporter.busy ? "Preparing…" : DELETE_ACCOUNT.exportFirst}
           </Button>
-          <p className="text-body-sm text-ink-3">A JSON file of everything, made on this device.</p>
+          <p className="text-body-sm text-ink-3">{DELETE_ACCOUNT.exportNote}</p>
           {exporter.lastFile && (
             <p role="status" className="text-body-sm text-pretty text-ink-2">
               Saved {exporter.lastFile}

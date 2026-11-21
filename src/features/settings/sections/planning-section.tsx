@@ -5,35 +5,16 @@
 // view the app opens to.
 import { suggestDefault } from "@/core/estimates";
 import { TODAY_SORTS, isTodaySort } from "@/core/today/sort-options";
-import type { MissPolicy } from "@/core/types";
-import type { OpenTo } from "@/data/repositories/settings-repo";
 import { useLearned } from "@/features/estimates/use-learned";
 import { UsualLine } from "@/features/estimates/usual-line";
 import { cx } from "@/ui/cx";
 import { Segmented } from "@/ui/segmented";
 import { Select } from "@/ui/select";
 import { HINT, LABEL, ROW } from "../rows";
+// The choices, the numbers' bounds and the sentences are shared with the Android app's Settings (section-words.ts).
+import { CARRY_REVIEW_HINT, MISS, OPEN_TO, OPEN_TO_HINT, PLANNING_NUMBERS, SHOW_COMPLETED_HINT, TODAY_SORT_HINT, USUAL_UNESTIMATED, missHint } from "../section-words";
 import { NumberRow, Section, SwitchRow, useSavedFlash } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
-
-const MISS: { value: MissPolicy; label: string }[] = [
-  { value: "carry", label: "Carry" },
-  { value: "skip", label: "Skip" },
-  { value: "expire", label: "Expire" },
-];
-
-/** What each choice does, said under the control. */
-const MISS_HINT: Record<MissPolicy, string> = {
-  carry: "A new task that misses its day moves to the next one.",
-  skip: "A new task that misses its day loses its date and waits, undated.",
-  expire: "A new task that misses its day goes to the Logbook, where it can come back.",
-};
-
-const OPEN_TO: { value: OpenTo; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "inbox", label: "Inbox" },
-  { value: "upcoming", label: "Upcoming" },
-];
 
 export function PlanningSection(p: SettingsFormProps) {
   const { values } = p;
@@ -47,22 +28,22 @@ export function PlanningSection(p: SettingsFormProps) {
   const usual = suggestDefault(useLearned(), values.defaultEstimateMin);
   return (
     <Section title="Planning" saved={saved}>
-      <NumberRow id="estimate" label="Default estimate" unit="minutes" value={values.defaultEstimateMin} min={5} max={480} step={5} onChange={(v) => change({ defaultEstimateMin: v })} />
-      {usual && <UsualLine className="-mt-1 px-4 pb-2" about="Tasks you finished without an estimate usually took" minutes={usual.minutes} onUse={() => change({ defaultEstimateMin: usual.minutes })} />}
-      <NumberRow id="carry" label="Ask about a carried-over task after" unit="carries" value={values.carryAskAfter} min={1} max={14} step={1} onChange={(v) => change({ carryAskAfter: v })} />
-      <NumberRow id="someday" label="Move an untouched task to Someday after" unit="days" value={values.autoSomedayDays} min={7} max={120} step={1} onChange={(v) => change({ autoSomedayDays: v })} />
-      <SwitchRow id="carry-review" label="Morning review" hint="Ask about carried-over tasks when the day starts" checked={values.carryReview} onChange={(v) => change({ carryReview: v })} />
+      <NumberRow id="estimate" label="Default estimate" {...PLANNING_NUMBERS.defaultEstimateMin} value={values.defaultEstimateMin} onChange={(v) => change({ defaultEstimateMin: v })} />
+      {usual && <UsualLine className="-mt-1 px-4 pb-2" about={USUAL_UNESTIMATED} minutes={usual.minutes} onUse={() => change({ defaultEstimateMin: usual.minutes })} />}
+      <NumberRow id="carry" label="Ask about a carried-over task after" {...PLANNING_NUMBERS.carryAskAfter} value={values.carryAskAfter} onChange={(v) => change({ carryAskAfter: v })} />
+      <NumberRow id="someday" label="Move an untouched task to Someday after" {...PLANNING_NUMBERS.autoSomedayDays} value={values.autoSomedayDays} onChange={(v) => change({ autoSomedayDays: v })} />
+      <SwitchRow id="carry-review" label="Morning review" hint={CARRY_REVIEW_HINT} checked={values.carryReview} onChange={(v) => change({ carryReview: v })} />
       <div className={cx(ROW, "items-start")}>
         <span className="flex min-w-0 flex-1 flex-col sm:max-w-72">
           <span className={LABEL}>Default if missed</span>
-          <span className={HINT}>{MISS_HINT[values.defaultMissPolicy]} Repeating tasks skip.</span>
+          <span className={HINT}>{missHint(values.defaultMissPolicy)}</span>
         </span>
         <Segmented label="Default if missed" options={MISS} value={values.defaultMissPolicy} onChange={(v) => change({ defaultMissPolicy: v })} />
       </div>
       <div className={ROW}>
         <span className="flex min-w-0 flex-col">
           <span className={LABEL}>Open to</span>
-          <span className={HINT}>Where the app starts</span>
+          <span className={HINT}>{OPEN_TO_HINT}</span>
         </span>
         <Segmented label="Open to" options={OPEN_TO} value={values.defaultView} onChange={(v) => change({ defaultView: v })} />
       </div>
@@ -70,7 +51,7 @@ export function PlanningSection(p: SettingsFormProps) {
       <div className={cx(ROW, "items-start")}>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={LABEL}>Sort Today by</span>
-          <span className={HINT}>Manual keeps the order you set by hand; the others never change it.</span>
+          <span className={HINT}>{TODAY_SORT_HINT}</span>
         </span>
         <Select aria-label="Sort Today by" value={values.todaySort} onChange={(e) => isTodaySort(e.target.value) && change({ todaySort: e.target.value })} className="w-auto shrink-0">
           {TODAY_SORTS.map((o) => (
@@ -80,7 +61,7 @@ export function PlanningSection(p: SettingsFormProps) {
           ))}
         </Select>
       </div>
-      <SwitchRow id="show-completed" label="Show completed on Today" hint="Today’s finished tasks under a Done divider" checked={values.showCompleted} onChange={(v) => change({ showCompleted: v })} />
+      <SwitchRow id="show-completed" label="Show completed on Today" hint={SHOW_COMPLETED_HINT} checked={values.showCompleted} onChange={(v) => change({ showCompleted: v })} />
     </Section>
   );
 }

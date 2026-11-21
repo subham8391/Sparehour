@@ -6,24 +6,22 @@
 // title. Lives in the day pane's island, out of Today's first download.
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type Ref } from "react";
-import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import type { BlockDragData } from "@/features/blocking/drag";
-import { minutesOfField } from "@/features/blocking/minutes";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MENU_ITEM_DESTRUCTIVE, MENU_SEPARATOR, MenuButton, type MenuHandle } from "@/ui/popover";
 import { TimeField } from "@/ui/time-field";
 import type { Lane } from "./overlap";
 import type { TimelineBlock } from "./hooks/use-today";
+import { askedTimes, hhmm, rangeLine } from "./timeline-geometry";
 
 /** A slot taller than this carries its time range on a second line. */
 export const TWO_LINE_PX = 40;
 /** A selected block's toolbar action: 44 px on touch, 28 px above, like every other row action. */
 const TOOLBAR_ACTION = "flex h-11 shrink-0 items-center rounded-sm px-2 text-body-sm font-medium text-ink transition-colors dur-fast hover:bg-hover disabled:text-ink-3 sm:h-7 touch:h-11";
 
-export const hhmm = (m: number) => formatTime(timeFromMinutes(m));
-/** "10:00–11:30 · 1h 30m" */
-export const rangeLine = (start: number, end: number) => `${hhmm(start)}–${hhmm(end)} · ${formatMinutes(end - start)}`;
+// The times as words are the timeline's own arithmetic file's (timeline-geometry.ts), handed on from here.
+export { hhmm, rangeLine } from "./timeline-geometry";
 
 /** Where whatever is drawn on the day starts: a quarter rem inside the ruler gutter (`--tl-g`; none in a grid column). */
 export const INSET = "calc(var(--tl-g, 3rem) + 0.25rem)";
@@ -221,14 +219,11 @@ export function BlockToolbar({
   }, [armed]);
   const send = (e: FormEvent) => {
     e.preventDefault();
-    const f = minutesOfField(from);
-    const t = minutesOfField(to);
-    if (f === null || !armed) return;
+    if (!armed) return;
     // A new end resizes, from whatever start is shown; a new start alone moves the block, keeping its length,
     // earlier or later, overlapping where it was or not.
-    const endChanged = armed === "move" && to !== hhmm(block.end) && t !== null;
-    if (endChanged && t <= f) return;
-    actions.onTimes?.(armed, f, endChanged ? t : f + (block.end - block.start));
+    const asked = askedTimes(armed, block, from, to);
+    if (asked) actions.onTimes?.(armed, asked.from, asked.to);
   };
   return (
     <div

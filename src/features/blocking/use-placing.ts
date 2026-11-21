@@ -196,7 +196,8 @@ export function usePlacing(d: PlacingDay) {
 
   // Tap-to-schedule (SCREENS.md §2.8): the next tap on the timeline places what is waiting; Escape lets go.
   useEffect(() => {
-    if (!placing) return;
+    // Where there is no keyboard to listen to (the Android app), Cancel on the bar is the way to let go.
+    if (!placing || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();

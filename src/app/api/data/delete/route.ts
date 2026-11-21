@@ -5,7 +5,7 @@
 // sync then takes them off every device.
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { createUserScopedClient } from "@/server/auth/supabase";
+import { requestUser } from "@/server/auth/request-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,10 +13,8 @@ export const dynamic = "force-dynamic";
 const Body = z.object({ ids: z.array(z.uuid()).min(1).max(5000) });
 
 export async function POST(req: NextRequest) {
-  const supabase = await createUserScopedClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The browser's cookie session, or the phone app's access token (server/auth/request-user.ts).
+  const { supabase, user } = await requestUser(req);
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
