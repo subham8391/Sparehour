@@ -1,7 +1,8 @@
-// The app's one frame (ANDROID_APP_SPEC.md §4): the typeface, who is signed in, their local database, then the
-// screens over the tab bar. Signed out, the sign-in screen stands in for every route; signed in, nothing is drawn
-// until the copy on the phone is known to be this person's own.
-import { Slot } from "expo-router";
+// The app's one frame (ANDROID_APP_SPEC.md §4): the typeface, who is signed in, their local database, undo, then
+// the screens as a stack: the four tabs ((tabs)/) at the bottom of it, and whatever is opened from them pushed over.
+// Signed out, the sign-in screen stands in for every route; signed in, nothing is drawn until the copy on the phone
+// is known to be this person's own.
+import { Stack } from "expo-router/stack";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -12,8 +13,8 @@ import { missingConfig } from "~/config";
 import { SignIn } from "~/screens/sign-in";
 import { SyncProvider } from "~/sync/database";
 import { useAppFonts } from "~/ui/fonts";
-import { TabBar } from "~/ui/tab-bar";
 import { font, useColours } from "~/ui/theme";
+import { UndoProvider } from "~/ui/undo-provider";
 
 // The splash stays until the typeface is in, so the first frame is already in the app's own letters.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -44,12 +45,10 @@ function Gate() {
   if (session === null) return <SignIn />;
   return (
     <SyncProvider userId={session.user.id} failed={() => <Notice title="Your data could not be opened" body="Close the app and open it again. If it stays like this, sign in again." />}>
-      <View style={[styles.fill, { backgroundColor: c.paper }]}>
-        <View style={styles.fill}>
-          <Slot />
-        </View>
-        <TabBar />
-      </View>
+      {/* Every shared repository records its undo here, whichever screen made the write. */}
+      <UndoProvider>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.paper } }} />
+      </UndoProvider>
     </SyncProvider>
   );
 }

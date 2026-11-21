@@ -11,7 +11,7 @@ import { ProjectOrderRepo } from "@/data/repositories/project-order-repo";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import { TagRepo } from "@/data/repositories/tag-repo";
 import type { UndoRecorder } from "@/data/repositories/undo";
-import { useUndoSink } from "@/features/undo/undo-provider";
+import { useUndoSink } from "@/features/undo/undo-context";
 
 function useUndoableRepo<R>(Repo: new (db: LocalDatabase, history?: UndoRecorder) => R): R {
   const db = useLocalDatabase();

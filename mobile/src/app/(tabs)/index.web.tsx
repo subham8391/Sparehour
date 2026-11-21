@@ -27,7 +27,6 @@ export default function Preview() {
   return (
     <View style={{ flex: 1 }}>
       <TodayView
-        scheme={scheme}
         part={part}
         eyebrow={`Today · ${part === "evening" || part === "night" ? "Evening" : part === "morning" ? "Morning" : "Afternoon"}`}
         title="Saturday 21 November"

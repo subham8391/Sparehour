@@ -5,7 +5,7 @@ import { useLocalDatabase } from "@/data/powersync";
 import { BlockRepo, type ApprovedPlan, type NewBlock } from "@/data/repositories/block-repo";
 import type { UndoRecorder } from "@/data/repositories/undo";
 import { noteBlockCreated } from "@/features/notifications/block-nudge-store";
-import { useUndoSink, type UndoSink } from "@/features/undo/undo-provider";
+import { useUndoSink, type UndoSink } from "@/features/undo/undo-context";
 import { schedulePush } from "./push-after-write";
 
 /**

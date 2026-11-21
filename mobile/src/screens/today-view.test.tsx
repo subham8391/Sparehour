@@ -5,10 +5,10 @@ import { todayRows } from "./today-rows";
 import { TodayView, type TodayViewProps } from "./today-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn(), canGoBack: () => false }) }));
 
 const task = (id: string, title: string, estimateMin: number | null, carryCount = 0) => ({ id, title, estimateMin, carryCount }) as unknown as Task;
 const props = (over: Partial<TodayViewProps> = {}): TodayViewProps => ({
-  scheme: "light",
   part: "evening",
   eyebrow: "Today · Evening",
   title: "Saturday 21 November",

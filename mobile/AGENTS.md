@@ -48,3 +48,20 @@ This folder is Sparehour's Android app. Read `../docs/mobile/ANDROID_APP_SPEC.md
 - `src/sync/adapter.ts` stands in for `../src/data/powersync/index.ts` (Metro and Jest swap it). Keep the two files' exports the same.
 - Anything imported from `../src` must be free of web-only code (`next/*`, `@/ui/*`, the DOM). If a shared hook pulls one in, split the web part out in `../src`, as `features/undo/undo-context.ts` was.
 - Checks: `npm run typecheck`, `npm test`, `npm run bundle` (builds the Android JavaScript bundle; proves the shared code resolves).
+
+## Building a screen
+
+Every screen is built the same way, so they read alike and can be checked alike. `src/screens/today*.tsx` is the worked example.
+
+1. **Read the web's version first**: its page (`../src/app/(app)/<name>/page.tsx`), its features folder, and its section of `../docs/product/SCREENS.md` (the "Responsive" notes say what a phone does). The phone screen says and does what the web's does at phone width; only the layout and the touch are its own.
+2. **Three files per screen**, in `src/screens/<name>/` (or `src/screens/<name>*.tsx` for a small one):
+   - `<name>-view.tsx`: presentational. Props in, React Native out. No data hooks, no router, no repositories.
+   - `<name>.tsx`: the container. It calls the shared hooks, queries and repositories and hands the view its props.
+   - `<name>-view.test.tsx`: React Native Testing Library tests of the view (what it shows, what each control calls). Pure helpers get their own small file and a plain test.
+3. **The route** is one line: `src/app/.../<name>.tsx` exports the container. Beside it, `<name>.web.tsx` draws the view with made-up data for the browser preview (`npm run preview`); it must not import the container, the sync folder or anything that reaches `@/data/powersync`.
+4. **Use the shared parts** in `src/ui/`: `Screen` (the sky, header, Back), `Card` / `CardRow`, `SectionLabel`, `TaskLine`, `Chip`, `Button`, `Sheet`, `TextField`, `Empty`, `Icon`, and the tokens in `theme.ts` (`useColours`, `font`, `TARGET`). Do not restyle them per screen. If a screen needs a part that is missing, add it to `src/ui/` as a general part.
+5. **Writes go through the shared repositories** (`../src/data/repositories`), built with the shared hooks (`useTaskRepo`, `useRepos`, `useBlockRepo`). They record their own undo, and the app's one toast offers it (`src/ui/undo-provider.tsx`): never write a second undo.
+6. **Rules stay shared.** A sum, a sort, a parse, a date rule or a query the web already has is imported from `../src`, never written again here. If it sits inside a web page or beside web-only code, move it to a web-free file in `../src` and import it from both (run the web's `npx tsc --noEmit`, `npx eslint .` and the touched tests after).
+7. **The product's own rules hold on the phone**: 44-point targets, a tap path for everything (no gesture-only action), only a missed deadline is red, "carried over" never "overdue", calm words. Every control has an accessibility label.
+8. **Navigation**: `useRouter()` from `expo-router`; a pushed screen passes `back` to `Screen`. Addresses are plain strings (`/task/<id>`).
+9. **Before calling it done**: `npm run typecheck`, `npm test`, `npm run bundle`, and look at the screen in the preview in light and dark.
