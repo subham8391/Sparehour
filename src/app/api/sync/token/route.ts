@@ -21,5 +21,7 @@ export async function GET() {
   // An account waiting for deletion syncs nothing (SYSTEM_DESIGN.md §9.6: sync stops at once).
   if (deleteAfter(user.app_metadata)) return NextResponse.json({ error: "account_deleted" }, { status: 403 });
   const { token, expiresAt } = signSyncToken({ userId: user.id, secret, appVersion: BUILD_ID });
-  return NextResponse.json({ token, expires_at: expiresAt }, { headers: { "cache-control": "no-store" } });
+  // Who the token is for goes with it: a device that still holds another account's copy clears it before it syncs
+  // (data/powersync/owner.ts).
+  return NextResponse.json({ token, expires_at: expiresAt, user_id: user.id }, { headers: { "cache-control": "no-store" } });
 }

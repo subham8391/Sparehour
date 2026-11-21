@@ -13,6 +13,10 @@ setup("sign in as the dev account", async ({ page }) => {
   await page.getByLabel("Password").fill(DEV_USER.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
+  // The sign-in page left its mark, and the app spends it once the first sync token has said the device's copy is
+  // this account's (data/powersync/owner.ts). The saved state must not carry it: every test would then start as if
+  // someone had just signed in.
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("sparehour.signin")), { timeout: 30_000 }).toBeNull();
   await page.context().storageState({ path: "e2e/.auth/user.json" });
   // The dev account always has carried-over tasks, so the morning review sheet would open on every
   // first visit of a new day and sit over whatever a test is doing. Off for the suite; carry-review.spec.ts turns it on for itself.

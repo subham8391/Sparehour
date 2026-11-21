@@ -9,6 +9,7 @@
 import type { AbstractPowerSyncDatabase, PowerSyncBackendConnector, PowerSyncCredentials } from "@powersync/web";
 import { BUILD_ID } from "../build-id";
 import { setSyncSignedOut } from "./auth-state";
+import { isForeign, readDeviceOwner, setDeviceOwner } from "./owner";
 
 export interface UploadRejection {
   client_id: string;
@@ -19,6 +20,8 @@ export class SparehourConnector implements PowerSyncBackendConnector {
   constructor(
     private readonly endpoint: string,
     private readonly onRejected: (rejected: UploadRejection[]) => void = () => {},
+    /** The accounts whose copy is on this device (its `users` rows): none on a fresh device, one normally. */
+    private readonly localOwners: () => Promise<string[]> = async () => [],
   ) {}
 
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
@@ -30,11 +33,20 @@ export class SparehourConnector implements PowerSyncBackendConnector {
     }
     if (!res.ok) throw new Error(`sync token: ${res.status}`); // retried by the SDK
     setSyncSignedOut(false);
-    const { token, expires_at } = (await res.json()) as { token: string; expires_at: number };
+    const { token, expires_at, user_id } = (await res.json()) as { token: string; expires_at: number; user_id?: string };
+    // Someone else's copy is still on this device (their session ended without a sign-out here, owner.ts): nothing of
+    // this account syncs into it. The provider clears the device and connects again.
+    if (isForeign(await this.localOwners().catch(() => []), user_id)) {
+      setDeviceOwner("foreign");
+      return null;
+    }
+    setDeviceOwner("ok");
     return { endpoint: this.endpoint, token, expiresAt: new Date(expires_at * 1000) };
   }
 
   async uploadData(db: AbstractPowerSyncDatabase): Promise<void> {
+    // The last account's queued changes are not this account's to send; they go when the device is cleared.
+    if (readDeviceOwner() === "foreign") throw new Error("another account's copy");
     const tx = await db.getNextCrudTransaction();
     if (!tx) return;
 

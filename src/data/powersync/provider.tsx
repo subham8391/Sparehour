@@ -7,11 +7,16 @@
 // is watched here too (quota.ts) and shown by the shell's storage-full banner.
 import { PowerSyncContext } from "@powersync/react";
 import { createConsoleLogger, LogLevels, PowerSyncDatabase, WASQLiteVFS } from "@powersync/web";
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AppSchema } from "../schema.client";
 import { SparehourConnector } from "./connector";
 import { resolvePowerSyncUrl } from "./endpoint";
+import { forgetSignIn, readDeviceOwner, setDeviceOwner, signInPending, subscribeDeviceOwner } from "./owner";
 import { watchQuota } from "./quota";
+
+const OWNERS_SQL = `select id from users`;
+/** How long a sign-in just made waits to hear whose account it is before the device's copy is shown anyway. */
+const OWNER_WAIT_MS = 6000;
 
 let instance: PowerSyncDatabase | null = null;
 let connectAgain: (() => Promise<void>) | null = null;
@@ -35,7 +40,8 @@ export function getDatabase(): PowerSyncDatabase {
   });
   // Batch a burst of edits, but flush fast enough that a reload rarely loses the ack (§4.1)
   const db = instance;
-  const connector = new SparehourConnector(endpoint);
+  // The account rows on the device say whose copy it is; the connector checks them against each token (owner.ts).
+  const connector = new SparehourConnector(endpoint, undefined, async () => (await db.getAll<{ id: string }>(OWNERS_SQL)).map((r) => r.id));
   connectAgain = () => db.connect(connector, { crudUploadThrottleMs: 400 });
   void connectAgain().catch(() => undefined);
   if (process.env.NODE_ENV === "development") {
@@ -94,7 +100,47 @@ export function PowerSyncProvider({ children, failed }: { children: ReactNode; f
   if (!opened.db) return null;
   return (
     <Suspense>
-      <PowerSyncContext.Provider value={opened.db}>{children}</PowerSyncContext.Provider>
+      <PowerSyncContext.Provider value={opened.db}>
+        <OwnerGate db={opened.db}>{children}</OwnerGate>
+      </PowerSyncContext.Provider>
     </Suspense>
   );
+}
+
+/** Leaving nothing of the last account behind, as signing out does: rows zeroed as they go, the file compacted. */
+async function clearCopy(db: Pick<PowerSyncDatabase, "execute" | "disconnectAndClear">): Promise<void> {
+  await db.execute("PRAGMA secure_delete = ON").catch(() => {});
+  await db.disconnectAndClear();
+  await db.execute("VACUUM").catch(() => {});
+}
+
+/**
+ * Nothing of another account's copy is ever drawn (owner.ts). A copy the connector found to be someone else's is
+ * cleared and the sync starts over for the account that is signed in. Straight after the sign-in page, the copy is
+ * held back until the first token has said whose it is; with no answer (offline, the token route down) it is shown
+ * after a few seconds, as the same person signing back in would expect.
+ */
+export function OwnerGate({ db, children, wait = OWNER_WAIT_MS }: { db: Pick<PowerSyncDatabase, "execute" | "disconnectAndClear">; children: ReactNode; wait?: number }) {
+  const owner = useSyncExternalStore(subscribeDeviceOwner, readDeviceOwner, () => "unknown" as const);
+  const [pending] = useState(signInPending);
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (owner !== "foreign") return;
+    void clearCopy(db)
+      .then(() => {
+        setDeviceOwner("unknown");
+        return connectAgain?.();
+      })
+      .catch(() => undefined);
+  }, [owner, db]);
+  useEffect(() => {
+    if (owner === "ok") forgetSignIn();
+  }, [owner]);
+  useEffect(() => {
+    if (!pending || owner !== "unknown") return;
+    const timer = window.setTimeout(() => setTimedOut(true), wait);
+    return () => window.clearTimeout(timer);
+  }, [pending, owner, wait]);
+  if (owner === "foreign" || (pending && owner === "unknown" && !timedOut)) return <div className="p-8 text-ink-3">Opening your data…</div>;
+  return <>{children}</>;
 }

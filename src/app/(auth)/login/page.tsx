@@ -3,7 +3,8 @@
 // on paper with the lockup, the one sentence, and the form. Anchored to the
 // top on a phone so the field does not jump when the keyboard opens.
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
+import { markSignInStarted } from "@/data/powersync/owner";
 import { LoginForm } from "@/features/auth/login-form";
 import { Wordmark } from "@/ui/brand";
 
@@ -13,6 +14,9 @@ function LoginFormWithParams() {
 }
 
 export default function LoginPage() {
+  // This page is only shown to a device with no session: whoever signs in next may not be who was here before, so
+  // the app's next load holds the device's copy back until it knows whose it is (data/powersync/owner.ts).
+  useEffect(markSignInStarted, []);
   return (
     // The card stays (DECISIONS.md), but on a phone it fills the screen so the one decision sits on the bottom edge (§4a).
     <main className="flex flex-1 flex-col items-center px-5 pt-14 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:justify-center sm:px-6 sm:py-10">
