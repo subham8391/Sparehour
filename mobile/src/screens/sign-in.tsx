@@ -5,7 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput,
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signInError } from "~/auth/sign-in-error";
 import { supabase } from "~/auth/supabase";
-import { TARGET, useColours } from "~/ui/theme";
+import { TARGET, font, useColours } from "~/ui/theme";
 
 export function SignIn() {
   const c = useColours();
@@ -88,7 +88,7 @@ export function SignIn() {
               }}
               style={styles.quiet}
             >
-              <Text style={{ color: c.ink2 }}>Use another email</Text>
+              <Text style={{ color: c.ink2, fontFamily: font.medium, fontSize: 15 }}>Use another email</Text>
             </Pressable>
           </View>
         )}
@@ -105,13 +105,13 @@ export function SignIn() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 56, gap: 8 },
-  title: { fontSize: 30, fontWeight: "700" },
-  line: { fontSize: 17, lineHeight: 24 },
+  title: { fontFamily: font.bold, fontSize: 30 },
+  line: { fontFamily: font.regular, fontSize: 17, lineHeight: 24 },
   form: { marginTop: 24, gap: 8 },
-  label: { fontSize: 14, fontWeight: "600" },
-  field: { height: 48, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 17 },
-  button: { height: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 8 },
-  buttonText: { fontSize: 17, fontWeight: "600" },
+  label: { fontFamily: font.semibold, fontSize: 14 },
+  field: { height: 52, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontFamily: font.medium, fontSize: 17 },
+  button: { height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center", marginTop: 8 },
+  buttonText: { fontFamily: font.semibold, fontSize: 17 },
   quiet: { minHeight: TARGET, justifyContent: "center", alignSelf: "flex-start" },
-  error: { marginTop: 12, fontSize: 15 },
+  error: { marginTop: 12, fontFamily: font.medium, fontSize: 15 },
 });

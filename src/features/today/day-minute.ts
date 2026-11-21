@@ -29,3 +29,9 @@ export function minuteFromDay(now: Instant, zone: string, day: LocalDate): numbe
   const days = day.until(z.toPlainDate(), { largestUnit: "days" }).days;
   return days < 0 ? 0 : days * 24 * 60 + z.hour * 60 + z.minute;
 }
+
+/** The eyebrow's second word on Today: morning until noon, evening from the hour the person set (DESIGN_SYSTEM.md §5). */
+export function partOfDay(minute: number, eveningAt: number): "Morning" | "Afternoon" | "Evening" {
+  if (minute < 12 * 60) return "Morning";
+  return minute < eveningAt ? "Afternoon" : "Evening";
+}

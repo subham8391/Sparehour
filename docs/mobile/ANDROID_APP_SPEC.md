@@ -1,6 +1,6 @@
 # Sparehour for Android: the spec
 
-Status: step 1 of §10 is written and checked on a computer. **Nothing has run on a phone yet.**
+Status: step 1 of §10 ran on a phone; step 2 has begun (see "Where it stands" in §10).
 Decided 2026-11-21 (DECISIONS.md, amendment of that date, "a real Android app"). This file is the plan; DECISIONS.md stays the record of what was ruled.
 
 ## 1. What is being built, and why
@@ -126,7 +126,9 @@ Shipping, in order: an APK from a download link, for the user and a few people; 
 
 The app's Android id is `com.sparehour.app`. It can still change; once an app is published under an id it cannot.
 
-The icon and the splash image are still Expo's placeholders; Sparehour's own go in with step 2.
+The icon and the splash image are Sparehour's own mark (the web app's, drawn at the sizes Android needs).
+
+Builds so far are made with Expo's build service, profile `preview` (`mobile/eas.json`): an APK installed from a link. The four public addresses a build needs are kept in the Expo project's environment, not in the repository. Expo generated and holds the Android signing key; a Play Store release must keep using it.
 
 ## 9. What the first version has
 
@@ -151,7 +153,14 @@ Each step ends with tests and a push. A step is done when its "done when" is tru
 | 7 | **Share to Sparehour, app shortcuts, the APK download link.** | Someone else installs it from the link. |
 | 8 | **The Play Store.** | Listed. |
 
-Where step 1 stands today: written, type-checked, 20 tests, and the Android JavaScript bundle builds with the shared code in it (1,561 modules). Its "done when" is **not** met: no build has run on a phone or an emulator.
+Where it stands (2026-11-21, evening):
+
+- **Step 1 ran on the user's phone.** The first cloud build (Expo's build service, project `@subhamdas23/sparehour`) installed, signed in by emailed code and synced: Today showed the right day and "No working hours today" for a Saturday. Adding a task and seeing it on the web, and opening offline, have not been reported yet.
+- **Step 2 has begun.** Today is drawn as the web's phone Today is: the sky by the hour, the day, the hero card with the spare-time figure and the day in its parts, Carried over / Today / This evening as cards, a ring that completes (with Undo), the + button and its sheet (the shared quick-add parser), and the tab bar. Inbox, Week and Browse say plainly that they are not built yet. Sparehour's own icon and splash are in. Still to do in step 2: the Day timeline and blocks, swipes and row menus, the task detail, and the looks other than Sky.
+
+### Looking at a screen while building it
+
+`npm run preview` in `mobile/` opens the screens in a browser with made-up data (`src/app/*.web.tsx`). The browser is not a place the app ships to: it has no phone database and no sign-in, so the preview draws the views only (`today-view.tsx`), never the screens wired to data. It is the fast way to see a layout in both themes; a phone build is still the proof.
 
 ## 11. Open decisions (the user's)
 

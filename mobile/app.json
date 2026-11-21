@@ -8,14 +8,12 @@
     "scheme": "sparehour",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.sparehour.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#101b3a",
+        "backgroundColor": "#f4f8f6",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -26,12 +24,17 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#101b3a",
+          "backgroundColor": "#e8f0fa",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 120,
+          "dark": {
+            "backgroundColor": "#101b3a",
+            "image": "./assets/images/splash-icon-dark.png"
+          }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -42,6 +45,10 @@
         "projectId": "98bb5282-e914-48c0-a76b-5703f90be4cd"
       }
     },
-    "owner": "subhamdas23"
+    "owner": "subhamdas23",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
   }
 }

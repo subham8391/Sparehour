@@ -22,7 +22,7 @@ import { Ribbon, heroState, preloadRibbonOverlay } from "@/features/today/ribbon
 import { useTaskDrag } from "@/features/today/task-drag";
 import { loadDragAdapter } from "@/features/tasks/drag-adapter";
 import { useQuickAdd } from "@/features/quickadd/quick-add-provider";
-import { minuteFromDay } from "@/features/today/day-minute";
+import { minuteFromDay, partOfDay } from "@/features/today/day-minute";
 import { dayState } from "@/features/today/day-state";
 import { registerTodayHandler, type TodayRequest } from "@/features/today/today-request";
 import { RitualActions, RitualLink, RitualRow, type TodayView } from "@/features/today/ritual-row";
@@ -111,11 +111,6 @@ function readCarriedOpen(day: string): boolean {
   } catch {
     return false;
   }
-}
-/** The eyebrow's second word: morning until noon, evening from the hour the person set (DESIGN_SYSTEM.md §5). */
-function partOfDay(minute: number, eveningAt: number): "Morning" | "Afternoon" | "Evening" {
-  if (minute < 12 * 60) return "Morning";
-  return minute < eveningAt ? "Afternoon" : "Evening";
 }
 
 /**
