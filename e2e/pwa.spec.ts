@@ -24,6 +24,38 @@ test("manifest, service worker and the offline page", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
+// The phone's navigation bar (DECISIONS.md, amendments 2026-10-25 and 2026-11-21): Chrome paints it from the manifest
+// it reads, so the manifest is served with the colours of the look and theme on screen. They travel in a cookie; the
+// manifest's address never changes (a manifest that moves may never update an installed app), and when the colours
+// change the browser reads it again. Asked here the way an install does, through the browser's own manifest reader.
+test("the manifest keeps one address, carries the colours on screen, and is read again when they change", async ({ page, context }) => {
+  const bars = async () => (await context.cookies()).find((c) => c.name === "sparehour-bars")?.value ?? null;
+  const read = async () => {
+    const cdp = await context.newCDPSession(page);
+    const { url, data } = (await cdp.send("Page.getAppManifest")) as { url: string; data?: string };
+    await cdp.detach();
+    const manifest = JSON.parse(data ?? "{}") as { theme_color?: string; background_color?: string };
+    return { path: new URL(url).pathname + new URL(url).search, bar: manifest.theme_color, paper: manifest.background_color };
+  };
+  await openApp(page, "/today");
+  await expect.poll(bars, { timeout: 30_000 }).toMatch(/^[0-9a-f]{6}\.[0-9a-f]{6}$/);
+  const first = (await bars())!;
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/manifest.webmanifest");
+  await expect.poll(read).toEqual({ path: "/manifest.webmanifest", bar: `#${first.split(".")[0]}`, paper: `#${first.split(".")[1]}` });
+
+  // The other theme: other colours, the same address, and the browser's reader gives the new ones.
+  await page.evaluate(() => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+  });
+  await expect.poll(bars, { timeout: 15_000 }).not.toBe(first);
+  const second = (await bars())!;
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/manifest.webmanifest");
+  await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
+  await expect.poll(read).toEqual({ path: "/manifest.webmanifest", bar: `#${second.split(".")[0]}`, paper: `#${second.split(".")[1]}` });
+});
+
 // Found by the end-to-end walkthrough: once the service worker controlled the page, it answered the request for
 // Turbopack's worker bootstrap from its cache, the bootstrap lost its #params fragment, the local database never
 // opened, and every reload (or new tab, or reopened app) stayed on "Opening…". Each test here opens a fresh

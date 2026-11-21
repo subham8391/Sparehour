@@ -1,10 +1,10 @@
-// The manifest (DECISIONS.md, amendments 2026-10-22, -23 and -25): a share target that opens /share; colours the
-// page asks for in its link (the installed app's navigation bar follows the look and theme), Sky's dark paper without
-// them, and nothing but a plain hex colour is ever echoed back.
+// The manifest (DECISIONS.md, amendments 2026-10-22, -23, -25 and 2026-11-21): a share target that opens /share;
+// colours the page asks for in its cookie (the installed app's navigation bar follows the look and theme), Sky's dark
+// paper without them, and nothing but a plain hex colour is ever echoed back.
 import { describe, expect, it } from "vitest";
 import { GET } from "@/app/manifest.webmanifest/route";
 import { PAPER } from "@/features/commands/theme";
-import { barsCookie, barsFromCookie, cssToHex, hexParam, manifestHref } from "./bar-colors";
+import { barsCookie, barsFromCookie, cssToHex, hexParam } from "./bar-colors";
 import { buildManifest } from "./manifest";
 
 describe("manifest", () => {
@@ -17,7 +17,7 @@ describe("manifest", () => {
     expect(add?.url).toBe("/today?quickadd=1");
   });
 
-  it("takes the colours in its link, and the dark paper without them", async () => {
+  it("still reads colours from an old address where there is no cookie, and is the dark paper without either", async () => {
     const asked = await (await GET(new Request("https://x.test/manifest.webmanifest?bar=FBFDFF&paper=e8f0fa"))).json();
     expect(asked).toMatchObject({ theme_color: "#fbfdff", background_color: "#e8f0fa", display: "standalone" });
     const plain = await GET(new Request("https://x.test/manifest.webmanifest"));
@@ -25,14 +25,16 @@ describe("manifest", () => {
     expect(await plain.json()).toMatchObject({ theme_color: PAPER.dark, background_color: PAPER.dark });
   });
 
-  it("takes the colours cookie on a plain fetch (the first, as the page loads), the link's own over it, and is never shared", async () => {
+  it("takes the colours from the cookie at its one address, is never shared, and an old address never pins an old look", async () => {
     const cookie = "other=1; sparehour-bars=1b1e25.15171c";
     const first = await GET(new Request("https://x.test/manifest.webmanifest", { headers: { cookie } }));
     expect(await first.json()).toMatchObject({ theme_color: "#1b1e25", background_color: "#15171c" });
+    // Revalidated on every fetch, so a changed cookie is a changed manifest.
     expect(first.headers.get("cache-control")).toBe("private, no-cache");
     expect(first.headers.get("vary")).toBe("Cookie");
+    // An app installed while the link carried the colours asks with them still: the cookie is the look on screen now.
     const asked = await GET(new Request("https://x.test/manifest.webmanifest?bar=fbfdff&paper=e8f0fa", { headers: { cookie } }));
-    expect(await asked.json()).toMatchObject({ theme_color: "#fbfdff", background_color: "#e8f0fa" });
+    expect(await asked.json()).toMatchObject({ theme_color: "#1b1e25", background_color: "#15171c" });
   });
 
   it("writes and reads the cookie, and a bad one counts for nothing", () => {
@@ -57,7 +59,4 @@ describe("bar colours", () => {
     expect(cssToHex("oklch(0.5 0.1 200)")).toBeNull();
   });
 
-  it("puts both colours in the manifest link", () => {
-    expect(manifestHref("#fbfdff", "#e8f0fa")).toBe("/manifest.webmanifest?bar=fbfdff&paper=e8f0fa");
-  });
 });

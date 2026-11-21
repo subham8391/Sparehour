@@ -38,8 +38,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${jakarta.variable} ${newsreader.variable} ${newsreaderItalic.variable} ${instrumentSans.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
-        {/* Served by app/manifest.webmanifest/route.ts. With credentials, so the colours cookie reaches the first
-            fetch (features/pwa/system-bars.tsx sets it, and adds the colours to this link once it runs). */}
+        {/* Served by app/manifest.webmanifest/route.ts. With credentials, so the colours cookie goes with every
+            fetch (features/pwa/system-bars.tsx keeps it current). One address always: a manifest that moves may
+            never update an installed app. */}
         <link rel="manifest" href={MANIFEST_PATH} crossOrigin="use-credentials" />
       </head>
       <body className="flex min-h-full flex-col">{children}</body>

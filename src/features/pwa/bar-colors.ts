@@ -25,9 +25,9 @@ export function hexParam(v: string | null): string | null {
 export const MANIFEST_PATH = "/manifest.webmanifest";
 
 /**
- * The cookie that carries the same two colours, so the manifest is right on the very first fetch of a page (Chrome
- * fetches it as the page loads, before the page has said anything; the link is crossorigin="use-credentials" so the
- * cookie goes with it). "rrggbb.rrggbb": the bar, then the paper.
+ * The cookie that carries the two colours to the manifest, whose address never changes (the link is
+ * crossorigin="use-credentials" so the cookie goes with every fetch, the first of a page included).
+ * "rrggbb.rrggbb": the bar, then the paper.
  */
 export const BARS_COOKIE = "sparehour-bars";
 export const barsCookie = (bar: string, paper: string) => `${BARS_COOKIE}=${bar.slice(1)}.${paper.slice(1)}; Path=/; Max-Age=31536000; SameSite=Lax`;
@@ -39,5 +39,3 @@ export function barsFromCookie(header: string | null): { bar: string | null; pap
   return { bar: hexParam(bar), paper: hexParam(paper) };
 }
 
-/** The manifest link for these colours: Chrome reads the installed app's navigation bar from the manifest it fetches. */
-export const manifestHref = (bar: string, paper: string) => `${MANIFEST_PATH}?bar=${bar.slice(1)}&paper=${paper.slice(1)}`;
