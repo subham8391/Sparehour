@@ -23,6 +23,25 @@ jobs:
       # Bundle budgets (SYSTEM_DESIGN.md §11.6): the gzipped shell of each prerendered route.
       - run: npm run size
 
+  # The Android app (docs/mobile/ANDROID_APP_SPEC.md): its own package. The type check and the bundle both read the
+  # shared rules in ../src, so a web change that breaks the phone fails here.
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run bundle
+
   # Database contract tests (SYSTEM_DESIGN.md §12.2): RLS, apply_mutations,
   # triggers — run against a real local Supabase, migrations + seed applied.
   contract:

@@ -1,0 +1,13 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "types": ["jest"],
+    "paths": {
+      "~/*": ["./src/*"],
+      "@/data/powersync": ["./src/sync/adapter.ts"],
+      "@/*": ["../src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}

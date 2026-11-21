@@ -49,6 +49,8 @@ const eslintConfig = defineConfig([
     "build/**",
     // Agent worktrees live here while a task runs; they are separate checkouts, not this tree.
     ".claude/**",
+    // The Android app (docs/mobile/ANDROID_APP_SPEC.md): its own package, its own lint and type check.
+    "mobile/**",
     "next-env.d.ts",
     // Research docs and the published report — not app code.
     "docs/**",

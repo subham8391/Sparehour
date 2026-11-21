@@ -1,0 +1,17 @@
+{
+  // The type check (npm run typecheck). The shared files in ../src would otherwise find React's and the sync kit's
+  // types in the web app's node_modules, a second copy at another version; these four lines pin them to this folder's.
+  // Kept out of tsconfig.json because Metro and Jest read that file's paths as real module addresses.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "~/*": ["./src/*"],
+      "@/data/powersync": ["./src/sync/adapter.ts"],
+      "@/*": ["../src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "@powersync/web": ["./node_modules/@powersync/react-native/lib/index.d.ts"],
+      "@powersync/react": ["./node_modules/@powersync/react/lib/index.d.ts"]
+    }
+  }
+}
