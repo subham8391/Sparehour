@@ -1,7 +1,7 @@
 // The phone's memory of the day the review was answered or dismissed: read once from the device, kept for the next
 // launch, per account; and the count of review screens that are open.
 import { act, render, screen } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { Text } from "~/ui/text";
 import { handledToken, markHandled, resetHandledDay, reviewOpened, useHandledDay } from "./handled-day";
 
 const mockKept = new Map<string, string>();

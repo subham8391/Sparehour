@@ -7,7 +7,8 @@
 // one toast offers. The drawing is shutdown-view.tsx.
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { dayInstants } from "@/core/time";
 import { toTask } from "@/data/mappers";

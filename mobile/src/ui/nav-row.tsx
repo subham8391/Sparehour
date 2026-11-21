@@ -3,7 +3,8 @@
 // with nowhere to go (a heading over the rows under it) is drawn without the chevron and is not a button. `trailing`
 // is a second target of its own at the far edge (a row's ⋯).
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon, type IconName } from "./icon";
 import { TARGET, font, useColours } from "./theme";
 

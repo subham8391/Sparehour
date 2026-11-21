@@ -1,7 +1,8 @@
 // The detail's plain pickers as bottom sheets (SCREENS.md §10): Estimate (and Took, which is the same picker),
 // Priority, Project or Area, Heading, If missed, and the footer's More actions. Presentational: the choices and their
 // words are the web's own (features/tasks/detail-rules.ts, estimate-presets.ts, data/queries/project-label.ts).
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { formatMinutes } from "@/core/time";
 import type { MissPolicy, Priority } from "@/core/types";
 import { projectOptionLabel } from "@/data/queries/project-label";

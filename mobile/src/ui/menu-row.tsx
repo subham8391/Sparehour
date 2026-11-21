@@ -1,7 +1,8 @@
 // One line of a menu in a sheet (DESIGN_SYSTEM.md §5, the row's ⋯ menu and the pickers at phone width): 48 points
 // high, its words at the near edge with an optional icon before them, and at the far edge a quiet word or the tick
 // of the choice already made. MenuHeading names a group of lines; MenuDivider is the hairline between two groups.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon, type IconName } from "./icon";
 import { font, useColours } from "./theme";
 

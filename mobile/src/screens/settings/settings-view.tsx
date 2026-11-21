@@ -1,7 +1,8 @@
 // Settings as the phone draws it (SCREENS.md §18 "Responsive": "the section list is one screen and each section
 // pushes in"): the web's header words, then one card of sections, each with the one-line summary the web's phone
 // list shows. Presentational: the sections and their summaries are handed in.
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "~/ui/text";
 import { Card, CardRow } from "~/ui/card";
 import { Screen } from "~/ui/screen";
 import { SummaryRow } from "~/ui/summary-row";

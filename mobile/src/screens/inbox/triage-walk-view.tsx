@@ -4,7 +4,8 @@
 // when some were skipped. "Last: … Undo" takes the walk's latest write back and returns to that task, as the web's
 // does. Presentational: the walk itself is the web app's own (features/inbox/use-triage-walk.ts), run by triage-walk.tsx.
 import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TRIAGE_LABEL, type TriageAction, type TriageChoice, type TriageField } from "@/features/inbox/triage";
 import { Button } from "~/ui/button";
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
   leave: { marginRight: -12 },
   body: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 24 },
   task: { gap: 8 },
-  title: { fontFamily: font.bold, fontSize: 26, lineHeight: 32, letterSpacing: -0.3 },
+  title: { fontFamily: font.display, fontSize: 26, lineHeight: 32 },
   age: { fontFamily: font.regular, fontSize: 14, lineHeight: 20 },
   note: { fontFamily: font.regular, fontSize: 17, lineHeight: 24 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
   navStart: { marginLeft: -12 },
   navEnd: { marginRight: -12 },
   end: { alignItems: "flex-start", gap: 16, paddingVertical: 24 },
-  endLine: { fontFamily: font.semibold, fontSize: 22, lineHeight: 28 },
+  endLine: { fontFamily: font.displayMedium, fontSize: 22, lineHeight: 28 },
   last: { minHeight: TARGET, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20 },
   lastText: { flexShrink: 1, fontFamily: font.regular, fontSize: 14 },
 });

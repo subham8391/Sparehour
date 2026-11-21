@@ -2,7 +2,8 @@
 // Keep in Someday · Today · Pick a date · Drop, each one tap, then the next task; Pick a date is a second step of the
 // same sheet, the next seven days and then a month to pick any other day from. A row's own ⋯ is the one every list
 // has (screens/rows). Presentational: the days, the task and what each choice does are handed in.
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import { Button } from "~/ui/button";
 import { MenuDivider, MenuRow } from "~/ui/menu-row";
@@ -84,7 +85,7 @@ export function SomedayReview(p: SomedayReviewProps) {
 
 const styles = StyleSheet.create({
   position: { fontFamily: font.medium, fontSize: 14, fontVariant: ["tabular-nums"] },
-  task: { fontFamily: font.semibold, fontSize: 22, lineHeight: 28 },
+  task: { fontFamily: font.displayMedium, fontSize: 22, lineHeight: 28 },
   line: { fontFamily: font.regular, fontSize: 14, lineHeight: 20 },
   answers: { gap: 8, marginTop: 8 },
 });

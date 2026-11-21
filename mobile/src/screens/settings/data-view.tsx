@@ -7,7 +7,8 @@
 // are the web's own (features/archive/batches.ts, confirm-words.ts, features/settings/section-words.ts).
 // Presentational: the export, the restore and the delete are handed in.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { ExportFormat } from "@/core/export";
 import type { LocalDate } from "@/core/time";
 import {

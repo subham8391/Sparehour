@@ -1,7 +1,8 @@
 // Reduce motion: System follows the phone's own setting, Reduce cuts movement here whatever the phone says, and the
 // choice is kept on the phone.
 import { act, render, screen } from "@testing-library/react-native";
-import { AccessibilityInfo, Text } from "react-native";
+import { AccessibilityInfo } from "react-native";
+import { Text } from "./text";
 import { motionChoice, resetMotion, setMotionChoice, useReduceMotion } from "./motion";
 
 const mockKept = new Map<string, string>();

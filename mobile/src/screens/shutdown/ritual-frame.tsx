@@ -6,7 +6,8 @@
 // a step's field is being typed in. Drawn to the measures of the morning plan's frame (screens/plan/plan-frame.tsx),
 // so the two rituals read as one.
 import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { DayPart } from "@/features/looks/look";
 import { Button } from "~/ui/button";
@@ -90,6 +91,6 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
   back: { paddingHorizontal: 14 },
   primary: { flex: 1 },
-  lead: { fontFamily: font.semibold, fontSize: 22, lineHeight: 29, paddingHorizontal: 20 },
+  lead: { fontFamily: font.displayMedium, fontSize: 22, lineHeight: 29, paddingHorizontal: 20 },
   note: { fontFamily: font.regular, fontSize: 15, lineHeight: 21, paddingHorizontal: 20 },
 });

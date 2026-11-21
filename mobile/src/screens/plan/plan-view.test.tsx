@@ -1,7 +1,7 @@
 // The morning plan as the phone draws it: the three steps in the web's order with the web's words, what each control
 // calls, and what stays in sight. The morning is plan-fixture.ts: made-up tasks, with every figure the shared rules' own.
 import { fireEvent, render, screen, within } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { Text } from "~/ui/text";
 import { NOW_MIN, TODAY } from "../today/today-fixture";
 import { ribbonShape } from "../today/ribbon-shape";
 import { blockLead } from "./block-step";

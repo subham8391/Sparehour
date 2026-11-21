@@ -7,7 +7,8 @@
 // *-view.tsx beside this file.
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Linking, Share, Text } from "react-native";
+import { Alert, Linking, Share } from "react-native";
+import { Text } from "~/ui/text";
 import { suggestDefault } from "@/core/estimates";
 import { Temporal, todayFor } from "@/core/time";
 import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";

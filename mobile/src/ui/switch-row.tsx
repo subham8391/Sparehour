@@ -1,7 +1,8 @@
 // A setting that is on or off (DESIGN_SYSTEM.md §4a "Settings: grouped list"): its name at the near edge, a quiet
 // line under it when there is more to say, and the switch at the far edge. The whole row is the target (52 points
 // at least), and it is one switch to a screen reader, named by the row.
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, View } from "react-native";
+import { Text } from "./text";
 import { font, useColours } from "./theme";
 
 export function SwitchRow({ label, hint, checked, onChange, disabled = false, accessibilityLabel }: { label: string; /** The second line under the name. */ hint?: string; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; accessibilityLabel?: string }) {

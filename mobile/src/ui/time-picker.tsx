@@ -3,7 +3,8 @@
 // Now, and every hour and every fifth minute as a target of its own, so a time is two taps without the keyboard. Set
 // writes it; nothing is written while it is being chosen.
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { parseTime } from "@/core/time/parse-time";
 import { Button } from "./button";
 import { TextField } from "./text-field";
@@ -105,7 +106,7 @@ export function TimePicker({
 
 const styles = StyleSheet.create({
   gap: { gap: 10 },
-  readout: { fontFamily: font.bold, fontSize: 34, lineHeight: 40, textAlign: "center", fontVariant: ["tabular-nums"] },
+  readout: { fontFamily: font.display, fontSize: 34, lineHeight: 40, textAlign: "center", fontVariant: ["tabular-nums"] },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   field: { flex: 1, minWidth: 84 },
   nudge: { paddingHorizontal: 10 },

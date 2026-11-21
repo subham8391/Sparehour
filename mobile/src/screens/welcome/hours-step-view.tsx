@@ -6,7 +6,8 @@
 // from, what stops it being saved, the long-day note, the week as saved and every word are the web's own
 // (features/welcome/welcome-rules.ts, welcome-words.ts). Presentational.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { DAY_LETTERS, DAY_NAMES, hoursError, hoursNote, settledWeek, startingHours, stripWeek, type Segment, type Strip } from "@/features/welcome/welcome-rules";
 import { HOURS_WORDS } from "@/features/welcome/welcome-words";
 import { DayRow } from "~/screens/settings/hours-view";

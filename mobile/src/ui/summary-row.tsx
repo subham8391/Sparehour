@@ -1,7 +1,8 @@
 // A row that goes somewhere and says, under its name, what is there now (DESIGN_SYSTEM.md §4a "Settings": the
 // section list on a phone, "Working hours" over "Mon–Fri · 09:00–18:00 · buffer 15%"): 56 points high in a list
 // card, the name, one quiet line cut to the row's width, then the chevron. NavRow is the one-line row.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon } from "./icon";
 import { font, useColours } from "./theme";
 

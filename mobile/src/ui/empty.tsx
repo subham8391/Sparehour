@@ -1,6 +1,7 @@
 // An empty state (SCREENS.md §19): one calm line in a card, and what to do about it under it.
 import type { ReactNode } from "react";
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "./text";
 import { Card } from "./card";
 import { font, useColours } from "./theme";
 

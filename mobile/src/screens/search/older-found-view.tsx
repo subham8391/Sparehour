@@ -3,7 +3,8 @@
 // before that is kept on the server and searched there only when asked. A quiet button under the results, then the
 // matches with the day each was finished, Reopen on each (one finished day of a repeat has none), and more a page at
 // a time. A tap on a row opens the read-only view of it. Presentational: the rows and the asking are handed in.
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { FinishedStatus } from "@/features/finished/use-finished";
 import { ActionLine } from "~/ui/action-line";
 import { Button } from "~/ui/button";

@@ -5,7 +5,8 @@
 // every write are handed in as `wiring` (rows.tsx reads and writes for a real screen; a test or a preview hands in
 // its own). The ticks follow the web's own rules (features/selection/selection.ts).
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { BackHandler, StyleSheet, Text, View } from "react-native";
+import { BackHandler, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { BulkWrite } from "@/features/selection/bulk-actions";

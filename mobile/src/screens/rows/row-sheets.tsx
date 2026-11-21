@@ -5,7 +5,8 @@
 // "Create tag “x”" for a new name. Presentational: the rows and their order are the web's own (picker-days.ts,
 // move-options.ts, tag-options.ts); each says what was picked, and the frame writes.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import { tagOptions } from "@/features/tasks/tag-options";
 import type { DayReadout } from "@/features/upcoming/week";

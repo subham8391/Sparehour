@@ -6,7 +6,8 @@
 // is on today (morning-plan.ts), tomorrow's spare time, the asks. The drawing is plan-view.tsx.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { eveningStartMin } from "@/core/capacity/evening";
 import type { Task } from "@/core/types";

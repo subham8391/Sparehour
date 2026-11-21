@@ -3,7 +3,8 @@
 // path the web gives a phone); the last row adds a step. Each move writes the one sort key the web's would
 // (features/tasks/checklist-order.ts). Presentational.
 import { useState } from "react";
-import { StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { TextInput } from "~/ui/text";
 import type { ChecklistItem } from "@/core/types";
 import { keyForStep } from "@/features/tasks/checklist-order";
 import { Card, CardRow } from "~/ui/card";

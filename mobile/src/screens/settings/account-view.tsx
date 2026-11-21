@@ -6,7 +6,8 @@
 // here. The zones, the hint and every sentence are the web's own (features/settings/settings-rules.ts,
 // section-words.ts, features/account/leaving.ts, deletion.ts). Presentational.
 import { useMemo, useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { DELETED_THINGS, DELETE_ACCOUNT } from "@/features/account/deletion";
 import { initials } from "@/features/account/identity";
 import { SIGN_OUT_NOTE, UNSYNCED_NOTE, loseLabel, unsyncedLine } from "@/features/account/leaving";

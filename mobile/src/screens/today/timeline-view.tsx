@@ -8,7 +8,8 @@
 //   - a task waiting for a time ("Block" on its row) is placed by the next tap.
 // Presentational: it draws a TimelineShape (timeline-shape.ts) and says what was tapped; whoever mounts it writes.
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { minuteAtOffset, stepZoom, type ZoomStep } from "@/core/blocking";
 import type { Capacity } from "@/core/capacity";
 import type { AddWhat, AddableTask } from "@/features/blocking/use-placing";
@@ -474,7 +475,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 20, marginTop: 12, marginBottom: 8 },
   headWords: { flex: 1 },
-  heading: { fontFamily: font.semibold, fontSize: 20, lineHeight: 26 },
+  heading: { fontFamily: font.displayMedium, fontSize: 20, lineHeight: 26 },
   sub: { fontFamily: font.regular, fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] },
   note: { marginHorizontal: 16, marginTop: 8, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontFamily: font.regular, fontSize: 14, lineHeight: 20 },
   hint: { marginHorizontal: 20, marginTop: 6, fontFamily: font.regular, fontSize: 14, lineHeight: 20 },

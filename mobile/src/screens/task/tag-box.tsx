@@ -3,7 +3,8 @@
 // first, as the web's box suggests them; a tap takes one. A name that is new makes the tag (TagRepo's rule).
 // Presentational; which tags are offered and how a typed name is read are the web's (features/tasks/detail-rules.ts).
 import { useState, type RefObject } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from "react-native";
+import { Pressable, StyleSheet, View, type TextInputInstance } from "react-native";
+import { Text, TextInput } from "~/ui/text";
 import type { TagRef } from "@/core/types";
 import { fuzzyScore } from "@/features/commands/fuzzy";
 import { tagDraft, unattachedTags } from "@/features/tasks/detail-rules";

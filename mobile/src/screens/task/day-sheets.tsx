@@ -4,7 +4,8 @@
 // presets land on, the month, Clear. Presentational; every rule here is the web's own (features/tasks/detail-rules.ts,
 // date-choices.ts, snooze.ts, series-words.ts).
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { formatTime, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { RecurrenceException, Task } from "@/core/types";

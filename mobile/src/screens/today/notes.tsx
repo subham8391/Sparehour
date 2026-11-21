@@ -2,7 +2,8 @@
 // expired-digest.tsx, calendar-lines.tsx and day-states.tsx): the once-only expired digest, what the calendar needs
 // (reconnecting, a place for blocks, a sync that failed), the note over a day that has passed, and the summary of a
 // day that was shut down. Presentational: the words are handed in, already the web's own.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { Button } from "~/ui/button";
 import { Card } from "~/ui/card";
 import { Icon } from "~/ui/icon";
@@ -114,6 +115,6 @@ const styles = StyleSheet.create({
   start: { alignSelf: "flex-start" },
   past: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, marginHorizontal: 22, marginBottom: 10 },
   closed: { paddingHorizontal: 18, paddingVertical: 18, gap: 6, borderRadius: 20 },
-  closedTitle: { fontFamily: font.medium, fontSize: 20, lineHeight: 26 },
+  closedTitle: { fontFamily: font.displayMedium, fontSize: 20, lineHeight: 26 },
   closedLine: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, fontVariant: ["tabular-nums"] },
 });

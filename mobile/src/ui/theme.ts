@@ -4,8 +4,11 @@
 // all of the web's looks in light and dark. Which look is the account's choice, kept on the phone too
 // (looks/look-choice.ts); light or dark is the account's theme, or the phone's own setting on System
 // (theme-choice.ts). A change to either redraws every screen at once: they all read through `useColours()`.
-import { useColorScheme, type ViewStyle } from "react-native";
+import { useMemo } from "react";
+import { useColorScheme, type TextStyle, type ViewStyle } from "react-native";
 import { DEFAULT_LOOK, type DayPart } from "@/features/looks/look";
+import { useFaceLook } from "./looks/face-loader";
+import { FONT_KEYS, faceFor, type Face, type FontKey } from "./looks/faces";
 import { LOOK_TOKENS } from "./looks/generated";
 import { lookChoice, tokensOf, useLookChoice } from "./looks/look-choice";
 import type { LookColours, LookShadows, LookShape, Radius, Sky } from "./looks/types";
@@ -55,6 +58,22 @@ export function useShape(): LookShape {
   return tokensOf(useLookChoice()).shape;
 }
 
+/**
+ * How the look sets a page's title ("title", the web's `h1`) or the "spare" / "over" word ("qualifier", the web's
+ * `.font-display-italic`), as a style to put after the words' own: letter case, letter spacing, a size relative to
+ * `fontSize` (the words' own size) and a slant. Empty for a look that sets them as drawn.
+ */
+export function useWords(kind: "title" | "qualifier", fontSize: number): TextStyle {
+  const rule = useShape().words[kind];
+  const size = rule.size ? fontSize * rule.size : fontSize;
+  return {
+    ...(rule.case && rule.case !== "none" ? { textTransform: rule.case } : {}),
+    ...(rule.tracking !== undefined ? { letterSpacing: rule.tracking * size } : {}),
+    ...(rule.size ? { fontSize: size } : {}),
+    ...(rule.italic !== undefined ? { fontStyle: rule.italic ? "italic" : "normal" } : {}),
+  };
+}
+
 /** The look's shadows in the theme on screen, each a `boxShadow` value or null for none. */
 export function useShadows(): LookShadows {
   const scheme = useScheme();
@@ -69,16 +88,23 @@ export function corners(radius: Radius): ViewStyle {
 }
 
 /**
- * Plus Jakarta Sans, the face of Sky, by weight (loaded in ui/fonts.ts). Every look is drawn in it on the phone for
- * now: a look's own faces are named in its shape (`useShape().face`), but their files are not in the app yet.
+ * What a text is, for its style's `fontFamily`: a weight of the look's UI face (`regular` … `extrabold`), its display
+ * face (`display`, `displayMedium`), the qualifier word or a control's words. The app's `Text` (ui/text.tsx) draws it
+ * in the faces of the look on screen (looks/faces.ts), so a StyleSheet stays a constant and still follows the look.
  */
-export const font = {
-  regular: "PlusJakartaSans_400Regular",
-  medium: "PlusJakartaSans_500Medium",
-  semibold: "PlusJakartaSans_600SemiBold",
-  bold: "PlusJakartaSans_700Bold",
-  extrabold: "PlusJakartaSans_800ExtraBold",
-} as const;
+export { font, type Face, type FontKey } from "./looks/faces";
+
+/** The font names the look on screen draws each kind of text in, for what is not drawn by the app's `Text`. */
+export function useFont(): Record<FontKey, string> {
+  const look = useFaceLook();
+  return useMemo(() => Object.fromEntries(FONT_KEYS.map((k) => [k, faceFor(look, k).fontFamily])) as Record<FontKey, string>, [look]);
+}
+
+/** The same with each face's weight, slant and display tracking, where a text needs them as a style. */
+export function useFaces(): Record<FontKey, Face> {
+  const look = useFaceLook();
+  return useMemo(() => Object.fromEntries(FONT_KEYS.map((k) => [k, faceFor(look, k)])) as Record<FontKey, Face>, [look]);
+}
 
 /** One touch target: 44 points, as on the web (DESIGN_SYSTEM.md §4a). */
 export const TARGET = 44;

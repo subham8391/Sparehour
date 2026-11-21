@@ -6,7 +6,8 @@
 // (ANDROID_APP_SPEC.md §6). The choices and the sentences are the web's own (notify-rules.ts, section-words.ts).
 // Presentational.
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { SettingsPatch } from "@/data/repositories/settings-repo";
 import { BLOCK_LEADS, leadLabel, nudgeHint, suggestedNudgeTime } from "@/features/settings/notify-rules";
 import { useSavedFlash } from "@/features/settings/saved-flash";

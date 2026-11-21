@@ -1,7 +1,8 @@
 // The "+ add" line that ends a list card (SCREENS.md §9; the web's inline add row): TaskLine's measures, a plus where
 // the ring would be and quiet words saying where the new thing goes ("Add a task", "Add to Research"). On the phone
 // a tap opens the add sheet; the line itself takes no typing.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon } from "./icon";
 import { font, useColours } from "./theme";
 

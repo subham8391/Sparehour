@@ -7,7 +7,8 @@
 // into the line is one task per line, said once ("4 tasks added") with one Undo for all of them. Presentational:
 // the line's reading is use-composer.ts (the web's own functions), and saving is handed in.
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { TaskDraft } from "@/core/quickadd";
 import { formatMinutes } from "@/core/time";
 import type { QuickAddProject, QuickAddTag } from "@/features/quickadd/interpret";

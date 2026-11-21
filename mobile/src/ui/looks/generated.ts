@@ -15,7 +15,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2a3a66","btn":null,"btn2":null,"seg":null,"segOn":"0 0 0 1px #3d4f84"},
       sky: {"morning":["#0a1430","#111d40","#1e1d47"],"afternoon":["#0a1430","#111d40","#1e1d47"],"evening":["#0a1430","#111d40","#1e1d47"],"night":["#0a1430","#111d40","#1e1d47"]},
     },
-    shape: {"radius":{"xs":6,"sm":10,"lg":14,"xl":20,"sheet":26,"fab":20,"control":14,"seg":14,"segOn":10,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Plus Jakarta Sans","sans":"Plus Jakarta Sans","qualifier":"Plus Jakarta Sans","control":"Plus Jakarta Sans"},"weight":{"display":750,"qualifier":700,"control":500},"tracking":{"display":-0.025,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":true,"trackDotted":false},
+    shape: {"radius":{"xs":6,"sm":10,"lg":14,"xl":20,"sheet":26,"fab":20,"control":14,"seg":14,"segOn":10,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Plus Jakarta Sans","sans":"Plus Jakarta Sans","qualifier":"Plus Jakarta Sans","control":"Plus Jakarta Sans"},"weight":{"display":750,"qualifier":700,"control":500},"tracking":{"display":-0.025,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":true,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "bauhaus": {
     light: {
@@ -28,7 +28,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #333336","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":999,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":999,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Jost","sans":"Jost","qualifier":"Jost","control":"Jost"},"weight":{"display":700,"qualifier":600,"control":600},"tracking":{"display":-0.03,"control":0},"controlCase":"lowercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":999,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":999,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Jost","sans":"Jost","qualifier":"Jost","control":"Jost"},"weight":{"display":700,"qualifier":600,"control":600},"tracking":{"display":-0.03,"control":0},"controlCase":"lowercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{"case":"lowercase"},"qualifier":{"case":"lowercase"}}},
   },
   "blueprint": {
     light: {
@@ -41,7 +41,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #3d6a96","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":0,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":0,"track":0},"border":{"control":1,"check":1,"seg":1},"face":{"display":"IBM Plex Mono","sans":"IBM Plex Mono","qualifier":"IBM Plex Mono","control":"IBM Plex Mono"},"weight":{"display":700,"qualifier":500,"control":500},"tracking":{"display":0,"control":0.08},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":0,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":0,"track":0},"border":{"control":1,"check":1,"seg":1},"face":{"display":"IBM Plex Mono","sans":"IBM Plex Mono","qualifier":"IBM Plex Mono","control":"IBM Plex Mono"},"weight":{"display":700,"qualifier":500,"control":500},"tracking":{"display":0,"control":0.08},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{"case":"uppercase","tracking":0.04},"qualifier":{}}},
   },
   "casio": {
     light: {
@@ -54,7 +54,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2f342b","btn":"0 2px 0 #b8460c","btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":2,"sm":4,"lg":8,"xl":10,"sheet":16,"fab":18,"control":6,"seg":6,"segOn":2,"pill":2,"chip":2,"check":3,"track":0},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Doto","sans":"Barlow Semi Condensed","qualifier":"Barlow Semi Condensed","control":"Barlow Semi Condensed"},"weight":{"display":900,"qualifier":700,"control":700},"tracking":{"display":0.02,"control":0.06},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":2,"sm":4,"lg":8,"xl":10,"sheet":16,"fab":18,"control":6,"seg":6,"segOn":2,"pill":2,"chip":2,"check":3,"track":0},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Doto","sans":"Barlow Semi Condensed","qualifier":"Barlow Semi Condensed","control":"Barlow Semi Condensed"},"weight":{"display":900,"qualifier":700,"control":700},"tracking":{"display":0.02,"control":0.06},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{"case":"uppercase","tracking":0.12}}},
   },
   "chrome": {
     light: {
@@ -67,7 +67,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2f343e","btn":"inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 4px rgba(0, 0, 0, 0.4)","btn2":null,"seg":null,"segOn":"inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 3px rgba(0, 0, 0, 0.5)"},
       sky: null,
     },
-    shape: {"radius":{"xs":999,"sm":10,"lg":14,"xl":18,"sheet":24,"fab":999,"control":999,"seg":999,"segOn":994,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":1},"face":{"display":"Michroma","sans":"Manrope","qualifier":"Manrope","control":"Manrope"},"weight":{"display":400,"qualifier":800,"control":700},"tracking":{"display":0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":999,"sm":10,"lg":14,"xl":18,"sheet":24,"fab":999,"control":999,"seg":999,"segOn":994,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":1},"face":{"display":"Michroma","sans":"Manrope","qualifier":"Manrope","control":"Manrope"},"weight":{"display":400,"qualifier":800,"control":700},"tracking":{"display":0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "color-field": {
     light: {
@@ -80,7 +80,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #333333","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":6,"sm":10,"lg":14,"xl":14,"sheet":22,"fab":999,"control":999,"seg":999,"segOn":993,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Schibsted Grotesk","sans":"Schibsted Grotesk","qualifier":"Schibsted Grotesk","control":"Schibsted Grotesk"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":-0.04,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":6,"sm":10,"lg":14,"xl":14,"sheet":22,"fab":999,"control":999,"seg":999,"segOn":993,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Schibsted Grotesk","sans":"Schibsted Grotesk","qualifier":"Schibsted Grotesk","control":"Schibsted Grotesk"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":-0.04,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "daylight": {
     light: {
@@ -93,7 +93,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #343937","btn":null,"btn2":null,"seg":null,"segOn":"0 0 0 1px #4f5451"},
       sky: null,
     },
-    shape: {"radius":{"xs":4,"sm":6,"lg":10,"xl":12,"sheet":20,"fab":18,"control":10,"seg":10,"segOn":6,"pill":999,"chip":999,"check":999,"track":4},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Newsreader","sans":"Instrument Sans","qualifier":"Newsreader","control":"Instrument Sans"},"weight":{"display":450,"qualifier":400,"control":500},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":true,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":4,"sm":6,"lg":10,"xl":12,"sheet":20,"fab":18,"control":10,"seg":10,"segOn":6,"pill":999,"chip":999,"check":999,"track":4},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Newsreader","sans":"Instrument Sans","qualifier":"Newsreader","control":"Instrument Sans"},"weight":{"display":450,"qualifier":400,"control":500},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":true,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "dusk": {
     light: {
@@ -106,7 +106,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #3d2a47","btn":null,"btn2":null,"seg":null,"segOn":"0 0 0 1px #56405f"},
       sky: null,
     },
-    shape: {"radius":{"xs":8,"sm":12,"lg":16,"xl":18,"sheet":26,"fab":20,"control":12,"seg":12,"segOn":8,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Unbounded","sans":"Onest","qualifier":"Onest","control":"Onest"},"weight":{"display":600,"qualifier":700,"control":600},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":8,"sm":12,"lg":16,"xl":18,"sheet":26,"fab":20,"control":12,"seg":12,"segOn":8,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Unbounded","sans":"Onest","qualifier":"Onest","control":"Onest"},"weight":{"display":600,"qualifier":700,"control":600},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "garden": {
     light: {
@@ -119,7 +119,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2a362b","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":10,"sm":14,"lg":22,"xl":28,"sheet":32,"fab":24,"control":[22,14,22,14],"seg":999,"segOn":995,"pill":999,"chip":999,"check":["60%","40%","55%","45%"],"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Gabarito","sans":"Gabarito","qualifier":"Gabarito","control":"Gabarito"},"weight":{"display":800,"qualifier":700,"control":700},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":10,"sm":14,"lg":22,"xl":28,"sheet":32,"fab":24,"control":[22,14,22,14],"seg":999,"segOn":995,"pill":999,"chip":999,"check":["60%","40%","55%","45%"],"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Gabarito","sans":"Gabarito","qualifier":"Gabarito","control":"Gabarito"},"weight":{"display":800,"qualifier":700,"control":700},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "highlighter": {
     light: {
@@ -132,7 +132,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2c3442","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":3,"sm":5,"lg":8,"xl":10,"sheet":16,"fab":12,"control":[4,8,5,9],"seg":6,"segOn":[2,5,3,6],"pill":4,"chip":[3,6,4,7],"check":[3,5,4,6],"track":[3,7,4,8]},"border":{"control":1.5,"check":1.5,"seg":1.5},"face":{"display":"Recursive","sans":"Recursive","qualifier":"Recursive","control":"Recursive"},"weight":{"display":850,"qualifier":700,"control":600},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":3,"sm":5,"lg":8,"xl":10,"sheet":16,"fab":12,"control":[4,8,5,9],"seg":6,"segOn":[2,5,3,6],"pill":4,"chip":[3,6,4,7],"check":[3,5,4,6],"track":[3,7,4,8]},"border":{"control":1.5,"check":1.5,"seg":1.5},"face":{"display":"Recursive","sans":"Recursive","qualifier":"Recursive","control":"Recursive"},"weight":{"display":850,"qualifier":700,"control":600},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "indigo": {
     light: {
@@ -145,7 +145,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #24324a","btn":null,"btn2":null,"seg":null,"segOn":"inset 0 -2px 0 #86acdc"},
       sky: null,
     },
-    shape: {"radius":{"xs":2,"sm":3,"lg":4,"xl":6,"sheet":12,"fab":999,"control":3,"seg":3,"segOn":0,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":1,"seg":0},"face":{"display":"Zen Kaku Gothic New","sans":"Zen Kaku Gothic New","qualifier":"Zen Kaku Gothic New","control":"Zen Kaku Gothic New"},"weight":{"display":300,"qualifier":500,"control":500},"tracking":{"display":0.01,"control":0.06},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":2,"sm":3,"lg":4,"xl":6,"sheet":12,"fab":999,"control":3,"seg":3,"segOn":0,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":1,"seg":0},"face":{"display":"Zen Kaku Gothic New","sans":"Zen Kaku Gothic New","qualifier":"Zen Kaku Gothic New","control":"Zen Kaku Gothic New"},"weight":{"display":300,"qualifier":500,"control":500},"tracking":{"display":0.01,"control":0.06},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{"tracking":0.12}}},
   },
   "material": {
     light: {
@@ -158,7 +158,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #424940","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":8,"sm":12,"lg":16,"xl":28,"sheet":28,"fab":16,"control":999,"seg":999,"segOn":994,"pill":999,"chip":8,"check":4,"track":999},"border":{"control":1,"check":2,"seg":1},"face":{"display":"Roboto Flex","sans":"Roboto Flex","qualifier":"Roboto Flex","control":"Roboto Flex"},"weight":{"display":450,"qualifier":600,"control":600},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":8,"sm":12,"lg":16,"xl":28,"sheet":28,"fab":16,"control":999,"seg":999,"segOn":994,"pill":999,"chip":8,"check":4,"track":999},"border":{"control":1,"check":2,"seg":1},"face":{"display":"Roboto Flex","sans":"Roboto Flex","qualifier":"Roboto Flex","control":"Roboto Flex"},"weight":{"display":450,"qualifier":600,"control":600},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "metro": {
     light: {
@@ -171,7 +171,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #26303b","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":999,"sm":8,"lg":10,"xl":12,"sheet":18,"fab":999,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2.5,"seg":0},"face":{"display":"Overpass","sans":"Overpass","qualifier":"Overpass","control":"Overpass"},"weight":{"display":800,"qualifier":700,"control":700},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":999,"sm":8,"lg":10,"xl":12,"sheet":18,"fab":999,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2.5,"seg":0},"face":{"display":"Overpass","sans":"Overpass","qualifier":"Overpass","control":"Overpass"},"weight":{"display":800,"qualifier":700,"control":700},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "noir": {
     light: {
@@ -184,7 +184,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2a2826","btn":null,"btn2":null,"seg":null,"segOn":"inset 0 -1px 0 #c9a96e"},
       sky: null,
     },
-    shape: {"radius":{"xs":2,"sm":2,"lg":2,"xl":2,"sheet":6,"fab":2,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":0,"track":0},"border":{"control":1,"check":1,"seg":0},"face":{"display":"Josefin Sans","sans":"Josefin Sans","qualifier":"Syncopate","control":"Josefin Sans"},"weight":{"display":200,"qualifier":700,"control":600},"tracking":{"display":-0.02,"control":0.14},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":2,"sm":2,"lg":2,"xl":2,"sheet":6,"fab":2,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":0,"track":0},"border":{"control":1,"check":1,"seg":0},"face":{"display":"Josefin Sans","sans":"Josefin Sans","qualifier":"Syncopate","control":"Josefin Sans"},"weight":{"display":200,"qualifier":700,"control":600},"tracking":{"display":-0.02,"control":0.14},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{"case":"uppercase","tracking":0.3,"size":0.5}}},
   },
   "pulse": {
     light: {
@@ -197,7 +197,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #262a31","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":6,"sm":10,"lg":14,"xl":16,"sheet":24,"fab":999,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Big Shoulders Display","sans":"Chivo","qualifier":"Chivo","control":"Chivo"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":0,"control":0.04},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":6,"sm":10,"lg":14,"xl":16,"sheet":24,"fab":999,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Big Shoulders Display","sans":"Chivo","qualifier":"Chivo","control":"Chivo"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":0,"control":0.04},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{"case":"uppercase"},"qualifier":{"case":"uppercase","tracking":0.06,"italic":true}}},
   },
   "quest": {
     light: {
@@ -210,7 +210,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":"4px 4px 0 #000000","float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"3px 3px 0 #000000","active":"0 0 0 1px #2c2f5a","btn":"0 3px 0 #000000","btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":0,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":0,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Pixelify Sans","sans":"Karla","qualifier":"Pixelify Sans","control":"Pixelify Sans"},"weight":{"display":700,"qualifier":700,"control":600},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":0,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":0,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Pixelify Sans","sans":"Karla","qualifier":"Pixelify Sans","control":"Pixelify Sans"},"weight":{"display":700,"qualifier":700,"control":600},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "riso": {
     light: {
@@ -223,7 +223,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #5a3060","btn":"2px 2px 0 #7d9bff","btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":4,"sm":6,"lg":8,"xl":10,"sheet":16,"fab":12,"control":6,"seg":8,"segOn":2,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Rubik","sans":"Rubik","qualifier":"Rubik","control":"Rubik"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":4,"sm":6,"lg":8,"xl":10,"sheet":16,"fab":12,"control":6,"seg":8,"segOn":2,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Rubik","sans":"Rubik","qualifier":"Rubik","control":"Rubik"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "scrapbook": {
     light: {
@@ -236,7 +236,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #353a42","btn":"0 3px 6px -3px rgba(0, 0, 0, 0.35)","btn2":null,"seg":null,"segOn":"0 2px 4px -2px rgba(0, 0, 0, 0.3)"},
       sky: null,
     },
-    shape: {"radius":{"xs":3,"sm":4,"lg":6,"xl":8,"sheet":12,"fab":10,"control":4,"seg":4,"segOn":2,"pill":4,"chip":3,"check":999,"track":2},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Caveat","sans":"Karla","qualifier":"Caveat","control":"Karla"},"weight":{"display":700,"qualifier":700,"control":600},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":3,"sm":4,"lg":6,"xl":8,"sheet":12,"fab":10,"control":4,"seg":4,"segOn":2,"pill":4,"chip":3,"check":999,"track":2},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Caveat","sans":"Karla","qualifier":"Caveat","control":"Karla"},"weight":{"display":700,"qualifier":700,"control":600},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "sticker": {
     light: {
@@ -249,7 +249,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #43345a","btn":"0 4px 0 rgba(0, 0, 0, 0.3)","btn2":"0 3px 0 rgba(0, 0, 0, 0.25)","seg":"0 3px 0 rgba(0, 0, 0, 0.25)","segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":999,"sm":14,"lg":20,"xl":22,"sheet":28,"fab":999,"control":999,"seg":999,"segOn":992,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":3,"check":2,"seg":3},"face":{"display":"Fredoka","sans":"Fredoka","qualifier":"Fredoka","control":"Fredoka"},"weight":{"display":600,"qualifier":600,"control":600},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":999,"sm":14,"lg":20,"xl":22,"sheet":28,"fab":999,"control":999,"seg":999,"segOn":992,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":3,"check":2,"seg":3},"face":{"display":"Fredoka","sans":"Fredoka","qualifier":"Fredoka","control":"Fredoka"},"weight":{"display":600,"qualifier":600,"control":600},"tracking":{"display":0,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "studio": {
     light: {
@@ -262,7 +262,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":"4px 4px 0 #19d48a","float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"3px 3px 0 #19d48a","active":"0 0 0 1px #d9d9d9","btn":"3px 3px 0 #f5f5f5","btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":6,"sm":8,"lg":12,"xl":12,"sheet":18,"fab":14,"control":10,"seg":10,"segOn":4,"pill":999,"chip":999,"check":999,"track":8},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Syne","sans":"Manrope","qualifier":"Manrope","control":"Manrope"},"weight":{"display":800,"qualifier":800,"control":800},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":6,"sm":8,"lg":12,"xl":12,"sheet":18,"fab":14,"control":10,"seg":10,"segOn":4,"pill":999,"chip":999,"check":999,"track":8},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Syne","sans":"Manrope","qualifier":"Manrope","control":"Manrope"},"weight":{"display":800,"qualifier":800,"control":800},"tracking":{"display":-0.01,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{}}},
   },
   "sundial": {
     light: {
@@ -275,7 +275,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #24304a","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":8,"sm":12,"lg":18,"xl":24,"sheet":28,"fab":24,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Sora","sans":"Sora","qualifier":"Sora","control":"Sora"},"weight":{"display":700,"qualifier":600,"control":600},"tracking":{"display":-0.03,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":8,"sm":12,"lg":18,"xl":24,"sheet":28,"fab":24,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Sora","sans":"Sora","qualifier":"Sora","control":"Sora"},"weight":{"display":700,"qualifier":600,"control":600},"tracking":{"display":-0.03,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "sunwise": {
     light: {
@@ -288,7 +288,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2f3466","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":8,"sm":12,"lg":18,"xl":22,"sheet":28,"fab":22,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Bricolage Grotesque","sans":"Figtree","qualifier":"Figtree","control":"Figtree"},"weight":{"display":800,"qualifier":700,"control":600},"tracking":{"display":-0.03,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":8,"sm":12,"lg":18,"xl":22,"sheet":28,"fab":22,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":999},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Bricolage Grotesque","sans":"Figtree","qualifier":"Figtree","control":"Figtree"},"weight":{"display":800,"qualifier":700,"control":600},"tracking":{"display":-0.03,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "terminal": {
     light: {
@@ -301,7 +301,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2c2d33","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":2,"sm":3,"lg":4,"xl":4,"sheet":6,"fab":4,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":2,"track":0},"border":{"control":1,"check":1.5,"seg":1},"face":{"display":"JetBrains Mono","sans":"JetBrains Mono","qualifier":"JetBrains Mono","control":"JetBrains Mono"},"weight":{"display":800,"qualifier":500,"control":500},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":2,"sm":3,"lg":4,"xl":4,"sheet":6,"fab":4,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":2,"track":0},"border":{"control":1,"check":1.5,"seg":1},"face":{"display":"JetBrains Mono","sans":"JetBrains Mono","qualifier":"JetBrains Mono","control":"JetBrains Mono"},"weight":{"display":800,"qualifier":500,"control":500},"tracking":{"display":-0.02,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "tide": {
     light: {
@@ -314,7 +314,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #173a4d","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":8,"sm":12,"lg":18,"xl":22,"sheet":28,"fab":22,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":6},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Lexend","sans":"Lexend","qualifier":"Lexend","control":"Lexend"},"weight":{"display":600,"qualifier":500,"control":500},"tracking":{"display":-0.03,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":8,"sm":12,"lg":18,"xl":22,"sheet":28,"fab":22,"control":999,"seg":999,"segOn":995,"pill":999,"chip":999,"check":999,"track":6},"border":{"control":1,"check":2,"seg":0},"face":{"display":"Lexend","sans":"Lexend","qualifier":"Lexend","control":"Lexend"},"weight":{"display":600,"qualifier":500,"control":500},"tracking":{"display":-0.03,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{}}},
   },
   "timetable": {
     light: {
@@ -327,7 +327,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #2a313c","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":0,"sm":2,"lg":4,"xl":4,"sheet":8,"fab":4,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":2,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Archivo","sans":"Archivo","qualifier":"Archivo","control":"Archivo"},"weight":{"display":850,"qualifier":800,"control":700},"tracking":{"display":-0.01,"control":0.06},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":true},
+    shape: {"radius":{"xs":0,"sm":2,"lg":4,"xl":4,"sheet":8,"fab":4,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":2,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Archivo","sans":"Archivo","qualifier":"Archivo","control":"Archivo"},"weight":{"display":850,"qualifier":800,"control":700},"tracking":{"display":-0.01,"control":0.06},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":true,"words":{"title":{},"qualifier":{"case":"uppercase","tracking":0.08}}},
   },
   "workshop": {
     light: {
@@ -340,7 +340,7 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #333333","btn":null,"btn2":null,"seg":null,"segOn":null},
       sky: null,
     },
-    shape: {"radius":{"xs":2,"sm":2,"lg":4,"xl":4,"sheet":6,"fab":4,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":2,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Big Shoulders Stencil Display","sans":"Saira","qualifier":"Saira","control":"Saira"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":0.01,"control":0.08},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":2,"sm":2,"lg":4,"xl":4,"sheet":6,"fab":4,"control":2,"seg":2,"segOn":0,"pill":2,"chip":2,"check":2,"track":0},"border":{"control":2,"check":2,"seg":2},"face":{"display":"Big Shoulders Stencil Display","sans":"Saira","qualifier":"Saira","control":"Saira"},"weight":{"display":900,"qualifier":800,"control":800},"tracking":{"display":0.01,"control":0.08},"controlCase":"uppercase","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{"case":"uppercase"},"qualifier":{"case":"uppercase","tracking":0.1}}},
   },
   "zero": {
     light: {
@@ -353,6 +353,6 @@ export const LOOK_TOKENS: Record<string, LookTokens> = {
       shadows: {"raised":null,"float":"0 -12px 40px rgba(0, 0, 0, 0.5)","fab":"0 8px 20px rgba(0, 0, 0, 0.45)","active":"0 0 0 1px #262626","btn":null,"btn2":null,"seg":null,"segOn":"inset 0 -2px 0 #ffffff"},
       sky: null,
     },
-    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":0,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":0,"track":0},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Hanken Grotesk","sans":"Hanken Grotesk","qualifier":"Hanken Grotesk","control":"Hanken Grotesk"},"weight":{"display":900,"qualifier":500,"control":600},"tracking":{"display":-0.05,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false},
+    shape: {"radius":{"xs":0,"sm":0,"lg":0,"xl":0,"sheet":0,"fab":0,"control":0,"seg":0,"segOn":0,"pill":0,"chip":0,"check":0,"track":0},"border":{"control":1,"check":1.5,"seg":0},"face":{"display":"Hanken Grotesk","sans":"Hanken Grotesk","qualifier":"Hanken Grotesk","control":"Hanken Grotesk"},"weight":{"display":900,"qualifier":500,"control":600},"tracking":{"display":-0.05,"control":0},"controlCase":"none","qualifierItalic":false,"glassBlur":false,"trackDotted":false,"words":{"title":{},"qualifier":{"case":"lowercase"}}},
   },
 };

@@ -7,7 +7,8 @@
 // the web's own (features/tasks/swipe.ts); only the gesture and the drawing are the phone's. Each button runs what
 // the row's ⋯ runs under the same name (row-menu.ts), so no action is the gesture's alone.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { BUTTON_W, LOCK, SLOP, TAP_ONLY, commitAt, release, type SwipeSide } from "@/features/tasks/swipe";

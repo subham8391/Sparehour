@@ -5,7 +5,8 @@
 // is drawn with made-up data in the browser preview and in tests, and with the real task by task-detail.tsx. What a
 // field offers, what it says and when it asks are the web's own rules (features/tasks/detail-rules.ts and beside it).
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from "react-native";
+import { Pressable, StyleSheet, View, type TextInputInstance } from "react-native";
+import { Text, TextInput } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { compareDates, formatMinutes, formatTime, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
@@ -341,7 +342,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "flex-start", paddingRight: 14 },
   ringTarget: { width: 52, minHeight: 56, alignItems: "center", justifyContent: "center" },
   ring: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.6, alignItems: "center", justifyContent: "center" },
-  title: { flex: 1, minHeight: 56, paddingTop: 15, paddingBottom: 13, paddingHorizontal: 0, fontFamily: font.semibold, fontSize: 20, lineHeight: 26 },
+  title: { flex: 1, minHeight: 56, paddingTop: 15, paddingBottom: 13, paddingHorizontal: 0, fontFamily: font.display, fontSize: 20, lineHeight: 26 },
   struck: { textDecorationLine: "line-through" },
   notesCard: { paddingHorizontal: 16, paddingVertical: 6 },
   notes: { minHeight: 96, paddingVertical: 8, paddingHorizontal: 0, fontFamily: font.regular, fontSize: 17, lineHeight: 24 },

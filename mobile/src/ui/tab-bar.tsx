@@ -2,7 +2,8 @@
 // inset. The app is drawn edge to edge, so the bar's surface runs under the gesture strip: the strip takes the look's
 // colour at once, which the installed web app could not do (DECISIONS.md, 2026-11-21).
 import { usePathname, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { countLabel } from "@/features/shell/nav";
 import { Icon, type IconName } from "./icon";

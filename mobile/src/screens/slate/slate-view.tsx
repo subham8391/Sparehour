@@ -4,7 +4,8 @@
 // leaves alone, then one button that archives the batch, and Cancel. Every word and the counting are the web's own
 // (features/archive/confirm-words.ts). Presentational: the batch itself is written by slate.tsx.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { SlateScope } from "@/core/rollover";
 import { SLATE_FAILED, SLATE_KEEPS, SLATE_SCOPES, slateConfirmLabel, slateCount, slateQuestion } from "@/features/archive/confirm-words";
 import { Button } from "~/ui/button";

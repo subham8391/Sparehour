@@ -7,7 +7,8 @@
 // project's own actions. Presentational: it is handed everything it shows, and an add line only says which section
 // asked (its screen opens the add sheet).
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "~/ui/text";
 import { compareDates, type Instant, type LocalDate } from "@/core/time";
 import type { Heading, Project, Task } from "@/core/types";
 import type { DayPart } from "@/features/looks/look";

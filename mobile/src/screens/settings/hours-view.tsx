@@ -5,7 +5,8 @@
 // stretches when the day is left (here: when its sheet closes) and every word are the web's own
 // (features/settings/work-day.ts, settings-rules.ts, section-words.ts). Presentational.
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { SettingsPatch } from "@/data/repositories/settings-repo";
 import { useSavedFlash } from "@/features/settings/saved-flash";
 import { BUFFER, EVENING_ENDS_HINT, workingDayLabel } from "@/features/settings/section-words";

@@ -4,7 +4,8 @@
 // The words and the choices are the web's own (features/settings/section-words.ts). The web's Copy is Share here:
 // a phone app has no clipboard of its own to write to, and the address can also be selected and copied by hand.
 // Presentational.
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "~/ui/text";
 import { ACCESS, CONNECTIONS, connectedOn, type ConnectedApp } from "@/features/settings/section-words";
 import type { ConnectionsState } from "@/features/settings/use-connections";
 import { Button } from "~/ui/button";

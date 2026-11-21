@@ -2,7 +2,8 @@
 // bar, today ringed in ink. Pinned over the agenda a tap jumps to the day; under a task in the "Not yet planned"
 // sheet a tap places the task there. Seven cells fit across 360 points at 44 each. Every cell says its day and its
 // readout in words (the web's own, stripCellName); the bar is hidden from a screen reader.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { weekdayName } from "@/core/time/format-day";
 import { stripCellName, type StripDay } from "@/features/upcoming/agenda";
 import { font, useColours } from "~/ui/theme";

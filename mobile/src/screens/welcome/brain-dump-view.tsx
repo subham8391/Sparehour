@@ -8,7 +8,8 @@
 // token-line.tsx: the web's own functions); how a line lands and every word are the web's (features/welcome/
 // welcome-rules.ts, welcome-words.ts). Presentational: saving and taking back are handed in.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { StyleSheet, Text, View, type ScrollViewInstance } from "react-native";
+import { StyleSheet, View, type ScrollViewInstance } from "react-native";
+import { Text } from "~/ui/text";
 import type { TaskDraft } from "@/core/quickadd";
 import { formatMinutes } from "@/core/time";
 import type { QuickAddSubmission } from "@/features/quickadd/file-line";

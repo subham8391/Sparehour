@@ -1,6 +1,7 @@
 // The small chips on a row (DESIGN_SYSTEM.md §5): an estimate, a time, a deadline. Only a missed deadline is red;
 // a guessed estimate is dashed with a question mark, as on the web.
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { font, useColours } from "./theme";
 
 export type ChipTone = "neutral" | "guess" | "time" | "deadline" | "spare" | "over";

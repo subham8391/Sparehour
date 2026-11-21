@@ -2,7 +2,8 @@
 // kept on the server): TaskLine's measures, with a quiet mark where the ring would be, the title (two lines at
 // most), a quiet line under it, and at the far edge the one thing the row offers, by name ("Restore"). A tap on
 // the title opens it.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon } from "./icon";
 import { TARGET, font, useColours } from "./theme";
 

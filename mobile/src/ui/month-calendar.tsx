@@ -2,7 +2,8 @@
 // the month's name between two arrows, the weekdays from Monday, and every day a 44-point target. Today is ringed,
 // the chosen day is filled, and a day before `min` cannot be chosen. It opens on the chosen day's month, or today's.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { compareDates, type LocalDate } from "@/core/time";
 import { formatDay, monthName } from "@/core/time/format-day";
 import { Icon } from "./icon";

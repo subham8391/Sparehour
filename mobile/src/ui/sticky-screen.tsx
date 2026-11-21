@@ -5,10 +5,11 @@
 // beside it: the same header, drawn the same way, for a tab or a ritual (neither has Back).
 import { LinearGradient } from "expo-linear-gradient";
 import { useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { DayPart } from "@/features/looks/look";
-import { TARGET, font, sky, useColours, useScheme } from "./theme";
+import { TARGET, font, sky, useColours, useScheme, useWords } from "./theme";
 
 export interface StickyScreenProps {
   title: string;
@@ -29,6 +30,8 @@ export interface StickyScreenProps {
 
 export function StickyScreen({ title, eyebrow, actions, part = "afternoon", bottomRoom = 0, before, sticky, children }: StickyScreenProps) {
   const c = useColours();
+  // A look that sets its titles in capitals or with wider spacing does so here too (the web's h1 rule).
+  const titleWords = useWords("title", 30);
   const scheme = useScheme();
   const insets = useSafeAreaInsets();
   // Where the part that stays begins, and whether the body has been scrolled that far: only then is it on paper,
@@ -57,7 +60,7 @@ export function StickyScreen({ title, eyebrow, actions, part = "afternoon", bott
                 <Text style={[styles.eyebrow, { color: c.ink3 }]}>{(eyebrow ?? "").toUpperCase()}</Text>
                 <View style={styles.actions}>{actions}</View>
               </View>
-              <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>
+              <Text accessibilityRole="header" style={[styles.title, { color: c.ink }, titleWords]}>
                 {title}
               </Text>
             </View>
@@ -80,6 +83,6 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: TARGET },
   eyebrow: { fontFamily: font.semibold, fontSize: 13, letterSpacing: 1.3 },
   actions: { flexDirection: "row", alignItems: "center", marginRight: -10 },
-  title: { fontFamily: font.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.4, maxWidth: 320 },
+  title: { fontFamily: font.display, fontSize: 30, lineHeight: 36, maxWidth: 320 },
   sticky: { paddingTop: 8, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "transparent" },
 });

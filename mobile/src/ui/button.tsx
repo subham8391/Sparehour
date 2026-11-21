@@ -1,7 +1,8 @@
 // Buttons (DESIGN_SYSTEM.md §5): one height on a phone (48 points for the primary and secondary, a 44-point target
 // for the quiet text button), three looks. Primary is ink, never green: green is spare time.
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { Text } from "./text";
 import { TARGET, corners, font, useColours, useShadows, useShape } from "./theme";
 
 export type ButtonVariant = "primary" | "secondary" | "quiet";
@@ -51,7 +52,7 @@ export function Button({
       style={({ pressed }) => [styles.base, corners(shape.radius.control), look, block && styles.block, { opacity: disabled ? 0.5 : pressed ? 0.8 : 1 }, style]}
     >
       {icon}
-      <Text style={[styles.text, { letterSpacing: shape.tracking.control * 17, color: variant === "primary" ? (destructive ? c.paper : c.btnInk) : variant === "quiet" && !destructive ? c.ink2 : variant === "secondary" && !destructive ? c.btn2Ink : ink }]}>{words}</Text>
+      <Text style={[styles.text, (variant === "primary" || variant === "secondary") && styles.control, { letterSpacing: shape.tracking.control * 17, color: variant === "primary" ? (destructive ? c.paper : c.btnInk) : variant === "quiet" && !destructive ? c.ink2 : variant === "secondary" && !destructive ? c.btn2Ink : ink }]}>{words}</Text>
     </Pressable>
   );
 }
@@ -60,4 +61,6 @@ const styles = StyleSheet.create({
   base: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   block: { alignSelf: "stretch" },
   text: { fontFamily: font.semibold, fontSize: 17 },
+  /** The look's control face and weight, for the two buttons the look draws (the web's `control-type`). */
+  control: { fontFamily: font.control },
 });

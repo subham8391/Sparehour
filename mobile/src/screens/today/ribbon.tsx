@@ -9,11 +9,12 @@
 // line); the same segment tapped again, or a touch anywhere else, closes it. Presentational: it is handed a Summary
 // (today-summary.ts), a RibbonShape and a RibbonBreakdown (ribbon-shape.ts).
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { BREAKDOWN_LABEL, segmentAction, segmentLine } from "@/features/today/ribbon-breakdown";
 import { Button } from "~/ui/button";
 import { Card } from "~/ui/card";
-import { TARGET, font, useColours, type Colours } from "~/ui/theme";
+import { TARGET, font, useColours, type Colours, useWords } from "~/ui/theme";
 import type { Summary } from "../today-summary";
 import { labelsFor, type NamedSegment, type RibbonBreakdown, type RibbonShape } from "./ribbon-shape";
 
@@ -45,6 +46,8 @@ export interface HeroProps {
 
 export function Hero({ summary, ribbon, onTrim, onPlan, onConnect, breakdown, open = null, onOpen, onAdd, onMeeting }: HeroProps) {
   const c = useColours();
+  // "spare" / "over" as the look sets it: some write it in capitals, wider, or smaller (the web's .font-display-italic rule).
+  const qualifierWords = useWords("qualifier", 22);
   // How wide the ribbon is drawn, for the minute under a touch.
   const [ribbonWidth, setRibbonWidth] = useState(0);
   if (summary.kind === "none") {
@@ -60,7 +63,7 @@ export function Hero({ summary, ribbon, onTrim, onPlan, onConnect, breakdown, op
   return (
     <Card style={styles.hero}>
       <Text accessibilityLabel={`${summary.figure} ${over ? "over" : "spare"}`} accessibilityHint={summary.spoken} style={[styles.figure, { color: summary.level ? c.ink2 : c.ink }]}>
-        {summary.figure} <Text style={[styles.unit, { color: over ? c.over : c.spare }]}>{over ? "over" : "spare"}</Text>
+        {summary.figure} <Text style={[styles.unit, qualifierWords, { color: over ? c.over : c.spare }]}>{over ? "over" : "spare"}</Text>
       </Text>
       <Text style={[styles.heroLine, { color: c.ink2 }]}>
         {summary.planned}
@@ -250,8 +253,8 @@ const LABEL_BOX = 48;
 const styles = StyleSheet.create({
   hero: { borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, gap: 8 },
   heroNote: { fontFamily: font.medium, fontSize: 17 },
-  figure: { fontFamily: font.bold, fontSize: 38, lineHeight: 44, letterSpacing: -0.6, fontVariant: ["tabular-nums"] },
-  unit: { fontFamily: font.semibold, fontSize: 22, letterSpacing: 0 },
+  figure: { fontFamily: font.display, fontSize: 38, lineHeight: 44, fontVariant: ["tabular-nums"] },
+  unit: { fontFamily: font.qualifier, fontSize: 22, letterSpacing: 0 },
   heroLine: { fontFamily: font.medium, fontSize: 14, lineHeight: 20, fontVariant: ["tabular-nums"] },
   strong: { fontFamily: font.semibold },
   medium: { fontFamily: font.medium },

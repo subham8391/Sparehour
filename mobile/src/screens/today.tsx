@@ -10,7 +10,8 @@
 // parts in today/.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { Pressable, Share, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { eveningBudget } from "@/core/capacity/evening";
 import { dayInstants, formatTime, instant, type LocalDate } from "@/core/time";

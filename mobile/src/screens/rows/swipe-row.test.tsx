@@ -3,7 +3,7 @@
 // with nothing on it does not move, and rows being ticked do not swipe. The thresholds are the web's (swipe.ts).
 import "react-native-gesture-handler/jestSetup";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { Text } from "~/ui/text";
 import { GestureHandlerRootView, State } from "react-native-gesture-handler";
 import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import { BUTTON_W, commitAt } from "@/features/tasks/swipe";

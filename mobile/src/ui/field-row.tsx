@@ -3,7 +3,8 @@
 // it. A tap opens the field's picker, which on a phone is a bottom sheet. A value that is only a placeholder ("No
 // day", "—") is quiet. FieldNote is a line of words between two fields with one action at its far edge.
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Chip, type ChipTone } from "./chip";
 import { TARGET, font, useColours } from "./theme";
 

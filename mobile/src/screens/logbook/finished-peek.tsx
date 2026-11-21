@@ -5,7 +5,8 @@
 // that Delete is in the destructive tone. The sheet closes on the server's word alone; anything else is said here
 // and nothing is removed. Presentational: the delete itself is handed in.
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import type { FinishedRow } from "@/features/finished/finished";
 import type { FinishedDeleted } from "@/features/finished/finished-delete";
@@ -155,7 +156,7 @@ function Body({ row, projectName, tagNames = [], zone, today, onReopen, onDelete
 }
 
 const styles = StyleSheet.create({
-  title: { fontFamily: font.semibold, fontSize: 22, lineHeight: 28 },
+  title: { fontFamily: font.displayMedium, fontSize: 22, lineHeight: 28 },
   when: { flexDirection: "row", alignItems: "center", gap: 6 },
   small: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, flexShrink: 1 },
   tags: { flexDirection: "row", flexWrap: "wrap", gap: 6 },

@@ -8,7 +8,8 @@
 // (features/calendar/blocks-go.ts, connect-offers.ts, calendar-words.ts, providers.ts). Presentational: leaving for
 // a consent screen is handed in.
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { takesBlocks, writableRole } from "@/features/calendar/blocks-go";
 import type { CalendarAccountView, CalendarView as CalendarRowView } from "@/features/calendar/calendar-views";
 import { BLOCKS_STAY, DISCONNECT_KEEPS, PROMISE, accountStatusLine, writeCalendarLabel } from "@/features/calendar/calendar-words";

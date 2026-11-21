@@ -5,7 +5,8 @@
 // was carried and its estimate, which opens the presets. A carried row keeps its four moves behind "More actions",
 // or shows the gentle ask in their place. Presentational: every tick, move and estimate is said to whoever mounts it.
 import { useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { compareDates, formatMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";

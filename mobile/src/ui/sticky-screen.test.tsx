@@ -1,7 +1,8 @@
 // The frame that keeps one part of its body in sight: the header and what is before the part scroll away, the part
 // stays, and it is put on paper only once the body has been scrolled as far as it.
 import { fireEvent, render, screen, within } from "@testing-library/react-native";
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "./text";
 import { StickyScreen } from "./sticky-screen";
 import { colours } from "./theme";
 

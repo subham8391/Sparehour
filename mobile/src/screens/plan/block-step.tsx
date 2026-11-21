@@ -4,7 +4,8 @@
 // blocks by tap: a task (or its Block), then a time; while one waits, the list steps aside so the hours have the
 // screen, and the timeline's own bar says what it waits for, with Cancel. Presentational: the timeline is handed in.
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { formatMinutes } from "@/core/time";
 import type { Task } from "@/core/types";
 import { NO_HOURS_LINE, PLAN_MY_DAY_LEAD, spareFigure, toBlockWords } from "@/features/rituals/morning-plan-words";

@@ -2,7 +2,8 @@
 // List | Day, each section with what its rows offer, the states a day can be in, and what each control calls. The day
 // is today/today-fixture.ts: made-up tasks, with every figure the shared capacity engine's own.
 import { fireEvent, render, screen, within } from "@testing-library/react-native";
-import { Dimensions, Text } from "react-native";
+import { Dimensions } from "react-native";
+import { Text } from "~/ui/text";
 import type { Task } from "@/core/types";
 import { ribbonBreakdown, ribbonShape } from "./today/ribbon-shape";
 import { DoneSection } from "./today/sections";

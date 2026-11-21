@@ -4,7 +4,8 @@
 // takes it back with the completion. Which lengths are offered, the row the answer is written on and the write
 // itself are the web's own (core/estimates, data/repositories/took.ts); this draws the chips.
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { tookChoices } from "@/core/estimates";
 import { formatMinutes } from "@/core/time";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";

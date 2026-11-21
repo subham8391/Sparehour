@@ -3,7 +3,8 @@
 // Motion, System or Reduce. Which looks are on show, their names, the choices and the sentences are the web's own
 // (features/looks/catalog.ts, look-choices.ts, features/settings/section-words.ts). The look and the theme are the
 // account's and follow the person; Motion is this phone's own. Presentational.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { Swatch } from "@/features/looks/catalog";
 import { useLookChoices } from "@/features/looks/look-choices";
 import { useSavedFlash } from "@/features/settings/saved-flash";

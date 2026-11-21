@@ -2,7 +2,8 @@
 // ../../../src/features/settings/settings-rules.ts), the zone already chosen first, narrowed by typing. Choosing one
 // hands it back and closes. Nothing is written here.
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { timeZoneOptions } from "@/features/settings/settings-rules";
 import { Button } from "./button";
 import { MenuRow } from "./menu-row";

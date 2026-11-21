@@ -5,7 +5,8 @@
 // action writes and the words of its toast are the web's own (bulk-actions.ts); this draws them and says what was
 // picked. Presentational.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import { BULK_PRIORITIES, bulkDay, bulkEstimate, bulkPriority, bulkTagName, bulkToday, bulkTomorrow, type BulkWrite } from "@/features/selection/bulk-actions";
 import { ESTIMATE_PRESETS } from "@/features/tasks/estimate-presets";

@@ -7,7 +7,8 @@
 // there is anything to search for it says what it searches, and when nothing matched it offers the words as a task.
 // Presentational: it is handed what was found and says what was chosen; search.tsx reads and writes.
 import { useState, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { DayPart } from "@/features/looks/look";

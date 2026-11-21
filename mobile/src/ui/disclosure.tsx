@@ -3,7 +3,8 @@
 // open. Whoever uses it holds whether it is open, so the choice can be remembered; CollapsedGroup is the part for a
 // group that simply starts folded.
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon } from "./icon";
 import { TARGET, font, useColours } from "./theme";
 

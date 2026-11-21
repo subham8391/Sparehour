@@ -4,7 +4,8 @@
 // with Undo for the ones a person might regret, and after an undo a toast that offers Redo. A phone has no ⌘Z; the
 // toast is the way. A completion's toast also asks how long the task took (took-chips.tsx), as the web's does.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import { redoable } from "@/data/repositories/redo-capture";

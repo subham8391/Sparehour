@@ -7,7 +7,8 @@
 // (features/rituals/carry-review.ts, carry-review-answers.ts). Presentational: the answers are kept here until Done
 // hands them over; review.tsx writes them.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";

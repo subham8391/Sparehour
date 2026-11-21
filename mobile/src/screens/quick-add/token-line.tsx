@@ -9,7 +9,8 @@
 // writes to the box only when what React draws in it changes, so a change the line refuses (a pasted list, the
 // Backspace that turns a token back into words) would leave the box holding it. `holds` is what the box was left
 // with: it is drawn once, as the box has it, and the drawing after that is the line again, which is then written.
-import { Platform, Text, type TextInputProps } from "react-native";
+import { Platform, type TextInputProps } from "react-native";
+import { Text } from "~/ui/text";
 import type { Segment } from "@/features/quickadd/interpret";
 import { TOKEN_TONE, type TokenTone } from "@/features/quickadd/token-tone";
 import { TextField } from "~/ui/text-field";

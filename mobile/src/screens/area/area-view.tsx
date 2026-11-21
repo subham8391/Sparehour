@@ -5,7 +5,8 @@
 // Move down as its own lines. The header's ⋯ deletes the area, after saying what stays.
 // Presentational: it is handed everything it shows, and the add line only asks (its screen opens the add sheet).
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { compareDates, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { projectStateLabel, type ProjectStateRow } from "@/data/queries/nav";

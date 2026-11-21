@@ -2,7 +2,8 @@
 // project picker, the estimate, the deadline, the two together behind "Project…" ("Estimate and deadline", each
 // skippable, then Done), or a day to move it to. Presentational: it says what was picked, and whoever opened it
 // writes and decides whether it stays open.
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "~/ui/text";
 import type { Instant, LocalDate } from "@/core/time";
 import { Button } from "~/ui/button";
 import { MenuHeading } from "~/ui/menu-row";

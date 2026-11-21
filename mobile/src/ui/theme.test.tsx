@@ -1,7 +1,7 @@
 // The look on screen: every colour a screen reads follows the look and the theme at once, a look's page is its sky
 // or its flat paper, the phone's kept copy is what a cold start draws, and a look this build does not know is Sky.
 import { act, render, screen } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { Text } from "./text";
 import { LOOK_TOKENS } from "./looks/generated";
 import { lookChoice, lookChoiceReady, resetLookChoice, setLookChoice } from "./looks/look-choice";
 import { colours, corners, sky, useColours, useLook, useScheme, useShadows, useShape } from "./theme";
@@ -98,5 +98,26 @@ describe("corners", () => {
     expect(corners(14)).toEqual({ borderRadius: 14 });
     expect(corners([3, 7, 4, 8])).toEqual({ borderTopLeftRadius: 3, borderTopRightRadius: 7, borderBottomRightRadius: 4, borderBottomLeftRadius: 8 });
     expect(corners(["60%", "40%", "55%", "45%"])).toMatchObject({ borderTopLeftRadius: "60%", borderBottomLeftRadius: "45%" });
+  });
+});
+
+describe("useWords", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { renderHook } = require("@testing-library/react-native") as typeof import("@testing-library/react-native");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { setLookChoice } = require("./looks/look-choice") as typeof import("./looks/look-choice");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useWords } = require("./theme") as typeof import("./theme");
+
+  it("sets titles and the qualifier as the look's stylesheet does, and leaves Sky's as drawn", async () => {
+    setLookChoice("sky");
+    expect((await renderHook(() => useWords("title", 30))).result.current).toEqual({});
+    setLookChoice("pulse");
+    expect((await renderHook(() => useWords("title", 30))).result.current).toEqual({ textTransform: "uppercase" });
+    expect((await renderHook(() => useWords("qualifier", 20))).result.current).toEqual({ textTransform: "uppercase", letterSpacing: 1.2, fontStyle: "italic" });
+    setLookChoice("noir");
+    // Half the size of the figure beside it, spaced by 0.3 of its own size.
+    expect((await renderHook(() => useWords("qualifier", 22))).result.current).toEqual({ textTransform: "uppercase", letterSpacing: 3.3, fontSize: 11 });
+    setLookChoice("sky");
   });
 });

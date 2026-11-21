@@ -4,7 +4,8 @@
 // first, then each calendar this server can connect, both filled. Skipping is a first-class path. A connection that
 // did not happen is said in one line above the buttons, which stay. Presentational: connecting itself (the consent in
 // the phone's browser and back) is handed in.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { CALENDAR_WORDS, calendarPromises, laterInSettings, outcomeNote, type CalendarOutcome } from "@/features/welcome/welcome-words";
 import { Button } from "~/ui/button";
 import { TARGET, font, useColours } from "~/ui/theme";

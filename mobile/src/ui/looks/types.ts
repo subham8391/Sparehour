@@ -107,6 +107,18 @@ export interface LookShape {
   glassBlur: boolean;
   /** The ribbon's spare track is a dot grid, not a solid bar. */
   trackDotted: boolean;
+  /** How the page titles and the qualifier ("spare", "over") are set beyond the tokens; what is not said is as drawn. */
+  words: { title: WordsRule; qualifier: WordsRule };
+}
+
+/** A look's rule for some words (its `h1` or `.font-display-italic` rule on the web). */
+export interface WordsRule {
+  case?: "uppercase" | "lowercase" | "none";
+  /** Letter spacing in em. */
+  tracking?: number;
+  /** Font size in em of the words around them. */
+  size?: number;
+  italic?: boolean;
 }
 
 /** The backdrop top to bottom. */

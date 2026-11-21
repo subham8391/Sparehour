@@ -1,5 +1,6 @@
 // A text field (DESIGN_SYSTEM.md §5): 52 points high on a phone, the control line around it, the app's face.
-import { StyleSheet, TextInput, type TextInputProps } from "react-native";
+import { StyleSheet, type TextInputProps } from "react-native";
+import { TextInput } from "./text";
 import { font, useColours } from "./theme";
 
 export function TextField(props: TextInputProps & { accessibilityLabel: string }) {

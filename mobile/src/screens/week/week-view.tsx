@@ -6,7 +6,8 @@
 // everything it shows, so it is drawn with fixtures in the browser preview and in tests, and with the real week by
 // week.tsx.
 import { useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";

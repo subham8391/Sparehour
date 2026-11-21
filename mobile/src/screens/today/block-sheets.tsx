@@ -3,7 +3,8 @@
 // Duplicate without a tap on the timeline, and its name. Presentational: each says what was picked. How the times
 // asked for become a move, a resize or a copy is the web's own rule (features/today/timeline-geometry.ts).
 import { useState } from "react";
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "~/ui/text";
 import type { TimelineBlock } from "@/features/today/hooks/use-today";
 import { askedTimes, hhmm, rangeLine } from "@/features/today/timeline-geometry";
 import { Button } from "~/ui/button";

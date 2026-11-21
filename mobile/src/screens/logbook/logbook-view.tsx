@@ -3,7 +3,8 @@
 // finished day of a repeat offers neither. The filters sit behind a Filter button with the active ones as removable
 // chips, and "Show older" asks the server for what was finished before the week the device holds. `expired` set, it
 // is the list Review on Today's expired digest opens instead. Presentational: it is handed everything it shows.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LogbookDay, LogbookEntry } from "@/app/(app)/logbook/logbook-days";
 import type { LogbookFilterKey } from "@/app/(app)/logbook/logbook-filters";
 import { formatMinutes, type LocalDate } from "@/core/time";

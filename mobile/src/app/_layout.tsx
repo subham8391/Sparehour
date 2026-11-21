@@ -5,7 +5,8 @@
 import { Stack } from "expo-router/stack";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "~/auth/session";
 import { missingConfig } from "~/config";
@@ -85,6 +86,6 @@ function Notice({ title, body }: { title: string; body: string }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   notice: { justifyContent: "center", padding: 24, gap: 8 },
-  noticeTitle: { fontFamily: font.bold, fontSize: 22 },
+  noticeTitle: { fontFamily: font.display, fontSize: 22 },
   noticeBody: { fontFamily: font.regular, fontSize: 17, lineHeight: 24 },
 });

@@ -2,7 +2,8 @@
 // is kept (the web app's privacy page, opened in the browser), and What's new, the web's own changelog
 // (features/settings/changelog.ts). The web's keyboard-shortcuts row is for a keyboard and is not here.
 // Presentational.
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { CHANGELOG, changelogDate } from "@/features/settings/changelog";
 import { PRIVACY_HINT } from "@/features/settings/section-words";
 import { CardRow } from "~/ui/card";

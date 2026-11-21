@@ -1,7 +1,8 @@
 // The tap path for organising areas and projects (SCREENS.md §1, §9; the web's organise-sheet.tsx): a row's ⋯ in
 // Browse opens this sheet. Move up, Move down, then "Move to area…" for a project or "Delete area…" for an area,
 // each a step of the same sheet. Presentational: where the row stands and what a delete leaves are handed in.
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "~/ui/text";
 import type { OrganiseTarget } from "@/features/projects/organise-place";
 import { Button } from "~/ui/button";
 import { MenuRow } from "~/ui/menu-row";

@@ -3,11 +3,12 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, type RefreshControlProps } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View, type RefreshControlProps } from "react-native";
+import { Text } from "./text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { DayPart } from "@/features/looks/look";
 import { Icon } from "./icon";
-import { TARGET, font, sky, useColours, useScheme } from "./theme";
+import { TARGET, font, sky, useColours, useScheme, useWords } from "./theme";
 
 export interface ScreenProps {
   title: string;
@@ -29,6 +30,8 @@ export interface ScreenProps {
 
 export function Screen({ title, eyebrow, back = false, actions, part = "afternoon", bottomRoom = 0, scroll = true, refreshControl, children }: ScreenProps) {
   const c = useColours();
+  // A look that sets its titles in capitals or with wider spacing does so here too (the web's h1 rule).
+  const titleWords = useWords("title", 30);
   const scheme = useScheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -45,7 +48,7 @@ export function Screen({ title, eyebrow, back = false, actions, part = "afternoo
         <View style={styles.actions}>{actions}</View>
       </View>
       {back && eyebrow ? <Text style={[styles.eyebrow, styles.eyebrowUnder, { color: c.ink3 }]}>{eyebrow.toUpperCase()}</Text> : null}
-      <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>
+      <Text accessibilityRole="header" style={[styles.title, { color: c.ink }, titleWords]}>
         {title}
       </Text>
     </View>
@@ -87,5 +90,5 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", alignItems: "center", marginRight: -10 },
   iconButton: { width: TARGET, height: TARGET, alignItems: "center", justifyContent: "center" },
   back: { marginLeft: -10 },
-  title: { fontFamily: font.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.4, maxWidth: 320 },
+  title: { fontFamily: font.display, fontSize: 30, lineHeight: 36, maxWidth: 320 },
 });

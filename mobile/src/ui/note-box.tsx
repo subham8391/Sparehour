@@ -2,7 +2,8 @@
 // Markdown, edited as the plain text it is stored as. A tap on the note (anywhere but a link) opens the editor; leaving
 // it saves and draws the note again. An empty note is the editor straight away, with its placeholder.
 import { useState } from "react";
-import { Pressable, StyleSheet, TextInput, View, type StyleProp, type TextStyle } from "react-native";
+import { Pressable, StyleSheet, View, type StyleProp, type TextStyle } from "react-native";
+import { TextInput } from "./text";
 import { Markdown } from "./markdown";
 import { useColours } from "./theme";
 

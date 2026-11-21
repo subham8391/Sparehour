@@ -8,7 +8,8 @@
 // today.tsx. The parts are in today/ (ribbon.tsx, sections.tsx, notes.tsx, menus.tsx); the timeline is handed in
 // whole (`dayPane`).
 import { useRef, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { DayPart } from "@/features/looks/look";

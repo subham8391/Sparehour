@@ -2,7 +2,8 @@
 // the web's sign-in page ("Continue with Google", then "or"), and the emailed six-digit code. Props in, React
 // Native out: who signs in and how is the container's (~/screens/sign-in.tsx).
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "~/ui/text";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { GOOGLE_MARK, GOOGLE_MARK_VIEWBOX } from "@/features/auth/google-mark";
@@ -117,7 +118,7 @@ export function SignInView({ google, sentTo, busy, error, onGoogle, onSend, onVe
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 56, gap: 8 },
-  title: { fontFamily: font.bold, fontSize: 30 },
+  title: { fontFamily: font.display, fontSize: 30 },
   line: { fontFamily: font.regular, fontSize: 17, lineHeight: 24 },
   form: { marginTop: 24, gap: 8 },
   google: { minHeight: 52 },

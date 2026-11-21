@@ -4,7 +4,8 @@
 // words, an optional glyph before them, and a × that is its own 44-point target. ChipRow lays either out in one row
 // that scrolls sideways, as the web's chip rows do at phone width.
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon, type IconName } from "./icon";
 import { TARGET, font, useColours } from "./theme";
 

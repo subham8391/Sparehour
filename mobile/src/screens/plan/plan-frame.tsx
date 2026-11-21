@@ -3,7 +3,8 @@
 // step, and the footer that holds the bottom edge above the safe area: Back, which is simply not there on the first
 // step so the primary fills the row, and the step's one action, 48 points tall. The eyebrow, the title and Skip are
 // the screen's own header (ui/screen.tsx, ui/sticky-screen.tsx).
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "~/ui/button";
 import { Icon } from "~/ui/icon";

@@ -3,7 +3,8 @@
 // quiet line under it and its value or control, and the sheets a row opens: a list of choices, a time, a number,
 // and the typed confirmation every final delete shares. Presentational.
 import { useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { CONFIRM_FAILED, CONFIRM_WORD, confirms } from "@/features/archive/confirm-words";
 import type { NumberBounds } from "@/features/settings/section-words";
 import { readNumber } from "@/features/settings/settings-rules";

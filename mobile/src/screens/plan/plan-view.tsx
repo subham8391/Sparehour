@@ -8,7 +8,8 @@
 // choices are made. The steps, the readout, the easiest move and every sentence are the web's own (morning-plan.ts,
 // morning-plan-words.ts).
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { Capacity } from "@/core/capacity";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";

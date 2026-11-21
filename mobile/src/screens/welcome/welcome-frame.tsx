@@ -4,18 +4,21 @@
 // above the phone's own inset, full width, the primary last where the thumb is. The step scrolls under the buttons;
 // with the keyboard up the buttons ride above it.
 import type { ReactNode, RefObject } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type ScrollViewInstance } from "react-native";
+import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { font, useColours } from "~/ui/theme";
+import { font, useColours, useWords } from "~/ui/theme";
 
 export function WelcomeFrame({ title, lead, children, footer, scrollRef }: { title: string; lead: string; children: ReactNode; footer: ReactNode; /** For a step that grows and keeps its last part in view (the brain dump). */ scrollRef?: RefObject<ScrollViewInstance | null> }) {
   const c = useColours();
+  // A look that sets its titles in capitals or with wider spacing does so here too (the web's h1 rule).
+  const titleWords = useWords("title", 30);
   const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={[styles.fill, { backgroundColor: c.paper }]}>
       <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" style={styles.fill} contentContainerStyle={[styles.body, { paddingTop: insets.top + 40 }]}>
         <View style={styles.head}>
-          <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>
+          <Text accessibilityRole="header" style={[styles.title, { color: c.ink }, titleWords]}>
             {title}
           </Text>
           <Text style={[styles.lead, { color: c.ink2 }]}>{lead}</Text>
@@ -54,7 +57,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   body: { paddingHorizontal: 20, paddingBottom: 24, gap: 24 },
   head: { gap: 8 },
-  title: { fontFamily: font.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.4 },
+  title: { fontFamily: font.display, fontSize: 30, lineHeight: 36 },
   lead: { fontFamily: font.regular, fontSize: 18, lineHeight: 26 },
   step: { gap: 16 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 12, gap: 8 },

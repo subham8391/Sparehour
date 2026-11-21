@@ -1,7 +1,8 @@
 // A group that starts folded (DESIGN_SYSTEM.md §5; the Logbook's "Dropped", Browse's "Completed and archived"): one
 // 44-point line with its name, its count and a chevron; a tap unfolds what is under it, and another folds it again.
 import { useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Icon } from "./icon";
 import { TARGET, font, useColours } from "./theme";
 

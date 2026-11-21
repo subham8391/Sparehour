@@ -1,7 +1,8 @@
 // A day's capacity as the week draws it (SCREENS.md §3 "Capacity bar"): a 6-point bar in the ribbon's own language
 // (the spare track, meetings, blocks, an amber tail past the end of an over day) and the one-line readout beside it.
 // A day without working hours is a flat grey track. The bar is hidden from a screen reader; the readout says it.
-import { StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Text } from "~/ui/text";
 import type { Capacity } from "@/core/capacity";
 import type { DayReadout } from "@/features/upcoming/week";
 import { font, useColours } from "~/ui/theme";

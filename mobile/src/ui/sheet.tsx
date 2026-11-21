@@ -1,7 +1,8 @@
 // The one overlay every dialog shares on the phone (DESIGN_SYSTEM.md §4, §7): a scrim and a bottom sheet with a
 // grabber and sheet corners, over the phone's own bottom inset. A tap on the scrim, or Android's back, closes it.
 import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReduceMotion } from "./motion";
 import { font, useColours, useShadows, useShape } from "./theme";
@@ -39,7 +40,7 @@ const styles = StyleSheet.create({
   frame: { flex: 1, justifyContent: "flex-end" },
   sheet: { borderWidth: 1, borderBottomWidth: 0, paddingTop: 8 },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, marginBottom: 8 },
-  title: { fontFamily: font.semibold, fontSize: 20, paddingHorizontal: 20, marginBottom: 8 },
+  title: { fontFamily: font.displayMedium, fontSize: 20, paddingHorizontal: 20, marginBottom: 8 },
   body: { paddingHorizontal: 20, paddingBottom: 8, gap: 10 },
   footer: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingTop: 8 },
 });

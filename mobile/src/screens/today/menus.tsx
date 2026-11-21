@@ -2,7 +2,8 @@
 // today-menu.tsx, the rows' "More actions" and trim-today.tsx): the screen's options, one row's actions, and Trim
 // today. Presentational: each says what was picked. Trim's order and readout are the web's own (trim-order.ts).
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { TODAY_SORTS, type TodaySort } from "@/core/today/sort-options";
 import { formatMinutes } from "@/core/time";
 import type { Task } from "@/core/types";

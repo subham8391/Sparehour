@@ -6,7 +6,8 @@
 // (the morning plan's last step). What it says and what Approve writes are the web's own rules, used as they are
 // (../../../../src/features/planning/use-plan-proposal.ts): nothing is written until Approve.
 import { useEffect, useRef } from "react";
-import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { explain } from "@/core/planning";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import { DIDNT_FIT_LABEL, LEFT_OUT_LABEL, PROPOSED_LABEL, partOf, planRange, replacesLine, usePlanProposal, type PlanProposalModel, type PlanProposalOptions, type PlanWriter } from "@/features/planning/use-plan-proposal";
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
   card: { marginHorizontal: 16, marginTop: 12, borderWidth: 1, borderRadius: 18, overflow: "hidden" },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, marginBottom: 6 },
   head: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 8, gap: 2 },
-  heading: { fontFamily: font.semibold, fontSize: 20, lineHeight: 26 },
+  heading: { fontFamily: font.displayMedium, fontSize: 20, lineHeight: 26 },
   scroll: { flexShrink: 1, borderTopWidth: StyleSheet.hairlineWidth },
   body: { paddingHorizontal: 18, paddingBottom: 8 },
   row: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 4 },

@@ -42,6 +42,38 @@ function rules(css) {
 }
 const merged = (all, match) => Object.assign({}, ...all.filter((r) => match(r.selector)).map((r) => r.decls));
 
+/**
+ * How a look sets the words of its page titles (`h1`) and of the qualifier ("spare", "over": `.font-display-italic`)
+ * beyond its tokens: the plain declarations of the rules that name them under the look, e.g.
+ * `:root[data-look="pulse"] h1 { text-transform: uppercase; }`. Letter case, letter spacing in em, a size in em of
+ * the words around it, and a slant. Nothing said is "as the app draws it".
+ */
+function wordsOf(css, id) {
+  const plain = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out = { title: {}, qualifier: {} };
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  for (let m = re.exec(plain); m; m = re.exec(plain)) {
+    const parts = m[1].split(",").map((p) => p.trim());
+    const decls = {};
+    for (const d of m[2].matchAll(/(^|;)\s*([a-z-]+)\s*:\s*([^;]+)/g)) decls[d[2]] = d[3].trim();
+    for (const [key, target] of [["title", "h1"], ["qualifier", ".font-display-italic"]]) {
+      if (!parts.includes(`:root[data-look="${id}"] ${target}`)) continue;
+      const into = out[key];
+      if (decls["text-transform"]) {
+        if (!["uppercase", "lowercase", "none"].includes(decls["text-transform"])) throw new Error(`${id}: ${target} text-transform "${decls["text-transform"]}"`);
+        into.case = decls["text-transform"];
+      }
+      if (decls["letter-spacing"]) into.tracking = round(parseFloat(decls["letter-spacing"]), 3);
+      if (decls["font-size"]) {
+        if (!/em$/.test(decls["font-size"])) throw new Error(`${id}: ${target} font-size "${decls["font-size"]}" is not in em`);
+        into.size = round(parseFloat(decls["font-size"]), 3);
+      }
+      if (decls["font-style"]) into.italic = decls["font-style"] === "italic";
+    }
+  }
+  return out;
+}
+
 /** A value with every `var()` followed (a missing name takes its fallback, or stays empty: "unset"). */
 function follow(tokens, value, depth = 0) {
   if (depth > 12) throw new Error(`var() loop in ${value}`);
@@ -328,7 +360,9 @@ export function buildLooks() {
     const dark = merged(sheet, (s) => s === `:root[data-look="${id}"][data-theme="dark"]`);
     if (Object.keys(light).length === 0 || Object.keys(dark).length === 0) throw new Error(`${file}: no light or no dark block`);
     add(id, light, dark);
+    looks[id].shape = { ...looks[id].shape, words: wordsOf(readFileSync(join(dir, file), "utf8"), id) };
   }
+  looks.sky.shape = { ...looks.sky.shape, words: { title: {}, qualifier: {} } };
   return looks;
 }
 

@@ -1,7 +1,7 @@
 // Quick add as the app mounts it: nothing of the sheet until it is first asked for, the day, project, heading or area
 // it is opened on reaching the save, a new project made on the way, and a discard offered back through the app's undo.
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { Text } from "~/ui/text";
 import { localDate } from "@/core/time";
 import { UndoContext, type UndoApi } from "@/features/undo/undo-context";
 import type { UndoEntry } from "@/features/undo/undo-stack";

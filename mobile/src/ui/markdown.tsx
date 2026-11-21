@@ -6,7 +6,8 @@
 // never a control: the checklist is the tickable list (DECISIONS.md "Note checkboxes").
 import { openURL } from "expo-linking";
 import type { ReactNode } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { BOX_WORDS, parseBlocks, parseInline, type Block, type Inline } from "@/core/markdown/parse";
 import { Icon } from "./icon";
 import { font, useColours, type Colours } from "./theme";

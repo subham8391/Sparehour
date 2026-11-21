@@ -2,7 +2,8 @@
 // features/rituals/rating-sparkline.tsx): a dot for each rated day, a line only between neighbouring ones, today
 // last and a little larger. Ink tones only: a rating is not spare time and not a deadline. Where each mark goes is
 // the web's own (rating-sparkline-shape.ts); the summary under it carries the meaning, the drawing is decoration.
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import { sparklineShape } from "@/features/rituals/rating-sparkline-shape";
 import type { RatingTrend } from "@/features/rituals/rating-trend";

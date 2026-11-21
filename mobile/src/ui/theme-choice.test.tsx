@@ -1,6 +1,6 @@
 // This phone's theme: System follows the phone, Light and Dark hold, and the choice is kept on the device.
 import { act, render, screen } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { Text } from "./text";
 import { useScheme } from "./theme";
 import { resetThemeChoice, setThemeChoice, themeChoice } from "./theme-choice";
 

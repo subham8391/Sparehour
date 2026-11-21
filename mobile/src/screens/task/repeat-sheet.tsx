@@ -4,7 +4,8 @@
 // that is running and Resume). Presentational; reading the words, what a new rule does and the pause's days are the
 // web's own (features/tasks/detail-rules.ts, series-words.ts).
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { RecurrenceMode, Task } from "@/core/types";

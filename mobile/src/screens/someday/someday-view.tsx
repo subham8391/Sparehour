@@ -3,7 +3,8 @@
 // ring completes it, its title opens it, and its ⋯ is the one every list has (screens/rows), with Today · Back to
 // active · Drop as its own and Move to… for a day; a right swipe is Today, a left one shows Drop. No counts
 // elsewhere, no age shaming. Presentational: it is handed everything it shows.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { Button } from "~/ui/button";

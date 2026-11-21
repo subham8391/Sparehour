@@ -1,7 +1,8 @@
 // A row inside its screen's frame: the ⋯ menu and what each line writes, the pickers a line opens, the long-press
 // that ticks a row and the bulk bar that follows, what a swipe is handed, and what is left of a row outside a frame.
 import { fireEvent, render, screen } from "@testing-library/react-native";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { Text } from "~/ui/text";
 import { localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { PreviewRows } from "./preview-rows";

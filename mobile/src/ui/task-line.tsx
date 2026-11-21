@@ -7,7 +7,8 @@
 // target. While rows are being ticked the row leads with its checkbox. What a row does beyond this (its ⋯ menu, its
 // swipes, the long-press that ticks it) is screens/rows/task-row.tsx, which draws this.
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./text";
 import { Temporal, compareDates, formatMinutes, formatTime, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { LONG_ESTIMATE_MIN, LONG_HINT, carriedLabel } from "@/features/tasks/row-words";

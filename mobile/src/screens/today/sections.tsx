@@ -6,7 +6,8 @@
 // long-press that ticks it are the shared ones, with the section's own actions read from Today's handlers
 // (screens/rows/today-actions.ts); without that frame the ⋯ asks Today's view for its sheet, as before.
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
@@ -402,7 +403,7 @@ const styles = StyleSheet.create({
   underlined: { textDecorationLine: "underline" },
   pile: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 10, minHeight: TARGET, paddingVertical: 12 },
   state: { paddingHorizontal: 18, paddingVertical: 18, gap: 12 },
-  stateTitle: { fontFamily: font.medium, fontSize: 20, lineHeight: 26 },
+  stateTitle: { fontFamily: font.displayMedium, fontSize: 20, lineHeight: 26 },
   stateLine: { fontFamily: font.regular, fontSize: 15, lineHeight: 21 },
   stateFoot: { paddingHorizontal: 18, paddingVertical: 12 },
   nothing: { fontFamily: font.regular, fontSize: 17, lineHeight: 23, paddingHorizontal: 18, paddingVertical: 14 },

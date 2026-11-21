@@ -2,7 +2,8 @@
 // what a tap on an empty time leads to. It asks first: one of the day's tasks or a name of your own, and how long.
 // Nothing is written until Add. The lengths and where the block ends are the web's own (features/today/add-at.ts).
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { formatMinutes } from "@/core/time";
 import type { AddWhat, AddableTask } from "@/features/blocking/use-placing";
 import { OWN_MIN, addAtEnd, addAtLengths } from "@/features/today/add-at";

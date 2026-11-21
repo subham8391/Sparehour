@@ -1,8 +1,10 @@
-// Nothing is drawn until the typeface is in and this phone's kept theme, look and motion choice have been read: the
-// first frame after a cold start is already in the person's look, and so are the phone's own bars.
+// Nothing is drawn until the typeface is in and this phone's kept theme, look and motion choice have been read, with
+// that look's own faces: the first frame after a cold start is already in the person's look and its type, and so are
+// the phone's own bars.
 import { act, renderHook } from "@testing-library/react-native";
 import * as SystemUI from "expo-system-ui";
 import { useAppFonts } from "./fonts";
+import { faceLook, resetLookFaces } from "./looks/face-loader";
 import { LOOK_TOKENS } from "./looks/generated";
 import { lookChoice, resetLookChoice } from "./looks/look-choice";
 import { motionChoice, resetMotion } from "./motion";
@@ -20,7 +22,8 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 let mockFonts: [boolean, Error | null] = [true, null];
-jest.mock("@expo-google-fonts/plus-jakarta-sans", () => ({ useFonts: () => mockFonts }));
+jest.mock("expo-font", () => ({ useFonts: () => mockFonts, isLoaded: () => false, loadAsync: jest.fn(async () => undefined) }));
+let mockFaces: { files: string[]; answer: () => void }[] = [];
 jest.mock("expo-system-ui", () => ({ setBackgroundColorAsync: jest.fn(async () => undefined) }));
 jest.mock("expo-status-bar", () => ({ StatusBar: Object.assign(() => null, { setStyle: jest.fn() }) }));
 
@@ -30,6 +33,9 @@ beforeEach(() => {
   mockKept.clear();
   mockAnswer = null;
   mockFonts = [true, null];
+  mockFaces = [];
+  // A look's files are read only when the test lets them.
+  resetLookFaces((files) => new Promise<void>((resolve) => void mockFaces.push({ files: Object.keys(files), answer: resolve })));
   resetThemeChoice();
   resetLookChoice();
   resetMotion();
@@ -46,7 +52,12 @@ describe("useAppFonts", () => {
     // The bars are not told Sky first.
     expect(background).not.toHaveBeenCalled();
     await act(async () => mockAnswer?.());
+    // Read, but Tide's faces are not in yet: still the splash.
+    expect(result.current).toBe(false);
+    expect(mockFaces.map((f) => f.files)).toEqual([expect.arrayContaining(["Lexend_400Regular", "Lexend_600SemiBold"])]);
+    await act(async () => mockFaces[0].answer());
     expect(result.current).toBe(true);
+    expect(faceLook()).toBe("tide");
     expect([lookChoice(), themeChoice(), motionChoice()]).toEqual(["tide", "dark", "reduce"]);
     expect(background).toHaveBeenCalledWith(LOOK_TOKENS.tide.dark.colours.paper);
   });
@@ -69,6 +80,7 @@ describe("useAppFonts", () => {
       await act(async () => void jest.advanceTimersByTime(1600));
       expect(result.current).toBe(true);
       expect(lookChoice()).toBe("sky");
+      expect(faceLook()).toBe("sky");
     } finally {
       jest.useRealTimers();
     }

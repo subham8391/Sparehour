@@ -3,7 +3,8 @@
 // with its bar, and a tap puts the task at the end of that day (one write, one undo, the web's own moveToDay); "Pick
 // a date" opens a month for any other day from today on.
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { StripDay } from "@/features/upcoming/agenda";

@@ -3,7 +3,8 @@
 // "1h 30m"), read by its parseLength. Each shows what it read under the box before it is set, and says so when it
 // could not read the words, writing nothing. The wording under the box is the web's (features/tasks/detail-rules.ts).
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { readTypedDate, type TypedDate } from "@/core/quickadd/read-date";
 import { formatMinutes, type Instant, type LocalDate } from "@/core/time";
 import { parseLength } from "@/core/time/parse-length";

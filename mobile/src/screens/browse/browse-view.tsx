@@ -2,7 +2,8 @@
 // with their projects (each with a ⋯ for the tap path of organising them), the completed and archived projects
 // folded away, then Someday, Logbook, Carried over and Settings. Presentational: it is handed everything it shows.
 import { useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import type { BrowseRow } from "@/app/(app)/browse/browse-rows";
 import { projectStateLabel, type ProjectGroup, type ProjectStateRow } from "@/data/queries/nav";
 import type { OrganiseTarget } from "@/features/projects/organise-place";

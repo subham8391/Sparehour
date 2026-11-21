@@ -5,7 +5,8 @@
 // (estimate-presets.ts), the typed length (core/time/parse-length.ts), the typed day (core/quickadd/read-date.ts) and
 // the day chips (date-choices.ts over the snooze presets) are the web app's own.
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "~/ui/text";
 import { readTypedDate } from "@/core/quickadd/read-date";
 import { formatMinutes, type Instant, type LocalDate } from "@/core/time";
 import { parseLength } from "@/core/time/parse-length";

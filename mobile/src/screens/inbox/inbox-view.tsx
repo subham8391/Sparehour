@@ -5,7 +5,8 @@
 // swipe is Today, a left one Someday. "Triage all" asks for the walk.
 // Presentational: it is handed everything it shows and says what was chosen; inbox.tsx makes the writes.
 import { useEffect, useState } from "react";
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "~/ui/text";
 import type { Instant, LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { TRIAGE_LABEL, type TriageChoice } from "@/features/inbox/triage";
