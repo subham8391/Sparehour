@@ -2,18 +2,16 @@
 // the page itself (the header's ⋯, a row's ⋯); nothing is saved, and the add line does nothing here. `?state=empty|missing` picks the area:
 // one with nothing filed in it, or the state for an area that is not on the phone. See _layout.web.tsx.
 import { useLocalSearchParams } from "expo-router";
-import { instant, localDate } from "@/core/time";
+import { localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { weekProgress } from "@/data/queries/area";
 import type { ProjectStateRow } from "@/data/queries/nav";
 import { deleteAreaNote } from "@/features/projects/organise-place";
 import { cardFigures, projectsWord } from "@/features/projects/page-rules";
-import { snoozePresets } from "@/features/tasks/snooze";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 import { AreaMissingView, AreaView, type AreaCard } from "~/screens/area/area-view";
 
 const TODAY = localDate("2026-11-21");
-const NOW = instant("2026-11-21T14:05:00Z");
-const ZONE = "Europe/London";
 const nothing = () => undefined;
 
 const card = (id: string, name: string, done_week: number, open_count: number, open_min: number, deadline: AreaCard["deadline"] = null): AreaCard => ({
@@ -36,6 +34,7 @@ export default function Preview() {
   if (q.state === "missing") return <AreaMissingView onBrowse={nothing} />;
   const empty = q.state === "empty";
   return (
+    <PreviewRows today={TODAY}>
     <AreaView
       id="a1"
       name="Work"
@@ -45,7 +44,6 @@ export default function Preview() {
       cards={empty ? [] : CARDS}
       finished={empty ? [] : FINISHED}
       tasks={empty ? [] : TASKS}
-      presets={snoozePresets(NOW, ZONE, TODAY)}
       deleteNote={empty ? deleteAreaNote(0, 0) : deleteAreaNote(5, 3)}
       onRename={nothing}
       onOpenProject={nothing}
@@ -54,9 +52,8 @@ export default function Preview() {
       onComplete={nothing}
       onOpen={nothing}
       onMoveTask={nothing}
-      onSnooze={nothing}
-      onSomeday={nothing}
       onDelete={nothing}
     />
+    </PreviewRows>
   );
 }

@@ -1,8 +1,7 @@
-// Someday's two sheets on the phone (SCREENS.md §7). A row's ⋯ opens its actions: Today · Pick a date · Back to
-// active · Drop, with the picker as a second step of the same sheet: the next seven days, then a month to pick any
-// other day from. Review walks what the rollover filed on its own, one task at a time: Keep in Someday · Today ·
-// Pick a date · Drop, each one tap, then the next task. Presentational: the days, the task and what each choice
-// does are handed in.
+// Someday's review on the phone (SCREENS.md §7): it walks what the rollover filed on its own, one task at a time:
+// Keep in Someday · Today · Pick a date · Drop, each one tap, then the next task; Pick a date is a second step of the
+// same sheet, the next seven days and then a month to pick any other day from. A row's own ⋯ is the one every list
+// has (screens/rows). Presentational: the days, the task and what each choice does are handed in.
 import { StyleSheet, Text, View } from "react-native";
 import type { LocalDate } from "@/core/time";
 import { Button } from "~/ui/button";
@@ -29,40 +28,6 @@ function Days({ days, today, title, onPick }: { days: readonly PickDay[]; today:
       {/* Any other day, from today on: the web's date field. */}
       <MonthCalendar value={null} today={today} min={today} onPick={onPick} />
     </>
-  );
-}
-
-export interface SomedayActionsProps {
-  /** The task whose ⋯ was tapped; null when the sheet is closed. */
-  task: { id: string; title: string } | null;
-  step: "menu" | "days";
-  today: LocalDate;
-  days: readonly PickDay[];
-  onToday: () => void;
-  onPickADate: () => void;
-  onPickDay: (day: LocalDate) => void;
-  onBackToActive: () => void;
-  onDrop: () => void;
-  onClose: () => void;
-}
-
-export function SomedayActions(p: SomedayActionsProps) {
-  const title = p.task?.title ?? "";
-  return (
-    <Sheet open={p.task !== null} title={p.step === "days" ? "Pick a date" : title} onClose={p.onClose}>
-      {p.step === "days" ? (
-        <Days days={p.days} today={p.today} title={title} onPick={p.onPickDay} />
-      ) : (
-        <>
-          <MenuRow label="Today" onPress={p.onToday} />
-          <MenuRow label="Pick a date" onPress={p.onPickADate} />
-          <MenuRow label="Back to active" onPress={p.onBackToActive} />
-          <MenuDivider />
-          {/* Drop is undoable, so it reads in ink like the rest (ruling R2). */}
-          <MenuRow label="Drop" onPress={p.onDrop} />
-        </>
-      )}
-    </Sheet>
   );
 }
 

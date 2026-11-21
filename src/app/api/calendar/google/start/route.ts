@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { safeNext } from "@/features/auth/safe-next";
 import { createUserScopedClient } from "@/server/auth/supabase";
 import { googleConfigured, googleOAuth, stateSecret } from "@/server/calendar/config";
+import { consentPurpose, googleScopesFor } from "@/server/calendar/connect";
 import { SCOPES, authorizationUrl } from "@/server/calendar/google";
 import { STATE_TTL_SECONDS, signState } from "@/server/calendar/state";
 
@@ -24,16 +25,11 @@ export async function GET(request: NextRequest) {
   const oauth = googleOAuth();
   if (!oauth || !googleConfigured()) return NextResponse.redirect(withCalendar(next, url.origin, "unavailable"));
 
-  const asked = url.searchParams.get("purpose");
-  const purpose = asked === "write" || asked === "full" ? asked : "read";
-  const scopes = [...SCOPES.identity, ...scopesFor(purpose)];
+  // What each purpose asks Google for is connect.ts's, shared with the phone app's start.
+  const purpose = consentPurpose(url.searchParams.get("purpose"));
+  const scopes = [...SCOPES.identity, ...googleScopesFor(purpose)];
   const state = signState({ userId: user.id, purpose, next, nonce: randomUUID(), exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS }, stateSecret());
   return NextResponse.redirect(authorizationUrl(oauth, scopes, state, user.email));
-}
-
-function scopesFor(purpose: "read" | "write" | "full"): readonly string[] {
-  if (purpose === "full") return [...SCOPES.read, ...SCOPES.writeOwned];
-  return purpose === "write" ? [...SCOPES.busy, ...SCOPES.writeAppCreated] : SCOPES.busy;
 }
 
 function withCalendar(next: string, origin: string, outcome: string): URL {

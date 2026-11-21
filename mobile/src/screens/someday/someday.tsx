@@ -1,8 +1,9 @@
 // Someday on the phone (ANDROID_APP_SPEC.md §10; the web's app/(app)/someday/page.tsx), wired to the phone's own
 // database. The statement, the grouping, the once-only announcement and the picker's days are the web's own, and
 // every answer is a write through the shared task repository, which records its undo for the app's one toast
-// ("Keep in Someday" clears a server-owned stamp and has nothing to undo, as on the web). The drawing is
-// someday-view.tsx and someday-sheets.tsx.
+// ("Keep in Someday" clears a server-owned stamp and has nothing to undo, as on the web). What every row's ⋯, its
+// swipes and the bulk bar do is the screen's frame (rows/rows.tsx). The drawing is someday-view.tsx and
+// someday-sheets.tsx.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { somedayGroups } from "@/app/(app)/someday/someday-groups";
@@ -16,16 +17,17 @@ import { SomedayRepo } from "@/data/repositories/rollover-repo";
 import type { TaskRow } from "@/data/schema.client";
 import { useAnnouncement } from "@/features/rollover/use-announcement";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { moveToDay } from "@/features/tasks/move-to-day";
 import { pickerDayName, pickerDays } from "@/features/tasks/picker-days";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
-import { SomedayActions, SomedayReview, type PickDay } from "./someday-sheets";
+import { Rows, useBreakDown } from "../rows/rows";
+import { SomedayReview, type PickDay } from "./someday-sheets";
 import { SomedayView } from "./someday-view";
 
 export function Someday() {
   const router = useRouter();
   const repo = useTaskRepo();
   const db = useLocalDatabase();
+  const breakDown = useBreakDown();
   const now = useNow();
   const { today, settings, zone } = useLocalDay(now);
   const { data, isLoading } = useQuery<TaskRow>(SOMEDAY_SQL);
@@ -48,18 +50,6 @@ export function Someday() {
     });
   }, [todayIso]);
 
-  // A row's ⋯: its actions, then the picker's days as a second step.
-  const [menu, setMenu] = useState<{ id: string; title: string } | null>(null);
-  const [menuStep, setMenuStep] = useState<"menu" | "days">("menu");
-  const closeMenu = () => {
-    setMenu(null);
-    setMenuStep("menu");
-  };
-  const act = (run: (id: string) => Promise<void>) => () => {
-    if (menu) void run(menu.id);
-    closeMenu();
-  };
-
   // The walk is over the batch as it was when it opened: each answer takes a task out of the live group.
   const [batch, setBatch] = useState<readonly TaskRow[] | null>(null);
   const [index, setIndex] = useState(0);
@@ -80,7 +70,7 @@ export function Someday() {
   const line = [asked?.project_id ? projectNames.get(asked.project_id) : null, touched ? `Last touched ${formatDay(touched, { today })}` : null].filter(Boolean).join(" · ");
 
   return (
-    <>
+    <Rows>
       <SomedayView
         today={today}
         defaultEstimateMin={settings?.defaultEstimateMin ?? 30}
@@ -102,23 +92,10 @@ export function Someday() {
         }
         onComplete={(task) => void repo.complete(task.id)}
         onOpen={(task) => router.push(`/task/${task.id}`)}
-        onMore={(task) => {
-          setMenuStep("menu");
-          setMenu({ id: task.id, title: task.title });
-        }}
-      />
-      <SomedayActions
-        task={menu}
-        step={menuStep}
-        today={today}
-        days={days}
-        onToday={act((id) => repo.reschedule(id, today))}
-        onPickADate={() => setMenuStep("days")}
-        // The row's day picker, as on the web: the end of that day's list, one undo (move-to-day.ts).
-        onPickDay={(day: LocalDate) => act((id) => moveToDay(db, repo, id, day))()}
-        onBackToActive={act((id) => repo.setState(id, "active", "Brought back {title}"))}
-        onDrop={act((id) => repo.setState(id, "dropped"))}
-        onClose={closeMenu}
+        onToday={(task) => void repo.reschedule(task.id, today)}
+        onBackToActive={(task) => void repo.setState(task.id, "active", "Brought back {title}")}
+        onDrop={(task) => void repo.setState(task.id, "dropped")}
+        onBreakDown={(task) => breakDown(task.id)}
       />
       <SomedayReview
         open={batch !== null}
@@ -135,6 +112,6 @@ export function Someday() {
         onDrop={answer((id) => repo.setState(id, "dropped"))}
         onClose={() => setBatch(null)}
       />
-    </>
+    </Rows>
   );
 }

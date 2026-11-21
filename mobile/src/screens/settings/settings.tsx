@@ -12,7 +12,7 @@ import { useSettings } from "./use-settings";
 
 export function Settings() {
   const router = useRouter();
-  const { values, workHours, user } = useSettings();
+  const { values, workHours, user, motion } = useSettings();
   const { data: connections, isLoading } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
   const { data: calendars } = useQuery<CalendarFullRow>(CALENDARS_FULL_SQL);
   const summary: SummaryInput | null = values && {
@@ -22,8 +22,8 @@ export function Settings() {
     calendars: isLoading ? null : { accounts: (connections ?? []).length, busy: (calendars ?? []).filter((c) => c.read !== 0).length },
     // Reminders on this phone are not built yet, so the list says nothing about this device (as the web does where it cannot tell).
     subscribed: null,
-    // Reduce motion is the web's own per-browser choice; the phone has none.
-    motion: "system",
+    // Reduce motion is this phone's own choice, as it is each browser's on the web.
+    motion: motion.value,
     version: BUILD,
   };
   return <SettingsView items={summary && PHONE_SECTIONS.map((s) => ({ ...s, summary: sectionSummary(s.key, summary) }))} onOpen={(key) => router.push(`/settings/${key}`)} />;

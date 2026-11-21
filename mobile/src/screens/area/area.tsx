@@ -14,10 +14,10 @@ import { cardDeadline, cardFigures, projectsWord } from "@/features/projects/pag
 import { useAreaPage } from "@/features/projects/use-area-page";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { keyForStep } from "@/features/tasks/checklist-order";
-import { applySnooze, snoozePresets } from "@/features/tasks/snooze";
 import { useAreaRepo, useProjectRepo } from "@/features/tasks/use-repos";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useQuickAdd } from "../quick-add/quick-add";
+import { Rows } from "../rows/rows";
 import { AreaMissingView, AreaOpeningView, AreaView, type AreaCard } from "./area-view";
 
 export function AreaPage() {
@@ -28,7 +28,7 @@ export function AreaPage() {
   const projects = useProjectRepo();
   const tasks = useTaskRepo();
   const now = useNow();
-  const { today, zone, settings, ready } = useLocalDay(now);
+  const { today, zone, settings } = useLocalDay(now);
   const page = useAreaPage(id, today, settings?.defaultEstimateMin ?? 30);
   // What deleting the area leaves without one, for the confirmation's sentence.
   const { data: contents } = useQuery<{ projects: number; tasks: number }>(AREA_CONTENTS_SQL, [id]);
@@ -48,7 +48,7 @@ export function AreaPage() {
 
   const name = area.name ?? "Untitled area";
   return (
-    <>
+    <Rows>
       <AreaView
         id={area.id}
         name={name}
@@ -59,8 +59,6 @@ export function AreaPage() {
         cards={cards}
         finished={page.finished}
         tasks={page.tasks}
-        // The presets are the account's day and zone: they wait for its settings row.
-        presets={ready ? snoozePresets(now, zone, today) : []}
         deleteNote={deleteAreaNote(contents?.[0]?.projects ?? 0, contents?.[0]?.tasks ?? 0)}
         onRename={(next) => void areas.rename(area.id, next)}
         onOpenProject={(projectId) => router.push(`/project/${projectId}`)}
@@ -75,14 +73,12 @@ export function AreaPage() {
           const key = keyForStep(page.tasks, task.id, dir);
           if (key) void tasks.setOrder(task.id, key);
         }}
-        onSnooze={(task, preset) => void applySnooze(tasks, [task.id], preset)}
-        onSomeday={(task) => void tasks.setState(task.id, "someday")}
         // Only the area goes: its projects and tasks stay, without one, and the toast puts it back. Then back to Browse.
         onDelete={() => {
           void areas.remove(area.id);
           leave();
         }}
       />
-    </>
+    </Rows>
   );
 }

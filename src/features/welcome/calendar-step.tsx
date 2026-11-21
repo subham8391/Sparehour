@@ -10,33 +10,14 @@ import { connectHref } from "@/features/calendar/providers";
 import { Button, buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { FOOTER_BUTTON, WelcomeFrame } from "./welcome-frame";
+import { CALENDAR_WORDS, calendarPromises, laterInSettings, outcomeNote, type CalendarOutcome } from "./welcome-words";
 
 /** Where "Connect Google Calendar" goes: the consent, then back here (api/calendar/google/start, `next`). */
 export const CONNECT_HREF = connectHref("google", "/welcome");
 /** Where "Connect Outlook" goes (api/calendar/microsoft/start). */
 export const OUTLOOK_HREF = connectHref("microsoft", "/welcome");
 
-/** What the consent's answer was, when it was not a connection (api/calendar/{google,microsoft}/callback). */
-export type CalendarOutcome = "denied" | "error" | "no_read";
-
-/** The one line said above the buttons after a connection that did not happen; the buttons stay (§2 Validation). */
-export function outcomeNote(outcome: CalendarOutcome, reason: string | null): string {
-  if (outcome === "denied") return "No problem. You can connect later from Settings.";
-  if (outcome === "no_read") return "Google didn't share your busy times, so nothing was connected. Try again, or skip for now.";
-  return reason?.trim() || "Google didn't answer. Try again.";
-}
-
-const PROMISES: readonly { lead: string; rest: string }[] = [
-  { lead: "We read when you're busy.", rest: "Only the times, so the spare-time number is real." },
-  { lead: "We don't see what your meetings are.", rest: "No titles, no guests, no notes." },
-  { lead: "We don't change anything.", rest: "Nothing is added, moved or deleted." },
-];
-
-/**
- * The second line where Outlook is offered. Microsoft has no permission for busy times alone: the one it has lets an
- * app read a meeting's name, so "we don't see" would not be true of it. What is true of both is what is kept.
- */
-const KEPT = { lead: "We keep only the times.", rest: "No titles, no guests, no notes." };
+export { outcomeNote, type CalendarOutcome } from "./welcome-words";
 
 export function CalendarStep({
   google = true,
@@ -53,25 +34,25 @@ export function CalendarStep({
   onSkip: () => void;
 }) {
   const note: ReactNode = outcome ? outcomeNote(outcome, reason) : null;
-  const promises = outlook ? [PROMISES[0], KEPT, PROMISES[2]] : PROMISES;
+  const promises = calendarPromises(outlook);
   const connect = cx(buttonClass({ variant: "primary", size: "sheet" }), FOOTER_BUTTON);
   return (
     <WelcomeFrame
-      title="Connect your calendar."
-      lead="Your meetings are the reason you don't have as much time as you think. We subtract them."
+      title={CALENDAR_WORDS.title}
+      lead={CALENDAR_WORDS.lead}
       footer={
         <>
           <Button variant="secondary" size="sheet" className={FOOTER_BUTTON} onClick={onSkip}>
-            Skip for now
+            {CALENDAR_WORDS.skip}
           </Button>
           {outlook && (
             <a href={OUTLOOK_HREF} className={connect}>
-              Connect Outlook
+              {CALENDAR_WORDS.outlook}
             </a>
           )}
           {google && (
             <a href={CONNECT_HREF} className={connect}>
-              Connect Google Calendar
+              {CALENDAR_WORDS.google}
             </a>
           )}
         </>
@@ -86,15 +67,15 @@ export function CalendarStep({
       </ul>
       {outlook && (
         <p className="text-body-sm text-pretty text-ink-2">
-          With Outlook, Microsoft&rsquo;s screen asks to let Sparehour read your calendars. It has no narrower permission to ask for; the times are all we keep.
+          {CALENDAR_WORDS.outlookAsk}
         </p>
       )}
       <p className="text-body-sm text-pretty text-ink-2">
         {/* The later choices are Google's: nothing more can be asked of Outlook yet, so nothing more is promised of it. */}
-        Without it, the number uses your working hours alone.
-        {google && (outlook ? " With Google Calendar, meeting names and time blocks on your calendar are yours to add later in Settings." : " Meeting names, and time blocks on your calendar, are yours to add later in Settings.")}{" "}
+        {CALENDAR_WORDS.without}
+        {laterInSettings(google, outlook)}{" "}
         <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-          What we store, in plain English
+          {CALENDAR_WORDS.privacy}
         </a>
       </p>
       {note && (

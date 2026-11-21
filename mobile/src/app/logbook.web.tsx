@@ -10,6 +10,7 @@ import type { FinishedRow } from "@/features/finished/finished";
 import { FinishedPeek } from "~/screens/logbook/finished-peek";
 import { LogbookFilterSheet } from "~/screens/logbook/logbook-filter-sheet";
 import { LogbookView, type OlderState } from "~/screens/logbook/logbook-view";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 
 const TODAY = localDate("2026-11-21");
 const entry = (key: string, title: string, kind: LogbookEntry["kind"], at: string, more: Partial<LogbookEntry> = {}, projectId: string | null = null): LogbookEntry => ({ key, kind, at, task: { id: key, title, estimateMin: 30, carryCount: 0, projectId } as unknown as Task, ...more });
@@ -30,7 +31,7 @@ export default function Preview() {
   const chips: { key: LogbookFilterKey; label: string }[] = filtering ? [{ key: "project", label: "#Acme launch" }, { key: "dates", label: "Last 7 days" }] : [];
   const older: OlderState = { available: true, status: state === "error" ? "error" : "idle", more: state === "all" ? false : state === "older" ? true : null, count: withOlder ? 2 : 0 };
   return (
-    <>
+    <PreviewRows today={TODAY}>
       <LogbookView
         today={TODAY}
         defaultEstimateMin={35}
@@ -63,6 +64,6 @@ export default function Preview() {
         onClose={nothing}
       />
       <FinishedPeek row={q.sheet === "peek" ? ROW : null} projectName="Acme launch" tagNames={["writing"]} zone="Europe/London" today={TODAY} onReopen={nothing} onDelete={async () => "deleted"} onDeleted={nothing} onClose={nothing} />
-    </>
+    </PreviewRows>
   );
 }

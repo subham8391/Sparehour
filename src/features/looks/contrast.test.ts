@@ -7,8 +7,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LOOKS } from "./catalog";
-
-type Tokens = Record<string, string>;
+import { contrastProblems, type Tokens } from "./contrast";
 
 /** The custom properties declared directly in each block whose selector matches. */
 function blocks(css: string, match: (selector: string) => boolean): Tokens[] {
@@ -24,54 +23,9 @@ function blocks(css: string, match: (selector: string) => boolean): Tokens[] {
   return out;
 }
 
-const hex = (v: string | undefined) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
-function luminance(h: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-/** A colour token followed through its `var()` references; null for anything else (transparent, a wash, a mix). */
-function resolve(t: Tokens, value: string | undefined, depth = 0): string | null {
-  const ref = value && /^var\(--([a-z0-9-]+)\)$/.exec(value.trim());
-  if (ref) return depth > 8 ? null : resolve(t, t[ref[1]], depth + 1);
-  return hex(value);
-}
-const ratio = (a: string, b: string) => {
-  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
-  return (x + 0.05) / (y + 0.05);
-};
-
-/** One theme's tokens: the look's own over the defaults it does not redefine (Sky's, for the same theme). */
+/** One theme's tokens: the look's own over the defaults it does not redefine (Sky's, for the same theme). The rule itself is contrast.ts. */
 function check(name: string, t: Tokens) {
-  const grounds = ["paper", "surface"].map((k) => [k, hex(t[k])] as const).filter((g): g is readonly [string, string] => g[1] !== null);
-  expect(grounds.length, `${name}: paper and surface are plain colours`).toBe(2);
-  for (const [g, bg] of grounds) {
-    for (const text of ["ink", "ink-2", "ink-3", "spare", "meet", "over", "deadline"]) {
-      const fg = hex(t[text]);
-      if (!fg) continue;
-      expect(ratio(fg, bg), `${name}: ${text} ${fg} on ${g} ${bg}`).toBeGreaterThanOrEqual(4.5);
-    }
-    const ring = hex(t["line-control"]);
-    if (ring) expect(ratio(ring, bg), `${name}: line-control ${ring} on ${g} ${bg}`).toBeGreaterThanOrEqual(3);
-    for (const edge of ["check-line", "switch-off"]) {
-      const c = resolve(t, t[edge]);
-      expect(c, `${name}: ${edge} is a plain colour`).not.toBeNull();
-      expect(ratio(c!, bg), `${name}: ${edge} ${c} on ${g} ${bg}`).toBeGreaterThanOrEqual(3);
-    }
-  }
-  // Text on a fill that is not a plain colour (an outline's transparent, the dark rail's wash) is held on what shows
-  // through it: the segmented tile's on the rail, the rest on the page and the card.
-  const rail = resolve(t, t.seg);
-  const under = (fill: string): string[] => {
-    const own = resolve(t, t[fill]);
-    if (own) return [own];
-    if (fill === "seg-on" && rail) return [rail];
-    return grounds.map((g) => g[1]);
-  };
-  for (const [text, fill] of [["btn-ink", "btn"], ["fab-ink", "fab"], ["btn-2-ink", "surface"], ["seg-ink", "seg"], ["seg-on-ink", "seg-on"]]) {
-    const fg = resolve(t, t[text]);
-    expect(fg, `${name}: ${text} is a plain colour`).not.toBeNull();
-    for (const bg of under(fill)) expect(ratio(fg!, bg), `${name}: ${text} ${fg} on ${fill} ${bg}`).toBeGreaterThanOrEqual(4.5);
-  }
+  expect(contrastProblems(name, t)).toEqual([]);
 }
 
 const root = process.cwd();

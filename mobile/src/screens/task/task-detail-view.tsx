@@ -17,6 +17,7 @@ import { MISS_POLICIES, PRIORITIES, asksSeriesDay, carriedWords, detailActions, 
 import { guessLabel } from "@/features/tasks/estimate-presets";
 import { pausedUntil, repeatSummary } from "@/features/tasks/series-words";
 import { Button } from "~/ui/button";
+import { NoteBox } from "~/ui/note-box";
 import { Card, CardRow } from "~/ui/card";
 import { Chip } from "~/ui/chip";
 import { Empty } from "~/ui/empty";
@@ -274,19 +275,8 @@ export function TaskDetailView(p: TaskDetailViewProps) {
 
         <SectionLabel label="Notes" />
         <Card style={styles.notesCard}>
-          {/* The note is Markdown; here it is edited as the plain text it is stored as, and saved when the box is left. */}
-          <TextInput
-            accessibilityLabel="Notes"
-            placeholder="Anything worth remembering."
-            placeholderTextColor={c.ink4}
-            value={notes.draft}
-            onChangeText={notes.setDraft}
-            onFocus={notes.onFocus}
-            onBlur={notes.onBlur}
-            multiline
-            textAlignVertical="top"
-            style={[styles.notes, { color: c.ink }]}
-          />
+          {/* The note is Markdown: drawn as such, edited as the plain text it is stored as, saved when the box is left. */}
+          <NoteBox label="Notes" placeholder="Anything worth remembering." note={notes} style={styles.notes} />
         </Card>
 
         {carried ? <Text style={[styles.carried, { color: c.ink3 }]}>{carried}</Text> : null}

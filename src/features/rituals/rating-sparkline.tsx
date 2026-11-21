@@ -3,30 +3,20 @@
 // only — a rating is not spare time and not a deadline, so never green or red. The summary carries the meaning
 // for a screen reader; the drawing is decoration.
 import { cx } from "@/ui/cx";
+import { sparklineShape } from "./rating-sparkline-shape";
 import type { RatingTrend } from "./rating-trend";
 
-const W = 280;
-const H = 56;
-const PAD = 6;
-
+// Where each mark goes is rating-sparkline-shape.ts, shared with the Android app.
 export function RatingSparkline({ trend, className }: { trend: RatingTrend; className?: string }) {
-  const step = (W - PAD * 2) / (trend.days.length - 1);
-  const x = (i: number) => PAD + i * step;
-  const y = (rating: number) => PAD + ((5 - rating) / 4) * (H - PAD * 2);
-  const segments: string[] = [];
-  trend.days.forEach((d, i) => {
-    const prev = trend.days[i - 1];
-    if (i > 0 && d.rating != null && prev?.rating != null) segments.push(`M${x(i - 1)} ${y(prev.rating)}L${x(i)} ${y(d.rating)}`);
-  });
-  const last = trend.days.length - 1;
+  const { width, height, base, path, dots } = sparklineShape(trend);
   return (
     <figure className={cx("flex flex-col gap-1.5", className)}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-xs" aria-hidden="true">
-        <line x1={PAD} x2={W - PAD} y1={H - PAD} y2={H - PAD} className="stroke-line" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-        {segments.length > 0 && <path d={segments.join("")} fill="none" className="stroke-ink-3" strokeWidth={1.5} strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
-        {trend.days.map((d, i) =>
-          d.rating == null ? null : <circle key={d.date} cx={x(i)} cy={y(d.rating)} r={i === last ? 3.5 : 2.5} className={i === last ? "fill-ink" : "fill-ink-2"} />,
-        )}
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-xs" aria-hidden="true">
+        <line x1={base.x1} x2={base.x2} y1={base.y} y2={base.y} className="stroke-line" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        {path && <path d={path} fill="none" className="stroke-ink-3" strokeWidth={1.5} strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
+        {dots.map((d) => (
+          <circle key={d.date} cx={d.cx} cy={d.cy} r={d.r} className={d.today ? "fill-ink" : "fill-ink-2"} />
+        ))}
       </svg>
       <figcaption className="text-body-sm text-ink-3">{trend.summary}</figcaption>
     </figure>

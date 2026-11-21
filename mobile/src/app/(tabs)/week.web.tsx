@@ -7,8 +7,9 @@ import { View } from "react-native";
 import type { DayPart } from "@/features/looks/look";
 import { clampOffset, type WeekMode } from "@/features/upcoming/week";
 import { TODAY, weekFixture } from "~/screens/week/week-fixture";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 import { WeekView } from "~/screens/week/week-view";
-import { Icon } from "~/ui/icon";
+import { Fab } from "~/ui/fab";
 import { colours, type Scheme } from "~/ui/theme";
 
 export default function Preview() {
@@ -20,7 +21,7 @@ export default function Preview() {
   const week = weekFixture({ mode, offset, empty: q.state === "empty" });
   const c = colours[scheme];
   return (
-    <View style={{ flex: 1 }}>
+    <PreviewRows>
       <WeekView
         part={part}
         eyebrow={mode === "calendar" ? "Upcoming · calendar week" : "Upcoming · rolling 7 days"}
@@ -48,11 +49,11 @@ export default function Preview() {
         onOpenDay={() => undefined}
         onAdd={() => undefined}
         onPlace={() => undefined}
+        onMove={() => undefined}
+        onBreakDown={() => undefined}
         bottomRoom={88}
       />
-      <View style={{ position: "absolute", right: 20, bottom: 20, width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: c.ink }}>
-        <Icon name="plus" size={26} color={c.paper} strokeWidth={2} />
-      </View>
-    </View>
+      <Fab label="Add a task" onPress={() => undefined} />
+    </PreviewRows>
   );
 }

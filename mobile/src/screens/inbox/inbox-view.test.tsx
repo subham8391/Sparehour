@@ -1,9 +1,11 @@
-// The Inbox as the phone draws it: the queue with each row's age, what a row and its ⋯ sheet call, the pickers
-// behind Project…, Estimate…, Deadline… and Move to…, Triage all, and Inbox zero.
+// The Inbox as the phone draws it: the queue with each row's age, what a row and its ⋯ sheet call (the shared row
+// menu, headed by the Inbox's four), the pickers behind Project…, Estimate… and Deadline…, Triage all, and Inbox zero.
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { Temporal, localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { InboxRow } from "./inbox-rows";
+import type { RowsWiring } from "~/screens/rows/rows-frame";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 import { InboxView, type InboxViewProps } from "./inbox-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -12,7 +14,7 @@ jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: 
 // parser imports; Metro can. The entry's own file is handed over, so a day typed in words is read by the real parser.
 jest.mock("chrono-node/en", () => jest.requireActual("../../../node_modules/chrono-node/dist/cjs/locales/en/index.js"), { virtual: true });
 
-const row = (id: string, title: string, detail: string, estimateMin: number | null = null): InboxRow => ({ task: { id, title, estimateMin, carryCount: 0, projectId: null, deadline: null, doDate: null, doTime: null } as unknown as Task, detail });
+const row = (id: string, title: string, detail: string, estimateMin: number | null = null): InboxRow => ({ task: { id, title, state: "inbox", priority: 0, estimateMin, carryCount: 0, projectId: null, deadline: null, doDate: null, doTime: null } as unknown as Task, detail });
 const today = localDate("2026-11-21"); // a Saturday
 const props = (over: Partial<InboxViewProps> = {}): InboxViewProps => ({
   part: "afternoon",
@@ -25,21 +27,27 @@ const props = (over: Partial<InboxViewProps> = {}): InboxViewProps => ({
   onOpen: jest.fn(),
   onComplete: jest.fn(),
   onTriage: jest.fn(),
-  onSnooze: jest.fn(),
-  onMoveToDay: jest.fn(),
+  onBreakDown: jest.fn(),
   onProject: jest.fn(),
   onEstimate: jest.fn(),
   onDeadline: jest.fn(),
   onTriageAll: jest.fn(),
   ...over,
 });
+/** The view inside its screen's frame, as inbox.tsx draws it: the row's ⋯ is the frame's menu. */
+const show = (p: InboxViewProps, wiring: Partial<RowsWiring> = {}) =>
+  render(
+    <PreviewRows today={today} wiring={wiring}>
+      <InboxView {...p} />
+    </PreviewRows>,
+  );
 const press = (name: string | RegExp) => fireEvent.press(screen.getByRole("button", { name }));
 const openMenu = (title: string) => press(`More actions for ${title}`);
 const t1 = expect.objectContaining({ id: "t1" });
 
 describe("<InboxView>", () => {
   it("says how many wait, and each row's age, project and estimate", async () => {
-    await render(<InboxView {...props()} />);
+    await show(props());
     expect(screen.getByText("INBOX")).toBeTruthy();
     expect(screen.getByRole("header", { name: "2 to triage" })).toBeTruthy();
     expect(screen.getByText("A queue to empty, not a list to keep.")).toBeTruthy();
@@ -51,7 +59,7 @@ describe("<InboxView>", () => {
 
   it("a tap on a row opens the task, the ring completes it, and Triage all asks for the walk", async () => {
     const p = props();
-    await render(<InboxView {...p} />);
+    await show(p);
     await press("Look into the pricing thing");
     expect(p.onOpen).toHaveBeenCalledWith(t1);
     await press("Complete Look into the pricing thing");
@@ -62,7 +70,7 @@ describe("<InboxView>", () => {
 
   it("the row's sheet is headed by Today, Tomorrow, Someday and Project…, and each choice is made on that row", async () => {
     const p = props();
-    await render(<InboxView {...p} />);
+    await show(p);
     expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
     for (const [name, choice] of [
       ["Today", "today"],
@@ -83,23 +91,35 @@ describe("<InboxView>", () => {
     expect(p.onComplete).toHaveBeenCalledWith(t1);
   });
 
+  it("under its own lines the sheet holds what every open row's does: organising, Duplicate, Copy link and Move to…", async () => {
+    const onDuplicate = jest.fn();
+    await show(props(), { onDuplicate });
+    await openMenu("Look into the pricing thing");
+    for (const name of ["Estimate…", "Deadline…", "Move to project…", "Add a tag…", "Copy link", "Move to…"]) expect(screen.getByRole("button", { name })).toBeTruthy();
+    // Someday is said once, among the four at the top.
+    expect(screen.getAllByRole("button", { name: "Someday" })).toHaveLength(1);
+    await press("Duplicate");
+    expect(onDuplicate).toHaveBeenCalledWith("t1");
+  });
+
   it("the sheet offers the snooze presets once each, with their own day", async () => {
     const p = props();
-    await render(<InboxView {...p} />);
+    const onSnooze = jest.fn();
+    await show(p, { onSnooze });
     await openMenu("Renew the domain");
     // Tomorrow is said once, among the four at the top.
     expect(screen.getAllByRole("button", { name: "Tomorrow" })).toHaveLength(1);
     for (const name of ["This evening", "In 4 hours", "Next week"]) expect(screen.getByRole("button", { name })).toBeTruthy();
     await press("This weekend");
-    const [task, preset] = (p.onSnooze as jest.Mock).mock.calls[0];
-    expect(task.id).toBe("t2");
+    const [ids, preset] = onSnooze.mock.calls[0];
+    expect(ids).toEqual(["t2"]);
     // Saturday's "this weekend" is the next Saturday.
     expect(preset.patch.doDate.toString()).toBe("2026-11-28");
   });
 
   it("Project… picks a project, then offers the estimate and the deadline behind it until Done", async () => {
     const p = props();
-    await render(<InboxView {...p} />);
+    await show(p);
     await openMenu("Look into the pricing thing");
     await press("Project…");
     expect(screen.getByRole("header", { name: "Move this task to a project" })).toBeTruthy();
@@ -118,7 +138,7 @@ describe("<InboxView>", () => {
   });
 
   it("the project picker narrows as it is typed into, and says when nothing matches", async () => {
-    await render(<InboxView {...props()} />);
+    await show(props());
     await openMenu("Look into the pricing thing");
     await press("Project…");
     await fireEvent.changeText(screen.getByLabelText("Project"), "zzz");
@@ -128,7 +148,7 @@ describe("<InboxView>", () => {
 
   it("Estimate… takes a preset or a typed length and closes; a length it cannot read is said, not set", async () => {
     const p = props();
-    await render(<InboxView {...p} />);
+    await show(p);
     await openMenu("Look into the pricing thing");
     await press("Estimate…");
     await fireEvent.changeText(screen.getByLabelText("Length"), "soon");
@@ -144,7 +164,7 @@ describe("<InboxView>", () => {
 
   it("a task with an estimate has it marked, and No estimate clears it", async () => {
     const p = props();
-    await render(<InboxView {...p} />);
+    await show(p);
     await openMenu("Renew the domain");
     await press("Estimate…");
     expect(screen.getByRole("button", { name: "15m, the estimate now" })).toBeTruthy();
@@ -154,7 +174,8 @@ describe("<InboxView>", () => {
 
   it("Deadline… reads a day typed in words; Move to… moves the task to the day chosen", async () => {
     const p = props();
-    await render(<InboxView {...p} />);
+    const onMoveToDay = jest.fn();
+    await show(p, { onMoveToDay });
     await openMenu("Look into the pricing thing");
     await press("Deadline…");
     expect(screen.getByRole("header", { name: "Set deadline" })).toBeTruthy();
@@ -165,16 +186,16 @@ describe("<InboxView>", () => {
 
     await openMenu("Look into the pricing thing");
     await press("Move to…");
-    // The day chips name each day once: on a Saturday "In a week" is "This weekend" already, so it is not said again.
-    expect(screen.queryByRole("button", { name: "In a week" })).toBeNull();
-    await press("Next week");
-    expect((p.onMoveToDay as jest.Mock).mock.calls[0][0].id).toBe("t1");
-    expect((p.onMoveToDay as jest.Mock).mock.calls[0][1].toString()).toBe("2026-11-23");
+    // The row's day picker: the next seven days by name, each with how full it is.
+    expect(screen.getByRole("header", { name: "Move to…" })).toBeTruthy();
+    await press("Mon 23, 45m over");
+    expect(onMoveToDay.mock.calls[0][0]).toBe("t1");
+    expect(onMoveToDay.mock.calls[0][1].toString()).toBe("2026-11-23");
   });
 
   it("a deadline can be picked from the month, and cleared once the task has one", async () => {
-    const p = props({ rows: [{ task: { id: "t3", title: "File the return", estimateMin: 30, carryCount: 0, projectId: null, deadline: localDate("2026-11-25"), doDate: null, doTime: null } as unknown as Task, detail: "added 1d" }] });
-    await render(<InboxView {...p} />);
+    const p = props({ rows: [{ task: { id: "t3", title: "File the return", state: "inbox", priority: 0, estimateMin: 30, carryCount: 0, projectId: null, deadline: localDate("2026-11-25"), doDate: null, doTime: null } as unknown as Task, detail: "added 1d" }] });
+    await show(p);
     await openMenu("File the return");
     await press("Deadline…");
     await press(/30 November/);
@@ -183,6 +204,22 @@ describe("<InboxView>", () => {
     await press("Deadline…");
     await press("Clear");
     expect((p.onDeadline as jest.Mock).mock.calls[1][1]).toBeNull();
+  });
+
+  it("Select shows every row's checkbox with nothing ticked yet, and Done lets go of them and of any ticks", async () => {
+    await show(props());
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    await press("Select");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    expect(screen.queryByLabelText("Bulk edit")).toBeNull();
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Select Renew the domain" }));
+    expect(screen.getByLabelText("Bulk edit")).toBeTruthy();
+    await press("Done");
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByLabelText("Bulk edit")).toBeNull();
+    // A long-press is the other way in; the header then offers Done too.
+    await fireEvent(screen.getByRole("button", { name: "Renew the domain" }), "longPress");
+    expect(screen.getByRole("button", { name: "Done" })).toBeTruthy();
   });
 
   it("an empty Inbox says so, with no Triage all; a queue still being read says neither", async () => {

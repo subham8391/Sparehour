@@ -1,5 +1,6 @@
-// Settings › Calendar as the phone draws it: the accounts with the web's status line, Sync now, Disconnect asked
-// twice, each calendar's switches, and the one calendar the blocks go to. Nothing here leaves for a consent screen.
+// Settings › Calendar as the phone draws it: connecting, the accounts with the web's status line, Sync now or
+// Reconnect, Disconnect asked twice, each calendar's switches, the one calendar the blocks go to, and what Google
+// offers on top (showing blocks, full access), each offered when the web offers it and in its words.
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { CalendarView, type CalendarViewProps } from "./calendar-view";
 import { ACCOUNTS, CALENDARS, CLOCK } from "./settings-fixture";
@@ -9,9 +10,14 @@ jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({
 const props = (over: Partial<CalendarViewProps> = {}): CalendarViewProps => ({
   accounts: ACCOUNTS,
   calendars: CALENDARS,
+  configured: true,
+  outlook: true,
   notice: null,
   busy: false,
   now: CLOCK,
+  onConnect: jest.fn(),
+  onAllowWrite: jest.fn(),
+  onFullAccess: jest.fn(),
   onSyncNow: jest.fn(),
   onDisconnect: jest.fn(),
   onRead: jest.fn(),
@@ -27,12 +33,56 @@ describe("<CalendarView>", () => {
     expect(screen.getByText(/sam@gmail\.com/)).toBeTruthy();
     expect(screen.getByText("Connected · synced 12s ago")).toBeTruthy();
     expect(screen.getByText("Needs reconnecting — your meetings stopped updating.")).toBeTruthy();
-    // Only the working account has Sync now; Reconnect and Connect leave for a consent screen and are not here.
+    // The working account has Sync now; the one that stopped has Reconnect, which leaves for its provider's consent.
     expect(screen.getAllByRole("button", { name: "Sync now" })).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: "Reconnect" })).toBeNull();
-    expect(screen.queryByText(/Connect Google Calendar|Add another/)).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Sync now" }));
     expect(p.onSyncNow).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByRole("button", { name: "Reconnect Outlook sam@contoso.com" }));
+    expect(p.onConnect).toHaveBeenCalledWith("microsoft");
+  });
+
+  it("cannot reconnect an account whose provider this server cannot connect", async () => {
+    await render(<CalendarView {...props({ outlook: false })} />);
+    expect(screen.getByRole("button", { name: "Reconnect Outlook sam@contoso.com" }).props.accessibilityState.disabled).toBe(true);
+  });
+
+  it("adds another account of each provider the server can connect, and waits while the server is still being asked", async () => {
+    const p = props();
+    const view = await render(<CalendarView {...p} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Add another Google account" }));
+    expect(p.onConnect).toHaveBeenLastCalledWith("google");
+    await fireEvent.press(screen.getByRole("button", { name: "Add another Outlook account" }));
+    expect(p.onConnect).toHaveBeenLastCalledWith("microsoft");
+    // Only Google connected, and the server cannot connect Outlook: Outlook is not shown at all.
+    await view.rerender(<CalendarView {...props({ accounts: [ACCOUNTS[0]], calendars: CALENDARS.slice(0, 2), outlook: false })} />);
+    expect(screen.queryByText(/Outlook/)).toBeNull();
+    // Still asking the server: Google's button stays, asleep.
+    await view.rerender(<CalendarView {...props({ accounts: [ACCOUNTS[0]], calendars: CALENDARS.slice(0, 2), configured: null, outlook: false })} />);
+    expect(screen.getByRole("button", { name: "Add another Google account" }).props.accessibilityState.disabled).toBe(true);
+    // Only Outlook can be connected: Google's button would lead nowhere, and the other provider is named in full.
+    await view.rerender(<CalendarView {...props({ accounts: [ACCOUNTS[1]], calendars: [CALENDARS[2]], configured: false })} />);
+    expect(screen.queryByRole("button", { name: /Google/ })).toBeNull();
+    await view.rerender(<CalendarView {...props({ accounts: [ACCOUNTS[1]], calendars: [CALENDARS[2]] })} />);
+    expect(screen.getByRole("button", { name: "Connect Google Calendar" })).toBeTruthy();
+  });
+
+  it("offers to show blocks in Google Calendar while no account writes, and full access while Google reads busy times only", async () => {
+    const busyOnly = { ...ACCOUNTS[0], canWrite: false, titles: false, writesOwn: false };
+    const p = props({ accounts: [busyOnly], calendars: CALENDARS.slice(0, 2) });
+    const view = await render(<CalendarView {...p} />);
+    expect(screen.getByText("Adds a calendar called Sparehour to your Google Calendar. Your blocks go there and nowhere else.")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Show blocks in Google Calendar" }));
+    expect(p.onAllowWrite).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Meeting titles and your main calendar")).toBeTruthy();
+    expect(screen.getByText("Sparehour reads only when you’re busy, and keeps blocks in its own calendar, so colleagues don’t see them. Full access adds meeting titles, and lets blocks go on your main calendar.")).toBeTruthy();
+    // Google's warning screen is named before the person meets it.
+    expect(screen.getByText("Google will say it hasn’t verified Sparehour yet. Choose Advanced, then Go to Sparehour.")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Turn on full access" }));
+    expect(p.onFullAccess).toHaveBeenCalledTimes(1);
+    // With full access already on, neither is offered.
+    await view.rerender(<CalendarView {...props()} />);
+    expect(screen.queryByRole("button", { name: "Show blocks in Google Calendar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Turn on full access" })).toBeNull();
   });
 
   it("asks before disconnecting, saying what stays, and Keep steps back", async () => {
@@ -82,10 +132,28 @@ describe("<CalendarView>", () => {
     expect(p.onWriteTarget).toHaveBeenCalledWith(null);
   });
 
-  it("says what a connection does when none is made, and repeats what the last action came to", async () => {
-    await render(<CalendarView {...props({ accounts: [], calendars: [], notice: "Disconnected. Your blocks stay, unsynced." })} />);
-    expect(screen.getByText("No calendar connected.")).toBeTruthy();
+  it("with nothing connected, makes the promise and connects Google or Outlook, and repeats what the last action came to", async () => {
+    const p = props({ accounts: [], calendars: [], notice: "Disconnected. Your blocks stay, unsynced." });
+    await render(<CalendarView {...p} />);
+    expect(screen.getByText("Connect your calendar.")).toBeTruthy();
+    expect(screen.getByText("We read all your calendars — just the times you're busy, so the spare-hours number is real.")).toBeTruthy();
+    expect(screen.getByText("We write to one calendar only: the one you pick here. Your time blocks go there and nowhere else.")).toBeTruthy();
+    expect(screen.getByText("From Outlook we keep only the times you're busy. Sparehour can't put blocks in Outlook yet.")).toBeTruthy();
     expect(screen.getByText("Disconnected. Your blocks stay, unsynced.")).toBeTruthy();
-    expect(screen.queryByRole("button")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Connect Google Calendar" }));
+    expect(p.onConnect).toHaveBeenLastCalledWith("google");
+    await fireEvent.press(screen.getByRole("button", { name: "Connect Outlook" }));
+    expect(p.onConnect).toHaveBeenLastCalledWith("microsoft");
+  });
+
+  it("with nothing connected and a server that cannot connect anything, says so", async () => {
+    const view = await render(<CalendarView {...props({ accounts: [], calendars: [], configured: false, outlook: false })} />);
+    expect(screen.getByRole("button", { name: "Connect Google Calendar" }).props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByText("Google Calendar isn’t set up on this server yet.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Connect Outlook" })).toBeNull();
+    // While a consent is on its way nothing else can be started.
+    await view.rerender(<CalendarView {...props({ accounts: [], calendars: [], busy: true })} />);
+    expect(screen.getByRole("button", { name: "Connect Google Calendar" }).props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Connect Outlook" }).props.accessibilityState.disabled).toBe(true);
   });
 });

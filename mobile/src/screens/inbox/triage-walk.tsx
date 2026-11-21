@@ -14,6 +14,7 @@ import { useNow } from "@/features/shell/use-local-day";
 import { useMoveProjects } from "@/features/tasks/use-move-projects";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { notePlain } from "@/ui/markdown-plain";
+import { useReduceMotion } from "~/ui/motion";
 import { TriageSheet } from "./triage-sheet";
 import { TriageWalkView } from "./triage-walk-view";
 
@@ -31,8 +32,9 @@ const WALK_FIELDS = ALL_ACTIONS.filter((a): a is TriageField => !CHOICES.has(a))
 
 /** The walk over `ids`, in order; closed while `ids` is null. */
 export function TriageWalk({ ids, onClose }: { ids: readonly string[] | null; onClose: () => void }) {
+  const calm = useReduceMotion();
   return (
-    <Modal visible={ids !== null} animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={ids !== null} animationType={calm ? "none" : "slide"} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       {ids ? <Walk ids={ids} onClose={onClose} /> : null}
     </Modal>
   );

@@ -62,7 +62,7 @@ vi.mock("@/server/calendar/run", () => ({ buildDeps: () => ({ store }), syncAcco
 vi.mock("@/server/calendar/google", async (orig) => ({ ...(await orig<typeof import("@/server/calendar/google")>()), exchangeCode, revokeToken }));
 vi.mock("@/server/calendar/microsoft", async (orig) => ({ ...(await orig<typeof import("@/server/calendar/microsoft")>()), exchangeCode: exchangeMicrosoftCode }));
 
-import { GET as config } from "./config/route";
+import { GET as configRoute } from "./config/route";
 import { POST as disconnect } from "./disconnect/route";
 import { GET as callback } from "./google/callback/route";
 import { GET as start } from "./google/start/route";
@@ -91,6 +91,8 @@ describe("calendar routes", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("config says which calendars this server can connect, to signed-in people only", async () => {
+    // The route takes its caller from the request (the browser's cookie here; the phone app sends a bearer token).
+    const config = () => configRoute(req("/api/calendar/config"));
     expect(await (await config()).json()).toEqual({ google: true, microsoft: false });
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", "");
     expect(await (await config()).json()).toEqual({ google: false, microsoft: false });

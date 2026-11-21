@@ -5,7 +5,8 @@ import { instant, localDate } from "@/core/time";
 import type { Heading, Project, Task } from "@/core/types";
 import type { HeadingGroup } from "@/features/projects/organise";
 import { projectActions } from "@/features/projects/page-rules";
-import { snoozePresets } from "@/features/tasks/snooze";
+import { PreviewRows } from "~/screens/rows/preview-rows";
+import type { RowsWiring } from "~/screens/rows/rows-frame";
 import { ProjectMissingView, ProjectView, type ProjectViewProps } from "./project-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -46,7 +47,6 @@ const props = (over: Partial<ProjectViewProps> = {}): ProjectViewProps => ({
     { id: "a1", name: "Work" },
     { id: "a2", name: "Home" },
   ],
-  presets: snoozePresets(NOW, "Europe/London", TODAY),
   onRename: jest.fn(),
   onNotes: jest.fn(),
   onDeadline: jest.fn(),
@@ -59,8 +59,7 @@ const props = (over: Partial<ProjectViewProps> = {}): ProjectViewProps => ({
   onMoveTask: jest.fn(),
   onTaskHeading: jest.fn(),
   onToday: jest.fn(),
-  onSnooze: jest.fn(),
-  onSomeday: jest.fn(),
+  onTomorrow: jest.fn(),
   onAddHeading: jest.fn(),
   onRenameHeading: jest.fn(),
   onMoveHeading: jest.fn(),
@@ -129,6 +128,9 @@ describe("<ProjectView>: the card at the top", () => {
     expect(screen.getByText("Scope")).toBeTruthy();
     expect(screen.queryByLabelText("Project notes")).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Notes" }));
+    // Open, the note is drawn as Markdown: the heading's words, the bold word without its marks.
+    expect(screen.getByText("old")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Project notes" }));
     const notes = screen.getByLabelText("Project notes");
     expect(notes.props.value).toBe("## Scope\n\nKeep the **old** URLs.");
     await fireEvent.changeText(notes, "Launch before the holidays.  ");
@@ -140,9 +142,11 @@ describe("<ProjectView>: the card at the top", () => {
     const p = props({ project: project({ notes: "Scope" }) });
     await render(<ProjectView {...p} />);
     await fireEvent.press(screen.getByRole("button", { name: "Notes" }));
-    const notes = screen.getByLabelText("Project notes");
-    await fireEvent(notes, "blur");
+    await fireEvent.press(screen.getByRole("button", { name: "Project notes" }));
+    await fireEvent(screen.getByLabelText("Project notes"), "blur");
     expect(p.onNotes).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Project notes" }));
+    const notes = screen.getByLabelText("Project notes");
     await fireEvent.changeText(notes, "  ");
     await fireEvent(notes, "blur");
     expect(p.onNotes).toHaveBeenCalledWith(null);
@@ -217,10 +221,18 @@ describe("<ProjectView>: tasks under their headings", () => {
   });
 });
 
+/** The view inside its screen's frame, as project.tsx draws it: a row's ⋯ is the frame's menu. */
+const show = (p: ProjectViewProps, wiring: Partial<RowsWiring> = {}) =>
+  render(
+    <PreviewRows today={TODAY} wiring={wiring}>
+      <ProjectView {...p} />
+    </PreviewRows>,
+  );
+
 describe("<ProjectView>: a row's ⋯", () => {
   it("moves a task one place inside its section, only the ways it can go", async () => {
     const p = props();
-    await render(<ProjectView {...p} />);
+    await show(p);
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Component pass" }));
     // First under Build: it can only go down.
     expect(screen.queryByRole("button", { name: "Move up" })).toBeNull();
@@ -234,7 +246,7 @@ describe("<ProjectView>: a row's ⋯", () => {
 
   it("moves a task under another heading, or out of its own", async () => {
     const p = props();
-    await render(<ProjectView {...p} />);
+    await show(p);
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Component pass" }));
     expect(screen.queryByRole("button", { name: "Move to Build" })).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Move to Research" }));
@@ -250,13 +262,14 @@ describe("<ProjectView>: a row's ⋯", () => {
 
   it("completes, snoozes with the shared presets, and parks", async () => {
     const p = props();
-    await render(<ProjectView {...p} />);
+    const wiring = { onSnooze: jest.fn(), onSomeday: jest.fn() };
+    await show(p, wiring);
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Agree the scope" }));
     await fireEvent.press(screen.getByRole("button", { name: "This weekend" }));
-    expect(p.onSnooze).toHaveBeenCalledWith(expect.objectContaining({ id: "t1" }), expect.objectContaining({ id: "weekend" }));
+    expect(wiring.onSnooze).toHaveBeenCalledWith(["t1"], expect.objectContaining({ id: "weekend" }));
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Agree the scope" }));
     await fireEvent.press(screen.getByRole("button", { name: "Someday" }));
-    expect(p.onSomeday).toHaveBeenCalledWith(expect.objectContaining({ id: "t1" }));
+    expect(wiring.onSomeday).toHaveBeenCalledWith("t1");
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Agree the scope" }));
     await fireEvent.press(screen.getByRole("button", { name: "Complete" }));
     expect(p.onComplete).toHaveBeenCalledWith(expect.objectContaining({ id: "t1" }));
@@ -264,9 +277,9 @@ describe("<ProjectView>: a row's ⋯", () => {
     expect(screen.queryByRole("button", { name: "This weekend" })).toBeNull();
   });
 
-  it("the parked tasks are folded away at the bottom; one comes back onto today from its ⋯", async () => {
+  it("the parked tasks are folded away at the bottom; one comes back onto today or tomorrow from its ⋯", async () => {
     const p = props();
-    await render(<ProjectView {...p} />);
+    await show(p);
     expect(screen.queryByRole("button", { name: "Dark mode" })).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Someday in this project, 1" }));
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Dark mode" }));
@@ -275,6 +288,9 @@ describe("<ProjectView>: a row's ⋯", () => {
     expect(screen.queryByRole("button", { name: "Move to Research" })).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Today" }));
     expect(p.onToday).toHaveBeenCalledWith(expect.objectContaining({ id: "s1" }));
+    // The row's own Tomorrow steps aside for the menu's preset of that name, which is said once.
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Dark mode" }));
+    expect(screen.getAllByRole("button", { name: "Tomorrow" })).toHaveLength(1);
   });
 });
 

@@ -10,6 +10,12 @@ describe("fetchSignInProviders", () => {
     expect(await fetchSignInProviders(off as unknown as typeof fetch)).toEqual({ google: false });
   });
 
+  it("asks the server it is handed, with that server's key (the Android app's two values)", async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ external: { google: true } }), { status: 200 }));
+    expect(await fetchSignInProviders(fetchImpl as unknown as typeof fetch, { url: "https://auth.example", anonKey: "anon-key" })).toEqual({ google: true });
+    expect(fetchImpl).toHaveBeenCalledWith("https://auth.example/auth/v1/settings", { headers: { apikey: "anon-key" } });
+  });
+
   it("treats an unreachable or failing server as email-only", async () => {
     expect(await fetchSignInProviders(vi.fn(async () => new Response("nope", { status: 500 })) as unknown as typeof fetch)).toEqual({ google: false });
     expect(await fetchSignInProviders(vi.fn(async () => Promise.reject(new Error("offline"))) as unknown as typeof fetch)).toEqual({ google: false });

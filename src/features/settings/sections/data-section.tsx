@@ -6,7 +6,7 @@ import { ArchivePanel } from "@/features/archive/archive-panel";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { ERROR, HINT, LABEL, NOTE, ROW } from "../rows";
-import { EXPORT_FORMATS as FORMATS, EXPORT_HINT } from "../section-words";
+import { EXPORT_FORMATS as FORMATS, EXPORT_HINT, EXPORT_NOTE } from "../section-words";
 import { Section } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
 
@@ -30,7 +30,7 @@ export function DataSection(p: SettingsFormProps) {
               ))}
             </span>
           </div>
-          <p className={NOTE}>JSON is complete and re-importable. Markdown is one file per project, zipped. CSV is the flat task table.</p>
+          <p className={NOTE}>{EXPORT_NOTE}</p>
           {data.lastFile && (
             <p role="status" className={HINT}>
               Saved {data.lastFile}

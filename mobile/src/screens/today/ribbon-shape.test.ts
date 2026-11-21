@@ -1,7 +1,7 @@
 // The ribbon by the hour: every position is the web's own day geometry and every label the web's own rule; these
 // check the shares a phone draws with, on the made-up day (today-fixture.ts: nine to six, 13:20).
 import { NOW_MIN, todayFixture } from "./today-fixture";
-import { labelsFor, ribbonShape } from "./ribbon-shape";
+import { labelsFor, minuteAtTouch, ribbonBreakdown, ribbonShape } from "./ribbon-shape";
 
 const share = (hhmm: string) => ((Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)) - 540) / 540) * 100;
 
@@ -56,5 +56,49 @@ describe("ribbonShape", () => {
 
   it("has nothing to draw on a day without working hours", () => {
     expect(ribbonShape(todayFixture({ state: "off" }).capacity)).toBeNull();
+  });
+});
+
+describe("the breakdown a tap on the ribbon opens", () => {
+  const f = todayFixture();
+  const options = { bufferPct: 15, connected: true, meetings: f.meetings, blocks: f.blocks };
+
+  it("finds the minute under a touch along the drawn day", () => {
+    // Nine to six on a ribbon 270 points wide: half a point a minute.
+    expect(minuteAtTouch(f.capacity, 0, 270)).toBe(540);
+    expect(minuteAtTouch(f.capacity, 135, 270)).toBe(810);
+    expect(minuteAtTouch(f.capacity, 270, 270)).toBe(1080);
+    // Before the ribbon has been laid out there is no minute to name.
+    expect(minuteAtTouch(f.capacity, 10, 0)).toBeNull();
+  });
+
+  it("names what was touched as the web names it: free time, a meeting by its title, blocks", () => {
+    const b = ribbonBreakdown(f.capacity, options)!;
+    expect(b.at(10, 270)).toMatchObject({ kind: "free", start: 540, end: 600, name: "Free" });
+    expect(b.at(45, 270)).toMatchObject({ kind: "meeting", name: "Design review" });
+    expect(b.at(100, 270)).toMatchObject({ kind: "block", name: "2 blocks" });
+    expect(b.at(220, 270)).toMatchObject({ kind: "block", name: "Call the bank" });
+  });
+
+  it("says the equation a term a line, with the sentence a screen reader hears", () => {
+    const b = ribbonBreakdown(f.capacity, options)!;
+    expect(b.terms).toEqual(["9h working", "1h 30m in meetings", "1h 20m buffer (15% of your working day)", "3h 20m planned"]);
+    expect(b.result).toBe("2h 50m spare");
+    expect(b.sentence).toBe("9h working − 1h 30m in meetings − 1h 20m buffer (15% of your working day) − 3h 20m planned = 2h 50m spare");
+    // Without a calendar the meetings are left out: they cannot be known.
+    expect(ribbonBreakdown(f.capacity, { ...options, connected: false })!.terms).not.toContain("1h 30m in meetings");
+  });
+
+  it("a touch on the over-tail, past the day's far edge, is the overrun", () => {
+    const over = todayFixture({ state: "over" });
+    const b = ribbonBreakdown(over.capacity, { ...options, meetings: over.meetings, blocks: over.blocks })!;
+    expect(b.result).toBe("1h 25m over");
+    expect(b.at(299, 300)).toMatchObject({ kind: "over", name: "1h 25m more than fits" });
+    // The day itself is drawn up to the tail, so its last free stretch ends before it.
+    expect(b.at(230, 300)).toMatchObject({ kind: "free" });
+  });
+
+  it("is nothing on a day without working hours", () => {
+    expect(ribbonBreakdown(todayFixture({ state: "off" }).capacity, options)).toBeNull();
   });
 });

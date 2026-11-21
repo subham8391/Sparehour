@@ -16,22 +16,17 @@ import { WORK_HOURS_SQL } from "@/data/queries/today";
 import { SettingsRepo, WorkHoursRepo } from "@/data/repositories/settings-repo";
 import type { WorkHoursRow } from "@/data/schema.client";
 import { usePwaOptional } from "@/features/pwa/pwa-provider";
-import { canonicalZone, segmentsLabel } from "@/features/settings/settings-rules";
+import { canonicalZone } from "@/features/settings/settings-rules";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { valueEntry } from "@/features/undo/value-entry";
-import type { CalendarOutcome } from "@/features/welcome/calendar-step";
+import { CONFIG_WAIT_MS, CONNECTIONS_SQL, NONE, SETTINGS_ROW_SQL, USER_SQL, calendarSettled as calendarIsSettled, refusalOf, writeHours, type Connectable, type HoursChoice } from "@/features/welcome/first-run-data";
 import { HoursStep } from "@/features/welcome/hours-step";
 import { calendarAnsweredHere, forgetFirstRun, hoursConfirmedHere, rememberCalendarAnswered, rememberHoursConfirmed } from "@/features/welcome/step-memory";
 import { detectedZone, weekFromRows, type Segment } from "@/features/welcome/welcome-rules";
+import { HOURS_WORDS, OPENING, couldNotFinish, couldNotSaveHours } from "@/features/welcome/welcome-words";
 import { LOADING_LINE, Loading } from "../loading-view";
-
-const SETTINGS_ROW_SQL = `select id, onboarded_at, timezone from user_settings limit 1`;
-const USER_SQL = `select id, personal_space_id from users limit 1`;
-const CONNECTIONS_SQL = `select count(*) as n from calendar_connections where deleted_at is null`;
-/** How long the calendar step waits to learn which calendars this server can connect before it steps aside. */
-const CONFIG_WAIT_MS = 4000;
 
 /** What the consent came back with, read once from `?calendar=…&reason=…` (api/calendar/{google,microsoft}/callback). */
 function returnedFromConsent(): { outcome: string | null; reason: string | null } {
@@ -39,12 +34,6 @@ function returnedFromConsent(): { outcome: string | null; reason: string | null 
   const q = new URLSearchParams(window.location.search);
   return { outcome: q.get("calendar"), reason: q.get("reason") };
 }
-
-interface Connectable {
-  google: boolean;
-  microsoft: boolean;
-}
-const NONE: Connectable = { google: false, microsoft: false };
 
 /** Which calendars this server can connect: null until it answers; no answer in time reads as none. */
 function useConnectable(): Connectable | null {
@@ -78,10 +67,8 @@ const CalendarStep = dynamic(() => loadCalendarStep().then((m) => m.CalendarStep
 const loadBrainDump = () => import("@/features/welcome/brain-dump");
 const BrainDump = dynamic(() => loadBrainDump().then((m) => m.BrainDump), {
   ssr: false,
-  loading: () => <p className={LOADING_LINE}>Opening…</p>,
+  loading: () => <p className={LOADING_LINE}>{OPENING}</p>,
 });
-
-const reason = (e: unknown) => (e instanceof Error && e.message ? e.message : "try again.");
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -132,28 +119,24 @@ export default function WelcomePage() {
   const hoursDone = confirmed || hoursConfirmedHere(user.id);
   // The calendar is settled once it is connected (the row has synced, or the consent just said so), the person
   // skipped it, or this server cannot connect one at all.
-  const connected = Number(connectionRows?.[0]?.n ?? 0) > 0 || returned.outcome === "connected";
-  const calendarSettled = calendarAnswered || calendarAnsweredHere(user.id) || connected || returned.outcome === "unavailable" || (can !== null && !offered);
-  const refused: CalendarOutcome | null = returned.outcome === "denied" || returned.outcome === "error" || returned.outcome === "no_read" ? returned.outcome : null;
+  const calendarSettled = calendarIsSettled({ answered: calendarAnswered || calendarAnsweredHere(user.id), connections: Number(connectionRows?.[0]?.n ?? 0), outcome: returned.outcome, can });
+  const refused = refusalOf(returned.outcome);
 
   // "That's right": the zone the times are in and the week as shown, written only where they differ from what is
   // saved; one ⌘Z puts both back.
   const confirmHours = async (week: Segment[][], zone: string) => {
     const ctx = { spaceId, userId: user.id };
-    const before = { zone: row.timezone ?? "UTC", week: saved };
-    const write = async (z: string, w: readonly (readonly Segment[])[], from: { zone: string; week: readonly (readonly Segment[])[] }) => {
-      if (z !== from.zone) await settingsRepo.update(row.id, { timezone: z });
-      for (let d = 0; d < 7; d++) if (segmentsLabel(w[d]) !== segmentsLabel(from.week[d])) await hoursRepo.replaceDay(d, w[d], ctx);
-    };
+    const before: HoursChoice = { zone: row.timezone ?? "UTC", week: saved };
+    const write = (to: HoursChoice, from: HoursChoice) => writeHours({ settings: settingsRepo, hours: hoursRepo }, row.id, ctx, to, from);
     setBusy(true);
     setFailure(null);
     try {
-      await write(zone, week, before);
-      undo?.record(valueEntry("Set your working hours", (to: typeof before, from: typeof before) => write(to.zone, to.week, from), before, { zone, week }));
+      await write({ zone, week }, before);
+      undo?.record(valueEntry(HOURS_WORDS.undo, write, before, { zone, week }));
       rememberHoursConfirmed(user.id);
       setConfirmed(true);
     } catch (e) {
-      setFailure(`Couldn't save your hours: ${reason(e)}`);
+      setFailure(couldNotSaveHours(e));
     } finally {
       setBusy(false);
     }
@@ -170,7 +153,7 @@ export default function WelcomePage() {
       pwa?.requestPersist();
       router.replace("/today");
     } catch (e) {
-      setFailure(`Couldn't finish: ${reason(e)}`);
+      setFailure(couldNotFinish(e));
       setBusy(false);
     }
   };

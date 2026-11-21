@@ -46,6 +46,10 @@ export interface SettingsValues {
   showCompleted: boolean;
 }
 
+/** What the undo history calls a changed setting, and a changed day of working hours (silent entries: the inline Saved confirms them). */
+export const SETTING_CHANGED = "Changed a setting";
+export const HOURS_CHANGED = "Changed working hours";
+
 /** Who is signed in, for Settings › Account and the writes that need the person's space. */
 export const USER_SQL = `select id, email, display_name, avatar_url, personal_space_id from users limit 1`;
 

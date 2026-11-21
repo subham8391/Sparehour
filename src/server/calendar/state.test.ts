@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { pkceFor, signState, verifyState } from "./state";
+import { pkceFor, signState, startedInApp, verifyState } from "./state";
 
 describe("OAuth state", () => {
   const secret = "a-secret-that-is-long-enough-for-hmac";
@@ -34,6 +34,35 @@ describe("OAuth state", () => {
     expect(verifyState(token, secret, 1_999_999_000)).toEqual(outlook);
     const relabelled = `${Buffer.from(JSON.stringify({ ...state, provider: "microsoft" })).toString("base64url")}.${signState(state, secret).split(".")[1]}`;
     expect(verifyState(relabelled, secret, 1_999_999_000)).toBeNull();
+  });
+
+  it("carries the phone app's mark under the signature, so nobody can add it or take it off", () => {
+    const fromApp = { ...state, provider: "google" as const, app: true as const };
+    const token = signState(fromApp, secret);
+    expect(verifyState(token, secret, 1_999_999_000)).toEqual(fromApp);
+    const added = `${Buffer.from(JSON.stringify({ ...state, app: true })).toString("base64url")}.${signState(state, secret).split(".")[1]}`;
+    expect(verifyState(added, secret, 1_999_999_000)).toBeNull();
+    const removed = `${Buffer.from(JSON.stringify(state)).toString("base64url")}.${token.split(".")[1]}`;
+    expect(verifyState(removed, secret, 1_999_999_000)).toBeNull();
+  });
+
+  it("startedInApp is true only for a state we signed with the mark, expired or not, and gives nothing else away", () => {
+    const fromApp = signState({ ...state, app: true }, secret);
+    expect(startedInApp(fromApp, secret)).toBe(true);
+    // Expired: still known to be the app's, and still not a state anything acts on.
+    const old = signState({ ...state, exp: 1, app: true }, secret);
+    expect(startedInApp(old, secret)).toBe(true);
+    expect(verifyState(old, secret)).toBeNull();
+    // The web's state, a mark nobody signed, another secret, rubbish.
+    expect(startedInApp(signState(state, secret), secret)).toBe(false);
+    expect(startedInApp(signState({ ...state, app: "yes" as unknown as true }, secret), secret)).toBe(false);
+    const added = `${Buffer.from(JSON.stringify({ ...state, app: true })).toString("base64url")}.${signState(state, secret).split(".")[1]}`;
+    expect(startedInApp(added, secret)).toBe(false);
+    expect(startedInApp(fromApp, "another-secret")).toBe(false);
+    expect(startedInApp(`${fromApp}x`, secret)).toBe(false);
+    expect(startedInApp("not.a.state", secret)).toBe(false);
+    expect(startedInApp(null, secret)).toBe(false);
+    expect(startedInApp(undefined, secret)).toBe(false);
   });
 });
 

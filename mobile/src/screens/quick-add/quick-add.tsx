@@ -5,8 +5,11 @@
 // web app's own code, used as it is: the lists it suggests from (the web's statements), what tasks like this usually
 // take (core/estimates over the answer the device keeps), the save (features/quickadd/save-submission.ts: the
 // space, the project found or made by ProjectRepo, the task and its tags by TaskRepo, which records the undo the
-// app's one toast offers), and the undo of a discard. The drawing is quick-add-view.tsx.
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+// app's one toast offers), a pasted list's one undo (features/quickadd/paste-undo.ts) and the undo of a discard. The
+// drawing is quick-add-view.tsx. Two ways in come from outside the app and reach it through ask.ts: the icon's "Add a
+// task" shortcut, which opens the sheet empty over Today as the web's `/today?quickadd=1` does, and what another app
+// shared, which opens it holding those words over the Inbox as the web's `/share` does (share/native-intent.ts).
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { suggestEstimate } from "@/core/estimates";
 import type { TaskDraft } from "@/core/quickadd";
 import type { LocalDate } from "@/core/time";
@@ -17,11 +20,13 @@ import { TAGS_SQL } from "@/data/queries/views";
 import { ProjectRepo } from "@/data/repositories/project-repo";
 import { useLearned } from "@/features/estimates/use-learned";
 import type { QuickAddSubmission } from "@/features/quickadd/file-line";
+import { recordPaste } from "@/features/quickadd/paste-undo";
 import { SPACE_SQL, saveSubmission } from "@/features/quickadd/save-submission";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useUndoSink } from "@/features/undo/undo-context";
 import { apiFetch } from "~/api";
+import { onQuickAddAsk, takeQuickAddAsk } from "./ask";
 import { DayLine } from "./day-line";
 import { QuickAddView } from "./quick-add-view";
 import type { SavedHere } from "./use-composer";
@@ -63,6 +68,15 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
   /** A fresh sheet holding exactly `text`, in the same place: what an Undo of a discard brings back. */
   const reopen = useCallback((text: string) => setState((s) => ({ open: true, key: s.key + 1, here: { ...s.here, text } })), []);
+  // The shortcut and a share ask from outside any screen, perhaps before this was up (ask.ts): each is answered once.
+  useEffect(() => {
+    const answer = () => {
+      const ask = takeQuickAddAsk();
+      if (ask) open(ask.text ? { text: ask.text } : {});
+    };
+    answer();
+    return onQuickAddAsk(answer);
+  }, [open]);
   const api = useMemo(() => ({ open }), [open]);
   return (
     <QuickAddContext.Provider value={api}>
@@ -105,6 +119,10 @@ function QuickAddSheet({ open, here, onClose, onReopen }: { open: boolean; here:
     [db, tasks, spaceId, here.headingId],
   );
 
+  // A paste is one undo entry for all its tasks (PRODUCT_SPEC.md §5.1 rule 6): the sheet's own Undo and the app's
+  // toast run the same take-back, once, whichever comes first.
+  const onPasted = useCallback((ids: readonly string[]) => recordPaste(tasks, undo, ids), [tasks, undo]);
+
   // Closing with words in the box discards them with a one-step undo (PRODUCT_SPEC.md §5.1 rule 4): the toast
   // reopens the sheet holding them, and a redo discards them again.
   const onDiscard = useCallback(
@@ -132,6 +150,7 @@ function QuickAddSheet({ open, here, onClose, onReopen }: { open: boolean; here:
       here={{ day: here.day ?? null, projectId: here.projectId ?? null, area }}
       onClose={onClose}
       onSubmit={onSubmit}
+      onPasted={onPasted}
       onDiscard={onDiscard}
       dayLine={dayLine}
       usual={usual}

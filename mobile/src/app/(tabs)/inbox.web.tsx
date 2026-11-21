@@ -9,10 +9,11 @@ import type { DayPart } from "@/features/looks/look";
 import type { InboxRow } from "~/screens/inbox/inbox-rows";
 import { InboxView } from "~/screens/inbox/inbox-view";
 import { TriageWalkView } from "~/screens/inbox/triage-walk-view";
-import { Icon } from "~/ui/icon";
+import { PreviewRows } from "~/screens/rows/preview-rows";
+import { Fab } from "~/ui/fab";
 import { colours, type Scheme } from "~/ui/theme";
 
-const row = (id: string, title: string, detail: string, estimateMin: number | null = null): InboxRow => ({ task: { id, title, estimateMin, carryCount: 0, projectId: null, deadline: null, doDate: null, doTime: null } as unknown as Task, detail });
+const row = (id: string, title: string, detail: string, estimateMin: number | null = null): InboxRow => ({ task: { id, title, estimateMin, state: "inbox", carryCount: 0, projectId: null, deadline: null, doDate: null, doTime: null, tagIds: [] } as unknown as Task, detail });
 const ROWS: InboxRow[] = [
   row("i1", "Look into the pricing thing", "added today"),
   row("i2", "Renew the domain before it lapses", "added 2d", 15),
@@ -58,7 +59,7 @@ export default function Preview() {
     );
   }
   return (
-    <View style={{ flex: 1 }}>
+    <PreviewRows>
       <InboxView
         part={part}
         rows={q.state === "empty" ? [] : ROWS}
@@ -69,17 +70,13 @@ export default function Preview() {
         choices={CHOICES}
         onComplete={nothing}
         onTriage={nothing}
-        onSnooze={nothing}
-        onMoveToDay={nothing}
         onProject={nothing}
         onEstimate={nothing}
         onDeadline={nothing}
         onTriageAll={nothing}
         bottomRoom={88}
       />
-      <View style={{ position: "absolute", right: 20, bottom: 20, width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: c.ink }}>
-        <Icon name="plus" size={26} color={c.paper} strokeWidth={2} />
-      </View>
-    </View>
+      <Fab label="Add to Inbox" onPress={() => undefined} />
+    </PreviewRows>
   );
 }

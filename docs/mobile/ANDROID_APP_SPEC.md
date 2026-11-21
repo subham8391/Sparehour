@@ -1,6 +1,6 @@
 # Sparehour for Android: the spec
 
-Status: step 1 of §10 ran on a phone; step 2 has begun (see "Where it stands" in §10).
+Status: everything the web has on a phone is built; reminders wait on a Firebase project (see "Where it stands" in §10).
 Decided 2026-11-21 (DECISIONS.md, amendment of that date, "a real Android app"). This file is the plan; DECISIONS.md stays the record of what was ruled.
 
 ## 1. What is being built, and why
@@ -94,7 +94,7 @@ Each screen added to the phone will find more of these. Expect one small split p
 
 ## 6. Sign-in, and what the server had to learn
 
-On the phone a person signs in with Supabase Auth directly: the emailed six-digit code now, native Google sign-in in step 3. The session is kept on the phone and refreshed while the app is in front.
+On the phone a person signs in with Supabase Auth directly: the emailed six-digit code, or Google through the system browser with PKCE (`mobile/src/auth/google-sign-in.ts`; shown only when the auth server reports Google on, by the web's own rule). Google comes back on `sparehour://auth/callback`, which must be on the auth server's redirect allow-list (locally in `supabase/config.toml`; on the hosted project a dashboard step). The session is kept on the phone and refreshed while the app is in front.
 
 The server knew its caller only by the browser's cookie. The phone has no cookie, so it sends the session's access token as `Authorization: Bearer …`. `src/server/auth/request-user.ts` (`requestUser`) answers "who is calling" for both, and the handler runs the same checks and the same writes under RLS:
 
@@ -102,9 +102,11 @@ The server knew its caller only by the browser's cookie. The phone has no cookie
 - The token is asked of the auth server each time, so a signed-out or revoked session stops at once.
 - A **connected app's** token (it carries a `client_id` claim; the MCP connection) is refused here. It belongs to `/api/mcp` and its consent, and must not open the sync stream or the upload route.
 
-Routes that use it so far: `/api/sync/token`, `/api/sync/upload`. Every other route the phone needs gets the same one-line change when its screen is built (§10): `/api/bootstrap`, `/api/estimates/learned`, `/api/logbook/older`, `/api/calendar/*`, `/api/account/*`, `/api/connections`.
+Every route the phone calls takes its caller this way: the sync token and upload, the logbook's older pages and their delete, the calendar's config, sync, push and disconnect, connected apps (`server/auth/oauth-grants.ts` asks the auth server as the token's person), account and data deletion, and the learned estimates.
 
-Not done yet: phone reminders. The server sends web push (VAPID) today; the phone needs Android's push service (Firebase), which is a second sender beside the first (step 5).
+**Connecting a calendar from the phone** (no cookie to prove who is in the consenting browser): `POST /api/calendar/<provider>/app-start` (bearer) answers the provider's consent address with a state marked "from the app"; the provider's callback, seeing that mark, exchanges and saves nothing and sends the browser to `sparehour://calendar-connected?ticket=…`, the code and state sealed with a key derived from `CALENDAR_TOKEN_KEY` (`server/calendar/ticket.ts`); `POST /api/calendar/<provider>/app-finish` (bearer) unseals it and saves the account only when the state's person is the caller, through the same `server/calendar/connect.ts` the web's callback uses. The phone side is `mobile/src/calendar/connect.ts` (`useCalendarConnect`). A known limit: someone who starts a connect with their own account and gets another person to approve it, while a hostile app on that person's phone has claimed the `sparehour` scheme, could finish it. Verified Android App Links (an `https` return address with `/.well-known/assetlinks.json`) close that; they need the app's signing fingerprint from Expo.
+
+Not done yet: phone reminders. The server sends web push (VAPID) today; the phone needs Android's push service (Firebase), which is a second sender beside the first; it needs a Firebase project of the user's.
 
 ## 7. Configuration
 
@@ -161,10 +163,13 @@ Each step ends with tests and a push. A step is done when its "done when" is tru
 | 7 | **Share to Sparehour, app shortcuts, the APK download link.** | Someone else installs it from the link. |
 | 8 | **The Play Store.** | Listed. |
 
-Where it stands (2026-11-21, evening):
+Where it stands (2026-11-22):
 
-- **Step 1 ran on the user's phone.** The first cloud build (Expo's build service, project `@subhamdas23/sparehour`) installed, signed in by emailed code and synced: Today showed the right day and "No working hours today" for a Saturday. Adding a task and seeing it on the web, and opening offline, have not been reported yet.
-- **Step 2 has begun.** Today is drawn as the web's phone Today is: the sky by the hour, the day, the hero card with the spare-time figure and the day in its parts, Carried over / Today / This evening as cards, a ring that completes (with Undo), the + button and its sheet (the shared quick-add parser), and the tab bar. Inbox, Week and Browse say plainly that they are not built yet. Sparehour's own icon and splash are in. Still to do in step 2: the Day timeline and blocks, swipes and row menus, the task detail, and the looks other than Sky.
+- **Step 1 ran on the user's phone** (sign-in by emailed code and sync, from an Expo build).
+- **Everything the web has on a phone is built**, in three groups of screens (`ba0ff22`, `0412d64`, and the group after): the four tabs; the task detail, project and area pages, quick add (coloured tokens, pasted lists, learned estimates), search with its filters in the address; the shared task row everywhere (⋯ menu, swipes, long-press selection and the bulk bar, the "took" chips); Today in full (the ribbon and its breakdown, the sticky hero, the Day timeline with blocks, carried asks); the morning plan, Plan my day, the shutdown, the carried-over review (opening itself once a day), Clear the slate; the first run and the start gate ("Open to" honoured); every Settings section but the web's own App; all 27 looks from the web's stylesheets (`mobile/scripts/build-looks.mjs`), following the account, with the status bar and bottom strip following the look; notes drawn as Markdown; Share to Sparehour and the icon's shortcuts; Google sign-in and calendar connect.
+- **Waiting on the user's own accounts**: reminders (a Firebase project); Google sign-in on the hosted project needs `sparehour://auth/callback` on its redirect allow-list.
+- **Not the same as the web yet**: every look is drawn in Plus Jakarta Sans (the looks' own typefaces need Android font files); a page shared from Chrome arrives without its title; the export's zip is stored, not compressed.
+- **Nothing of the last two groups has run on a phone yet.** The next build is the check.
 
 ### Looking at a screen while building it
 

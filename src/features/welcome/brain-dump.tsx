@@ -5,7 +5,7 @@
 // twentieth a quiet line says so and the rest go to the Inbox. Either button first saves a line still in the box,
 // so tapping Next after typing (no Enter on the way) loses nothing. Lazy: it carries the parser, which the first
 // step does not need.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { TaskDraft } from "@/core/quickadd";
 import { useLocalDatabase } from "@/data/powersync";
 import { ProjectRepo } from "@/data/repositories/project-repo";
@@ -19,6 +19,7 @@ import { chipClass, type ChipTone } from "@/ui/chip";
 import { prefersReducedMotion } from "@/ui/reduced-motion";
 import { FOOTER_BUTTON, WelcomeFrame } from "./welcome-frame";
 import { BRAIN_DUMP_TODAY_LIMIT, PLACEHOLDERS, PLACEHOLDER_MS, PLENTY_LINE, brainDumpDraft, keptForThen, nextLabel } from "./welcome-rules";
+import { BRAIN_DUMP_WORDS, HINT, pastedLabel } from "./welcome-words";
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
 
@@ -97,7 +98,7 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
       setAdded((list) => [...list, ...ids.flatMap((id) => (list.some((a) => a.id === id) ? [] : [{ id, draft: drafts.current.get(id) }])).filter((a): a is Added => a.draft !== undefined)]);
     };
     // The composer's own notice carries the Undo; a toast on a phone would sit over the step's buttons.
-    undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: false, rows: { tasks: ids, task_tags: { task_id: ids } }, undo: takeBack, settled });
+    undo?.record({ label: pastedLabel(ids.length), toast: false, rows: { tasks: ids, task_tags: { task_id: ids } }, undo: takeBack, settled });
     return takeBack;
   };
 
@@ -121,12 +122,12 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
 
   return (
     <WelcomeFrame
-      title="What's on your plate today?"
-      lead="One per line. Don't organise anything — just get it out."
+      title={BRAIN_DUMP_WORDS.title}
+      lead={BRAIN_DUMP_WORDS.lead}
       footer={
         <>
           <Button variant="secondary" size="sheet" className={FOOTER_BUTTON} disabled={busy || finishing} onClick={() => void finish()}>
-            I&rsquo;ll add things later
+            {BRAIN_DUMP_WORDS.later}
           </Button>
           <Button variant="primary" size="sheet" className={FOOTER_BUTTON} disabled={busy || finishing} onClick={() => void finish()}>
             {nextLabel(count)}
@@ -135,7 +136,7 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
       }
     >
       {count > 0 && (
-        <ul aria-label="On your plate" className="flex flex-col rounded-xl border border-line bg-surface">
+        <ul aria-label={BRAIN_DUMP_WORDS.list} className="flex flex-col rounded-xl border border-line bg-surface">
           {added.map((a) => (
             <AddedRow key={a.id} draft={a.draft} ctx={ctx} />
           ))}
@@ -152,7 +153,14 @@ export function BrainDump({ ctx, spaceId, onFinish, busy = false, failure = null
           placeholder={placeholder}
           hint={
             <>
-              Try <Token>3pm</Token>, <Token>~45m</Token>, <Token>#project</Token>, <Token>!1</Token> — we&rsquo;ll pick them up as you type.
+              {HINT.before}
+              {HINT.tokens.map((token, i) => (
+                <Fragment key={token}>
+                  {i > 0 && ", "}
+                  <Token>{token}</Token>
+                </Fragment>
+              ))}
+              {HINT.after}
             </>
           }
           shape={(draft) => brainDumpDraft(draft, ctx.today, count)}

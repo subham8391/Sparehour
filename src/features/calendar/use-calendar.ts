@@ -10,27 +10,11 @@ import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRo
 import { CalendarRepo } from "@/data/repositories/calendar-repo";
 import type { CalendarPanelState } from "./calendar-section";
 import { disconnectNotice, toAccountView, toCalendarView } from "./calendar-views";
-import { CALENDAR_UNAVAILABLE, calendarSyncNow } from "./sync-now";
+import { consentOutcome } from "./consent-outcome";
+import { calendarSyncNow } from "./sync-now";
 
-const OUTCOME_COPY: Record<string, string> = {
-  connected: "Connected. Your busy times are on their way.",
-  read_only: "Connected for reading. Showing blocks in Google Calendar needs one more permission — grant it when you're ready.",
-  denied: "No problem. You can connect later from here.",
-  write_denied: "Blocks stay in Sparehour for now. You can show them in Google Calendar later from here.",
-  no_read: "Sparehour needs to see when you're busy. Connect again and leave that box ticked on Google's screen.",
-  full: "Full access is on: meeting titles are on their way, and blocks can go to your own calendar.",
-  full_denied: "Nothing changed. Sparehour keeps reading your busy times.",
-  unavailable: CALENDAR_UNAVAILABLE,
-  error: "Google didn't answer. Try again.",
-};
-
-/** What the URL says about a consent that just finished, then cleared so a refresh does not repeat it. */
-export function consentOutcome(search: string): string | null {
-  const params = new URLSearchParams(search);
-  const outcome = params.get("calendar");
-  if (!outcome) return null;
-  return outcome === "error" && params.get("reason") ? (params.get("reason") as string) : (OUTCOME_COPY[outcome] ?? null);
-}
+// The outcome's words are in consent-outcome.ts, shared with the Android app; handed on, so imports are unchanged.
+export { consentOutcome };
 
 // How a row reads as an account or a calendar is in calendar-views.ts, shared with the Android app; handed on, so
 // imports are unchanged.

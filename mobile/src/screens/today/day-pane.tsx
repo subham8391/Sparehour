@@ -9,6 +9,7 @@ import { ZOOM_STEPS, type ZoomStep } from "@/core/blocking";
 import type { Capacity } from "@/core/capacity";
 import { useQuery } from "@/data/powersync";
 import { usePlacing, type PlacingDay } from "@/features/blocking/use-placing";
+import type { PlanGhost } from "@/features/planning/drawing";
 import { PENDING_BLOCKS_SQL, blockSync } from "@/features/today/block-sync";
 import { pausedLine, useCalendarState } from "@/features/today/calendar-state";
 import type { TimelineBlock, TimelineMeeting } from "@/features/today/hooks/use-today";
@@ -36,11 +37,15 @@ export interface DayPaneProps {
   /** A day that has passed: its blocks and meetings, drawn only. */
   readOnly?: boolean;
   bottomRoom?: number;
+  /** Plan my day's proposal while it is previewed: drawn as ghosts on the hours. */
+  proposed?: readonly PlanGhost[];
+  /** A meeting picked on the ribbon: the hours turn to it and it is outlined. Its start minute. */
+  shownMeeting?: number | null;
   /** Drawn over the hours, scrolling away with them (Today's hero on a short phone). */
   above?: ReactNode;
 }
 
-type Drawn = Pick<TimelineViewProps, "c" | "nowMin" | "nowShown" | "blocks" | "meetings" | "zoom" | "onZoom" | "dayStart" | "dayEnd" | "bufferPct" | "bottomRoom" | "above">;
+type Drawn = Pick<TimelineViewProps, "c" | "nowMin" | "nowShown" | "blocks" | "meetings" | "zoom" | "onZoom" | "dayStart" | "dayEnd" | "bufferPct" | "bottomRoom" | "above" | "proposed" | "shownMeeting">;
 
 export function DayPane(p: DayPaneProps) {
   // Whether blocks reach Google, and whether blocking is paused (access revoked, write calendar gone).
@@ -52,7 +57,7 @@ export function DayPane(p: DayPaneProps) {
   }, [p.blocks, pendingRows, writes]);
   const [saved, save] = useDeviceValue(ZOOM_KEY);
   const zoom: ZoomStep = (ZOOM_STEPS as readonly number[]).includes(Number(saved)) ? (Number(saved) as ZoomStep) : 30;
-  const drawn: Drawn = { c: p.c, nowMin: p.nowMin, nowShown: p.nowShown, blocks, meetings: p.meetings, zoom, onZoom: (z) => save(String(z)), dayStart: p.dayStart, dayEnd: p.dayEnd, bufferPct: p.bufferPct, bottomRoom: p.bottomRoom, above: p.above };
+  const drawn: Drawn = { c: p.c, nowMin: p.nowMin, nowShown: p.nowShown, blocks, meetings: p.meetings, zoom, onZoom: (z) => save(String(z)), dayStart: p.dayStart, dayEnd: p.dayEnd, bufferPct: p.bufferPct, bottomRoom: p.bottomRoom, above: p.above, proposed: p.proposed, shownMeeting: p.shownMeeting };
   if (p.readOnly) return <TimelineView {...drawn} />;
   return <Placing {...p} drawn={drawn} off={pausedLine(writes.off)} />;
 }

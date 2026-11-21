@@ -8,7 +8,7 @@ import { formatDay } from "@/core/time/format-day";
 import type { MissPolicy } from "@/core/types";
 import type { OpenTo } from "@/data/repositories/settings-repo";
 import { segmentsLabel, type Segment } from "./settings-rules";
-import type { SettingsValues } from "./settings-values";
+import type { MotionChoice, SettingsValues } from "./settings-values";
 
 // ---- Account
 
@@ -98,6 +98,13 @@ export const THEMES: readonly { value: SettingsValues["theme"]; label: string }[
   { value: "system", label: "System" },
 ];
 
+/** Reduce motion, this device's own choice: System follows the device's setting, Reduce cuts movement here. */
+export const MOTIONS: readonly { value: MotionChoice; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "reduce", label: "Reduce" },
+];
+export const motionHint = (choice: MotionChoice): string => (choice === "reduce" ? "Movement is cut on this device" : "Follows this device’s setting");
+
 // ---- Data
 
 export const EXPORT_FORMATS: readonly (readonly [ExportFormat, string])[] = [
@@ -106,6 +113,8 @@ export const EXPORT_FORMATS: readonly (readonly [ExportFormat, string])[] = [
   ["csv", "CSV"],
 ];
 export const EXPORT_HINT = "Tasks, checklists, projects, areas, tags, blocks, day plans and settings, from this device — no server needed.";
+/** Under the export's buttons: what each format is. */
+export const EXPORT_NOTE = "JSON is complete and re-importable. Markdown is one file per project, zipped. CSV is the flat task table.";
 
 // ---- About
 

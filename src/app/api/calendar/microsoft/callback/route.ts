@@ -4,13 +4,14 @@
 // same key, and the first sync runs after the redirect has been sent. There is
 // one consent and it reads only, so the outcomes are fewer: connected, a no,
 // or an error with its reason. Not there at all (404) without an app registration.
-import { after, NextResponse, type NextRequest } from "next/server";
+// A consent started in the phone app goes back to the app as a sealed ticket,
+// with nothing exchanged or saved here (server/calendar/app-connect.ts).
+import { NextResponse, type NextRequest } from "next/server";
 import { createUserScopedClient } from "@/server/auth/supabase";
-import { CURRENT_KEY_VERSION, sealToBase64 } from "@/server/calendar/crypto";
-import { microsoftConfigured, microsoftOAuth, stateSecret, tokenKey } from "@/server/calendar/config";
-import { exchangeCode } from "@/server/calendar/microsoft";
-import { buildDeps, syncAccountById } from "@/server/calendar/run";
-import { pkceFor, verifyState } from "@/server/calendar/state";
+import { appReturn } from "@/server/calendar/app-connect";
+import { microsoftConfigured, microsoftOAuth, stateSecret } from "@/server/calendar/config";
+import { connectMicrosoft } from "@/server/calendar/connect";
+import { startedInApp, verifyState } from "@/server/calendar/state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,9 @@ export async function GET(request: NextRequest) {
   const oauth = microsoftOAuth();
   if (!oauth || !microsoftConfigured()) return NextResponse.json({ error: "not_found" }, { status: 404 });
   const url = new URL(request.url);
-  const verified = verifyState(url.searchParams.get("state"), stateSecret());
+  const raw = url.searchParams.get("state");
+  if (startedInApp(raw, stateSecret())) return appReturn("microsoft", url.searchParams);
+  const verified = verifyState(raw, stateSecret());
   // A state signed for Google's consent is not one of ours.
   const state = verified?.provider === "microsoft" ? verified : null;
   const next = state?.next ?? "/settings";
@@ -46,35 +49,8 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   if (!code) return back(url.origin, next, "error", "Microsoft did not send a code back.");
 
-  try {
-    const grant = await exchangeCode(oauth, code, pkceFor(state.nonce, stateSecret()).verifier);
-    if (!grant.sub) return back(url.origin, next, "error", "Microsoft did not say which account this is.");
-    const key = tokenKey();
-    const deps = buildDeps();
-    const accountId = await deps.store.connect({
-      userId: user.id,
-      provider: "microsoft",
-      external: grant.sub,
-      email: grant.email,
-      refreshB64: grant.refreshToken ? sealToBase64(grant.refreshToken, key) : null,
-      accessB64: sealToBase64(grant.accessToken, key),
-      expiresAt: grant.expiresAt,
-      scopes: grant.scopes,
-      keyVersion: CURRENT_KEY_VERSION,
-    });
-    // A reconnect starts each calendar's window afresh rather than from a delta link that may have lapsed with the grant.
-    await deps.store.resetSyncTokens(accountId);
-    after(async () => {
-      try {
-        await syncAccountById(accountId, deps);
-      } catch (e) {
-        console.error("first calendar sync failed", e);
-      }
-    });
-    // Microsoft's consent is one yes or no for everything asked: there is no half-granted outcome to report.
-    return back(url.origin, next, "connected");
-  } catch (e) {
-    console.error("outlook calendar connect failed", e);
-    return back(url.origin, next, "error", "Outlook didn't answer. Try again.");
-  }
+  // The exchange (with the verifier for this state), the sealed account row and the first sync are connect.ts's,
+  // shared with the app's finish.
+  const result = await connectMicrosoft({ userId: user.id, nonce: state.nonce, code, oauth });
+  return result.ok ? back(url.origin, next, result.outcome) : back(url.origin, next, "error", result.reason);
 }

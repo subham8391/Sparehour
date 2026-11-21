@@ -4,8 +4,10 @@
 // found", the line that says where the words were found, the project and area matches (features/commands/fuzzy.ts),
 // what a result's row offers and the write behind each choice (features/search/hit-moves.ts, features/tasks/
 // snooze.ts), and the repository that writes and records the undo the app's one toast offers. What was finished
-// before the week the phone holds is searched on the server when asked (older-found.tsx). The words and the filters
-// are kept on the screen rather than in the address. The drawing is search-view.tsx.
+// before the week the phone holds is searched on the server when asked (older-found.tsx). The address is the state,
+// as on the web — `/search?q=…&project=…&state=…` (search-address.ts) — so Back and a link keep the
+// words and the filters. What every row's ⋯, its swipes and the bulk bar do is the screen's frame (rows/rows.tsx).
+// The drawing is search-view.tsx.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { localDate } from "@/core/time";
@@ -20,10 +22,11 @@ import { dayPart } from "@/features/looks/look";
 import { runHitMove } from "@/features/search/hit-moves";
 import { buildChecklistMatch, buildTaskSearch, contextFor, splitResults, type SearchFilters } from "@/features/search/search";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { applySnooze } from "@/features/tasks/snooze";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useQuickAdd } from "../quick-add/quick-add";
+import { Rows } from "../rows/rows";
 import { OlderFound } from "./older-found";
+import { addressKey, readSearch, searchParams } from "./search-address";
 import { SearchView, type SearchHit } from "./search-view";
 
 const NONE_SQL = `select * from tasks where 0`;
@@ -33,16 +36,26 @@ const DEBOUNCE_MS = 150;
 
 export function Search() {
   const router = useRouter();
-  // `/search?q=…` opens on those words.
-  const asked = useLocalSearchParams<{ q?: string }>().q ?? "";
-  const [draft, setDraft] = useState(asked);
-  const [query, setQuery] = useState(asked);
+  // The address is the state: `/search?q=…&project=…` opens on those words and filters, and each change is written
+  // back to it (the screen stays where it is; only its parameters change).
+  const params = useLocalSearchParams<Record<string, string | string[]>>();
+  const key = addressKey(params);
+  const { query, filters } = useMemo(() => readSearch(key), [key]);
+  const write = (words: string, next: SearchFilters) => router.setParams(searchParams(params, words, next));
+
+  // Typing updates the box at once and the address a beat later; the address drives the statements.
+  const [draft, setDraft] = useState(query);
+  const [seen, setSeen] = useState(query);
+  if (seen !== query) {
+    setSeen(query);
+    setDraft(query);
+  }
   useEffect(() => {
-    if (draft === query) return;
-    const t = setTimeout(() => setQuery(draft), DEBOUNCE_MS);
+    if (draft.trim() === query.trim()) return;
+    const t = setTimeout(() => write(draft, filters), DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [draft, query]);
-  const [filters, setFilters] = useState<SearchFilters>({});
+  }, [draft, query, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setFilters = (next: SearchFilters) => write(draft, next);
 
   const now = useNow();
   const { today, zone, settings } = useLocalDay(now);
@@ -80,6 +93,7 @@ export function Search() {
   const areaMatches = useMemo(() => rankNamed(query, areas, 5), [query, areas]);
 
   return (
+    <Rows>
     <SearchView
       part={dayPart(now.toZonedDateTimeISO(zone).hour)}
       query={draft}
@@ -96,18 +110,16 @@ export function Search() {
       projectMatches={projectMatches}
       areaMatches={areaMatches}
       today={today}
-      now={now}
-      zone={zone}
       defaultEstimateMin={settings?.defaultEstimateMin ?? 30}
       onOpen={(task) => router.push(`/task/${task.id}`)}
       // Every write records its own undo; the toast with Undo is the app's one (ui/undo-provider.tsx).
       onComplete={(task) => void repo.complete(task.id)}
       onMove={(task, move) => void runHitMove(repo, task.id, move, today)}
-      onSnooze={(task, preset) => void applySnooze(repo, [task.id], preset)}
       onOpenProject={(id) => router.push(`/project/${id}`)}
       onOpenArea={(id) => router.push(`/area/${id}`)}
       onAddTask={(title) => quickAdd.open({ text: title })}
       older={query.trim() ? <OlderFound words={query} zone={zone} today={today} /> : null}
     />
+    </Rows>
   );
 }

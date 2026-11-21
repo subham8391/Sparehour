@@ -5,8 +5,8 @@
 // planned" as a strip over the tab bar that opens a sheet with a day to tap per task. Presentational: it is handed
 // everything it shows, so it is drawn with fixtures in the browser preview and in tests, and with the real week by
 // week.tsx.
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { formatMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
@@ -16,6 +16,7 @@ import { agendaDays, dayLabel, isFreeDay, plannedMinutes, type ColumnDay, type S
 import type { AgendaDay, LaterGroup } from "@/features/upcoming/later";
 import type { DayReadout, WeekMode } from "@/features/upcoming/week";
 import { Button } from "~/ui/button";
+import { useReduceMotion } from "~/ui/motion";
 import { Card, CardRow } from "~/ui/card";
 import { CollapsedGroup } from "~/ui/collapsed-group";
 import { Empty } from "~/ui/empty";
@@ -23,7 +24,8 @@ import { Icon, type IconName } from "~/ui/icon";
 import { Screen } from "~/ui/screen";
 import { SectionLabel } from "~/ui/section-label";
 import { Segmented } from "~/ui/segmented";
-import { TaskLine } from "~/ui/task-line";
+import { moveActions } from "~/screens/rows/row-menu";
+import { TaskRow } from "~/screens/rows/task-row";
 import { TARGET, font, useColours, type Colours } from "~/ui/theme";
 import { DayBar, ReadoutText } from "./day-bar";
 import { DayStrip } from "./day-strip";
@@ -62,6 +64,10 @@ export interface WeekViewProps {
   onThisWeek: () => void;
   onComplete: (task: Task) => void;
   onOpen?: (task: Task) => void;
+  /** A planned row's own moves (the web's Upcoming rows): Today, Tomorrow or Someday. Left out, the rows have no ⋯. */
+  onMove?: (task: Task, to: "today" | "tomorrow" | "someday") => void;
+  /** Converts the task to a project: the long-estimate hint's "Break it down". */
+  onBreakDown?: (task: Task) => void;
   /** A day's header opens that day. */
   onOpenDay: (day: LocalDate) => void;
   /** Add a task on a day; null from the empty week's "Add a task", which names no day. */
@@ -80,10 +86,8 @@ export function WeekView(p: WeekViewProps) {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const tops = useRef(new Map<string, number>());
   const wanted = useRef<string | null>(null);
-  const calm = useRef(false);
-  useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled?.()?.then((on) => (calm.current = on));
-  }, []);
+  // Settings › Appearance › Motion, or the phone's own setting while that is System (ui/motion.ts).
+  const calm = useReduceMotion();
 
   const [first, ...rest] = agendaDays(p.days);
   const segments = foldFreeDays(rest, (d) => isFreeDay(d) && !unfolded.has(d.day.toString()));
@@ -94,7 +98,7 @@ export function WeekView(p: WeekViewProps) {
     const top = tops.current.get(iso);
     if (top === undefined) return;
     wanted.current = null;
-    scroll.current?.scrollTo({ y: Math.max(0, top - 4), animated: !calm.current });
+    scroll.current?.scrollTo({ y: Math.max(0, top - 4), animated: !calm });
   };
   const jumpTo = (d: StripDay) => {
     const iso = d.day.toString();
@@ -109,12 +113,20 @@ export function WeekView(p: WeekViewProps) {
   };
 
   const detail = (t: Task) => [t.projectId ? p.projectNames.get(t.projectId) : undefined, ...(t.tags ?? []).map((tag) => `@${tag}`)].filter(Boolean).join(" · ") || undefined;
+  const tomorrow = p.today.add({ days: 1 });
+  const { onMove } = p;
+  /** Today and Tomorrow where the task is not there already, then Someday, as the web's Upcoming rows offer them. */
+  const actionsFor = (t: Task) =>
+    onMove
+      ? moveActions({ onToday: t.doDate?.equals(p.today) ? undefined : () => onMove(t, "today"), onTomorrow: t.doDate?.equals(tomorrow) ? undefined : () => onMove(t, "tomorrow"), onSomeday: () => onMove(t, "someday") })
+      : undefined;
   const minutes = (tasks: readonly Task[]) => formatMinutes(plannedMinutes(tasks, p.defaultEstimateMin));
-  const rows = (tasks: readonly Task[]) => (
+  /** `plain`: listed for its deadline or the day it starts, not planned there: the row opens and completes, no more. */
+  const rows = (tasks: readonly Task[], plain = false) => (
     <Card>
       {tasks.map((task, i) => (
         <CardRow key={task.id} first={i === 0}>
-          <TaskLine task={task} today={p.today} defaultEstimateMin={p.defaultEstimateMin} detail={detail(task)} onComplete={p.onComplete} onPress={p.onOpen} />
+          <TaskRow task={task} today={p.today} defaultEstimateMin={p.defaultEstimateMin} detail={detail(task)} onComplete={p.onComplete} onOpen={p.onOpen} actions={plain ? undefined : actionsFor(task)} onBreakDown={plain ? undefined : p.onBreakDown} />
         </CardRow>
       ))}
     </Card>
@@ -129,14 +141,14 @@ export function WeekView(p: WeekViewProps) {
             DUE
           </Text>
         </View>
-        {rows(d.due)}
+        {rows(d.due, true)}
       </View>
     );
   // Hidden by a start date: listed on the day it starts, folded.
   const startingGroup = (d: AgendaDay) =>
     d.startingLater.length > 0 && (
       <CollapsedGroup label="Starting later" count={d.startingLater.length}>
-        {rows(d.startingLater)}
+        {rows(d.startingLater, true)}
       </CollapsedGroup>
     );
 

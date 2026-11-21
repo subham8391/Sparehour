@@ -25,6 +25,7 @@ import { useUndoSink } from "@/features/undo/undo-context";
 import { apiFetch } from "~/api";
 import { FinishedPeek } from "./finished-peek";
 import { LogbookFilterSheet } from "./logbook-filter-sheet";
+import { Rows } from "../rows/rows";
 import { LogbookView } from "./logbook-view";
 
 const NONE: readonly FinishedRow[] = [];
@@ -123,7 +124,7 @@ export function Logbook() {
   };
 
   return (
-    <>
+    <Rows>
       <LogbookView
         today={today}
         defaultEstimateMin={defaultEstimateMin}
@@ -160,6 +161,6 @@ export function Logbook() {
         onDeleted={() => peek && forgetOlder(peek.id)}
         onClose={() => setPeek(null)}
       />
-    </>
+    </Rows>
   );
 }

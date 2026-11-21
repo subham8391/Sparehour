@@ -1,76 +1,31 @@
-// Sky on the phone (ANDROID_APP_SPEC.md §9). The colours are the web's own names and values (../../../src/app/
-// globals.css, the :root block and its dark twin); a stylesheet cannot be read by a phone app, so they are written
-// out again here and must be kept in step by hand until the looks are generated for both (§10, step 6). Light or
-// dark follows the phone's own setting, as the web's "System" theme does, unless Settings › Appearance chose one for
-// this phone (theme-choice.ts).
-import { useColorScheme } from "react-native";
-import type { DayPart } from "@/features/looks/look";
-import { useThemeChoice } from "./theme-choice";
+// The look on the phone (ANDROID_APP_SPEC.md §9; DECISIONS.md, amendment 2026-10-20): every colour and shape a
+// screen draws with, by the web's own names. The values are not typed here: scripts/build-looks.mjs reads them from
+// the web's stylesheets (../../../src/app/globals.css and ../../../public/looks/*.css) into looks/generated.ts, for
+// all of the web's looks in light and dark. Which look is the account's choice, kept on the phone too
+// (looks/look-choice.ts); light or dark is the account's theme, or the phone's own setting on System
+// (theme-choice.ts). A change to either redraws every screen at once: they all read through `useColours()`.
+import { useColorScheme, type ViewStyle } from "react-native";
+import { DEFAULT_LOOK, type DayPart } from "@/features/looks/look";
+import { LOOK_TOKENS } from "./looks/generated";
+import { lookChoice, tokensOf, useLookChoice } from "./looks/look-choice";
+import type { LookColours, LookShadows, LookShape, Radius, Sky } from "./looks/types";
+import { themeChoice, useThemeChoice } from "./theme-choice";
 
-const light = {
-  paper: "#e8f0fa",
-  surface: "#fbfdff",
-  surface2: "#edf3fa",
-  line: "#d3dfed",
-  lineStrong: "#b4c4d8",
-  lineControl: "#6c7f9c",
-  ink: "#0e2240",
-  ink2: "#34496b",
-  ink3: "#435775",
-  ink4: "#6b7f9e",
-  spare: "#087a70",
-  spareFill: "#14b8a6",
-  spareSoft: "#cff5ef",
-  meetFill: "#6f80ff",
-  over: "#8a5a00",
-  overFill: "#d48a1e",
-  overSoft: "#fdeccc",
-  deadline: "#b23a2e",
-  blockFill: "#1f3357",
-  scrim: "rgba(14, 30, 60, 0.32)",
-};
-
-const dark: typeof light = {
-  paper: "#101b3a",
-  surface: "#16224a",
-  surface2: "#1e2b57",
-  line: "#2a3a66",
-  lineStrong: "#3d4f84",
-  lineControl: "#8090b8",
-  ink: "#f1f5ff",
-  ink2: "#c3cde4",
-  ink3: "#a6b2cd",
-  ink4: "#7f8db0",
-  spare: "#5ce6d7",
-  spareFill: "#2dd4bf",
-  spareSoft: "#12363f",
-  meetFill: "#7b8cff",
-  over: "#f2c27a",
-  overFill: "#d9a04a",
-  overSoft: "#3a2e1a",
-  deadline: "#ff9d8f",
-  blockFill: "#8a9ac2",
-  scrim: "rgba(0, 0, 0, 0.55)",
-};
-
-export type Colours = typeof light;
+export type Colours = LookColours;
 export type Scheme = "light" | "dark";
-export const colours: Record<Scheme, Colours> = { light, dark };
+/** Sky's two sets, for what is drawn outside any look (a test, a fixture). Screens read `useColours()`. */
+export const colours: Record<Scheme, Colours> = { light: LOOK_TOKENS[DEFAULT_LOOK].light.colours, dark: LOOK_TOKENS[DEFAULT_LOOK].dark.colours };
 
-/** The sky behind everything, top to bottom: by the hour in the light theme, one night sky in the dark. */
-const SKY: Record<DayPart, readonly [string, string, string]> = {
-  morning: ["#cfe5ff", "#e9f2fc", "#fbf3e6"],
-  afternoon: ["#c3defd", "#e6f0fb", "#fbeadf"],
-  evening: ["#d9d3fb", "#ece9f8", "#fce3d8"],
-  night: ["#d3dcef", "#e7ecf5", "#efecf4"],
-};
-const SKY_DARK: readonly [string, string, string] = ["#0a1430", "#111d40", "#1e1d47"];
-
-export function sky(scheme: Scheme, part: DayPart): readonly [string, string, string] {
-  return scheme === "dark" ? SKY_DARK : SKY[part];
+/**
+ * What is behind everything, top to bottom, in the look on screen: the sky by the hour where the look paints one
+ * (Sky: by the hour in light, one night sky in dark), the look's flat page three times where it does not.
+ */
+export function sky(scheme: Scheme, part: DayPart): Sky {
+  const theme = tokensOf(lookChoice())[scheme];
+  return theme.sky?.[part] ?? [theme.colours.paper, theme.colours.paper, theme.colours.paper];
 }
 
-/** Light or dark as it is drawn now: this phone's choice in Settings › Appearance, or the phone's own setting on System. */
+/** Light or dark as it is drawn now: the choice in Settings › Appearance, or the phone's own setting on System. */
 export function useScheme(): Scheme {
   const system = useColorScheme();
   const choice = useThemeChoice();
@@ -78,11 +33,45 @@ export function useScheme(): Scheme {
   return system === "dark" ? "dark" : "light";
 }
 
-export function useColours(): Colours {
-  return colours[useScheme()];
+/** The same answer outside a component (the system bars): no redraw comes of it. */
+export function schemeNow(system: "light" | "dark" | "unspecified" | null | undefined): Scheme {
+  const choice = themeChoice();
+  if (choice !== "system") return choice;
+  return system === "dark" ? "dark" : "light";
 }
 
-/** Plus Jakarta Sans, the face of Sky, by weight (loaded in ui/fonts.ts). */
+/** The look's id, as the account keeps it ("sky", "daylight", …). */
+export function useLook(): string {
+  return useLookChoice();
+}
+
+export function useColours(): Colours {
+  const scheme = useScheme();
+  return tokensOf(useLookChoice())[scheme].colours;
+}
+
+/** The look's radii, edges, faces and weights: the same in light and dark. */
+export function useShape(): LookShape {
+  return tokensOf(useLookChoice()).shape;
+}
+
+/** The look's shadows in the theme on screen, each a `boxShadow` value or null for none. */
+export function useShadows(): LookShadows {
+  const scheme = useScheme();
+  return tokensOf(useLookChoice())[scheme].shadows;
+}
+
+/** A look's radius as a style: one number for most looks, four corners where the look draws an uneven shape. */
+export function corners(radius: Radius): ViewStyle {
+  if (typeof radius === "number") return { borderRadius: radius };
+  const [topLeft, topRight, bottomRight, bottomLeft] = radius;
+  return { borderTopLeftRadius: topLeft, borderTopRightRadius: topRight, borderBottomRightRadius: bottomRight, borderBottomLeftRadius: bottomLeft };
+}
+
+/**
+ * Plus Jakarta Sans, the face of Sky, by weight (loaded in ui/fonts.ts). Every look is drawn in it on the phone for
+ * now: a look's own faces are named in its shape (`useShape().face`), but their files are not in the app yet.
+ */
 export const font = {
   regular: "PlusJakartaSans_400Regular",
   medium: "PlusJakartaSans_500Medium",

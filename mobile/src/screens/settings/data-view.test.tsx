@@ -1,5 +1,6 @@
-// Settings › Data as the phone draws it: the export's three formats, Clear the slate, the Archive's batches with
-// Restore, and Delete permanently behind the typed confirmation, in the web's words. A permanent delete has no undo.
+// Settings › Data as the phone draws it: the export's three formats, the way to Clear the slate, the Archive's
+// batches with Restore, and Delete permanently behind the typed confirmation, in the web's words. A permanent delete
+// has no undo.
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { DataView, type DataViewProps } from "./data-view";
 import { BATCHES, TODAY } from "./settings-fixture";
@@ -12,8 +13,7 @@ const props = (over: Partial<DataViewProps> = {}): DataViewProps => ({
   today: TODAY,
   archivedIds: ["t1", "t2", "t3", "t4"],
   droppedIds: ["d1", "d2"],
-  slateCounts: { today: 12, backlog: 30 },
-  onClearSlate: jest.fn(async () => 12),
+  onClearSlate: jest.fn(),
   onRestore: jest.fn(async (batch) => batch.tasks.length),
   onDeletePermanently: jest.fn(async (ids: readonly string[]) => ids.length),
   ...over,
@@ -24,6 +24,8 @@ describe("<DataView> export", () => {
     const p = props();
     await render(<DataView {...p} />);
     expect(screen.getByText("Tasks, checklists, projects, areas, tags, blocks, day plans and settings, from this device — no server needed.")).toBeTruthy();
+    // The web's own note: the phone hands over the same files, the Markdown zipped.
+    expect(screen.getByText("JSON is complete and re-importable. Markdown is one file per project, zipped. CSV is the flat task table.")).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: "Export as JSON" }));
     expect(p.exporter.onExport).toHaveBeenCalledWith("json");
     await fireEvent.press(screen.getByRole("button", { name: "Export as Markdown" }));
@@ -96,25 +98,10 @@ describe("<DataView> archive", () => {
 });
 
 describe("<DataView> Clear the slate", () => {
-  it("counts each scope, asks the web's question, and archives the chosen one", async () => {
+  it("says what it does and opens its own screen", async () => {
     const p = props();
     await render(<DataView {...p} />);
     await fireEvent.press(screen.getByRole("button", { name: "Clear the slate…" }));
-    expect(screen.getByText("Archive 12 tasks? Nothing is deleted — you can bring the whole batch back for 30 days.")).toBeTruthy();
-    expect(screen.getByText("The Inbox and repeating tasks stay as they are.")).toBeTruthy();
-    await fireEvent.press(screen.getByRole("radio", { name: "Today + backlog, 42" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Archive 42 tasks" }));
-    expect(p.onClearSlate).toHaveBeenCalledWith("backlog");
-  });
-
-  it("has nothing to archive when the scope is empty, and says so when archiving fails", async () => {
-    const p = props({ slateCounts: { today: 0, backlog: 2 }, onClearSlate: jest.fn(async () => Promise.reject(new Error("locked"))) });
-    await render(<DataView {...p} />);
-    await fireEvent.press(screen.getByRole("button", { name: "Clear the slate…" }));
-    expect(screen.getByText("Nothing to archive here.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Archive" }).props.accessibilityState.disabled).toBe(true);
-    await fireEvent.press(screen.getByRole("radio", { name: "Today + backlog, 2" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Archive 2 tasks" }));
-    expect(await screen.findByText("Couldn’t archive them — nothing changed. Try again.")).toBeTruthy();
+    expect(p.onClearSlate).toHaveBeenCalledTimes(1);
   });
 });

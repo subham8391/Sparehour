@@ -5,10 +5,19 @@ export interface SignInProviders {
   google: boolean;
 }
 
-export async function fetchSignInProviders(fetchImpl: typeof fetch = fetch): Promise<SignInProviders> {
+/** Where the auth server is and the public key it is asked with. */
+export interface AuthServer {
+  url: string;
+  anonKey: string;
+}
+
+/** The web's own: the two public values the page already carries. */
+const webAuthServer = (): AuthServer => ({ url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321", anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "" });
+
+/** `server` is the web's unless said: the Android app asks the same question of the same server with its own two values. */
+export async function fetchSignInProviders(fetchImpl: typeof fetch = fetch, server: AuthServer = webAuthServer()): Promise<SignInProviders> {
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
-    const res = await fetchImpl(`${url}/auth/v1/settings`, { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "" } });
+    const res = await fetchImpl(`${server.url}/auth/v1/settings`, { headers: { apikey: server.anonKey } });
     if (!res.ok) return { google: false };
     const body = (await res.json()) as { external?: Record<string, boolean> };
     return { google: body.external?.google === true };

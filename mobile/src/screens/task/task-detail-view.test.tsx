@@ -516,20 +516,39 @@ describe("<TaskDetailView> checklist, tags and notes", () => {
     expect(p.onTagRemove).toHaveBeenCalledWith("g1");
   });
 
-  it("notes save when the box is left, trimmed; unchanged notes are not written, and emptied ones are cleared", async () => {
-    const p = props({ notes: "Ask about the fee." });
+  it("notes are drawn as Markdown, open into the plain text on a tap, and save when the box is left, trimmed", async () => {
+    const p = props({ notes: "Ask about the **fee**." });
     await render(<TaskDetailView {...p} />);
-    const box = screen.getByLabelText("Notes");
-    expect(box.props.value).toBe("Ask about the fee.");
+    // Read as Markdown: the words without their marks, and no box until the note is tapped.
+    expect(screen.getByText("fee")).toBeTruthy();
+    expect(screen.queryByDisplayValue("Ask about the **fee**.")).toBeNull();
+    const edit = async () => {
+      await fireEvent.press(screen.getByRole("button", { name: "Notes" }));
+      return screen.getByLabelText("Notes");
+    };
+    let box = await edit();
+    expect(box.props.value).toBe("Ask about the **fee**.");
     await fireEvent(box, "focus");
     await fireEvent(box, "blur");
     expect(p.onPatch).not.toHaveBeenCalled();
+    box = await edit();
+    await fireEvent(box, "focus");
     await fireEvent.changeText(box, "Ask about the fee.\n\n- and the **card**\n");
     await fireEvent(box, "blur");
     expect(p.onPatch).toHaveBeenLastCalledWith({ notes: "Ask about the fee.\n\n- and the **card**" });
+  });
+
+  it("an emptied note is cleared, and an empty note is the box straight away", async () => {
+    const p = props({ notes: "Ask about the fee." });
+    await render(<TaskDetailView {...p} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Notes" }));
+    const box = screen.getByLabelText("Notes");
+    await fireEvent(box, "focus");
     await fireEvent.changeText(box, "  ");
     await fireEvent(box, "blur");
     expect(p.onPatch).toHaveBeenLastCalledWith({ notes: null });
+    // Nothing to read any more: the box with its placeholder.
+    expect(screen.getByPlaceholderText("Anything worth remembering.")).toBeTruthy();
   });
 
   it("notes still being typed when the screen goes away are saved", async () => {

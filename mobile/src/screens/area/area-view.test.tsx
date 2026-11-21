@@ -1,17 +1,16 @@
 // An area's page as the phone draws it: its name, its projects as cards, the tasks filed in it directly, its finished
 // projects, and what each control asks for.
 import { fireEvent, render, screen } from "@testing-library/react-native";
-import { instant, localDate } from "@/core/time";
+import { localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { deleteAreaNote } from "@/features/projects/organise-place";
-import { snoozePresets } from "@/features/tasks/snooze";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 import { AreaMissingView, AreaView, type AreaViewProps } from "./area-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn(), canGoBack: () => false }) }));
 
 const TODAY = localDate("2026-11-21");
-const NOW = instant("2026-11-21T10:03:00Z");
 const task = (id: string, title: string, more: Partial<Task> = {}) => ({ id, title, state: "active", estimateMin: 30, carryCount: 0, projectId: null, areaId: "a1", doDate: null, doTime: null, deadline: null, startDate: null, sortKey: id, ...more }) as unknown as Task;
 
 const props = (over: Partial<AreaViewProps> = {}): AreaViewProps => ({
@@ -26,7 +25,6 @@ const props = (over: Partial<AreaViewProps> = {}): AreaViewProps => ({
   ],
   finished: [{ id: "f1", name: "Old move", area_id: "a1", state: "archived" }],
   tasks: [task("l1", "Renew the passport", { doDate: TODAY.add({ days: 1 }) }), task("l2", "Call the plumber", { state: "inbox" })],
-  presets: snoozePresets(NOW, "Europe/London", TODAY),
   deleteNote: deleteAreaNote(3, 2),
   onRename: jest.fn(),
   onOpenProject: jest.fn(),
@@ -35,8 +33,6 @@ const props = (over: Partial<AreaViewProps> = {}): AreaViewProps => ({
   onComplete: jest.fn(),
   onOpen: jest.fn(),
   onMoveTask: jest.fn(),
-  onSnooze: jest.fn(),
-  onSomeday: jest.fn(),
   onDelete: jest.fn(),
   ...over,
 });
@@ -97,9 +93,15 @@ describe("<AreaView>", () => {
     expect(p.onAdd).toHaveBeenCalledTimes(1);
   });
 
-  it("a row's ⋯ moves it one place, only the ways it can go, and snoozes or parks it", async () => {
+  it("a row's ⋯ is the shared menu: it moves the row one place, only the ways it can go, and snoozes or parks it", async () => {
     const p = props();
-    await render(<AreaView {...p} />);
+    const wiring = { onSnooze: jest.fn(), onSomeday: jest.fn() };
+    // Inside its screen's frame, as area.tsx draws it.
+    await render(
+      <PreviewRows today={TODAY} wiring={wiring}>
+        <AreaView {...p} />
+      </PreviewRows>,
+    );
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Renew the passport" }));
     expect(screen.queryByRole("button", { name: "Move up" })).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Move down" }));
@@ -107,10 +109,13 @@ describe("<AreaView>", () => {
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Call the plumber" }));
     expect(screen.queryByRole("button", { name: "Move down" })).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Next week" }));
-    expect(p.onSnooze).toHaveBeenCalledWith(expect.objectContaining({ id: "l2" }), expect.objectContaining({ id: "nextweek" }));
+    expect(wiring.onSnooze).toHaveBeenCalledWith(["l2"], expect.objectContaining({ id: "nextweek" }));
     await fireEvent.press(screen.getByRole("button", { name: "More actions for Call the plumber" }));
     await fireEvent.press(screen.getByRole("button", { name: "Someday" }));
-    expect(p.onSomeday).toHaveBeenCalledWith(expect.objectContaining({ id: "l2" }));
+    expect(wiring.onSomeday).toHaveBeenCalledWith("l2");
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Call the plumber" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Complete" }));
+    expect(p.onComplete).toHaveBeenCalledWith(expect.objectContaining({ id: "l2" }));
   });
 
   it("its completed and archived projects are folded away, each saying its state and opening its page", async () => {

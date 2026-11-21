@@ -1,7 +1,8 @@
 // A project's page on the phone (ANDROID_APP_SPEC.md §9; the web's app/(app)/project/[id]/page.tsx), at /project/<id>
 // and wired to the phone's own database. What it reads and how that is put together is the web page's own hook
 // (features/projects/use-project-page.ts); the ⋯'s actions, the figures and where a task or a heading lands are the
-// web's rules (page-rules.ts, organise-place.ts, checklist-order.ts, snooze.ts); a new task is read by the shared
+// web's rules (page-rules.ts, organise-place.ts, checklist-order.ts); what every row's ⋯, its swipes and the bulk bar
+// do is the screen's frame (rows/rows.tsx); a new task is read by the shared
 // quick-add parser and filed by the shared repository; and every write goes through the shared repositories, which
 // record the undo the app's one toast offers. `?add=1` opens with the add sheet up. The drawing is project-view.tsx.
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -16,11 +17,11 @@ import { keyAtEndOf, projectActions, summaryWords, type ProjectAction } from "@/
 import { useProjectPage } from "@/features/projects/use-project-page";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { keyForStep } from "@/features/tasks/checklist-order";
-import { applySnooze, snoozePresets } from "@/features/tasks/snooze";
 import { useHeadingRepo, useProjectOrderRepo, useProjectRepo } from "@/features/tasks/use-repos";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useUndoSink } from "@/features/undo/undo-context";
 import { useQuickAdd } from "../quick-add/quick-add";
+import { Rows } from "../rows/rows";
 import { ProjectMissingView, ProjectOpeningView, ProjectView } from "./project-view";
 
 export function ProjectPage() {
@@ -34,7 +35,7 @@ export function ProjectPage() {
   const headings = useHeadingRepo();
   const projectOrder = useProjectOrderRepo();
   const now = useNow();
-  const { today, zone, settings, ready } = useLocalDay(now);
+  const { today, zone, settings } = useLocalDay(now);
   const page = useProjectPage(id, today, settings?.defaultEstimateMin ?? 30);
   // The navigation's own tree: where "Move to area…" puts the project, and the areas it lists.
   const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
@@ -67,7 +68,7 @@ export function ProjectPage() {
   };
 
   return (
-    <>
+    <Rows>
       <ProjectView
         project={project}
         area={page.area ? { id: page.area.id, name: page.area.name ?? "Untitled area" } : null}
@@ -83,8 +84,6 @@ export function ProjectPage() {
         someday={page.someday}
         actions={projectActions(project.state)}
         areas={areas}
-        // The presets are the account's day and zone: they wait for its settings row.
-        presets={ready ? snoozePresets(now, zone, today) : []}
         onRename={(name) => void projects.rename(project.id, name)}
         onNotes={(notes) => void projects.setNotes(project.id, notes)}
         onDeadline={(deadline) => void projects.setDeadline(project.id, deadline)}
@@ -102,8 +101,7 @@ export function ProjectPage() {
         }}
         onTaskHeading={(task, headingId) => void tasks.setOrder(task.id, keyAtEndOf(page.groups, headingId), headingId)}
         onToday={(task) => void tasks.reschedule(task.id, today)}
-        onSnooze={(task, preset) => void applySnooze(tasks, [task.id], preset)}
-        onSomeday={(task) => void tasks.setState(task.id, "someday")}
+        onTomorrow={(task) => void tasks.reschedule(task.id, today.add({ days: 1 }))}
         onAddHeading={(title) => void headings.create(project.id, project.spaceId, title)}
         onRenameHeading={(headingId, title) => void headings.rename(headingId, title)}
         // A heading moves with its tasks, since they are filed under it: one key.
@@ -113,6 +111,6 @@ export function ProjectPage() {
         }}
         onRemoveHeading={(headingId) => void headings.remove(headingId)}
       />
-    </>
+    </Rows>
   );
 }

@@ -4,7 +4,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react-native";
 import { Dimensions, Text } from "react-native";
 import type { Task } from "@/core/types";
-import { ribbonShape } from "./today/ribbon-shape";
+import { ribbonBreakdown, ribbonShape } from "./today/ribbon-shape";
 import { DoneSection } from "./today/sections";
 import { NOW_MIN, TODAY, task, todayFixture } from "./today/today-fixture";
 import { todayRows } from "./today-rows";
@@ -345,5 +345,138 @@ describe("<TodayView>: the sections", () => {
     expect(expired.onDismiss).toHaveBeenCalledTimes(1);
     expect(calendar.onRetry).toHaveBeenCalledTimes(1);
     expect(calendar.onDismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("<TodayView>: the ribbon's breakdown", () => {
+  const breakdown = ribbonBreakdown(fixture.capacity, { bufferPct: 15, connected: true, meetings: fixture.meetings, blocks: fixture.blocks });
+  /** A tap `x` points along a ribbon laid out 270 points wide: nine to six at half a point a minute. */
+  const tap = async (x: number) => {
+    const button = screen.getByRole("button", { name: "Spare time breakdown" });
+    await fireEvent(button.parent!, "layout", { nativeEvent: { layout: { x: 0, y: 0, width: 270, height: 48 } } });
+    await fireEvent.press(button, { nativeEvent: { locationX: x } });
+  };
+
+  it("lays one real button over the drawing, with the equation as what a screen reader hears of it", async () => {
+    await render(<TodayView {...props({ breakdown })} />);
+    const button = screen.getByRole("button", { name: "Spare time breakdown" });
+    expect(button.props.accessibilityHint).toBe("9h working − 1h 30m in meetings − 1h 20m buffer (15% of your working day) − 3h 20m planned = 2h 50m spare");
+    expect(button.props.accessibilityState).toMatchObject({ expanded: false });
+    expect(screen.queryByTestId("ribbon-breakdown")).toBeNull();
+  });
+
+  it("a ribbon handed no breakdown is only drawn", async () => {
+    await render(<TodayView {...props()} />);
+    expect(screen.queryByRole("button", { name: "Spare time breakdown" })).toBeNull();
+  });
+
+  it("a tap on free time names it, shows the equation a term a line, and offers Add something", async () => {
+    const onAddSomething = jest.fn();
+    await render(<TodayView {...props({ breakdown, onAddSomething })} />);
+    await tap(10);
+    const panel = within(screen.getByTestId("ribbon-breakdown"));
+    expect(panel.getByText("Free · 09:00–10:00 · 1h")).toBeTruthy();
+    for (const term of ["9h working", "1h 30m in meetings", "1h 20m buffer (15% of your working day)", "3h 20m planned", "2h 50m spare"]) expect(panel.getByText(term)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Spare time breakdown" }).props.accessibilityState).toMatchObject({ expanded: true });
+    await fireEvent.press(panel.getByRole("button", { name: "Add something" }));
+    expect(onAddSomething).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("ribbon-breakdown")).toBeNull();
+  });
+
+  it("a tap on a meeting names it by its title and shows it on the timeline", async () => {
+    const onShowMeeting = jest.fn();
+    await render(<TodayView {...props({ breakdown, onShowMeeting })} />);
+    await tap(45);
+    const panel = within(screen.getByTestId("ribbon-breakdown"));
+    expect(panel.getByText("Meeting · Design review · 10:00–11:00 · 1h")).toBeTruthy();
+    await fireEvent.press(panel.getByRole("button", { name: "Show on timeline" }));
+    expect(onShowMeeting).toHaveBeenCalledWith({ start: 600, end: 660 });
+  });
+
+  it("a block is named with nothing to do; the same thing tapped again closes the panel, another moves it", async () => {
+    await render(<TodayView {...props({ breakdown })} />);
+    await tap(220);
+    const panel = () => within(screen.getByTestId("ribbon-breakdown"));
+    expect(panel().getByText("Block · Call the bank · 16:00–16:35 · 35m")).toBeTruthy();
+    expect(panel().queryByRole("button")).toBeNull();
+    await tap(45);
+    expect(panel().getByText("Meeting · Design review · 10:00–11:00 · 1h")).toBeTruthy();
+    await tap(50);
+    expect(screen.queryByTestId("ribbon-breakdown")).toBeNull();
+  });
+
+  it("a touch anywhere else closes it, and one on the panel itself does not", async () => {
+    await render(<TodayView {...props({ breakdown })} />);
+    await tap(10);
+    // A real touch on the hero reaches the hero and then the screen around it; the test library calls only the
+    // nearest handler, so each is given its turn here.
+    const around = screen.getByTestId("today-screen");
+    await fireEvent(screen.getByText("Free · 09:00–10:00 · 1h"), "touchStart");
+    await fireEvent(around, "touchStart");
+    expect(screen.getByTestId("ribbon-breakdown")).toBeTruthy();
+    // The next touch does not start on the hero.
+    await fireEvent(around, "touchStart");
+    expect(screen.queryByTestId("ribbon-breakdown")).toBeNull();
+  });
+});
+
+describe("<TodayView>: Plan my day, and what stays in sight", () => {
+  const ritual = { shutdown: false, shutdownNote: null, plannedLabel: null, onPlan: jest.fn(), onShutdown: jest.fn() };
+  const pane = () => <Text>the day’s hours</Text>;
+
+  it("offers Plan my day on the line under the ritual row, beside the carried-over review", async () => {
+    const onOpen = jest.fn();
+    const onReview = jest.fn();
+    await render(<TodayView {...props({ dayPane: pane, ritual: { ...ritual, plan: { label: "Plan my day", open: false, onOpen }, onReview } })} />);
+    const line = within(screen.getByTestId("ritual-actions"));
+    const plan = line.getByRole("button", { name: "Plan my day" });
+    expect(plan.props.accessibilityState).toMatchObject({ expanded: false });
+    await fireEvent.press(plan);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    await fireEvent.press(line.getByRole("button", { name: "Review carried" }));
+    expect(onReview).toHaveBeenCalledTimes(1);
+  });
+
+  it("says Re-plan once the plan has blocks on a day that has started, and that its preview is open", async () => {
+    await render(<TodayView {...props({ dayPane: pane, mode: "day", previewing: true, ritual: { ...ritual, plan: { label: "Re-plan the rest of today", open: true, onOpen: jest.fn() } } })} />);
+    expect(screen.getByRole("button", { name: "Re-plan the rest of today" }).props.accessibilityState).toMatchObject({ expanded: true });
+  });
+
+  it("has no Plan my day on a day without working hours, or once the day has no ritual left", async () => {
+    await render(<TodayView {...props({ ritual: { ...ritual, plan: { label: "Plan my day", open: false, onOpen: jest.fn() } } })} />);
+    expect(screen.queryByRole("button", { name: "Plan my day" })).toBeNull();
+    await render(<TodayView {...props({ dayPane: pane, ritual: null })} />);
+    expect(screen.queryByRole("button", { name: "Plan my day" })).toBeNull();
+  });
+
+  it("keeps the hero card and the ritual row under the top edge while the lists pass beneath, the line under them scrolling away", async () => {
+    await render(<TodayView {...props({ dayPane: pane, ritual: { ...ritual, plan: { label: "Plan my day", open: false, onOpen: jest.fn() } } })} />);
+    const sticky = within(screen.getByTestId("sticky-part"));
+    expect(sticky.getByLabelText("2h 50m spare")).toBeTruthy();
+    expect(sticky.getByRole("link", { name: "Morning plan" })).toBeTruthy();
+    expect(sticky.getByRole("radio", { name: "Day" })).toBeTruthy();
+    expect(sticky.queryByRole("button", { name: "Plan my day" })).toBeNull();
+    expect(sticky.queryByText("Call the bank")).toBeNull();
+    // The second child of what scrolls is the one that stays.
+    expect(screen.getByTestId("sticky-scroll").props.stickyHeaderIndices).toEqual([1]);
+  });
+
+  it("a day that was shut down has no hero to keep: its summary scrolls with the rest", async () => {
+    await render(<TodayView {...props({ closed: { line: "Closed at 18:42 · 3 done · rated 4/5", highlights: null } })} />);
+    expect(within(screen.getByTestId("sticky-part")).queryByText(/Closed at 18:42/)).toBeNull();
+    expect(screen.getByText(/Closed at 18:42/)).toBeTruthy();
+  });
+
+  it("while the plan is previewed nothing stays over the hours, even on a tall phone: the hero scrolls away with them", async () => {
+    const withAbove = (above: React.ReactNode) => (
+      <>
+        <Text>the day’s hours</Text>
+        <Text>{above ? "hero above the hours" : "nothing above the hours"}</Text>
+      </>
+    );
+    await render(<TodayView {...props({ dayPane: withAbove, mode: "day", previewing: true })} />);
+    expect(screen.getByText("hero above the hours")).toBeTruthy();
+    await render(<TodayView {...props({ dayPane: withAbove, mode: "day" })} />);
+    expect(screen.getByText("nothing above the hours")).toBeTruthy();
   });
 });

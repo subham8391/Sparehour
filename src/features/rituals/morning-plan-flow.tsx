@@ -14,7 +14,7 @@ import type { PlanDrawing } from "@/features/planning/drawing";
 import type { TimelineBlock, TimelineMeeting } from "@/features/today/hooks/use-today";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Capacity } from "@/core/capacity";
-import { formatMinutes, formatTime, timeFromMinutes, type Instant, type LocalDate } from "@/core/time";
+import { formatMinutes, type Instant, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskDragData } from "@/features/blocking/drag";
 import { useSelectionOptional } from "@/features/selection/selection-provider";
@@ -33,6 +33,7 @@ import { DayChipTag } from "@/features/tasks/day-chip-tag";
 import { BLOCK_GLYPH, MoveActions, RowActionsLayoutProvider } from "@/features/tasks/task-actions";
 import { PlacingBar, Timeline, type TimelineProps } from "@/features/today/timeline";
 import { PLAN_STEPS, easiestMove, readout, type Candidates, type PlanStep } from "./morning-plan";
+import { FRAME_LEAD, NO_HOURS_LINE, PICK_LEAD, PLAN_ESTIMATES, PLAN_MY_DAY_LEAD, PLAN_STEP_LABELS, PLAN_TITLES, PROJECTS_SHOWN, eveningNote, overLead, pickSummary, primaryLabel, spareFigure, toBlockTasks, toBlockWords } from "./morning-plan-words";
 import { PlanHero } from "./plan-hero";
 import { RitualFooter, RitualFrame } from "./ritual-frame";
 
@@ -97,17 +98,9 @@ export interface BlockingStep {
   paused?: string | null;
 }
 
-const TITLES: Record<PlanStep, string> = { frame: "Here’s your day", pick: "Pick today’s tasks", block: "Block time" };
-const LABELS = PLAN_STEPS.map((s) => TITLES[s]);
-/** The estimate presets, as the detail offers them. */
-const ESTIMATES = [15, 25, 30, 45, 60, 90, 120];
-
-/** Step 2's note (SCREENS.md §14): evening tasks stay out of the readout, and the note says what they add up to after work. */
-export function eveningNote(onToday: readonly Task[], defaultEstimateMin: number, startMin: number | null): string {
-  const planned = onToday.filter((t) => t.evening).reduce((sum, t) => sum + (t.estimateMin ?? defaultEstimateMin), 0);
-  if (planned === 0 || startMin === null) return "Evening tasks aren’t counted here — they get their own time after work.";
-  return `Evening tasks aren’t counted here — they get their own ${formatMinutes(planned)} after ${formatTime(timeFromMinutes(startMin))}.`;
-}
+// The step titles, the sentences, the estimate presets and step 2's note live in morning-plan-words.ts, free of this
+// file's drawing, so the Android app says the same; the note is handed on from here as before.
+export { eveningNote } from "./morning-plan-words";
 
 /** A key the flow takes for itself only when no control has the focus (a field, a button, a menu keeps its own). */
 const ownsKey = (target: EventTarget | null) => !(target as HTMLElement | null)?.closest?.("input, textarea, select, button, a, [contenteditable='true'], [role='menu'], [role='dialog']");
@@ -154,10 +147,9 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
   // The phone's timeline step is a place to tap times into: the FAB steps aside (SCREENS.md §14 Responsive).
   useHideQuickAddFab(step === "block");
 
-  const projects = showAll ? p.groups.fromProjects : p.groups.fromProjects.slice(0, 6);
+  const projects = showAll ? p.groups.fromProjects : p.groups.fromProjects.slice(0, PROJECTS_SHOWN);
   const pickRows = [...p.groups.carried, ...p.groups.dueThisWeek, ...projects];
-  const blockedIds = new Set((p.blocks ?? []).flatMap((b) => (b.taskId ? [b.taskId] : [])));
-  const toBlock = p.onToday.filter((t) => !t.evening && !blockedIds.has(t.id));
+  const toBlock = toBlockTasks(p.onToday, p.blocks ?? []);
   const sel = useRowSelection(step === "pick" ? pickRows.map((t) => t.id) : step === "block" ? toBlock.map((t) => t.id) : []);
   const next = () => index < PLAN_STEPS.length - 1 && setStep(PLAN_STEPS[index + 1]);
 
@@ -230,12 +222,12 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
       body = (
         <>
           <PlanHero c={c} now={p.now} zone={p.zone} carried={p.groups.carried.length} />
-          <p className="text-body-lg text-pretty text-ink-2">Nothing to do here but read. The next step is the only decision of the morning.</p>
+          <p className="text-body-lg text-pretty text-ink-2">{FRAME_LEAD}</p>
         </>
       );
       break;
     case "pick": {
-      const summary = `${formatMinutes(r.fitsMin)} fits today · ${formatMinutes(r.pickedMin)} picked · ${r.count} ${r.count === 1 ? "task" : "tasks"}`;
+      const summary = pickSummary(r);
       body = (
         <>
           {/* The phone pins the summary at the top of the step, the Easiest move under it when over (SCREENS.md §14 Responsive). */}
@@ -244,10 +236,10 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
             data-testid="plan-summary"
             className={cx("sticky top-0 z-10 -mx-1 rounded-lg border px-3 py-2 text-body-sm font-medium num max-sm:order-first sm:hidden", over ? "border-over-line bg-over-soft text-over" : "border-line bg-surface text-ink")}
           >
-            {over && `${formatMinutes(r.overMin)} over · `}
+            {overLead(r)}
             {summary}
           </div>
-          <p className="text-body-lg text-pretty text-ink-2">Tick what you&rsquo;ll work on. Everything else waits without turning red.</p>
+          <p className="text-body-lg text-pretty text-ink-2">{PICK_LEAD}</p>
           <Group title="Carried over" count={p.groups.carried.length}>
             {p.groups.carried.map((t) =>
               pickRow(t, {
@@ -274,10 +266,10 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
           </Group>
           <Group title="From your projects" count={p.groups.fromProjects.length}>
             {projects.map((t) => pickRow(t))}
-            {!showAll && p.groups.fromProjects.length > 6 && (
+            {!showAll && p.groups.fromProjects.length > PROJECTS_SHOWN && (
               <li className="border-t border-line px-4 py-1">
                 <Button variant="link" className="-ml-2 text-ink-2" onClick={() => setShowAll(true)}>
-                  More · {p.groups.fromProjects.length - 6}
+                  More · {p.groups.fromProjects.length - PROJECTS_SHOWN}
                 </Button>
               </li>
             )}
@@ -311,7 +303,7 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
         <>
           <p className="text-body-lg text-pretty text-ink-2">
             {b ? "Drag a task onto your day, or tap it and then a time. B puts the selected one in the next free gap." : "Your day as it stands."}
-            {plan && " Plan my day proposes blocks for today’s tasks around your meetings, and nothing changes until you approve."}
+            {plan && ` ${PLAN_MY_DAY_LEAD}`}
           </p>
           {c && c.state !== "no_work_day" ? (
             <>
@@ -325,8 +317,8 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
               {plan?.open && plan.preview}
               {/* The spare figure follows every block placed (SCREENS.md §14 Behaviour 1). */}
               <p aria-live="polite" className={cx("text-body font-medium num", c.spareMin < 0 ? "text-over" : "text-ink")}>
-                {c.spareMin < 0 ? `${formatMinutes(-c.spareMin)} over` : `${formatMinutes(c.spareMin)} spare`}
-                <span className="font-normal text-ink-2"> · {toBlock.length === 0 ? "everything picked has a time" : `${toBlock.length} to block`}</span>
+                {spareFigure(c.spareMin)}
+                <span className="font-normal text-ink-2"> · {toBlockWords(toBlock.length)}</span>
               </p>
               <div className="flex flex-col gap-4 md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-start md:gap-6">
                 {b && toBlock.length > 0 && (
@@ -369,7 +361,7 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
               </div>
             </>
           ) : (
-            <p className="text-body-lg text-ink-3">No working hours today.</p>
+            <p className="text-body-lg text-ink-3">{NO_HOURS_LINE}</p>
           )}
         </>
       );
@@ -384,14 +376,14 @@ export function MorningPlanFlow(p: MorningPlanFlowProps) {
           Morning plan · <span className="num">{index + 1}</span> of <span className="num">{PLAN_STEPS.length}</span>
         </>
       }
-      title={TITLES[step]}
-      steps={{ labels: LABELS, index, onStep: (i) => setStep(PLAN_STEPS[i]) }}
+      title={PLAN_TITLES[step]}
+      steps={{ labels: PLAN_STEP_LABELS, index, onStep: (i) => setStep(PLAN_STEPS[i]) }}
       onSkip={p.onSkip}
       footer={
         <RitualFooter
           onBack={() => index > 0 && setStep(PLAN_STEPS[index - 1])}
           canGoBack={index > 0}
-          primary={step === "block" ? { label: "Done", onClick: p.onDone } : { label: step === "frame" ? "Next" : "Next · Block time", onClick: next }}
+          primary={{ label: primaryLabel(step), onClick: step === "block" ? p.onDone : next }}
         />
       }
     >
@@ -460,7 +452,7 @@ function EstimateChip({ task, defaultEstimateMin, onEstimate, request }: { task:
       )}
     >
       {(close) =>
-        ESTIMATES.map((m) => (
+        PLAN_ESTIMATES.map((m) => (
           <button key={m} type="button" role="menuitem" aria-current={task.estimateMin === m || undefined} className={cx(MENU_ITEM, "num")} onClick={() => (close(), onEstimate(m))}>
             {formatMinutes(m)}
           </button>

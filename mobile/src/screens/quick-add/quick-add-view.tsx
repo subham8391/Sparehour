@@ -1,9 +1,10 @@
 // Quick add as the phone draws it (SCREENS.md §11, §22 "← Quick add"): a bottom sheet over the keyboard with one
-// line; under it the strip that restates what was understood as chips (each with a × that turns its words back into
+// line, its tokens painted in place as they are recognised (token-line.tsx); under it the strip that restates what was understood as chips (each with a × that turns its words back into
 // title words, or takes off the day, project or area the sheet was opened on) and where the task will go; what tasks
 // like this usually take, what the task would do to its day, and any note on the parse; the projects a typed #name
 // fits (or the way to make a new one) and the tags a typed @name fits; the row of tokens to tap; Add. The keyboard's
-// Done saves and keeps the sheet open for the next line, and the last save is said under the button. Presentational:
+// Done saves and keeps the sheet open for the next line, and the last save is said under the button. A list pasted
+// into the line is one task per line, said once ("4 tasks added") with one Undo for all of them. Presentational:
 // the line's reading is use-composer.ts (the web's own functions), and saving is handed in.
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -17,8 +18,8 @@ import { FieldNote } from "~/ui/field-row";
 import { Icon, type IconName } from "~/ui/icon";
 import { IconButton } from "~/ui/screen";
 import { Sheet } from "~/ui/sheet";
-import { TextField } from "~/ui/text-field";
 import { font, useColours } from "~/ui/theme";
+import { TokenLine } from "./token-line";
 import { useComposer, type QuickAddContext, type QuickAddHere, type QuickAddSave, type StripChip } from "./use-composer";
 
 export interface QuickAddViewProps {
@@ -34,6 +35,8 @@ export interface QuickAddViewProps {
   here?: QuickAddHere | null;
   onClose: () => void;
   onSubmit: QuickAddSave;
+  /** A paste saved these tasks: returns how to take them all back, once (the caller also puts that on the undo stack). */
+  onPasted?: (ids: readonly string[]) => (() => Promise<void>) | null | undefined;
   /** The sheet closed with words in the box: `text` as typed, `title` as the strip would save it. */
   onDiscard?: (text: string, title: string) => void;
   /** What the task would do to its day ("Leaves 2h 50m spare today"), drawn as the strip's last line. */
@@ -57,11 +60,14 @@ export function QuickAddView({ open, dayLine, ...input }: QuickAddViewProps) {
           Quick add
         </Text>
       </View>
-      <TextField
+      <TokenLine
         accessibilityLabel="Task"
         autoFocus
         value={q.value}
+        painted={q.painted}
+        holds={q.holds}
         onChangeText={q.onChangeText}
+        onKeyPress={(e) => q.onKeyPress(e.nativeEvent.key)}
         selection={q.selection}
         onSelectionChange={(e) => q.onSelectionChange(e.nativeEvent.selection.start)}
         placeholder={PLACEHOLDER_NARROW}
@@ -81,6 +87,7 @@ export function QuickAddView({ open, dayLine, ...input }: QuickAddViewProps) {
             <RemovableChip
               key={`${chip.kind}-${i}`}
               quiet
+              tone={chip.kind === "project" && !chip.tentative ? "meet" : undefined}
               label={chip.text}
               icon={FACT_ICON[chip.kind]}
               onRemove={chip.onRemove}
@@ -130,8 +137,12 @@ export function QuickAddView({ open, dayLine, ...input }: QuickAddViewProps) {
 
       <Button variant="primary" block label="Add" disabled={!q.canAdd} onPress={() => void q.submit()} />
       {q.notice ? (
-        <View accessibilityLiveRegion="polite">
-          <Line icon="check" text={q.notice} />
+        <View accessibilityLiveRegion="polite" style={styles.notice}>
+          <View style={styles.grow}>
+            <Line icon="check" text={q.notice.text} />
+          </View>
+          {/* A paste's one way back: every task it added, taken back together. */}
+          {q.notice.undo ? <Button variant="quiet" label="Undo" onPress={q.notice.undo} /> : null}
         </View>
       ) : null}
       {q.error ? (
@@ -172,6 +183,7 @@ const styles = StyleSheet.create({
   words: { flexShrink: 1, fontFamily: font.regular, fontSize: 14, lineHeight: 20, fontVariant: ["tabular-nums"] },
   grow: { flex: 1 },
   line: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  notice: { flexDirection: "row", alignItems: "center", gap: 8 },
   // The glyph sits on the first line of its words.
   glyph: { height: 20, justifyContent: "center" },
 });

@@ -1,10 +1,13 @@
 // Today as the phone draws it (ANDROID_APP_SPEC.md §9; SCREENS.md §2 at phone width; the web's is app/(app)/today/
 // page.tsx): the sky, the day with the arrows that step it, the hero card with the spare-time figure and the ribbon,
-// the ritual of the hour beside the List | Day control, then either the lists (Carried over, the day, This evening,
-// what was finished) or the day's timeline in their place. Presentational: it is handed everything it shows, so it
-// is drawn with fixtures in the browser preview and in tests, and with the real day by today.tsx. The parts are in
-// today/ (ribbon.tsx, sections.tsx, notes.tsx, menus.tsx); the timeline is handed in whole (`dayPane`).
-import { useState, type ReactNode } from "react";
+// the ritual of the hour beside the List | Day control, Plan my day and the carried-over review on a line under
+// them, then either the lists (Carried over, the day, This evening, what was finished) or the day's timeline in
+// their place. While the lists scroll, the hero card and the ritual row stay under the top edge and the lists pass
+// beneath them (SCREENS.md §2.8, §22); the line under them scrolls away with the lists. Presentational: it is handed
+// everything it shows, so it is drawn with fixtures in the browser preview and in tests, and with the real day by
+// today.tsx. The parts are in today/ (ribbon.tsx, sections.tsx, notes.tsx, menus.tsx); the timeline is handed in
+// whole (`dayPane`).
+import { useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
@@ -13,11 +16,12 @@ import type { TimelineBlock } from "@/features/today/hooks/use-today";
 import { Icon } from "~/ui/icon";
 import { IconButton, Screen } from "~/ui/screen";
 import { Segmented } from "~/ui/segmented";
+import { StickyScreen } from "~/ui/sticky-screen";
 import { TARGET, font, useColours } from "~/ui/theme";
 import { RowMenuSheet, type RowMenuItem } from "./today/menus";
 import { CalendarLine, ClosedDay, ExpiredLine, PastDayNote, type CalendarLineProps } from "./today/notes";
-import { Hero } from "./today/ribbon";
-import type { RibbonShape } from "./today/ribbon-shape";
+import { Hero, type BreakdownOpen } from "./today/ribbon";
+import type { RibbonBreakdown, RibbonShape } from "./today/ribbon-shape";
 import { CarriedSection, DaySection, EveningSection, type PullInRow, type RowContext } from "./today/sections";
 import type { Row } from "./today-rows";
 import type { Summary } from "./today-summary";
@@ -34,6 +38,8 @@ export interface Ritual {
   plannedLabel: string | null;
   onPlan: () => void;
   onShutdown: () => void;
+  /** Plan my day (or re-plan), on a working day: its words, and whether its preview is open. */
+  plan?: { label: string; open: boolean; onOpen: () => void } | null;
   /** The morning review on demand, when something was carried over. */
   onReview?: () => void;
 }
@@ -55,6 +61,12 @@ export interface TodayViewProps {
   past?: boolean;
   summary: Summary;
   ribbon?: RibbonShape | null;
+  /** What a tap on the ribbon opens: the spare-time breakdown. Left out, the ribbon is only drawn. */
+  breakdown?: RibbonBreakdown | null;
+  /** The breakdown's "Add something", on free time: quick add for the day shown. */
+  onAddSomething?: () => void;
+  /** The breakdown's "Show on timeline", on a meeting. */
+  onShowMeeting?: (meeting: { start: number; end: number }) => void;
   onTrim?: () => void;
   onPlanDay?: () => void;
   onConnectCalendar?: () => void;
@@ -71,6 +83,11 @@ export interface TodayViewProps {
    * them: the hero, on a phone too short to keep the hero and the hours in view together.
    */
   dayPane?: (above: ReactNode) => ReactNode;
+  /**
+   * Plan my day's preview is open over the Day view: nothing stays over the hours, since its sheet needs the room
+   * (the hero scrolls away with them on any phone).
+   */
+  previewing?: boolean;
   /** Carried over, the day and This evening, as one run of rows (today-rows.ts). */
   rows: readonly Row[];
   /** The day's own section name: "Today", or the day stepped to. */
@@ -126,6 +143,13 @@ export function TodayView(p: TodayViewProps) {
   const [menu, setMenu] = useState<{ task: Task; section: "carried" | "day" | "evening" } | null>(null);
   // All done: whether "Pull something in" is unfolded.
   const [pulling, setPulling] = useState(false);
+  // The ribbon's breakdown, held here so a touch anywhere else closes it (the touch still does what it was for).
+  const [breakdown, setBreakdown] = useState<BreakdownOpen | null>(null);
+  const onHero = useRef(false);
+  const touched = () => {
+    if (!onHero.current && breakdown) setBreakdown(null);
+    onHero.current = false;
+  };
   const sections: Record<"carried" | "day" | "evening", Task[]> = { carried: [], day: [], evening: [] };
   let dayLabel = p.dayLabel ?? "Today";
   for (const row of p.rows) {
@@ -158,7 +182,25 @@ export function TodayView(p: TodayViewProps) {
   // scrolls away with them, and the List | Day control alone stays.
   const tall = useWindowDimensions().height >= TALL;
 
-  const hero = p.closed ? <ClosedDay line={p.closed.line} highlights={p.closed.highlights} /> : p.past ? null : <Hero summary={p.summary} ribbon={p.ribbon ?? null} onTrim={p.onTrim} onPlan={p.onPlanDay} onConnect={p.onConnectCalendar} />;
+  const closed = p.closed ? <ClosedDay line={p.closed.line} highlights={p.closed.highlights} /> : null;
+  const hero =
+    p.closed || p.past ? null : (
+      // A touch that starts on the hero is the ribbon's own (or its panel's); any other closes the breakdown.
+      <View collapsable={false} onTouchStart={() => (onHero.current = true)}>
+        <Hero
+          summary={p.summary}
+          ribbon={p.ribbon ?? null}
+          onTrim={p.onTrim}
+          onPlan={p.onPlanDay}
+          onConnect={p.onConnectCalendar}
+          breakdown={p.breakdown}
+          open={breakdown}
+          onOpen={setBreakdown}
+          onAdd={p.onAddSomething}
+          onMeeting={p.onShowMeeting}
+        />
+      </View>
+    );
   const ritualRow =
     (ritual || hasDay) && (
       <View style={styles.ritual}>
@@ -187,83 +229,122 @@ export function TodayView(p: TodayViewProps) {
       </View>
     );
 
+  // The line under the ritual row (the web's RitualActions): Plan my day, or re-plan, and the carried-over review.
+  const plan = ritual && hasDay ? ritual.plan : null;
+  const ritualActions =
+    plan || ritual?.onReview ? (
+      <View testID="ritual-actions" style={styles.ritualActions}>
+        {plan ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={plan.label} accessibilityState={{ expanded: plan.open }} onPress={plan.onOpen} style={styles.review}>
+            <Text style={[styles.reviewText, { color: c.ink }]}>{plan.label}</Text>
+          </Pressable>
+        ) : null}
+        {ritual?.onReview ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Review carried" onPress={ritual.onReview} style={styles.review}>
+            <Text style={[styles.reviewText, { color: c.ink2 }]}>Review carried</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    ) : null;
+  const actions = (
+    <>
+      {p.onPrevDay ? <IconButton icon="arrow-left" label="Previous day" onPress={p.onPrevDay} /> : null}
+      {p.onNextDay ? <IconButton icon="arrow-right" label="Next day" onPress={p.onNextDay} /> : null}
+      <IconButton icon="more" label="Today options" onPress={p.onMenu} />
+    </>
+  );
+  const under =
+    p.onBackToToday || (p.allDay && p.allDay.length > 0) ? (
+      <View style={styles.under}>
+        {p.onBackToToday ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to today" onPress={p.onBackToToday} style={styles.back}>
+            <Icon name="arrow-left" size={14} color={c.ink2} />
+            <Text style={[styles.backText, { color: c.ink2 }]}>back to today</Text>
+          </Pressable>
+        ) : null}
+        {/* All-day events sit under the date, never in the busy time. */}
+        {p.allDay && p.allDay.length > 0 ? <Text style={[styles.allDay, { color: c.ink2 }]}>All day: {p.allDay.join(" · ")}</Text> : null}
+      </View>
+    ) : null;
+  const rowMenu = <RowMenuSheet task={menu?.task ?? null} items={menu ? itemsFor(menu.section, menu.task) : []} onClose={() => setMenu(null)} />;
+
+  if (mode === "day") {
+    // The hero stays over the hours where the phone is tall enough for both, unless the plan's preview needs the room.
+    const heroStays = tall && !p.previewing;
+    return (
+      <View testID="today-screen" collapsable={false} style={styles.fill} onTouchStart={touched}>
+        {/* The Day view's hours scroll by themselves, under the hero. */}
+        <Screen title={p.title} eyebrow={p.eyebrow} part={p.part} bottomRoom={p.bottomRoom} scroll={false} actions={actions}>
+          {under}
+          {heroStays ? (closed ?? hero) : null}
+          {ritualRow}
+          {ritualActions}
+          <View style={styles.fill}>{p.dayPane?.(heroStays ? null : (closed ?? hero))}</View>
+          {rowMenu}
+        </Screen>
+      </View>
+    );
+  }
   return (
-    <Screen
-      title={p.title}
-      eyebrow={p.eyebrow}
-      part={p.part}
-      bottomRoom={p.bottomRoom}
-      // The Day view's hours scroll by themselves, under the hero.
-      scroll={mode === "list"}
-      actions={
-        <>
-          {p.onPrevDay ? <IconButton icon="arrow-left" label="Previous day" onPress={p.onPrevDay} /> : null}
-          {p.onNextDay ? <IconButton icon="arrow-right" label="Next day" onPress={p.onNextDay} /> : null}
-          <IconButton icon="more" label="Today options" onPress={p.onMenu} />
-        </>
-      }
-    >
-      {p.onBackToToday || (p.allDay && p.allDay.length > 0) ? (
-        <View style={styles.under}>
-          {p.onBackToToday ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Back to today" onPress={p.onBackToToday} style={styles.back}>
-              <Icon name="arrow-left" size={14} color={c.ink2} />
-              <Text style={[styles.backText, { color: c.ink2 }]}>back to today</Text>
-            </Pressable>
-          ) : null}
-          {/* All-day events sit under the date, never in the busy time. */}
-          {p.allDay && p.allDay.length > 0 ? <Text style={[styles.allDay, { color: c.ink2 }]}>All day: {p.allDay.join(" · ")}</Text> : null}
-        </View>
-      ) : null}
-      {mode === "list" && p.expired ? <ExpiredLine {...p.expired} /> : null}
-      {mode === "list" && p.past ? <PastDayNote /> : null}
-      {mode === "list" && p.calendar ? <CalendarLine {...p.calendar} /> : null}
-      {mode === "list" || tall ? hero : null}
-      {ritualRow}
-      {mode === "list" && ritual?.onReview ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Review carried" onPress={ritual.onReview} style={styles.review}>
-          <Text style={[styles.reviewText, { color: c.ink2 }]}>Review carried</Text>
-        </Pressable>
-      ) : null}
-      {mode === "day" ? (
-        <View style={styles.fill}>{p.dayPane?.(tall ? null : hero)}</View>
-      ) : (
-        <>
-          <CarriedSection
-            tasks={sections.carried}
-            folded={Boolean(p.carriedFolded)}
-            onExpand={p.onExpandCarried ?? noop}
-            onClearSlate={p.onClearSlate ?? noop}
-            onKeep={p.onToday ?? noop}
-            onSomeday={p.onSomeday ?? noop}
-            onBreakDown={p.onConvert ?? noop}
-            onDrop={p.onDrop ?? noop}
-            onAllTomorrow={p.onAllTomorrow ?? noop}
-            onAllSomeday={p.onAllSomeday ?? noop}
-            ctx={ctx("carried")}
+    <View testID="today-screen" collapsable={false} style={styles.fill} onTouchStart={touched}>
+      <StickyScreen
+        title={p.title}
+        eyebrow={p.eyebrow}
+        part={p.part}
+        bottomRoom={p.bottomRoom}
+        actions={actions}
+        before={
+          <>
+            {under}
+            {p.expired ? <ExpiredLine {...p.expired} /> : null}
+            {p.past ? <PastDayNote /> : null}
+            {p.calendar ? <CalendarLine {...p.calendar} /> : null}
+            {closed}
+          </>
+        }
+        // The hero card and the ritual row stay in sight; a day that was shut down or has passed has no hero to keep.
+        sticky={
+          <>
+            {hero}
+            {ritualRow}
+          </>
+        }
+      >
+        {ritualActions}
+        <CarriedSection
+          tasks={sections.carried}
+          folded={Boolean(p.carriedFolded)}
+          onExpand={p.onExpandCarried ?? noop}
+          onClearSlate={p.onClearSlate ?? noop}
+          onKeep={p.onToday ?? noop}
+          onSomeday={p.onSomeday ?? noop}
+          onBreakDown={p.onConvert ?? noop}
+          onDrop={p.onDrop ?? noop}
+          onAllTomorrow={p.onAllTomorrow ?? noop}
+          onAllSomeday={p.onAllSomeday ?? noop}
+          ctx={ctx("carried")}
+        />
+        {/* A day that has passed lists only what was finished on it (below). */}
+        {!p.past ? (
+          <DaySection
+            label={dayLabel}
+            tasks={sections.day}
+            state={p.dayState ?? (p.rows.length === 0 ? "empty" : "planned")}
+            spareMin={p.spareMin ?? 0}
+            pullIn={p.pullIn ?? []}
+            pulling={pulling}
+            onPull={() => setPulling((v) => !v)}
+            onPullIn={p.onToday ?? noop}
+            onPlan={p.onPlanDay ?? noop}
+            onShutdown={ritual?.onShutdown ?? noop}
+            ctx={ctx("day")}
           />
-          {/* A day that has passed lists only what was finished on it (below). */}
-          {!p.past ? (
-            <DaySection
-              label={dayLabel}
-              tasks={sections.day}
-              state={p.dayState ?? (p.rows.length === 0 ? "empty" : "planned")}
-              spareMin={p.spareMin ?? 0}
-              pullIn={p.pullIn ?? []}
-              pulling={pulling}
-              onPull={() => setPulling((v) => !v)}
-              onPullIn={p.onToday ?? noop}
-              onPlan={p.onPlanDay ?? noop}
-              onShutdown={ritual?.onShutdown ?? noop}
-              ctx={ctx("day")}
-            />
-          ) : null}
-          <EveningSection tasks={sections.evening} open={p.eveningOpen ?? true} onToggle={p.onEveningToggle ?? noop} full={Boolean(p.eveningFull)} ctx={ctx("evening")} />
-          {p.done}
-        </>
-      )}
-      <RowMenuSheet task={menu?.task ?? null} items={menu ? itemsFor(menu.section, menu.task) : []} onClose={() => setMenu(null)} />
-    </Screen>
+        ) : null}
+        <EveningSection tasks={sections.evening} open={p.eveningOpen ?? true} onToggle={p.onEveningToggle ?? noop} full={Boolean(p.eveningFull)} ctx={ctx("evening")} />
+        {p.done}
+        {rowMenu}
+      </StickyScreen>
+    </View>
   );
 }
 
@@ -291,6 +372,7 @@ const styles = StyleSheet.create({
   ritualNote: { fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   planned: { paddingVertical: 12 },
   modes: { width: 132 },
-  review: { minHeight: TARGET, justifyContent: "center", alignSelf: "flex-start", marginHorizontal: 20 },
+  ritualActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 16, marginHorizontal: 20 },
+  review: { minHeight: TARGET, justifyContent: "center" },
   reviewText: { fontFamily: font.medium, fontSize: 15, textDecorationLine: "underline" },
 });

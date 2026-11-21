@@ -26,12 +26,12 @@ export function ChipButton({ label, onPress, icon, chosen = false, accessibility
   );
 }
 
-export function RemovableChip({ label, icon, quiet = false, onRemove, removeLabel, removeHint }: { label: string; icon?: IconName; /** Filled and quiet (a fact restated) rather than outlined (a control that was set). */ quiet?: boolean; /** Left out, the chip only says. */ onRemove?: () => void; /** What the × is called: "Remove “Tomorrow”". */ removeLabel?: string; /** What taking it off does, when that is not plain: "Keep these words in the title". */ removeHint?: string }) {
+export function RemovableChip({ label, icon, quiet = false, tone, onRemove, removeLabel, removeHint }: { label: string; icon?: IconName; /** A recognised project wears the meeting colour, as on the web's strip. */ tone?: "meet"; /** Filled and quiet (a fact restated) rather than outlined (a control that was set). */ quiet?: boolean; /** Left out, the chip only says. */ onRemove?: () => void; /** What the × is called: "Remove “Tomorrow”". */ removeLabel?: string; /** What taking it off does, when that is not plain: "Keep these words in the title". */ removeHint?: string }) {
   const c = useColours();
   return (
-    <View style={[styles.chip, quiet ? { backgroundColor: c.surface2, borderColor: c.surface2 } : { borderColor: c.lineControl }, !onRemove && styles.chipPlain]}>
+    <View style={[styles.chip, tone === "meet" ? { backgroundColor: c.meetSoft, borderColor: c.meetSoft } : quiet ? { backgroundColor: c.surface2, borderColor: c.surface2 } : { borderColor: c.lineControl }, !onRemove && styles.chipPlain]}>
       {icon ? <Icon name={icon} size={14} color={c.ink3} /> : null}
-      <Text numberOfLines={1} style={[styles.chipText, { color: quiet ? c.ink2 : c.ink }]}>
+      <Text numberOfLines={1} style={[styles.chipText, { color: tone === "meet" ? c.meet : quiet ? c.ink2 : c.ink }]}>
         {label}
       </Text>
       {onRemove ? (

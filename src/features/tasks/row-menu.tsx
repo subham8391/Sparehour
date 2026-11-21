@@ -13,7 +13,8 @@
 import { Children, isValidElement, type ReactNode } from "react";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { MENU_SEPARATOR } from "@/ui/popover";
-import { PRESET_LABELS, applySnooze, snoozePresets } from "./snooze";
+import { ownedLabels } from "./row-menu-rules";
+import { applySnooze, snoozePresets } from "./snooze";
 import { OwnedLabels, RowAction, useRowActions } from "./task-actions";
 import { useTaskRepo } from "./use-task-repo";
 
@@ -37,7 +38,7 @@ export function RowMenu({ taskId, lead, parked = false, children }: { taskId: st
   return (
     <>
       {lead}
-      <OwnedLabels labels={new Set([...PRESET_LABELS, ...led, ...(parked ? [] : ["Someday"])])}>{children}</OwnedLabels>
+      <OwnedLabels labels={ownedLabels(led, parked)}>{children}</OwnedLabels>
       {/* No line above the group when the row's own actions all stepped aside. */}
       <div role="separator" className={`${MENU_SEPARATOR} first:hidden`} />
       {ready &&

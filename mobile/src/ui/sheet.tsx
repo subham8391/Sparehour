@@ -3,16 +3,22 @@
 import type { ReactNode } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { font, useColours } from "./theme";
+import { useReduceMotion } from "./motion";
+import { font, useColours, useShadows, useShape } from "./theme";
 
 export function Sheet({ open, title, onClose, children, footer }: { open: boolean; title?: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   const c = useColours();
+  const shape = useShape();
+  const shadows = useShadows();
+  // Reduce motion (Settings › Appearance, or the phone's own setting): the sheet appears in place.
+  const still = useReduceMotion();
   const insets = useSafeAreaInsets();
+  const top = typeof shape.radius.sheet === "number" ? shape.radius.sheet : 24;
   return (
-    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={open} transparent animationType={still ? "none" : "slide"} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.frame}>
         <Pressable accessibilityLabel="Close" onPress={onClose} style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim }]} />
-        <View accessibilityViewIsModal style={[styles.sheet, { backgroundColor: c.surface, borderColor: c.line, paddingBottom: insets.bottom + 12, maxHeight: "88%" }]}>
+        <View accessibilityViewIsModal style={[styles.sheet, { borderTopLeftRadius: top, borderTopRightRadius: top, backgroundColor: c.surface, borderColor: c.line, boxShadow: shadows.float ?? undefined, paddingBottom: insets.bottom + 12, maxHeight: "88%" }]}>
           <View style={[styles.grabber, { backgroundColor: c.lineStrong }]} />
           {title ? (
             <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>
@@ -31,7 +37,7 @@ export function Sheet({ open, title, onClose, children, footer }: { open: boolea
 
 const styles = StyleSheet.create({
   frame: { flex: 1, justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, paddingTop: 8 },
+  sheet: { borderWidth: 1, borderBottomWidth: 0, paddingTop: 8 },
   grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, marginBottom: 8 },
   title: { fontFamily: font.semibold, fontSize: 20, paddingHorizontal: 20, marginBottom: 8 },
   body: { paddingHorizontal: 20, paddingBottom: 8, gap: 10 },

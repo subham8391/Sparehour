@@ -1,7 +1,8 @@
 // An area's page as the phone draws it (SCREENS.md §9 "Responsive": the cards stack in one column). The name, edited
 // in place; its active projects as cards, each with its bar of what was finished this week against what is open, its
 // figures and its nearest deadline; "Add project" last; the tasks filed in the area directly, with an add line; and
-// its completed and archived projects folded away. The header's ⋯ deletes the area, after saying what stays.
+// its completed and archived projects folded away. A task's ⋯ is the one every list has (screens/rows), with Move up ·
+// Move down as its own lines. The header's ⋯ deletes the area, after saying what stays.
 // Presentational: it is handed everything it shows, and the add line only asks (its screen opens the add sheet).
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -9,9 +10,9 @@ import { compareDates, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { projectStateLabel, type ProjectStateRow } from "@/data/queries/nav";
 import type { DayPart } from "@/features/looks/look";
-import type { SnoozePreset } from "@/features/tasks/snooze";
 import { deadlineWording } from "@/ui/relative-day";
 import { OrganiseSheet, type OrganiseStep } from "~/screens/browse/organise-sheet";
+import { TaskRow } from "~/screens/rows/task-row";
 import { AddLine } from "~/ui/add-line";
 import { Button } from "~/ui/button";
 import { Card, CardRow } from "~/ui/card";
@@ -20,13 +21,11 @@ import { CollapsedGroup } from "~/ui/collapsed-group";
 import { Empty } from "~/ui/empty";
 import { Icon } from "~/ui/icon";
 import { NameField } from "~/ui/name-field";
-import { NavRow, RowMore } from "~/ui/nav-row";
+import { NavRow } from "~/ui/nav-row";
 import { IconButton, Screen } from "~/ui/screen";
 import { SectionLabel } from "~/ui/section-label";
-import { TaskLine } from "~/ui/task-line";
 import { TARGET, font, useColours } from "~/ui/theme";
 import { rowDetail } from "../project/row-detail";
-import { TaskMenu } from "../project/task-menu";
 import { TitleField } from "../project/title-field";
 
 /** One active project of the area, as its card shows it. */
@@ -54,8 +53,6 @@ export interface AreaViewProps {
   finished: readonly ProjectStateRow[];
   /** The open tasks filed in the area directly, in their order. */
   tasks: readonly Task[];
-  /** The snooze presets for a row's ⋯; empty until the account's day and zone are known. */
-  presets: readonly SnoozePreset[];
   /** The sentence under "Delete “Work”?": what stays, and where. */
   deleteNote: string;
   onRename: (name: string) => void;
@@ -66,8 +63,6 @@ export interface AreaViewProps {
   onComplete: (task: Task) => void;
   onOpen: (task: Task) => void;
   onMoveTask: (task: Task, dir: -1 | 1) => void;
-  onSnooze: (task: Task, preset: SnoozePreset) => void;
-  onSomeday: (task: Task) => void;
   onDelete: () => void;
 }
 
@@ -76,10 +71,8 @@ const nothing = () => undefined;
 export function AreaView(p: AreaViewProps) {
   const c = useColours();
   const [addingProject, setAddingProject] = useState(false);
-  const [menu, setMenu] = useState<Task | null>(null);
   /** The header's ⋯: its one line, then the confirmation. Null while it is closed. */
   const [organising, setOrganising] = useState<OrganiseStep | null>(null);
-  const at = menu ? p.tasks.findIndex((t) => t.id === menu.id) : -1;
 
   return (
     <>
@@ -142,13 +135,17 @@ export function AreaView(p: AreaViewProps) {
         <SectionLabel label="Tasks" />
         <Card>
           {p.tasks.map((task, i) => (
-            <CardRow key={task.id} first={i === 0} style={styles.row}>
-              <View style={styles.line}>
-                <TaskLine task={task} today={p.today} defaultEstimateMin={p.defaultEstimateMin} detail={rowDetail(task, p.today)} onComplete={p.onComplete} onPress={p.onOpen} />
-              </View>
-              <View style={styles.more}>
-                <RowMore label={`More actions for ${task.title}`} onPress={() => setMenu(task)} />
-              </View>
+            <CardRow key={task.id} first={i === 0}>
+              <TaskRow
+                task={task}
+                today={p.today}
+                defaultEstimateMin={p.defaultEstimateMin}
+                detail={rowDetail(task, p.today)}
+                onComplete={p.onComplete}
+                onOpen={p.onOpen}
+                // The tap path for dragging a row: one place up or down among the area's own tasks, where there is one.
+                actions={[...(i > 0 ? [{ label: "Move up", run: () => p.onMoveTask(task, -1) }] : []), ...(i < p.tasks.length - 1 ? [{ label: "Move down", run: () => p.onMoveTask(task, 1) }] : [])]}
+              />
             </CardRow>
           ))}
           <CardRow first={p.tasks.length === 0}>
@@ -172,17 +169,6 @@ export function AreaView(p: AreaViewProps) {
         ) : null}
       </Screen>
 
-      <TaskMenu
-        task={menu}
-        presets={p.presets}
-        canMoveUp={at > 0}
-        canMoveDown={at >= 0 && at < p.tasks.length - 1}
-        onMove={p.onMoveTask}
-        onComplete={p.onComplete}
-        onSnooze={p.onSnooze}
-        onSomeday={p.onSomeday}
-        onClose={() => setMenu(null)}
-      />
       {/* The area's ⋯ has one line, "Delete area…"; moving an area up or down is Browse's. */}
       <OrganiseSheet
         target={organising ? { kind: "area", id: p.id, name: p.name } : null}
@@ -239,9 +225,6 @@ const styles = StyleSheet.create({
   addProject: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   addProjectText: { fontFamily: font.medium, fontSize: 17 },
   newProject: { marginHorizontal: 16 },
-  row: { flexDirection: "row", alignItems: "center" },
-  line: { flex: 1 },
-  more: { marginLeft: -12 },
   finished: { marginTop: 6 },
   browse: { alignSelf: "flex-start", marginLeft: -12 },
   opening: { marginHorizontal: 22, fontFamily: font.regular, fontSize: 17 },

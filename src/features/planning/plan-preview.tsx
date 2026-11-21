@@ -7,8 +7,8 @@
 // or keeping (locking) one of the plan's earlier blocks re-plans around it.
 // On a phone it docks over the Day view as a sheet; elsewhere it is a card
 // beside or above the timeline.
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { explain, nextShuffle, plan, type ProposedBlock, type PlanInput } from "@/core/planning";
+import { useEffect, useId, useRef, type KeyboardEvent } from "react";
+import { explain } from "@/core/planning";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
@@ -16,54 +16,22 @@ import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { SectionLabel } from "@/ui/section-label";
 import { Grabber } from "@/ui/sheet";
-import { PLAN_LABEL, type PlanDrawing, type PlanMode } from "./drawing";
-import { canApprovePlan } from "./entitlement";
+import { DIDNT_FIT_LABEL, LEFT_OUT_LABEL, PROPOSED_LABEL, partOf, planRange as range, replacesLine, usePlanProposal, type PlanProposalOptions } from "./use-plan-proposal";
 
-export interface PlanWriter {
-  /** One transaction, one undo entry: the chosen blocks in, the replaced ones out. */
-  approve: (blocks: { taskId: string; title: string; startAt: string; endAt: string }[], replaces: readonly string[]) => Promise<void>;
-  tomorrow: (taskId: string) => Promise<void> | void;
-  someday: (taskId: string) => Promise<void> | void;
-  /** Locks one of the plan's earlier blocks so the plan works around it. */
-  keep: (blockId: string) => Promise<void> | void;
-}
+// The proposal's state and rules (what Approve writes, the sentence over the list, Shuffle, Remove, Put back) live in
+// use-plan-proposal.ts, free of this file's drawing, so the Android app plans the same; the names are handed on from here.
+export { DIDNT_FIT_LABEL, PROPOSED_LABEL, type PlanWriter } from "./use-plan-proposal";
 
-export interface PlanPreviewProps {
-  mode: PlanMode;
-  /** The scheduler's input without a seed; null while the day is loading. */
-  base: PlanInput | null;
+export interface PlanPreviewProps extends PlanProposalOptions {
   /** Titles for the day's existing blocks, for the "replaces" line. */
   blockTitles?: ReadonlyMap<string, string>;
   /** `dock`: a sheet over the Day view on a phone, a card from `sm`. `inline`: a card everywhere (the morning plan's last step). */
   layout: "dock" | "inline";
-  writer: PlanWriter;
-  /** A minute of the planned day as the ISO instant a block row stores. */
-  toIso: (minute: number) => string;
-  /** The ghosts and free time for the timeline; called whenever the proposal changes. */
-  onDrawing?: (drawing: PlanDrawing | null) => void;
-  onClose: () => void;
-  /**
-   * Why blocking is paused (calendar access revoked, or the write calendar gone; PRODUCT_SPEC.md §10.3 rule 5):
-   * the preview still shows, Approve does not, and this line says why. Null while blocking works.
-   */
-  paused?: string | null;
 }
 
-export const PROPOSED_LABEL = "Proposed blocks";
-export const DIDNT_FIT_LABEL = "Didn’t fit";
-
-const range = (start: number, end: number) => `${formatTime(timeFromMinutes(start))}–${formatTime(timeFromMinutes(end))}`;
-const partOf = (b: Pick<ProposedBlock, "part">) => (b.part ? ` (${b.part.index} of ${b.part.count})` : "");
-const blocksWord = (n: number) => `${n} ${n === 1 ? "block" : "blocks"}`;
-
 export function PlanPreview(p: PlanPreviewProps) {
-  const [seed, setSeed] = useState(0);
-  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
-  const [choosing, setChoosing] = useState(false);
-  const [unticked, setUnticked] = useState<ReadonlySet<string>>(() => new Set());
-  const [note, setNote] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const m = usePlanProposal(p);
+  const { proposal, blocks, removable, chosen, removedTasks, replaced, allowed, choosing, unticked, note, busy, error, title, summary, toggle } = m;
   const headingId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
@@ -80,81 +48,17 @@ export function PlanPreview(p: PlanPreviewProps) {
     next?.focus({ preventScroll: true });
   });
 
-  // The proposal is a pure function of the day, the removals and the seed: re-planning is just rendering again.
-  const input = p.base ? { ...p.base, candidates: p.base.candidates.filter((t) => !removed.has(t.id)) } : null;
-  const proposal = input ? plan({ ...input, seed }) : null;
-  const drawing: PlanDrawing | null = proposal
-    ? { ghosts: proposal.blocks.map((b) => ({ key: b.key, title: `${b.title}${partOf(b)}`, start: b.start, end: b.end })), free: proposal.free, replacedIds: proposal.replaces }
-    : null;
-  const { onDrawing } = p;
-  // The parent keeps the drawing only when it paints differently, so telling it on every render is cheap.
-  useEffect(() => onDrawing?.(drawing));
-
-  const blocks = proposal?.blocks ?? [];
-  // Removing takes the whole task out of this plan, so only a task's first part carries ✕.
-  const removable = blocks.filter((b) => !b.part || b.part.index === 1).map((b) => b.key);
-  const chosen = choosing ? blocks.filter((b) => !unticked.has(b.key)) : blocks;
-  const removedTasks = (p.base?.candidates ?? []).filter((t) => removed.has(t.id));
-  const replaced = (p.base?.blocks ?? []).filter((b) => proposal?.replaces.includes(b.id));
-  // Approving writes blocks, so it waits, like every other way to block, while blocking is paused.
-  const allowed = canApprovePlan() && !p.paused;
-  const title = PLAN_LABEL[p.mode];
   const dock = p.layout === "dock";
-
-  const summary = (() => {
-    if (!proposal) return "Reading your day…";
-    if (proposal.noWorkDay) return "No working hours today, so there is nothing to plan around.";
-    if (input && input.candidates.length === 0) return "There is nothing on Today to plan.";
-    if (blocks.length === 0 && proposal.unplaced.length === 0) return "Everything on Today already has its time.";
-    if (blocks.length === 0) return "Nothing fits in what is left of today.";
-    return `${blocksWord(blocks.length)} · ${formatMinutes(proposal.plannedMin)}. Nothing changes until you approve.`;
-  })();
-
-  const approve = async () => {
-    if (!proposal || chosen.length === 0 || busy || !allowed) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await p.writer.approve(
-        chosen.map((b) => ({ taskId: b.taskId, title: b.title, startAt: p.toIso(b.start), endAt: p.toIso(b.end) })),
-        proposal.replaces,
-      );
-      p.onClose();
-    } catch {
-      setError("Couldn’t save the plan. Nothing was changed.");
-      setBusy(false);
-    }
-  };
-
-  const shuffle = () => {
-    if (!input) return;
-    const next = nextShuffle(input, seed);
-    if (next) {
-      setSeed(next.seed);
-      setNote(null);
-    } else setNote("This is the only arrangement that fits.");
-  };
-
+  const approve = m.approve;
+  const shuffle = m.shuffle;
   const remove = (taskId: string, index: number) => {
     refocus.current = { list: "remove", index };
-    setRemoved((s) => new Set(s).add(taskId));
-    setNote(null);
+    m.remove(taskId);
   };
   const putBack = (taskId: string, index: number) => {
     refocus.current = { list: "putBack", index };
-    setRemoved((s) => {
-      const next = new Set(s);
-      next.delete(taskId);
-      return next;
-    });
+    m.putBack(taskId);
   };
-  const toggle = (key: string) =>
-    setUnticked((s) => {
-      const next = new Set(s);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key !== "Escape" || busy) return;
@@ -269,7 +173,7 @@ export function PlanPreview(p: PlanPreviewProps) {
         {replaced.length > 0 && (
           <div className="mt-3 rounded-lg bg-surface-2 px-3 py-2">
             <p className="text-body-sm text-pretty text-ink-2">
-              Approving replaces {replaced.length === 1 ? "an earlier plan block" : `${replaced.length} earlier plan blocks`}. Keep one to lock it where it is.
+              {replacesLine(replaced.length)}
             </p>
             <ul className="mt-1 flex flex-col">
               {replaced.map((b) => {
@@ -290,7 +194,7 @@ export function PlanPreview(p: PlanPreviewProps) {
         )}
 
         {removedTasks.length > 0 && (
-          <ul aria-label="Left out of the plan" className="mt-3 flex flex-col">
+          <ul aria-label={LEFT_OUT_LABEL} className="mt-3 flex flex-col">
             {removedTasks.map((t, i) => (
               <li key={t.id} className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-body-sm text-ink-2">Left out: {t.title}</span>
@@ -302,9 +206,7 @@ export function PlanPreview(p: PlanPreviewProps) {
           </ul>
         )}
 
-        {proposal && !proposal.noWorkDay && (blocks.length > 0 || proposal.unplaced.length > 0) && (
-          <p className="mt-3 text-body-sm text-pretty text-ink-2 num">{explain({ kind: "buffer", leftMin: proposal.leftMin, bufferMin: proposal.bufferMin, gapMin: proposal.gapMin })}</p>
-        )}
+        {m.bufferLine && <p className="mt-3 text-body-sm text-pretty text-ink-2 num">{m.bufferLine}</p>}
         {note && (
           <p role="status" className="mt-2 text-body-sm text-ink-2">
             {note}
@@ -327,11 +229,11 @@ export function PlanPreview(p: PlanPreviewProps) {
       <div className={cx("grid shrink-0 grid-cols-2 gap-2 border-t border-line px-4 py-3 sm:flex sm:flex-wrap sm:items-center sm:px-5", dock && "sm:sticky sm:bottom-0 sm:z-1 sm:rounded-b-xl sm:bg-surface lg:-bottom-7")}>
         {allowed && (
           <Button variant="primary" disabled={busy || chosen.length === 0} onClick={() => void approve()}>
-            {choosing && chosen.length !== blocks.length ? `Approve ${chosen.length} of ${blocks.length}` : "Approve"}
+            {m.approveLabel}
           </Button>
         )}
         {allowed && (
-          <Button variant="secondary" aria-pressed={choosing} disabled={busy || blocks.length === 0} onClick={() => setChoosing((c) => !c)} className="aria-pressed:border-ink aria-pressed:bg-surface-2">
+          <Button variant="secondary" aria-pressed={choosing} disabled={busy || blocks.length === 0} onClick={m.toggleChoosing} className="aria-pressed:border-ink aria-pressed:bg-surface-2">
             Approve some
           </Button>
         )}

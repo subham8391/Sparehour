@@ -2,8 +2,10 @@
 // folded to their first line). The name, edited in place; its figures, its area, its deadline and its notes in one
 // card; the tasks under no heading, then each heading with its own; an add line ending every section; what a section
 // finished in the last week behind "Show completed"; "Add a heading"; and the parked tasks folded away at the bottom.
-// The header's ⋯ holds the project's own actions. Presentational: it is handed everything it shows, and an add line
-// only says which section asked (its screen opens the add sheet).
+// A row's ⋯ is the one every list has (screens/rows): its own lines here are the tap path for the drag (Move up ·
+// Move down, and the headings it can move under), and a parked row's Today · Tomorrow. The header's ⋯ holds the
+// project's own actions. Presentational: it is handed everything it shows, and an add line only says which section
+// asked (its screen opens the add sheet).
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { compareDates, type Instant, type LocalDate } from "@/core/time";
@@ -11,13 +13,15 @@ import type { Heading, Project, Task } from "@/core/types";
 import type { DayPart } from "@/features/looks/look";
 import type { HeadingGroup } from "@/features/projects/organise";
 import type { ProjectAction } from "@/features/projects/page-rules";
-import type { SnoozePreset } from "@/features/tasks/snooze";
 import { notePreview } from "@/ui/markdown-plain";
 import { relativeDay } from "@/ui/relative-day";
 import { OrganiseSheet } from "~/screens/browse/organise-sheet";
+import { moveActions, type RowAction } from "~/screens/rows/row-menu";
+import { TaskRow } from "~/screens/rows/task-row";
 import { DateSheet } from "~/screens/task/day-sheets";
 import { useDraft } from "~/screens/task/use-draft";
 import { ActionLine } from "~/ui/action-line";
+import { NoteBox } from "~/ui/note-box";
 import { AddLine } from "~/ui/add-line";
 import { Button } from "~/ui/button";
 import { Card, CardRow } from "~/ui/card";
@@ -29,11 +33,9 @@ import { Icon } from "~/ui/icon";
 import { NameField } from "~/ui/name-field";
 import { NavRow, RowMore } from "~/ui/nav-row";
 import { IconButton, Screen } from "~/ui/screen";
-import { TaskLine } from "~/ui/task-line";
 import { TARGET, font, useColours } from "~/ui/theme";
 import { HeadingSheet, ProjectActionsSheet } from "./project-sheets";
 import { rowDetail } from "./row-detail";
-import { TaskMenu } from "./task-menu";
 import { TitleField } from "./title-field";
 
 export interface ProjectViewProps {
@@ -59,8 +61,6 @@ export interface ProjectViewProps {
   actions: readonly ProjectAction[];
   /** The areas "Move to area…" lists, in their order. */
   areas: readonly { id: string; name: string }[];
-  /** The snooze presets for a row's ⋯; empty until the account's day and zone are known. */
-  presets: readonly SnoozePreset[];
   onRename: (name: string) => void;
   onNotes: (notes: string | null) => void;
   onDeadline: (deadline: LocalDate | null) => void;
@@ -76,9 +76,9 @@ export interface ProjectViewProps {
   onMoveTask: (task: Task, headingId: string | null, dir: -1 | 1) => void;
   /** Under another heading, or out of its heading (null), last in that section. */
   onTaskHeading: (task: Task, headingId: string | null) => void;
+  /** A parked row's moves: back onto today, or tomorrow. */
   onToday: (task: Task) => void;
-  onSnooze: (task: Task, preset: SnoozePreset) => void;
-  onSomeday: (task: Task) => void;
+  onTomorrow: (task: Task) => void;
   onAddHeading: (title: string) => void;
   onRenameHeading: (headingId: string, title: string) => void;
   onMoveHeading: (headingId: string, dir: -1 | 1) => void;
@@ -103,8 +103,6 @@ export function ProjectView(p: ProjectViewProps) {
   const [notesOpen, setNotesOpen] = useState(false);
   const [sheet, setSheet] = useState<"actions" | "area" | "deadline" | null>(null);
   const [addingHeading, setAddingHeading] = useState(false);
-  /** The row whose ⋯ is open, with the section it is listed in ("someday" for a parked one). */
-  const [menu, setMenu] = useState<{ task: Task; group: HeadingGroup | "someday" } | null>(null);
   const [headingMenu, setHeadingMenu] = useState<{ heading: Heading; step: "menu" | "rename" } | null>(null);
 
   const sameNote = (a: string | null, b: string | null) => (a?.trim() || null) === (b?.trim() || null);
@@ -122,14 +120,24 @@ export function ProjectView(p: ProjectViewProps) {
   const preview = notePreview(project.notes);
   const headings = p.groups.flatMap((g) => (g.heading ? [g.heading] : []));
 
+  /** What a row offers in the section it is listed in ("someday" for a parked one). */
+  const actionsFor = (task: Task, group: HeadingGroup | "someday"): RowAction[] => {
+    // A parked row goes back onto a day.
+    if (group === "someday") return moveActions({ onToday: () => p.onToday(task), onTomorrow: () => p.onTomorrow(task) });
+    const at = group.tasks.findIndex((t) => t.id === task.id);
+    const here = group.heading?.id ?? null;
+    return [
+      // The tap path for dragging a row: one place up or down in its section, where there is one.
+      ...(at > 0 ? [{ label: "Move up", run: () => p.onMoveTask(task, here, -1) }] : []),
+      ...(at >= 0 && at < group.tasks.length - 1 ? [{ label: "Move down", run: () => p.onMoveTask(task, here, 1) }] : []),
+      // And for dragging it under another heading: out of its own, or under any other.
+      ...(group.heading ? [{ label: "Move out of the heading", text: "No heading", run: () => p.onTaskHeading(task, null) }] : []),
+      ...headings.filter((h) => h.id !== here).map((h) => ({ label: `Move to ${h.title}`, run: () => p.onTaskHeading(task, h.id) })),
+    ];
+  };
   const row = (task: Task, i: number, group: HeadingGroup | "someday") => (
-    <CardRow key={task.id} first={i === 0} style={styles.row}>
-      <View style={styles.line}>
-        <TaskLine task={task} today={today} defaultEstimateMin={p.defaultEstimateMin} detail={rowDetail(task, today, group !== "someday")} onComplete={p.onComplete} onPress={p.onOpen} />
-      </View>
-      <View style={styles.more}>
-        <RowMore label={`More actions for ${task.title}`} onPress={() => setMenu({ task, group })} />
-      </View>
+    <CardRow key={task.id} first={i === 0}>
+      <TaskRow task={task} today={today} defaultEstimateMin={p.defaultEstimateMin} detail={rowDetail(task, today, group !== "someday")} onComplete={p.onComplete} onOpen={p.onOpen} actions={actionsFor(task, group)} />
     </CardRow>
   );
 
@@ -174,8 +182,6 @@ export function ProjectView(p: ProjectViewProps) {
     );
   };
 
-  const inMenu = menu && menu.group !== "someday" ? menu.group : null;
-  const at = inMenu && menu ? inMenu.tasks.findIndex((t) => t.id === menu.task.id) : -1;
   const headingAt = headingMenu ? headings.findIndex((h) => h.id === headingMenu.heading.id) : -1;
   const closeHeading = () => setHeadingMenu(null);
 
@@ -207,18 +213,7 @@ export function ProjectView(p: ProjectViewProps) {
               ) : null}
             </Pressable>
             {notesOpen ? (
-              <TextInput
-                accessibilityLabel="Project notes"
-                placeholder="What this project is for, links, decisions."
-                placeholderTextColor={c.ink4}
-                value={notes.draft}
-                onChangeText={notes.setDraft}
-                onFocus={notes.onFocus}
-                onBlur={notes.onBlur}
-                multiline
-                textAlignVertical="top"
-                style={[styles.notes, { color: c.ink }]}
-              />
+              <NoteBox label="Project notes" placeholder="What this project is for, links, decisions." note={notes} style={styles.notes} />
             ) : null}
           </CardRow>
         </Card>
@@ -314,21 +309,6 @@ export function ProjectView(p: ProjectViewProps) {
         onClose={() => setSheet(null)}
       />
       <DateSheet open={sheet === "deadline"} title="Deadline" value={project.deadline} now={p.now} zone={p.zone} today={today} onChange={p.onDeadline} onClose={() => setSheet(null)} />
-      <TaskMenu
-        task={menu?.task ?? null}
-        presets={p.presets}
-        canMoveUp={at > 0}
-        canMoveDown={Boolean(inMenu) && at >= 0 && at < (inMenu?.tasks.length ?? 0) - 1}
-        // The tap path for dragging a row under another heading: out of its own, or under any other.
-        headings={inMenu ? [...(inMenu.heading ? [{ id: null, title: "" }] : []), ...headings.filter((h) => h.id !== inMenu.heading?.id)] : []}
-        onMove={inMenu ? (task, dir) => p.onMoveTask(task, inMenu.heading?.id ?? null, dir) : undefined}
-        onHeading={inMenu ? p.onTaskHeading : undefined}
-        onToday={menu?.group === "someday" ? p.onToday : undefined}
-        onComplete={p.onComplete}
-        onSnooze={p.onSnooze}
-        onSomeday={inMenu ? p.onSomeday : undefined}
-        onClose={() => setMenu(null)}
-      />
       <HeadingSheet
         heading={headingMenu?.heading ?? null}
         step={headingMenu?.step ?? "menu"}
@@ -379,9 +359,6 @@ const styles = StyleSheet.create({
   preview: { flex: 1, fontFamily: font.regular, fontSize: 15 },
   notes: { minHeight: 96, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 14, fontFamily: font.regular, fontSize: 17, lineHeight: 24 },
   gap: { marginTop: 16 },
-  row: { flexDirection: "row", alignItems: "center" },
-  line: { flex: 1 },
-  more: { marginLeft: -12 },
   heading: { flexDirection: "row", alignItems: "center", marginTop: 12, marginBottom: 2, marginLeft: 22, marginRight: 16 },
   headingMain: { flex: 1, minHeight: TARGET, flexDirection: "row", alignItems: "center", gap: 8 },
   headingTitle: { flex: 1, fontVariant: ["tabular-nums"] },

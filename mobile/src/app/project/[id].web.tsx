@@ -8,8 +8,8 @@ import { instant, localDate } from "@/core/time";
 import type { Heading, Project, Task } from "@/core/types";
 import type { HeadingGroup } from "@/features/projects/organise";
 import { projectActions, summaryWords } from "@/features/projects/page-rules";
-import { snoozePresets } from "@/features/tasks/snooze";
 import { ProjectMissingView, ProjectView } from "~/screens/project/project-view";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 
 const TODAY = localDate("2026-11-21");
 const NOW = instant("2026-11-21T14:05:00Z");
@@ -36,6 +36,7 @@ export default function Preview() {
   const empty = q.state === "empty";
   const project = { ...PROJECT, ...(q.state === "done" ? { state: "done" } : {}), ...(empty ? { notes: null, deadline: null } : {}) } as Project;
   return (
+    <PreviewRows today={TODAY}>
     <ProjectView
       project={project}
       area={{ id: "a1", name: "Work" }}
@@ -53,7 +54,6 @@ export default function Preview() {
         { id: "a1", name: "Work" },
         { id: "a2", name: "Home" },
       ]}
-      presets={snoozePresets(NOW, ZONE, TODAY)}
       onRename={nothing}
       onNotes={nothing}
       onDeadline={nothing}
@@ -66,12 +66,12 @@ export default function Preview() {
       onMoveTask={nothing}
       onTaskHeading={nothing}
       onToday={nothing}
-      onSnooze={nothing}
-      onSomeday={nothing}
+      onTomorrow={nothing}
       onAddHeading={nothing}
       onRenameHeading={nothing}
       onMoveHeading={nothing}
       onRemoveHeading={nothing}
     />
+    </PreviewRows>
   );
 }

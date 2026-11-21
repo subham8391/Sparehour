@@ -1,6 +1,7 @@
 // Someday as the phone draws it (SCREENS.md §7): the guilt-free parking lot. What the rollover filed on its own is
 // pinned at the top with Review and Bring them all back, the rest is grouped by project, loose tasks last. A row's
-// ring completes it, its title opens it, and its ⋯ holds Today · Pick a date · Back to active · Drop. No counts
+// ring completes it, its title opens it, and its ⋯ is the one every list has (screens/rows), with Today · Back to
+// active · Drop as its own and Move to… for a day; a right swipe is Today, a left one shows Drop. No counts
 // elsewhere, no age shaming. Presentational: it is handed everything it shows.
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { LocalDate } from "@/core/time";
@@ -9,10 +10,9 @@ import { Button } from "~/ui/button";
 import { Card, CardRow } from "~/ui/card";
 import { Empty } from "~/ui/empty";
 import { Icon } from "~/ui/icon";
-import { RowMore } from "~/ui/nav-row";
+import { TaskRow } from "~/screens/rows/task-row";
 import { Screen } from "~/ui/screen";
 import { SectionLabel } from "~/ui/section-label";
-import { TaskLine } from "~/ui/task-line";
 import { TARGET, font, useColours } from "~/ui/theme";
 
 export interface SomedayProject {
@@ -43,7 +43,12 @@ export interface SomedayViewProps {
   onBringAllBack: () => void;
   onComplete: (task: Task) => void;
   onOpen: (task: Task) => void;
-  onMore: (task: Task) => void;
+  /** A row's own moves: back onto today, back among the active tasks with no day, or dropped. */
+  onToday: (task: Task) => void;
+  onBackToActive: (task: Task) => void;
+  onDrop: (task: Task) => void;
+  /** Converts the task to a project: the long-estimate hint's "Break it down". */
+  onBreakDown?: (task: Task) => void;
 }
 
 const tasksWord = (n: number) => (n === 1 ? "1 task" : `${n} tasks`);
@@ -53,16 +58,24 @@ export function SomedayView(p: SomedayViewProps) {
   const rows = (tasks: readonly Task[], inProject: boolean) => (
     <Card>
       {tasks.map((task, i) => {
-        const project = !inProject && task.projectId ? p.projectNames.get(task.projectId) : undefined;
-        const detail = [project, ...(task.tags ?? []).map((t) => `@${t}`)].filter(Boolean).join(" · ");
         return (
-          <CardRow key={task.id} first={i === 0} style={styles.row}>
-            <View style={styles.line}>
-              <TaskLine task={task} today={p.today} defaultEstimateMin={p.defaultEstimateMin} detail={detail || undefined} onComplete={p.onComplete} onPress={p.onOpen} />
-            </View>
-            <View style={styles.more}>
-              <RowMore label={`More actions for ${task.title}`} onPress={() => p.onMore(task)} />
-            </View>
+          <CardRow key={task.id} first={i === 0}>
+            <TaskRow
+              task={task}
+              today={p.today}
+              defaultEstimateMin={p.defaultEstimateMin}
+              // The project where the list is not already its own; the task's tags follow.
+              meta={!inProject && task.projectId ? p.projectNames.get(task.projectId) : undefined}
+              onComplete={p.onComplete}
+              onOpen={p.onOpen}
+              onBreakDown={p.onBreakDown}
+              // Drop is undoable, so it reads in ink like the rest (ruling R2).
+              actions={[
+                { label: "Today", run: () => p.onToday(task) },
+                { label: "Back to active", run: () => p.onBackToActive(task) },
+                { label: "Drop", run: () => p.onDrop(task) },
+              ]}
+            />
           </CardRow>
         );
       })}
@@ -128,7 +141,4 @@ const styles = StyleSheet.create({
   moon: { marginHorizontal: 22, marginTop: 12, marginBottom: 10 },
   note: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, marginHorizontal: 22 },
   actions: { flexDirection: "row", alignItems: "center", gap: 4, marginHorizontal: 10, marginBottom: 4 },
-  row: { flexDirection: "row", alignItems: "center" },
-  line: { flex: 1 },
-  more: { marginLeft: -12 },
 });

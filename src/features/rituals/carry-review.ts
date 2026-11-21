@@ -7,7 +7,7 @@
 import { localDate, type LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
-import type { SyncChipState } from "@/features/shell/sync-chip";
+import type { SyncChipState } from "@/features/shell/sync-chip-model";
 
 export interface ReviewInput {
   /** Settings › Planning › "Morning review". */
@@ -38,6 +38,14 @@ export function shouldReview(i: ReviewInput): boolean {
   if (i.today?.carryReviewedAt || i.today?.plannedAt) return false;
   if (i.yesterday?.shutdownAt) return false;
   return true;
+}
+
+/**
+ * Today stepped to another day keeps the review for today itself (DECISIONS.md "Today on another day"): true while
+ * Today is on screen showing a day (`?day=`) that is not today.
+ */
+export function steppedOffToday(onTodayRoute: boolean, shown: string | null | undefined, todayIso: string): boolean {
+  return onTodayRoute && shown != null && /^\d{4}-\d{2}-\d{2}$/.test(shown) && shown !== todayIso;
 }
 
 const things = (n: number) => `${n} ${n === 1 ? "thing" : "things"}`;

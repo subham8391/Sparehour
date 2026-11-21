@@ -4,13 +4,20 @@
 // `interpret`, the project and tag matches, the estimate token, the notice's words. Only the order they are called
 // in is written here, because on the web that order lives inside its sheet (../../../../src/features/quickadd/
 // quick-add.tsx); the two must be kept in step by hand until it moves to a file both can read.
-import { useMemo, useRef, useState } from "react";
+//
+// A phone's box differs from a browser's in one way that matters here: it reports its new words and nothing else. There
+// is no paste event and no key to refuse, so a pasted list and the Backspace after a token are read from the change
+// itself (line-edit.ts), and a change the line does not take is put right in the box afterwards: `holds` is what the
+// box was left holding, drawn once so that the drawing after it writes the line back (token-line.tsx says why).
+import { useEffect, useMemo, useRef, useState } from "react";
 import { estimateToken } from "@/core/estimates";
 import { parse, type Range, type Span, type TaskDraft } from "@/core/quickadd";
 import { compareDates, localDate, type Instant, type LocalDate, type LocalTime } from "@/core/time";
 import { addedNotice, chooseProject, draftHere, fileHere, fileLine, type Here, type ProjectChoice, type QuickAddSubmission } from "@/features/quickadd/file-line";
-import { carryRanges, factSpans, interpret, projectMatches, projectOptionLabel, projectsNamed, projectToken, resolveTag, tagMatches, tagToken, tokenName, type FactKind, type QuickAddProject, type QuickAddTag } from "@/features/quickadd/interpret";
+import { carryRanges, factSpans, interpret, projectMatches, projectOptionLabel, projectsNamed, projectToken, resolveTag, segments, tagMatches, tagToken, tokenName, type FactKind, type QuickAddProject, type QuickAddTag } from "@/features/quickadd/interpret";
+import { couldNotTakeBack, pastedNotice, savePasted, tookBack, type Pasted } from "@/features/quickadd/paste";
 import { UNPARSEABLE, WARNING_TEXT, couldNotSave } from "@/features/quickadd/quick-add-words";
+import { caretAfter, lineEdit, linesPasted, onOneLine, tokenBackspaced } from "./line-edit";
 
 export interface QuickAddContext {
   now: Instant;
@@ -58,21 +65,16 @@ export interface ComposerInput {
   here?: QuickAddHere | null;
   usual?: (task: { estimateMin: number | null; projectId: string | null }) => number | null;
   onSubmit: QuickAddSave;
+  /** A paste saved these tasks: returns how to take them all back, once (the caller also puts that on the undo stack). */
+  onPasted?: (ids: readonly string[]) => (() => Promise<void>) | null | undefined;
   onClose: () => void;
   onDiscard?: (text: string, title: string) => void;
-}
-
-/** Where an edit ended: the end of the changed middle of the two strings, which is where the caret is left. */
-function caretAfter(before: string, after: string): number {
-  let tail = 0;
-  while (tail < before.length && tail < after.length && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail++;
-  return after.length - tail;
 }
 
 /** The last span of a kind: the one that counts when a token is typed twice (PRODUCT_SPEC.md §5.3 rule 2). */
 const lastOf = (spans: readonly Span[], kind: Span["kind"]): Span | undefined => spans.filter((s) => s.kind === kind).pop();
 
-export function useComposer({ initial = "", projects, tags = [], ctx, here = null, usual, onSubmit, onClose, onDiscard }: ComposerInput) {
+export function useComposer({ initial = "", projects, tags = [], ctx, here = null, usual, onSubmit, onPasted, onClose, onDiscard }: ComposerInput) {
   // The line, and the runs of it the person turned back into words (a removed chip): those stay literal title text
   // while typing goes on (PRODUCT_SPEC.md §5.1 rule 3).
   const [line, setLine] = useState<{ text: string; literal: Range[] }>({ text: initial, literal: [] });
@@ -85,9 +87,21 @@ export function useComposer({ initial = "", projects, tags = [], ctx, here = nul
   const [caret, setCaret] = useState<number | null>(initial.length);
   /** Where the caret is put after the line was changed by a tap, until the box reports it there. */
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined);
-  const [notice, setNotice] = useState<string | null>(null);
+  /** What the last save did; a paste's carries the way to take it back ("4 tasks added" and Undo). */
+  const [notice, setNotice] = useState<{ text: string; undo?: () => void } | null>(null);
   /** Why the last save failed; the words stay in the box so nothing is lost. */
   const [error, setError] = useState<string | null>(null);
+  /** A pasted list is being saved: nothing else is sent until it is. */
+  const [busy, setBusy] = useState(false);
+  /** What the box holds when that is not the line (a change the line did not take): drawn once, then the line again. */
+  const [holds, setHolds] = useState<string | null>(null);
+  useEffect(() => {
+    if (holds !== null) setHolds(null);
+  }, [holds]);
+  /** The words the box held when a change was last refused, until a change is taken again. */
+  const refused = useRef<string | null>(null);
+  /** The last key and the one before it: only the first Backspace of a run turns a token back into words. */
+  const backspace = useRef({ was: false, now: false });
 
   // Where a line that does not say goes. A day that has passed takes new tasks on today. Each can be taken off for
   // this opening of the sheet.
@@ -145,6 +159,7 @@ export function useComposer({ initial = "", projects, tags = [], ctx, here = nul
 
   /** The line changed by a tap: the new words, and the caret left at `at`. */
   const write = (next: string, at: number) => {
+    refused.current = null;
     setValue(next);
     setCaret(at);
     setSelection({ start: at, end: at });
@@ -197,18 +212,24 @@ export function useComposer({ initial = "", projects, tags = [], ctx, here = nul
   // A line with no day goes to the area's own list, where the web's strip would say the Inbox.
   const destination = interpretation ? (area && interpretation.destination === "Inbox" ? area.name : interpretation.destination) : null;
 
+  /** What the page still gives a line once it is filed: its own project's heading, or the area it is filed in. */
+  const savedHere = (s: QuickAddSubmission): SavedHere => ({
+    pageProject: Boolean(place.project && s.projectId === place.project.id),
+    areaId: hereArea && !s.projectId && !s.createProjectName ? hereArea.id : null,
+  });
+
   // Brain-dump mode (PRODUCT_SPEC.md §5.1 rule 4): Done clears the box at once and the save runs behind it, one after
   // another in the order asked, so the next line can be typed while the last one is still saving.
   const saves = useRef<Promise<unknown>>(Promise.resolve());
   /** Resolves true once this line is saved, false when it could not be (its words are back in the box). */
   const submit = (): Promise<boolean> => {
-    if (!result.ok) return Promise.resolve(false);
+    if (!result.ok || busy) return Promise.resolve(false);
     const text = value;
     const literal = line.literal;
     const filed = fileHere(fileLine(text, result, projects, parseCtx, choice, literal), Boolean(result.draft.projectName), place);
-    const { projectId, createProjectName } = filed.submission;
-    const areaId = hereArea && !projectId && !createProjectName ? hereArea.id : null;
-    const saved = areaId && hereArea ? { ...filed, project: hereArea.name } : filed;
+    const at = savedHere(filed.submission);
+    const saved = at.areaId && hereArea ? { ...filed, project: hereArea.name } : filed;
+    refused.current = null;
     setLine({ text: "", literal: [] });
     setCaret(0);
     setSelection(undefined);
@@ -216,10 +237,10 @@ export function useComposer({ initial = "", projects, tags = [], ctx, here = nul
     setPicked(null);
     setError(null);
     const done = saves.current
-      .then(() => onSubmit(filed.submission, { pageProject: Boolean(place.project && projectId === place.project.id), areaId }))
+      .then(() => onSubmit(filed.submission, at))
       .then(
         () => {
-          setNotice(addedNotice(saved));
+          setNotice({ text: addedNotice(saved) });
           return true;
         },
         (e: unknown) => {
@@ -234,6 +255,72 @@ export function useComposer({ initial = "", projects, tags = [], ctx, here = nul
     return done;
   };
 
+  // Many lines, many tasks (§5.1 rule 6): each parsed and filed on its own (features/quickadd/paste.ts), saved in order
+  // after anything still saving, then one notice with one Undo that takes back exactly what this paste added.
+  const paste = async (lines: readonly string[]) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    let pasted: Pasted;
+    try {
+      await saves.current.catch(() => undefined);
+      pasted = await savePasted(lines, parseCtx, projects, place, (s) => onSubmit(s, savedHere(s)));
+      if (pasted.stopped) {
+        const { line: stoppedAt, error: why } = pasted.stopped;
+        setLine((now) => (now.text.trim() === "" ? { text: stoppedAt, literal: [] } : now));
+        setError(why);
+      }
+    } finally {
+      setBusy(false);
+    }
+    const text = pastedNotice(pasted);
+    if (!text) return;
+    const { ids } = pasted;
+    const takeBack = ids.length > 0 ? onPasted?.(ids) : null;
+    setNotice({
+      text,
+      undo: takeBack
+        ? () =>
+            void takeBack().then(
+              () => setNotice({ text: tookBack(ids.length) }),
+              (err: unknown) => setError(couldNotTakeBack(err)),
+            )
+        : undefined,
+    });
+  };
+
+  /** The box changed and the line did not: the box is written back to the line, the caret where it was. */
+  const refuse = (boxHolds: string) => {
+    refused.current = boxHolds;
+    setHolds(boxHolds);
+    if (caret != null) setSelection({ start: caret, end: caret });
+  };
+
+  const onChangeText = (next: string) => {
+    // Right after a token, the first Backspace turns it back into words; the next one deletes as usual (§5.1 rule 3).
+    const token = backspace.current.now && !backspace.current.was ? tokenBackspaced(value, next, caret, spans) : null;
+    if (token) {
+      unparse([token]);
+      refuse(next);
+      return;
+    }
+    const lines = linesPasted(value, next);
+    // Had the box kept a list it was not meant to (the write-back above did not reach it), typing on would bring the
+    // same lines in again: a change that adds no line of its own to what was refused is typing, never a second paste.
+    const typedOverRefused = refused.current !== null && next !== refused.current && !/[\r\n]/.test(lineEdit(refused.current, next).inserted);
+    if (lines.length > 0 && !typedOverRefused && !busy) {
+      refuse(next);
+      void paste(lines);
+      return;
+    }
+    refused.current = null;
+    // Line breaks that are not a list (one line and a blank one) come in as one line; the box is told so.
+    const taken = onOneLine(next);
+    setCaret(caretAfter(value, taken));
+    setSelection(taken === next ? undefined : { start: caretAfter(value, taken), end: caretAfter(value, taken) });
+    setValue(taken);
+  };
+
   // Closing with words in the box discards them, and offers them back once (§5.1 rule 4); an empty box just closes.
   const dismiss = () => {
     const text = value.trim();
@@ -243,10 +330,13 @@ export function useComposer({ initial = "", projects, tags = [], ctx, here = nul
 
   return {
     value,
-    onChangeText: (next: string) => {
-      setCaret(caretAfter(value, next));
-      setSelection(undefined);
-      setValue(next);
+    /** What the box is holding instead of the line, for the one drawing before the line is written back to it. */
+    holds,
+    /** The line cut into plain and token runs, for painting the tokens in place. */
+    painted: segments(value, spans),
+    onChangeText,
+    onKeyPress: (key: string) => {
+      backspace.current = { was: backspace.current.now, now: key === "Backspace" };
     },
     selection,
     onSelectionChange: (start: number) => {
@@ -269,7 +359,7 @@ export function useComposer({ initial = "", projects, tags = [], ctx, here = nul
         ? { name: projectName, suggestions: suggestions.map((p) => ({ project: p, label: projectOptionLabel(p, projects) })), collision, willCreate, pick: pickProject, create: () => setCreateProject(true) }
         : null,
     insert,
-    canAdd: draft !== null,
+    canAdd: draft !== null && !busy,
     submit,
     dismiss,
     notice,

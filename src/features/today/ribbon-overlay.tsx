@@ -8,14 +8,17 @@
 // equation is the button's accessible description, so it is read without
 // opening anything. An island: Today's shell carries only the dynamic import.
 import { useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
-import { round5 } from "@/core/capacity/intervals";
-import { USABLE_GAP_MIN, type Capacity, type Interval } from "@/core/capacity";
-import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
+import type { Capacity, Interval } from "@/core/capacity";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { useDismiss } from "@/ui/popover";
 import { RAISED } from "@/ui/sheet-parts";
 import type { TimelineBlock, TimelineMeeting } from "./hooks/use-today";
+import { BREAKDOWN_LABEL, breakdownTerms, ribbonSegments, segmentAction, segmentAt, segmentLine, type RibbonSegment } from "./ribbon-breakdown";
+
+// The breakdown's words and the day's segments live in ribbon-breakdown.ts, free of this file's pointer handling and
+// drawing; they are handed on from here so every import of them from the overlay stays as it was.
+export { breakdownSentence, breakdownTerms, ribbonSegments, segmentAt, segmentLine, type RibbonSegment, type SegmentKind } from "./ribbon-breakdown";
 
 export interface RibbonOverlayProps {
   c: Capacity;
@@ -31,79 +34,6 @@ export interface RibbonOverlayProps {
   addFor?: string;
   /** A meeting clicked: the timeline scrolls to it and marks it. */
   onMeeting: (m: Interval) => void;
-}
-
-export type SegmentKind = "meeting" | "block" | "free" | "off" | "over";
-
-export interface RibbonSegment {
-  kind: SegmentKind;
-  start: number;
-  end: number;
-  /** What it is, in words: a meeting's title, a block's, "2 meetings". */
-  name: string;
-}
-
-const KIND_WORD: Record<SegmentKind, string> = { meeting: "Meeting", block: "Block", free: "Free", off: "Outside working hours", over: "Over" };
-
-const inside = <T extends Interval>(list: readonly T[], iv: Interval) => list.filter((x) => x.start < iv.end && x.end > iv.start);
-function named(list: readonly { title: string }[], one: string, many: string): string {
-  if (list.length === 1) return list[0].title;
-  return list.length > 1 ? `${list.length} ${many}` : one;
-}
-
-/** What an open stretch is called: one too short to count as spare time says so, rather than reading as free time (DECISIONS.md, amendment 2026-11-15). */
-const freeName = (f: Interval) => (f.end - f.start < USABLE_GAP_MIN ? "Too short to use" : "Free");
-
-/** The day as the ribbon draws it, in clock order: meetings, blocks, free time, and the hours between work windows. */
-export function ribbonSegments(c: Capacity, meetings: readonly TimelineMeeting[], blocks: readonly TimelineBlock[]): RibbonSegment[] {
-  const day = c.windows[0]?.start ?? 0;
-  const end = c.windows[c.windows.length - 1]?.end ?? 0;
-  const segs: RibbonSegment[] = [
-    ...c.busy.map((b) => ({ kind: "meeting" as const, ...b, name: named(inside(meetings, b), "Busy", "meetings") })),
-    ...c.blocks.map((b) => ({ kind: "block" as const, ...b, name: named(inside(blocks, b), "Block", "blocks") })),
-    ...c.free.map((f) => ({ kind: "free" as const, ...f, name: freeName(f) })),
-  ];
-  for (let i = 1; i < c.windows.length; i++) segs.push({ kind: "off", start: c.windows[i - 1].end, end: c.windows[i].start, name: KIND_WORD.off });
-  return segs.filter((s) => s.end > s.start && s.start >= day && s.end <= end).sort((a, b) => a.start - b.start);
-}
-
-/** The segment under a minute of the day; past the end of the day while it spills, the overhang. */
-export function segmentAt(segs: readonly RibbonSegment[], c: Capacity, minute: number): RibbonSegment | null {
-  const end = c.windows[c.windows.length - 1]?.end ?? 0;
-  if (minute >= end && c.overflowMin > 0) return { kind: "over", start: end, end: end + c.overflowMin, name: `${formatMinutes(c.overflowMin)} more than fits` };
-  // The last pixel of the day belongs to the day's last segment.
-  const m = Math.min(minute, end - 1);
-  return segs.find((s) => m >= s.start && m < s.end) ?? null;
-}
-
-const range = (s: Interval) => `${formatTime(timeFromMinutes(s.start))}–${formatTime(timeFromMinutes(s.end))}`;
-
-/** The tooltip line: "Meeting · Design review · 10:00–11:00 · 1h". The kind is a word, never only a colour (DESIGN_SYSTEM.md §9). */
-export function segmentLine(s: RibbonSegment): string {
-  if (s.kind === "over") return `${KIND_WORD.over} · ${s.name}`;
-  const head = s.kind === "meeting" || s.kind === "block" ? `${KIND_WORD[s.kind]} · ${s.name}` : s.name;
-  return `${head} · ${range(s)} · ${formatMinutes(s.end - s.start)}`;
-}
-
-/**
- * The breakdown in words (PRODUCT_SPEC.md §9.1, the same sentence as the reveal and Settings): "9h working − 2h in
- * meetings − 1h 20m buffer (15% of your working day) − 2h 20m planned = 3h 20m spare". Without a calendar the
- * meetings term is left out; open stretches too short to use are a term of their own when the day has any, so the
- * sentence still adds up; a buffer capped by what meetings and those gaps left drops the share it no longer is.
- */
-export function breakdownTerms(c: Capacity, bufferPct: number, connected: boolean): { terms: string[]; result: string } {
-  const capped = c.bufferMin < round5((c.workMin * bufferPct) / 100);
-  const terms = [`${formatMinutes(c.workMin)} working`];
-  if (connected) terms.push(`${formatMinutes(c.busyMin)} in meetings`);
-  if (c.gapMin > 0) terms.push(`${formatMinutes(c.gapMin)} in gaps too short to use`);
-  terms.push(capped ? `${formatMinutes(c.bufferMin)} buffer` : `${formatMinutes(c.bufferMin)} buffer (${bufferPct}% of your working day)`);
-  terms.push(`${formatMinutes(c.committedMin + c.unscheduledMin)} planned`);
-  return { terms, result: c.spareMin >= 0 ? `${formatMinutes(c.spareMin)} spare` : `${formatMinutes(-c.spareMin)} over` };
-}
-
-export function breakdownSentence(c: Capacity, bufferPct: number, connected: boolean): string {
-  const { terms, result } = breakdownTerms(c, bufferPct, connected);
-  return `${terms.join(" − ")} = ${result}`;
 }
 
 /**
@@ -185,7 +115,7 @@ export default function RibbonOverlay({ c, connected, bufferPct, meetings, block
     setOpen("pinned");
   };
 
-  const action = seg?.kind === "free" ? "Add something" : seg?.kind === "meeting" ? "Show on timeline" : null;
+  const action = segmentAction(seg);
   return (
     <div
       ref={rootRef}
@@ -196,7 +126,7 @@ export default function RibbonOverlay({ c, connected, bufferPct, meetings, block
     >
       <button
         type="button"
-        aria-label="Spare time breakdown"
+        aria-label={BREAKDOWN_LABEL}
         aria-describedby={descId}
         aria-expanded={open !== null}
         aria-controls={open ? panelId : undefined}
@@ -212,7 +142,7 @@ export default function RibbonOverlay({ c, connected, bufferPct, meetings, block
       {open && (
         // Below the drawing, with no gap between, so the pointer can travel from the track into the panel.
         <div className="absolute top-full left-0 z-30 w-full max-w-80 pt-1">
-          <div id={panelId} role="group" aria-label="Spare time breakdown" className={cx(RAISED, "rounded-xl p-3 text-body-sm text-ink-2")}>
+          <div id={panelId} role="group" aria-label={BREAKDOWN_LABEL} className={cx(RAISED, "rounded-xl p-3 text-body-sm text-ink-2")}>
             {seg && (
               <div className="mb-2.5 flex flex-col gap-1.5 border-b border-line pb-2.5">
                 <p aria-live="polite" className="font-medium text-ink num">

@@ -18,11 +18,25 @@ config.watchFolders = [shared];
 config.resolver.nodeModulesPaths = [path.join(root, "node_modules")];
 config.resolver.disableHierarchicalLookup = true;
 
+// Looking up the folder tree is off, so a shared file in ../src can never pick up the web app's packages. A package
+// in this folder's node_modules still gets its own nested ones first (reanimated ships a newer `semver` than the
+// one at the top): every `node_modules` between the asking file and this folder's, nearest first.
+const TOP = path.join(root, "node_modules");
+function nestedFirst(context) {
+  const from = context.originModulePath;
+  if (!from || !from.startsWith(TOP + path.sep)) return context;
+  const nested = [];
+  for (let dir = path.dirname(from); dir.length > TOP.length; dir = path.dirname(dir)) {
+    if (path.basename(dir) !== "node_modules") nested.push(path.join(dir, "node_modules"));
+  }
+  return { ...context, nodeModulesPaths: [...nested, ...context.nodeModulesPaths] };
+}
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   let name = moduleName;
   if (name.startsWith("@/")) name = path.join(shared, name.slice(2));
   else if (name.startsWith("~/")) name = path.join(root, "src", name.slice(2));
-  const resolved = context.resolveRequest(context, name, platform);
+  const resolved = context.resolveRequest(nestedFirst(context), name, platform);
   if (resolved.type === "sourceFile" && resolved.filePath === WEB_ADAPTER) return { type: "sourceFile", filePath: APP_ADAPTER };
   return resolved;
 };

@@ -3,14 +3,24 @@
 // it in the meeting colour and blocks in the block colour, an invitation not yet answered is hatched, what has gone
 // is hatched too, a 2-point ink mark is now and a dashed one the projected finish, with hour ticks and one row of
 // labels under it; a day that is over grows an amber tail past its end. The drawing is hidden from a screen reader:
-// the words above it say everything. Presentational: it is handed a Summary (today-summary.ts) and a RibbonShape
-// (ribbon-shape.ts).
+// the words above it say everything. One real button lies over the drawing, "Spare time breakdown", with the equation
+// as what a screen reader hears of it: a tap opens the breakdown under the ribbon (the web's panel: the segment that
+// was touched in words, "Add something" on free time or "Show on timeline" on a meeting, then the equation a term a
+// line); the same segment tapped again, or a touch anywhere else, closes it. Presentational: it is handed a Summary
+// (today-summary.ts), a RibbonShape and a RibbonBreakdown (ribbon-shape.ts).
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { BREAKDOWN_LABEL, segmentAction, segmentLine } from "@/features/today/ribbon-breakdown";
+import { Button } from "~/ui/button";
 import { Card } from "~/ui/card";
 import { TARGET, font, useColours, type Colours } from "~/ui/theme";
 import type { Summary } from "../today-summary";
-import { labelsFor, type RibbonShape } from "./ribbon-shape";
+import { labelsFor, type NamedSegment, type RibbonBreakdown, type RibbonShape } from "./ribbon-shape";
+
+/** The breakdown while it is open: the segment that was touched, or none (a touch between segments still shows the equation). */
+export interface BreakdownOpen {
+  seg: NamedSegment | null;
+}
 
 export interface HeroProps {
   summary: Summary;
@@ -22,10 +32,21 @@ export interface HeroProps {
   onPlan?: () => void;
   /** Without a calendar, the meetings line is the way to connect one. */
   onConnect?: () => void;
+  /** What a tap on the ribbon opens; left out, the ribbon is only drawn. */
+  breakdown?: RibbonBreakdown | null;
+  /** Whether it is open, and on which segment: held by the screen, so a touch elsewhere can close it. */
+  open?: BreakdownOpen | null;
+  onOpen?: (next: BreakdownOpen | null) => void;
+  /** "Add something" on free time: quick add for the day shown. */
+  onAdd?: () => void;
+  /** "Show on timeline" on a meeting. */
+  onMeeting?: (meeting: { start: number; end: number }) => void;
 }
 
-export function Hero({ summary, ribbon, onTrim, onPlan, onConnect }: HeroProps) {
+export function Hero({ summary, ribbon, onTrim, onPlan, onConnect, breakdown, open = null, onOpen, onAdd, onMeeting }: HeroProps) {
   const c = useColours();
+  // How wide the ribbon is drawn, for the minute under a touch.
+  const [ribbonWidth, setRibbonWidth] = useState(0);
   if (summary.kind === "none") {
     if (!summary.line) return null;
     return (
@@ -78,7 +99,40 @@ export function Hero({ summary, ribbon, onTrim, onPlan, onConnect }: HeroProps) 
           <Text style={[styles.heroLine, styles.strong, styles.link, { color: c.over, textDecorationColor: c.overFill }]}>{summary.over}</Text>
         </Pressable>
       ) : null}
-      {ribbon ? <RibbonTrack shape={ribbon} c={c} /> : null}
+      {ribbon ? (
+        <View onLayout={(e) => setRibbonWidth(e.nativeEvent.layout.width)}>
+          <RibbonTrack shape={ribbon} c={c} />
+          {breakdown && onOpen ? (
+            // The drawing stays hidden from a screen reader; this is the one real button over it.
+            <Pressable
+              testID="ribbon-button"
+              accessibilityRole="button"
+              accessibilityLabel={BREAKDOWN_LABEL}
+              accessibilityHint={breakdown.sentence}
+              accessibilityState={{ expanded: open !== null }}
+              onPress={(e) => {
+                const seg = breakdown.at(e.nativeEvent.locationX, ribbonWidth);
+                // The same thing tapped again closes it.
+                const same = open !== null && seg?.start === open.seg?.start && seg?.kind === open.seg?.kind;
+                onOpen(same ? null : { seg });
+              }}
+              style={styles.ribbonButton}
+            />
+          ) : null}
+        </View>
+      ) : null}
+      {breakdown && open ? (
+        <BreakdownPanel
+          breakdown={breakdown}
+          seg={open.seg}
+          c={c}
+          onAct={(seg) => {
+            onOpen?.(null);
+            if (seg.kind === "free") onAdd?.();
+            else onMeeting?.({ start: seg.start, end: seg.end });
+          }}
+        />
+      ) : null}
       {summary.outside ? <Text style={[styles.heroLine, { color: c.ink2 }]}>{summary.outside}</Text> : null}
       {summary.wellOver && onTrim ? (
         <View style={styles.wellOver}>
@@ -89,6 +143,38 @@ export function Hero({ summary, ribbon, onTrim, onPlan, onConnect }: HeroProps) 
         </View>
       ) : null}
     </Card>
+  );
+}
+
+/** The breakdown, under the ribbon: the segment touched with what it offers, then the equation, the result under a rule. */
+function BreakdownPanel({ breakdown, seg, c, onAct }: { breakdown: RibbonBreakdown; seg: NamedSegment | null; c: Colours; onAct: (seg: NamedSegment) => void }) {
+  const action = segmentAction(seg);
+  return (
+    <View testID="ribbon-breakdown" accessibilityLabel={BREAKDOWN_LABEL} style={[styles.panel, { backgroundColor: c.surface2, borderColor: c.line }]}>
+      {seg ? (
+        <View style={[styles.panelSeg, { borderBottomColor: c.line }]}>
+          {/* The kind is a word, never only a colour. */}
+          <Text accessibilityLiveRegion="polite" style={[styles.panelLine, styles.medium, { color: c.ink }]}>
+            {segmentLine(seg)}
+          </Text>
+          {action ? <Button variant="secondary" label={action} onPress={() => onAct(seg)} style={styles.panelAction} /> : null}
+        </View>
+      ) : null}
+      {breakdown.terms.map((term, i) => (
+        <View key={term} style={styles.term}>
+          <Text aria-hidden style={[styles.panelLine, styles.sign, { color: c.ink3 }]}>
+            {i > 0 ? "−" : ""}
+          </Text>
+          <Text style={[styles.panelLine, styles.termText, { color: c.ink2 }]}>{term}</Text>
+        </View>
+      ))}
+      <View style={[styles.term, styles.result, { borderTopColor: c.line }]}>
+        <Text aria-hidden style={[styles.panelLine, styles.sign, { color: c.ink3 }]}>
+          =
+        </Text>
+        <Text style={[styles.panelLine, styles.termText, styles.medium, { color: c.ink }]}>{breakdown.result}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -175,6 +261,16 @@ const styles = StyleSheet.create({
   wellOverText: { flexShrink: 1 },
   trim: { minHeight: TARGET, justifyContent: "center", paddingHorizontal: 4 },
   ribbon: { flexDirection: "row", marginTop: 6 },
+  // Over the whole drawing, and never less than a finger needs.
+  ribbonButton: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, minHeight: TARGET },
+  panel: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  panelSeg: { gap: 8, paddingBottom: 10, marginBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  panelLine: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, fontVariant: ["tabular-nums"] },
+  panelAction: { alignSelf: "flex-start" },
+  term: { flexDirection: "row" },
+  sign: { width: 16 },
+  termText: { flex: 1 },
+  result: { marginTop: 4, paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
   day: { flex: 1 },
   trackFrame: { height: TRACK, marginVertical: 4 },
   track: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 5, overflow: "hidden" },

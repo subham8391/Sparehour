@@ -24,7 +24,7 @@ const DATA = {
   detectedTimeZone: "Europe/London",
   change: jest.fn(),
   setWorkHours: jest.fn(),
-  setTheme: jest.fn(),
+  motion: { value: "system" as const, onChange: jest.fn() },
 };
 const answer = (status: number, body: unknown = {}) => ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
 const typeDelete = async () => {

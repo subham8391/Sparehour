@@ -8,3 +8,8 @@ export const ESTIMATE_PRESETS: readonly number[] = [15, 30, 45, 60, 90, 120, 180
 export function guessLabel(defaultMin: number): string {
   return `No estimate — counted as ${formatMinutes(defaultMin)}`;
 }
+
+/** The undo toast's words for a new estimate, `{title}` standing for the task: "Estimated “Call Ana” at 45m". */
+export function estimateNote(minutes: number | null): string {
+  return minutes == null ? "Cleared the estimate on {title}" : `Estimated {title} at ${formatMinutes(minutes)}`;
+}

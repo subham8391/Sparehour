@@ -48,6 +48,9 @@ export function snoozePresets(now: Instant, zone: string, today: LocalDate): Sno
   ];
 }
 
+/** Tomorrow alone, as a row's swipe runs it: the patch the list of presets holds under that name. */
+export const tomorrowPreset = (today: LocalDate): SnoozePreset => ({ id: "tomorrow", label: "Tomorrow", patch: { doDate: today.add({ days: 1 }), doTime: null, evening: false } });
+
 /** The preset words, for a menu that already offers them to leave out a row action saying the same ("Tomorrow"). */
 export const PRESET_LABELS: ReadonlySet<string> = new Set(["This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week"]);
 

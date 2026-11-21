@@ -2,7 +2,9 @@
 // features/today/day-states.tsx, evening-section.tsx and features/tasks/carry-ask.tsx): Carried over with its fold,
 // its ask and its whole-pile moves; the day's own list; This evening, folded to its label until it is opened; what
 // was finished; and what the list says when it has no rows (all done, the empty day). Presentational: rows in, taps
-// out. A row's actions are in its "More actions" sheet, as the web's are at phone width.
+// out. A row is the one every list has (screens/rows/task-row.tsx): inside Today's frame its ⋯, its swipes and the
+// long-press that ticks it are the shared ones, with the section's own actions read from Today's handlers
+// (screens/rows/today-actions.ts); without that frame the ⋯ asks Today's view for its sheet, as before.
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
@@ -17,9 +19,10 @@ import { Card, CardRow } from "~/ui/card";
 import { Chip } from "~/ui/chip";
 import { Disclosure } from "~/ui/disclosure";
 import { Icon } from "~/ui/icon";
-import { RowMore } from "~/ui/nav-row";
+import { RowsContext, useRows } from "~/screens/rows/rows-context";
+import { TaskRow } from "~/screens/rows/task-row";
+import { todayRowActions, useTodayRowHandlers, type TodaySection } from "~/screens/rows/today-actions";
 import { SectionLabel } from "~/ui/section-label";
-import { TaskLine } from "~/ui/task-line";
 import { TARGET, font, useColours } from "~/ui/theme";
 
 /** What a row shows beside its task, and what its taps do. */
@@ -55,44 +58,56 @@ function BlockChip({ blocks, estimateMin }: { blocks: readonly TimelineBlock[]; 
   );
 }
 
-function TaskRows({ tasks, ctx, under, more = true, footer }: { tasks: readonly Task[]; ctx: RowContext; /** What sits under a row, inside it (the carry ask). */ under?: (task: Task) => ReactNode; /** Whether a row has "More actions". */ more?: boolean | ((task: Task) => boolean); footer?: ReactNode }) {
+function TaskRows({ tasks, ctx, section, under, more = true, footer }: { tasks: readonly Task[]; ctx: RowContext; /** Which of Today's lists the rows are in: it decides what a row offers. */ section: TodaySection; /** What sits under a row, inside it (the carry ask). */ under?: (task: Task) => ReactNode; /** Whether a row has "More actions". */ more?: boolean | ((task: Task) => boolean); footer?: ReactNode }) {
   const c = useColours();
+  const frame = useRows();
+  const handlers = useTodayRowHandlers();
+  // The shared row needs both Today's frame and its handlers; with either missing, a row's ⋯ asks Today's view.
+  const shared = frame !== null && handlers !== null;
   return (
-    <Card>
-      {tasks.map((task, i) => {
-        const blocks = ctx.blocksByTask?.get(task.id);
-        const hasMore = ctx.onMore && (typeof more === "function" ? more(task) : more);
-        return (
-          <CardRow key={task.id} first={i === 0}>
-            <View style={styles.row}>
-              <View style={styles.rowMain}>
-                <TaskLine
-                  // A blocked row's chip stands in for the do-time chip.
-                  task={blocks ? { ...task, doTime: null } : task}
-                  today={ctx.today}
-                  defaultEstimateMin={ctx.defaultEstimateMin}
-                  detail={task.projectId ? ctx.projectNames?.get(task.projectId) : undefined}
-                  extra={blocks ? <BlockChip blocks={blocks} estimateMin={task.estimateMin} /> : undefined}
-                  onComplete={() => ctx.onComplete(task)}
-                  onPress={ctx.onOpen ? () => ctx.onOpen?.(task) : undefined}
-                />
-              </View>
-              {hasMore ? <RowMore label={`More actions for ${task.title}`} onPress={() => ctx.onMore?.(task)} /> : null}
-            </View>
-            {under?.(task)}
-            {ctx.removed?.has(task.id) && !blocks ? (
+    <RowsContext.Provider value={shared ? frame : null}>
+      <Card>
+        {tasks.map((task, i) => {
+          const blocks = ctx.blocksByTask?.get(task.id);
+          const wanted = typeof more === "function" ? more(task) : more;
+          const hasMore = wanted && (shared || Boolean(ctx.onMore));
+          const note =
+            ctx.removed?.has(task.id) && !blocks ? (
               <View style={styles.removed}>
                 <Text style={[styles.removedText, { color: c.ink3 }]}>Block removed in Google Calendar</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Dismiss the note" onPress={() => ctx.onDismissRemoved?.(task)} style={styles.dismiss}>
                   <Icon name="close" size={14} color={c.ink3} />
                 </Pressable>
               </View>
-            ) : null}
-          </CardRow>
-        );
-      })}
-      {footer}
-    </Card>
+            ) : null;
+          return (
+            <CardRow key={task.id} first={i === 0}>
+              <TaskRow
+                // A blocked row's chip stands in for the do-time chip.
+                task={blocks ? { ...task, doTime: null } : task}
+                today={ctx.today}
+                defaultEstimateMin={ctx.defaultEstimateMin}
+                // The project in the quiet run, as on every cross-project list; the task's tags follow.
+                meta={task.projectId ? ctx.projectNames?.get(task.projectId) : undefined}
+                extra={blocks ? <BlockChip blocks={blocks} estimateMin={task.estimateMin} /> : undefined}
+                onComplete={() => ctx.onComplete(task)}
+                onOpen={ctx.onOpen ? () => ctx.onOpen?.(task) : undefined}
+                actions={hasMore ? (shared && handlers ? todayRowActions(section, task, handlers) : []) : undefined}
+                onBreakDown={shared && hasMore && handlers?.onConvert ? handlers.onConvert : undefined}
+                onMore={ctx.onMore}
+                footer={
+                  <>
+                    {under?.(task)}
+                    {note}
+                  </>
+                }
+              />
+            </CardRow>
+          );
+        })}
+        {footer}
+      </Card>
+    </RowsContext.Provider>
   );
 }
 
@@ -168,6 +183,7 @@ export function CarriedSection(p: CarriedProps) {
       <TaskRows
         tasks={p.tasks}
         ctx={p.ctx}
+        section="carried"
         // The three-carry ask takes the place of the row's actions, in place.
         more={(task) => !(task as Task & { ask?: boolean }).ask}
         under={(task) =>
@@ -229,7 +245,7 @@ export function DaySection(p: DayProps) {
     <View>
       <SectionLabel label={p.label} count={p.tasks.length} detail={formatMinutes(total(p.tasks, p.ctx.defaultEstimateMin))} />
       {p.tasks.length > 0 ? (
-        <TaskRows tasks={p.tasks} ctx={p.ctx} />
+        <TaskRows tasks={p.tasks} ctx={p.ctx} section="day" />
       ) : p.state === "all-done" ? (
         // All done (SCREENS.md §2.7): the facts and the two ways on, no celebration graphic.
         <Card>
@@ -285,7 +301,7 @@ export function EveningSection(p: EveningProps) {
     <View>
       <Disclosure label="This evening" count={p.tasks.length} detail={formatMinutes(total(p.tasks, p.ctx.defaultEstimateMin))} open={p.open} onToggle={p.onToggle}>
         {fullLine}
-        <TaskRows tasks={p.tasks} ctx={p.ctx} />
+        <TaskRows tasks={p.tasks} ctx={p.ctx} section="evening" />
       </Disclosure>
       {/* Shut, the full line stays in view under the label. */}
       {!p.open ? fullLine : null}
@@ -341,7 +357,8 @@ export function DoneSection(p: DoneProps) {
             {p.tasks.map((task, i) => (
               <CardRow key={task.id} first={i === 0}>
                 {p.onReopen ? (
-                  <TaskLine task={task} done today={p.ctx.today} defaultEstimateMin={p.ctx.defaultEstimateMin} detail={detail(task)} onComplete={() => p.onReopen?.(task)} onPress={p.ctx.onOpen ? () => p.ctx.onOpen?.(task) : undefined} />
+                  // The ring reopens; inside Today's frame so do the row's ⋯ and a right swipe.
+                  <TaskRow task={task} done today={p.ctx.today} defaultEstimateMin={p.ctx.defaultEstimateMin} meta={detail(task)} onComplete={() => p.onReopen?.(task)} onOpen={p.ctx.onOpen ? () => p.ctx.onOpen?.(task) : undefined} actions={[{ label: "Reopen", run: () => p.onReopen?.(task) }]} />
                 ) : (
                   <ActionLine mark="done" title={task.title} detail={detail(task)} onPress={p.ctx.onOpen ? () => p.ctx.onOpen?.(task) : undefined} />
                 )}
@@ -368,8 +385,6 @@ export function DoneSection(p: DoneProps) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center" },
-  rowMain: { flex: 1 },
   more: { fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   removed: { flexDirection: "row", alignItems: "center", marginLeft: 52, marginRight: 4, marginTop: -6 },
   removedText: { flex: 1, fontFamily: font.regular, fontSize: 13, lineHeight: 18 },

@@ -31,8 +31,9 @@ import { withDragAdapter } from "./drag-adapter";
 import { edgeFor, type Edge } from "./reorder";
 import { DayPickerIsland, EstimateIsland, RowMenuIsland, SwipeIsland, preloadRowIslands } from "./row-islands";
 import { listenForRowRequests } from "./row-request";
+import { canSkipOccurrence, isOpenTask } from "./row-menu-rules";
+import { LONG_ESTIMATE_MIN, LONG_HINT, carriedLabel } from "./row-words";
 import { RowAction, RowActionsLayoutProvider } from "./task-actions";
-import { formatDay } from "@/core/time/format-day";
 import { requestOrganize } from "./organize";
 import { useTaskRepo } from "./use-task-repo";
 import { DefaultEstimate } from "./default-estimate";
@@ -40,8 +41,9 @@ import { DefaultEstimate } from "./default-estimate";
 const LONG_PRESS_MS = 500;
 /** Check-off (DESIGN_SYSTEM.md §7): the ring fills at once; the row leaves 400 ms later. */
 const COMPLETE_DELAY_MS = 400;
-/** The longest estimate taken without a question: 8 hours (PRODUCT_SPEC.md §5.2 "~ … Max 8h"). */
-export const LONG_ESTIMATE_MIN = 8 * 60;
+// The long estimate's limit and the carried chip's words live in row-words.ts, free of this file's web parts; they are
+// handed on from here so every import of them from the row stays as it was.
+export { LONG_ESTIMATE_MIN, carriedLabel } from "./row-words";
 
 /** The quiet run's pieces are joined by a middle dot; on the phone the run follows the chips, so it opens with one too. */
 const META_RUN =
@@ -246,7 +248,7 @@ export function TaskRow({
   const day = today ?? Temporal.Now.plainDateISO();
   const hasActions = Boolean(rowActions);
   // An open task's menu adds the snooze presets and Move to… (PRODUCT_SPEC.md §8.6); a finished one has nothing to move.
-  const movable = hasActions && (task.state === "active" || task.state === "inbox" || task.state === "someday");
+  const movable = hasActions && isOpenTask(task.state);
 
   // The ⋯ menu and the day picker it opens, beside the ⋯ (or the inline action that asked).
   const menu = useRef<MenuHandle>(null);
@@ -384,7 +386,7 @@ export function TaskRow({
         estimateChip
       )}
       {/* Over 8 hours is saved as asked and gently questioned (PRODUCT_SPEC.md §5.2, §5.4): quiet words, never a warning colour. */}
-      {long && <span className="text-ink-2">Long — break it down?</span>}
+      {long && <span className="text-ink-2">{LONG_HINT}</span>}
     </>
   );
 
@@ -532,7 +534,7 @@ export function TaskRow({
                       {rowActions}
                       {/* The ring's action, here too: every swipe has a tap path in the ⋯ (DESIGN_SYSTEM.md §5). */}
                       {onDone && !done && <RowAction label="Complete" onClick={complete} />}
-                      {task.recurrenceRule && (task.state === "active" || task.state === "inbox") && <SkipOccurrence id={task.id} />}
+                      {canSkipOccurrence(task) && <SkipOccurrence id={task.id} />}
                       <OrganizeActions task={task} />
                     </>
                   );
@@ -579,12 +581,6 @@ export function TaskRow({
   );
 }
 
-/** "Moved 3 times since Tue 9 Sep": the ×N chip's tooltip and name; the date only while the task is still behind. */
-export function carriedLabel(task: Pick<Task, "carryCount" | "doDate">, today: LocalDate): string {
-  const since = task.doDate && Temporal.PlainDate.compare(task.doDate, today) < 0 ? ` since ${formatDay(task.doDate)}` : "";
-  return `Moved ${task.carryCount} times${since}`;
-}
-
 /** A repeat's own entry in every list's row menu: on to the next occurrence, no completion (SYSTEM_DESIGN.md §5.2). */
 function SkipOccurrence({ id }: { id: string }) {
   const repo = useTaskRepo();
@@ -596,7 +592,7 @@ function SkipOccurrence({ id }: { id: string }) {
  * copy, Copy link copies `/today?task=<id>`. All of it runs in a lazy island (organize.tsx).
  */
 function OrganizeActions({ task }: { task: Task }) {
-  const open = task.state === "inbox" || task.state === "active" || task.state === "someday";
+  const open = isOpenTask(task.state);
   return (
     <>
       {open && <RowAction label="Move to project…" onClick={() => requestOrganize({ kind: "move", ids: [task.id] })} />}

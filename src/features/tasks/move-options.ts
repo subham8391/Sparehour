@@ -69,3 +69,13 @@ export function moveOptions(p: MoveSource, query: string): MoveOption[] {
   }
   return out;
 }
+
+/**
+ * What a chosen target writes, and the words of its undo toast. An area files the task loose in it (tasks.area_id,
+ * DECISIONS.md "Loose tasks in an area"): the area is set and the project and heading cleared by the repository.
+ */
+export function moveWrite(target: MoveTarget): { patch: { areaId: string } | { projectId: string | null }; note: string } {
+  const patch = target.kind === "area" ? { areaId: target.id } : { projectId: target.id };
+  const note = target.id ? `Moved {title} to ${target.name ?? "the project"}` : "Moved {title} out of its project";
+  return { patch, note };
+}

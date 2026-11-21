@@ -4,17 +4,20 @@
 // is known to be this person's own.
 import { Stack } from "expo-router/stack";
 import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "~/auth/session";
 import { missingConfig } from "~/config";
 import { QuickAddProvider } from "~/screens/quick-add/quick-add";
+import { CarryReviewHost } from "~/screens/review/carry-review-host";
 import { SignIn } from "~/screens/sign-in";
+import { StartGate } from "~/screens/start/start-gate";
 import { BlockWrites } from "~/screens/today/block-writes";
 import { SyncProvider } from "~/sync/database";
 import { useAppFonts } from "~/ui/fonts";
+import { AccountLook } from "~/ui/looks/account-look";
+import { SystemBars } from "~/ui/looks/system-bars";
 import { font, useColours } from "~/ui/theme";
 import { UndoProvider } from "~/ui/undo-provider";
 
@@ -29,7 +32,8 @@ export default function RootLayout() {
   if (!fonts) return null;
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
+      {/* The status bar and the window behind the app follow the look on screen (ui/looks/system-bars.tsx). */}
+      <SystemBars />
       <SessionProvider>
         <Gate />
       </SessionProvider>
@@ -49,10 +53,16 @@ function Gate() {
     <SyncProvider userId={session.user.id} failed={() => <Notice title="Your data could not be opened" body="Close the app and open it again. If it stays like this, sign in again." />}>
       {/* Every shared repository records its undo here, whichever screen made the write. */}
       <UndoProvider>
+        {/* The look, theme and motion follow the account's settings row, from any device (ui/looks/account-look.tsx). */}
+        <AccountLook />
         {/* A block changed on any screen is sent on to the calendar the phone's way (screens/today/block-writes.tsx). */}
         <BlockWrites>
           <QuickAddProvider>
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.paper } }} />
+            {/* A new account goes to the first run, and a cold start opens where Settings › Planning says (screens/start). */}
+            <StartGate />
+            {/* The carried-over review opens itself once at the start of a day (screens/review); it draws nothing. */}
+            <CarryReviewHost />
           </QuickAddProvider>
         </BlockWrites>
       </UndoProvider>

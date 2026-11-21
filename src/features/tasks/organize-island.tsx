@@ -13,10 +13,12 @@ import { TagRepo } from "@/data/repositories/tag-repo";
 import { useSelection } from "@/features/selection/selection-provider";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { Toast } from "@/ui/toast";
+import { moveWrite } from "./move-options";
 import { MovePicker, type MoveTarget } from "./move-picker";
 import { onOrganize, type OrganizeRequest } from "./organize";
 import { useTaskDetail } from "./task-detail";
 import { TagPicker } from "./tag-picker";
+import { taskLinkAt } from "./task-link";
 import { useTaskRepo } from "./use-task-repo";
 
 type Picking = { kind: "move"; ids: readonly string[]; areas: boolean } | { kind: "tag"; ids: readonly string[] };
@@ -28,7 +30,7 @@ const TASK_PROJECT_SQL = `select project_id from tasks where id = ?`;
 const NO_COPY = "Couldn’t copy — the browser didn’t allow it.";
 
 /** `<origin>/today?task=<id>`: Today with the task's detail open, on any device signed in (DECISIONS.md "Copy link"). */
-export const taskLink = (id: string, origin = location.origin): string => `${origin}/today?task=${encodeURIComponent(id)}`;
+export const taskLink = (id: string, origin = location.origin): string => taskLinkAt(origin, id);
 
 export function OrganizeIsland() {
   const db = useLocalDatabase();
@@ -111,8 +113,7 @@ export function OrganizeIsland() {
   const move = (ids: readonly string[], target: MoveTarget) => {
     // `M`'s area target files the tasks loose in the area (tasks.area_id, DECISIONS.md "Loose tasks in an area"):
     // the area is set and the project and heading cleared, one write and one undo, as the detail's picker does.
-    const patch = target.kind === "area" ? { areaId: target.id } : { projectId: target.id };
-    const note = target.id ? `Moved {title} to ${target.name ?? "the project"}` : "Moved {title} out of its project";
+    const { patch, note } = moveWrite(target);
     const write = ids.length === 1 ? repo.update(ids[0], patch, note) : repo.updateMany(ids, patch, note);
     void write.then(finish(ids));
   };

@@ -36,7 +36,9 @@ import {
   type QuickAddTag,
 } from "./interpret";
 import { addedNotice, chooseProject, draftHere, fileHere, fileLine, type Here, type ProjectChoice, type QuickAddSubmission } from "./file-line";
-import { NEEDS_NAME, PLACEHOLDER, PLACEHOLDER_NARROW, STRIP_HINT, SUGGESTIONS, UNPARSEABLE, WARNING_TEXT, couldNotSave, reason } from "./quick-add-words";
+import { couldNotTakeBack, pastedNotice, savePasted, tookBack, type Pasted } from "./paste";
+import { NEEDS_NAME, PLACEHOLDER, PLACEHOLDER_NARROW, STRIP_HINT, SUGGESTIONS, UNPARSEABLE, WARNING_TEXT, couldNotSave } from "./quick-add-words";
+import { TOKEN_TONE, type TokenTone } from "./token-tone";
 
 export interface QuickAddContext {
   now: Instant;
@@ -57,25 +59,11 @@ export type QuickAddSave = (submission: QuickAddSubmission) => Promise<string | 
  */
 export type QuickAddFlush = () => Promise<boolean>;
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 // Tokens in the line are told apart by weight of colour alone: a project is
 // the meet token, everything else steps back to ink-2 (D11: no green, no
-// ember in the box). The chips below carry the meaning.
-const TOKEN_TONE: Record<Span["kind"], string> = {
-  protected: "",
-  literal: "",
-  datetime: "text-ink-2",
-  project: "text-meet",
-  tag: "text-ink-2",
-  estimate: "text-ink-2",
-  priority: "text-ink-2",
-  deadline: "text-ink-2",
-  start: "text-ink-2",
-  recurrence: "text-ink-2",
-  evening: "text-ink-2",
-  notes: "text-ink-3",
-};
+// ember in the box). The chips below carry the meaning. Which token takes which
+// tone is token-tone.ts (the Android app paints by it too); here, the classes.
+const TONE_CLASS: Record<TokenTone, string> = { ink: "", "ink-2": "text-ink-2", "ink-3": "text-ink-3", meet: "text-meet" };
 
 /** How each parsed fact is drawn: the chip family's tones and glyphs (DESIGN_SYSTEM.md §5 "Chips"). */
 const FACT_CHIP: Record<Fact["kind"], { tone: ChipTone; icon: IconName | null }> = {
@@ -432,42 +420,29 @@ export function QuickAdd({
     setBusy(true);
     setError(null);
     setNotice(null);
-    const ids: string[] = [];
-    let added = 0;
-    let unnamed = 0;
+    let pasted: Pasted;
     try {
       await saves.current.catch(() => undefined);
-      for (const [i, pasted] of lines.entries()) {
-        const r = parse(pasted, parseCtx);
-        if (!r.ok) {
-          unnamed += 1;
-          continue;
-        }
-        const filed = fileHere(fileLine(pasted, r, projects, parseCtx, chooseProject(r.draft, projects, null, false)), Boolean(r.draft.projectName), place);
-        try {
-          const id = await onSubmit(filed.submission);
-          if (typeof id === "string") ids.push(id);
-          added += 1;
-        } catch (err) {
-          const left = lines.length - i - 1;
-          setLine((now) => (now.text.trim() === "" ? { text: pasted, literal: [] } : now));
-          setError(`${couldNotSave(filed.title, err)}${left > 0 ? ` ${plural(left, "line after it was", "lines after it were")} not saved either.` : ""}`);
-          break;
-        }
+      pasted = await savePasted(lines, parseCtx, projects, place, onSubmit);
+      if (pasted.stopped) {
+        const { line: stoppedAt, error: why } = pasted.stopped;
+        setLine((now) => (now.text.trim() === "" ? { text: stoppedAt, literal: [] } : now));
+        setError(why);
       }
     } finally {
       setBusy(false);
     }
-    if (added === 0 && unnamed === 0) return;
-    const skipped = unnamed > 0 ? ` · ${plural(unnamed, "line", "lines")} with no name skipped` : "";
+    const text = pastedNotice(pasted);
+    if (!text) return;
+    const { ids } = pasted;
     const takeBack = ids.length > 0 ? onPasted?.(ids) : null;
     setNotice({
-      text: `${plural(added, "task", "tasks")} added${skipped}`,
+      text,
       undo: takeBack
         ? () =>
             void takeBack().then(
-              () => setNotice({ text: `Took back ${plural(ids.length, "task", "tasks")}` }),
-              (err: unknown) => setError(`Couldn't take them back: ${reason(err)}`),
+              () => setNotice({ text: tookBack(ids.length) }),
+              (err: unknown) => setError(couldNotTakeBack(err)),
             )
         : undefined,
     });
@@ -492,7 +467,7 @@ export function QuickAdd({
           <div ref={paintRef} aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-lg bg-surface px-[calc(0.875rem+1px)] text-base whitespace-pre text-ink">
             {segments(value, spans).map((s, i) =>
               s.kind ? (
-                <mark key={i} data-kind={s.kind} className={cx("bg-transparent", TOKEN_TONE[s.kind])}>
+                <mark key={i} data-kind={s.kind} className={cx("bg-transparent", TONE_CLASS[TOKEN_TONE[s.kind]])}>
                   {s.text}
                 </mark>
               ) : (

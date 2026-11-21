@@ -6,7 +6,7 @@
 import { LookPicker } from "@/features/looks/look-picker";
 import { Segmented } from "@/ui/segmented";
 import { HINT, LABEL, ROW } from "../rows";
-import { LOOK_HINT, THEMES } from "../section-words";
+import { LOOK_HINT, MOTIONS, THEMES, motionHint } from "../section-words";
 import { Section, useSavedFlash } from "../settings-ui";
 import type { SettingsFormProps } from "../types";
 
@@ -43,14 +43,11 @@ export function AppearanceSection(p: SettingsFormProps) {
         <div className={ROW}>
           <span className="flex min-w-0 flex-col">
             <span className={LABEL}>Motion</span>
-            <span className={HINT}>{p.motion.value === "reduce" ? "Movement is cut on this device" : "Follows this device’s setting"}</span>
+            <span className={HINT}>{motionHint(p.motion.value)}</span>
           </span>
           <Segmented
             label="Motion"
-            options={[
-              { value: "system", label: "System" },
-              { value: "reduce", label: "Reduce" },
-            ]}
+            options={MOTIONS}
             value={p.motion.value}
             onChange={(m) => {
               p.motion?.onChange(m);

@@ -1,16 +1,18 @@
 // Someday as the phone draws it: the pinned group the rollover filed, the projects, the loose tasks, and what a row,
-// its ⋯ sheet and the Review walk each ask for.
+// its ⋯ (the shared row menu) and the Review walk each ask for.
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { localDate } from "@/core/time";
 import type { Task } from "@/core/types";
-import { SomedayActions, SomedayReview, type PickDay, type SomedayActionsProps, type SomedayReviewProps } from "./someday-sheets";
+import { PreviewRows } from "~/screens/rows/preview-rows";
+import type { RowsWiring } from "~/screens/rows/rows-frame";
+import { SomedayReview, type PickDay, type SomedayReviewProps } from "./someday-sheets";
 import { SomedayView, type SomedayViewProps } from "./someday-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn(), canGoBack: () => false }) }));
 
 const TODAY = localDate("2026-11-21");
-const task = (id: string, title: string, more: Partial<Task> = {}) => ({ id, title, estimateMin: 30, carryCount: 0, projectId: null, ...more }) as unknown as Task;
+const task = (id: string, title: string, more: Partial<Task> = {}) => ({ id, title, state: "someday", priority: 0, estimateMin: 30, carryCount: 0, projectId: null, doDate: null, ...more }) as unknown as Task;
 const props = (over: Partial<SomedayViewProps> = {}): SomedayViewProps => ({
   today: TODAY,
   defaultEstimateMin: 35,
@@ -26,9 +28,20 @@ const props = (over: Partial<SomedayViewProps> = {}): SomedayViewProps => ({
   onBringAllBack: jest.fn(),
   onComplete: jest.fn(),
   onOpen: jest.fn(),
-  onMore: jest.fn(),
+  onToday: jest.fn(),
+  onBackToActive: jest.fn(),
+  onDrop: jest.fn(),
+  onBreakDown: jest.fn(),
   ...over,
 });
+
+/** The view inside its screen's frame, as someday.tsx draws it: a row's ⋯ is the frame's menu. */
+const show = (p: SomedayViewProps, wiring: Partial<RowsWiring> = {}) =>
+  render(
+    <PreviewRows today={TODAY} wiring={wiring}>
+      <SomedayView {...p} />
+    </PreviewRows>,
+  );
 
 describe("<SomedayView>", () => {
   it("says it is allowed, and groups what is parked: filed automatically, by project with its area, then loose", async () => {
@@ -48,15 +61,42 @@ describe("<SomedayView>", () => {
     expect(screen.getByText("@writing")).toBeTruthy();
   });
 
-  it("the ring completes, the title opens, and ⋯ asks for the row's actions", async () => {
+  it("the ring completes and the title opens", async () => {
     const p = props();
     await render(<SomedayView {...p} />);
     await fireEvent.press(screen.getByRole("button", { name: "Complete Learn to bake bread" }));
     expect(p.onComplete).toHaveBeenCalledWith(expect.objectContaining({ id: "s3" }));
     await fireEvent.press(screen.getByRole("button", { name: "Learn to bake bread" }));
     expect(p.onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "s3" }));
-    await fireEvent.press(screen.getByRole("button", { name: "More actions for Write the case study" }));
-    expect(p.onMore).toHaveBeenCalledWith(expect.objectContaining({ id: "s2" }));
+  });
+
+  it("a row's ⋯ is the shared menu: Today, Back to active and Drop as its own, then the presets and Move to…, and no Someday", async () => {
+    const p = props();
+    const onMoveToDay = jest.fn();
+    await show(p, { onMoveToDay });
+    const s2 = expect.objectContaining({ id: "s2" });
+    const more = () => fireEvent.press(screen.getByRole("button", { name: "More actions for Write the case study" }));
+    for (const [name, called] of [
+      ["Today", p.onToday],
+      ["Back to active", p.onBackToActive],
+      ["Drop", p.onDrop],
+      ["Complete", p.onComplete],
+    ] as const) {
+      await more();
+      await fireEvent.press(screen.getByRole("button", { name }));
+      expect(called).toHaveBeenCalledWith(s2);
+      // The sheet closes behind a choice.
+      expect(screen.queryByRole("button", { name: "Back to active" })).toBeNull();
+    }
+    await more();
+    for (const name of ["This evening", "Tomorrow", "In 4 hours", "This weekend", "Next week", "Move to project…", "Add a tag…", "Duplicate", "Copy link"]) expect(screen.getByRole("button", { name })).toBeTruthy();
+    // It is parked already.
+    expect(screen.queryByRole("button", { name: "Someday" })).toBeNull();
+    // The web's "Pick a date" is this menu's Move to…: the next seven days, then any other day.
+    await fireEvent.press(screen.getByRole("button", { name: "Move to…" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Tomorrow, Sun 22, 2h 30m spare" }));
+    expect(onMoveToDay.mock.calls[0][0]).toBe("s2");
+    expect(onMoveToDay.mock.calls[0][1].toString()).toBe("2026-11-22");
   });
 
   it("the pinned group offers Review and Bring them all back", async () => {
@@ -97,54 +137,6 @@ const DAYS: PickDay[] = [
   { day: TODAY.add({ days: 1 }), name: "Tomorrow", date: "Sun 22" },
   { day: TODAY.add({ days: 2 }), name: "Mon 23" },
 ];
-const actions = (over: Partial<SomedayActionsProps> = {}): SomedayActionsProps => ({
-  task: { id: "s3", title: "Learn to bake bread" },
-  step: "menu",
-  today: TODAY,
-  days: DAYS,
-  onToday: jest.fn(),
-  onPickADate: jest.fn(),
-  onPickDay: jest.fn(),
-  onBackToActive: jest.fn(),
-  onDrop: jest.fn(),
-  onClose: jest.fn(),
-  ...over,
-});
-
-describe("<SomedayActions>", () => {
-  it("offers Today, Pick a date, Back to active and Drop for the task it names", async () => {
-    const p = actions();
-    await render(<SomedayActions {...p} />);
-    expect(screen.getByRole("header", { name: "Learn to bake bread" })).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "Today" }));
-    expect(p.onToday).toHaveBeenCalledTimes(1);
-    await fireEvent.press(screen.getByRole("button", { name: "Pick a date" }));
-    expect(p.onPickADate).toHaveBeenCalledTimes(1);
-    await fireEvent.press(screen.getByRole("button", { name: "Back to active" }));
-    expect(p.onBackToActive).toHaveBeenCalledTimes(1);
-    await fireEvent.press(screen.getByRole("button", { name: "Drop" }));
-    expect(p.onDrop).toHaveBeenCalledTimes(1);
-  });
-
-  it("Pick a date lists the picker's days, and a tap picks that day", async () => {
-    const p = actions({ step: "days" });
-    await render(<SomedayActions {...p} />);
-    expect(screen.getByRole("header", { name: "Pick a date" })).toBeTruthy();
-    expect(screen.getByText("Sun 22")).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "Move Learn to bake bread to Mon 23" }));
-    expect(p.onPickDay).toHaveBeenCalledWith(DAYS[2].day);
-    // Any other day comes from the month under them; a day that has passed cannot be chosen.
-    await fireEvent.press(screen.getByRole("button", { name: "Monday 30 November 2026" }));
-    expect(p.onPickDay).toHaveBeenLastCalledWith(TODAY.add({ days: 9 }));
-    expect(screen.getByRole("button", { name: "Friday 20 November 2026" }).props.accessibilityState).toMatchObject({ disabled: true });
-  });
-
-  it("draws nothing while no task is named", async () => {
-    await render(<SomedayActions {...actions({ task: null })} />);
-    expect(screen.queryByRole("button", { name: "Drop" })).toBeNull();
-  });
-});
-
 const review = (over: Partial<SomedayReviewProps> = {}): SomedayReviewProps => ({
   open: true,
   task: { id: "s1", title: "Renew the passport" },

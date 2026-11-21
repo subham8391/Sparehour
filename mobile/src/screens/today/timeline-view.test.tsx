@@ -264,3 +264,25 @@ describe("<TimelineView>: a task waiting for a time", () => {
     expect(p.onCancelPlacing).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("<TimelineView>: Plan my day's proposal, and a meeting picked on the ribbon", () => {
+  it("draws each proposed block as a ghost at its time, hidden from a screen reader and not a control", async () => {
+    await render(<TimelineView {...props({ proposed: [{ key: "t3", title: "Review the budget", start: 16 * 60 + 35, end: 17 * 60 + 20 }] })} />);
+    expect(screen.queryByTestId("plan-ghost")).toBeNull();
+    const ghost = screen.getByTestId("plan-ghost", { includeHiddenElements: true });
+    expect(within(ghost).getByText("Review the budget", { includeHiddenElements: true })).toBeTruthy();
+    expect(ghost.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ top: (16 * 60 + 35) * 1.1 + 1 })]));
+    expect(screen.queryByRole("button", { name: /Review the budget/ })).toBeNull();
+  });
+
+  it("draws none while nothing is proposed", async () => {
+    await render(<TimelineView {...props()} />);
+    expect(screen.queryByTestId("plan-ghost", { includeHiddenElements: true })).toBeNull();
+  });
+
+  it("marks the meeting that was picked, and no other", async () => {
+    await render(<TimelineView {...props({ shownMeeting: 10 * 60 })} />);
+    const marked = screen.getAllByTestId("meeting").filter((m) => m.props.accessibilityState?.selected);
+    expect(marked.map((m) => m.props.accessibilityLabel)).toEqual([expect.stringContaining("Design review")]);
+  });
+});

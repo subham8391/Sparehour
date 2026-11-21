@@ -8,6 +8,7 @@
 // full-bleed so a launcher can cut its own shape (the two are separate files on purpose).
 import type { MetadataRoute } from "next";
 import { PAPER } from "@/features/commands/theme";
+import { SHORTCUTS } from "./shortcuts";
 
 export function buildManifest(colours: { bar?: string | null; paper?: string | null } = {}): MetadataRoute.Manifest {
   return {
@@ -28,9 +29,7 @@ export function buildManifest(colours: { bar?: string | null; paper?: string | n
       { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     share_target: { action: "/share", method: "GET", params: { title: "title", text: "text", url: "url" } },
-    shortcuts: [
-      { name: "Add a task", short_name: "Add", url: "/today?quickadd=1", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
-      { name: "Today", short_name: "Today", url: "/today", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
-    ],
+    // What they are called and where they go is shortcuts.ts (the Android app's icon carries the same); each wears the app's icon.
+    shortcuts: SHORTCUTS.map((s) => ({ ...s, icons: [{ src: "/icon-192.png", sizes: "192x192" }] })),
   };
 }

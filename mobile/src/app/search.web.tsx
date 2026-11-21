@@ -9,6 +9,7 @@ import { Temporal, localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { SearchFilters } from "@/features/search/search";
 import { DayEffectLine, QuickAddView } from "~/screens/quick-add/quick-add-view";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 import { OlderFoundView } from "~/screens/search/older-found-view";
 import { SearchView, type SearchHit } from "~/screens/search/search-view";
 
@@ -44,7 +45,7 @@ export default function Preview() {
   const [adding, setAdding] = useState(Boolean(q.add));
   const found = state !== "start" && state !== "none" && query.trim() !== "";
   return (
-    <>
+    <PreviewRows today={TODAY}>
       <SearchView
         query={query}
         onQueryChange={setQuery}
@@ -59,13 +60,10 @@ export default function Preview() {
         projectMatches={found ? [{ id: "p1", name: "Acme launch" }, { id: "p9", name: "Acme 2025", note: "Completed" }] : []}
         areaMatches={found ? [{ id: "a9", name: "Acme" }] : []}
         today={TODAY}
-        now={NOW}
-        zone="Europe/London"
         defaultEstimateMin={35}
         onOpen={nothing}
         onComplete={nothing}
         onMove={nothing}
-        onSnooze={nothing}
         onOpenProject={nothing}
         onOpenArea={nothing}
         onAddTask={() => setAdding(true)}
@@ -94,6 +92,6 @@ export default function Preview() {
         usual={(t) => (t.estimateMin === 30 ? 50 : null)}
         dayLine={(draft) => (draft.doDate ? <DayEffectLine text={draft.estimateMin ? "Leaves 2h 50m spare today" : "Leaves 2h 45m spare today · counted as 35m"} over={false} /> : null)}
       />
-    </>
+    </PreviewRows>
   );
 }

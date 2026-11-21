@@ -1,12 +1,13 @@
 // The browser preview of Someday (npm run preview, /someday): the real view, made-up data. `?state=empty` shows
-// nothing parked; `?sheet=menu|days|review|reviewed` opens a row's actions or the Review walk. See _layout.web.tsx.
+// nothing parked; `?sheet=review|reviewed` opens the Review walk; a row's ⋯ opens the real menu over made-up lists. See _layout.web.tsx.
 import { useLocalSearchParams } from "expo-router";
 import { localDate } from "@/core/time";
 import type { Task } from "@/core/types";
-import { SomedayActions, SomedayReview, type PickDay } from "~/screens/someday/someday-sheets";
+import { PreviewRows } from "~/screens/rows/preview-rows";
+import { SomedayReview, type PickDay } from "~/screens/someday/someday-sheets";
 import { SomedayView } from "~/screens/someday/someday-view";
 
-const task = (id: string, title: string, estimateMin: number | null, more: Partial<Task> = {}) => ({ id, title, estimateMin, carryCount: 0, projectId: null, ...more }) as unknown as Task;
+const task = (id: string, title: string, estimateMin: number | null, more: Partial<Task> = {}) => ({ id, title, estimateMin, carryCount: 0, projectId: null, state: "someday", priority: 0, deadline: null, doDate: null, doTime: null, startDate: null, recurrenceRule: null, ...more }) as unknown as Task;
 const TODAY = localDate("2026-11-21");
 const DAYS: PickDay[] = [
   { day: TODAY, name: "Today", date: "Sat 21" },
@@ -21,7 +22,7 @@ export default function Preview() {
   const empty = q.state === "empty";
   const asked = { id: "s1", title: "Renew the passport" };
   return (
-    <>
+    <PreviewRows today={TODAY}>
       <SomedayView
         today={TODAY}
         defaultEstimateMin={35}
@@ -37,19 +38,10 @@ export default function Preview() {
         onBringAllBack={nothing}
         onComplete={nothing}
         onOpen={nothing}
-        onMore={nothing}
-      />
-      <SomedayActions
-        task={q.sheet === "menu" || q.sheet === "days" ? asked : null}
-        step={q.sheet === "days" ? "days" : "menu"}
-        today={TODAY}
-        days={DAYS}
         onToday={nothing}
-        onPickADate={nothing}
-        onPickDay={nothing}
         onBackToActive={nothing}
         onDrop={nothing}
-        onClose={nothing}
+        onBreakDown={nothing}
       />
       <SomedayReview
         open={q.sheet === "review" || q.sheet === "reviewed"}
@@ -66,6 +58,6 @@ export default function Preview() {
         onDrop={nothing}
         onClose={nothing}
       />
-    </>
+    </PreviewRows>
   );
 }

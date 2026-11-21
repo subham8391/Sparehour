@@ -12,6 +12,7 @@ import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from
 import { minuteAtOffset, stepZoom, type ZoomStep } from "@/core/blocking";
 import type { Capacity } from "@/core/capacity";
 import type { AddWhat, AddableTask } from "@/features/blocking/use-placing";
+import type { PlanGhost } from "@/features/planning/drawing";
 import type { TimelineBlock, TimelineMeeting } from "@/features/today/hooks/use-today";
 import { hhmm, landing, offerAt, rangeLine } from "@/features/today/timeline-geometry";
 import { Button } from "~/ui/button";
@@ -65,6 +66,10 @@ export interface TimelineViewProps {
   placing?: { title: string } | null;
   onTapSlot?: (startMin: number) => void;
   onCancelPlacing?: () => void;
+  /** Plan my day's proposal while it is previewed (SCREENS.md §2.6a): drawn as ghosts, never written, and not tappable. */
+  proposed?: readonly PlanGhost[];
+  /** A meeting picked on the ribbon ("Show on timeline", SCREENS.md §2.2): the hours turn to it and it is outlined. Its start minute. */
+  shownMeeting?: number | null;
   /** Room at the end of the hours for whatever floats over them. */
   bottomRoom?: number;
   /** Drawn over the hours and scrolling away with them: Today's hero, on a phone too short to keep it in view as well. */
@@ -127,8 +132,13 @@ export function TimelineView(p: TimelineViewProps) {
     dayTop.current = y;
     if (turned.current !== null) return;
     turned.current = scale;
-    turn(shape.openAt);
+    // A meeting asked for before the hours were drawn is where they open.
+    turn(p.shownMeeting != null ? p.shownMeeting - 30 : shape.openAt);
   };
+  const shownMeeting = p.shownMeeting ?? null;
+  useEffect(() => {
+    if (shownMeeting !== null && turned.current !== null) turnRef.current(shownMeeting - 30);
+  }, [shownMeeting]);
   useEffect(() => {
     const before = turned.current;
     if (before === null || before === scale) return;
@@ -267,7 +277,18 @@ export function TimelineView(p: TimelineViewProps) {
                 </View>
               ))}
               {shape.meetings.map((m) => (
-                <Meeting key={m.key} m={m} c={c} />
+                <Meeting key={m.key} m={m} c={c} shown={p.shownMeeting === m.start} />
+              ))}
+              {/* The proposal: a dashed outline over a thin wash, title and time inside; the panel lists them, so a screen reader skips these. */}
+              {p.proposed?.map((g) => (
+                <View key={g.key} aria-hidden testID="plan-ghost" style={[styles.ghost, { top: g.start * scale + 1, height: Math.max(24, (g.end - g.start) * scale - 2), borderColor: c.blockFill, backgroundColor: wash(c.blockFill, 0.06) }]}>
+                  <Text numberOfLines={1} style={[styles.itemTitle, { color: c.ink }]}>
+                    {g.title}
+                  </Text>
+                  <Text numberOfLines={1} style={[styles.itemTime, { color: c.ink2 }]}>
+                    {rangeLine(g.start, g.end)}
+                  </Text>
+                </View>
               ))}
             </View>
             {/* Blocks take their own taps, so their layer lets the rest through to the day. */}
@@ -342,13 +363,14 @@ export function TimelineView(p: TimelineViewProps) {
   );
 }
 
-function Meeting({ m, c }: { m: DrawnMeeting; c: Colours }) {
+function Meeting({ m, c, shown = false }: { m: DrawnMeeting; c: Colours; /** Picked on the ribbon: outlined for a moment. */ shown?: boolean }) {
   return (
     <View
       accessible
       accessibilityLabel={`Meeting: ${m.title}, ${m.time}${m.unanswered ? ", not answered yet" : ""}`}
       testID="meeting"
-      style={[styles.item, m.tall ? styles.itemTall : styles.itemShort, laneBox(m.lane), { top: m.top, height: m.height, backgroundColor: c.surface, borderLeftColor: m.past ? c.lineStrong : c.meetFill }]}
+      accessibilityState={{ selected: shown }}
+      style={[styles.item, m.tall ? styles.itemTall : styles.itemShort, laneBox(m.lane), { top: m.top, height: m.height, backgroundColor: c.surface, borderLeftColor: m.past ? c.lineStrong : c.meetFill }, shown && { borderWidth: 2, borderLeftWidth: 3, borderColor: c.meetFill }]}
     >
       <View style={[StyleSheet.absoluteFill, { backgroundColor: wash(c.meetFill, m.past ? 0.1 : 0.2) }]} />
       {m.unanswered ? <View testID="meeting-unanswered" style={[StyleSheet.absoluteFill, styles.unanswered, { borderColor: c.meetFill }]} /> : null}
@@ -480,6 +502,7 @@ const styles = StyleSheet.create({
   blockTitle: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 },
   syncDot: { width: 6, height: 6, borderRadius: 3 },
   unanswered: { borderWidth: 1, borderStyle: "dashed", borderRadius: 4 },
+  ghost: { position: "absolute", left: 0, right: 0, borderWidth: 1, borderStyle: "dashed", borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden" },
   offer: { position: "absolute", left: 0, minHeight: TARGET, paddingHorizontal: 12, borderWidth: 1, borderStyle: "dashed", borderRadius: 10, justifyContent: "center", elevation: 3 },
   offerText: { fontFamily: font.medium, fontSize: 15, fontVariant: ["tabular-nums"] },
   marker: { left: 0, right: 0, height: 0 },

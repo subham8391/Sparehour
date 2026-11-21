@@ -1,15 +1,14 @@
 // Settings › Data on the phone (SCREENS.md §18, PRODUCT_SPEC.md §19.1, §6, §8.5; the web's
-// sections/data-section.tsx and features/archive/archive-panel.tsx): Export everything, made on this phone and
-// handed to the system's share sheet; Clear the slate; the Archive with a restore per batch, each named by date and
-// count; and Delete permanently, the only hard delete there is, naming the count behind the typed confirmation.
-// Restores are undoable (the repository records it); a permanent delete is final, on the web as here, so nothing
-// offers to take it back. The batches, the counts and every sentence are the web's own (features/archive/batches.ts,
-// confirm-words.ts, features/settings/section-words.ts). Presentational: the export, the restore and the delete are
-// handed in.
+// sections/data-section.tsx and features/archive/archive-panel.tsx): Export everything, made on this phone as a real
+// file per format and handed to the system's share sheet; Clear the slate, which opens its own screen (/slate); the
+// Archive with a restore per batch, each named by date and count; and Delete permanently, the only hard delete there
+// is, naming the count behind the typed confirmation. Restores are undoable (the repository records it); a permanent
+// delete is final, on the web as here, so nothing offers to take it back. The batches, the counts and every sentence
+// are the web's own (features/archive/batches.ts, confirm-words.ts, features/settings/section-words.ts).
+// Presentational: the export, the restore and the delete are handed in.
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ExportFormat } from "@/core/export";
-import type { SlateScope } from "@/core/rollover";
 import type { LocalDate } from "@/core/time";
 import {
   ARCHIVE,
@@ -28,17 +27,12 @@ import {
   restoredNotice,
   type ArchiveBatch,
 } from "@/features/archive/batches";
-import { SLATE_FAILED, SLATE_KEEPS, SLATE_SCOPES, slateConfirmLabel, slateCount, slateQuestion } from "@/features/archive/confirm-words";
-import { EXPORT_FORMATS, EXPORT_HINT } from "@/features/settings/section-words";
+import { EXPORT_FORMATS, EXPORT_HINT, EXPORT_NOTE } from "@/features/settings/section-words";
 import { Button } from "~/ui/button";
 import { CardRow } from "~/ui/card";
 import { Icon } from "~/ui/icon";
-import { Sheet } from "~/ui/sheet";
 import { TARGET, font, useColours } from "~/ui/theme";
 import { Group, Line, QuietRow, SettingRow, TypedConfirmSheet, Words } from "./parts";
-
-/** Under the export's buttons: what each format is, as the phone hands it over (the web zips the Markdown files; a phone shares text). */
-export const EXPORT_NOTE = "JSON is complete and re-importable. Markdown is every project, one after another. CSV is the flat task table. Each opens your phone’s share sheet as text.";
 
 export interface ExportPanel {
   busy: ExportFormat | null;
@@ -56,10 +50,8 @@ export interface DataViewProps {
   today: LocalDate;
   archivedIds: readonly string[];
   droppedIds: readonly string[];
-  /** How many tasks each Clear the slate scope would take; undefined while counting. */
-  slateCounts: { today: number; backlog: number } | undefined;
-  /** Archives the scope as one batch; throws when it could not. */
-  onClearSlate: (scope: SlateScope) => Promise<unknown>;
+  /** Opens Clear the slate, a screen of its own. */
+  onClearSlate: () => void;
   /** Brings a batch back; resolves how many tasks came. */
   onRestore: (batch: ArchiveBatch) => Promise<number>;
   /** Asks the server to delete these for good; resolves how many went, or throws a sentence to show. */
@@ -72,9 +64,8 @@ interface Doomed {
   ids: readonly string[];
 }
 
-export function DataView({ exporter, batches, today, archivedIds, droppedIds, slateCounts, onClearSlate, onRestore, onDeletePermanently }: DataViewProps) {
+export function DataView({ exporter, batches, today, archivedIds, droppedIds, onClearSlate, onRestore, onDeletePermanently }: DataViewProps) {
   const c = useColours();
-  const [slateOpen, setSlateOpen] = useState(false);
   const [doomed, setDoomed] = useState<Doomed | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
@@ -120,7 +111,7 @@ export function DataView({ exporter, batches, today, archivedIds, droppedIds, sl
       <Group title="Clear the slate">
         <CardRow first>
           <SettingRow label="Clear the slate" hint={ARCHIVE.slateHint}>
-            <Button label="Clear the slate…" onPress={() => setSlateOpen(true)} style={styles.start} />
+            <Button label="Clear the slate…" onPress={onClearSlate} style={styles.start} />
           </SettingRow>
         </CardRow>
       </Group>
@@ -172,68 +163,11 @@ export function DataView({ exporter, batches, today, archivedIds, droppedIds, sl
 
       {notice ? <Line text={notice} status /> : null}
 
-      <SlateSheet open={slateOpen} counts={slateCounts} onConfirm={onClearSlate} onClose={() => setSlateOpen(false)} />
       <TypedConfirmSheet open={doomed !== null} title={deleteTitle(doomed?.ids.length ?? 0)} confirmLabel={deleteLabel(doomed?.ids.length ?? 0)} busyLabel="Deleting…" onConfirm={confirmDelete} onClose={() => setDoomed(null)}>
         <Words text={deleteSays(doomed?.what ?? "", doomed?.ids.length ?? 0)} />
         <Words text={ARCHIVE.final} />
       </TypedConfirmSheet>
     </>
-  );
-}
-
-/**
- * Clear the slate (PRODUCT_SPEC.md §8.5; the web's features/archive/clear-slate-sheet.tsx): two scopes with their
- * counts, the exact question and the guarantee, then one batch archived. The repository records the one undo.
- */
-export function SlateSheet({ open, counts, onConfirm, onClose }: { open: boolean; counts: { today: number; backlog: number } | undefined; onConfirm: (scope: SlateScope) => Promise<unknown>; onClose: () => void }) {
-  return (
-    <Sheet open={open} title="Clear the slate" onClose={onClose}>
-      {open ? <SlateBody counts={counts} onConfirm={onConfirm} onClose={onClose} /> : null}
-    </Sheet>
-  );
-}
-
-function SlateBody({ counts, onConfirm, onClose }: { counts: { today: number; backlog: number } | undefined; onConfirm: (scope: SlateScope) => Promise<unknown>; onClose: () => void }) {
-  const c = useColours();
-  const [scope, setScope] = useState<SlateScope>("today");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const n = slateCount(counts, scope);
-  const confirm = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await onConfirm(scope);
-      onClose();
-    } catch {
-      setError(SLATE_FAILED);
-      setBusy(false);
-    }
-  };
-  return (
-    <View style={styles.gap}>
-      <View accessibilityRole="radiogroup" accessibilityLabel="What to archive">
-        {SLATE_SCOPES.map((o) => {
-          const on = scope === o.value;
-          const count = slateCount(counts, o.value);
-          return (
-            <Pressable key={o.value} accessibilityRole="radio" accessibilityLabel={`${o.label}, ${count ?? "counting"}`} accessibilityHint={o.hint} accessibilityState={{ checked: on }} onPress={() => setScope(o.value)} style={styles.scope}>
-              <View style={[styles.radio, { borderColor: on ? c.ink : c.lineControl }]}>{on ? <View style={[styles.radioDot, { backgroundColor: c.ink }]} /> : null}</View>
-              <View style={styles.scopeWords}>
-                <Text style={[styles.scopeLabel, { color: c.ink }]}>{o.label}</Text>
-                <Text style={[styles.title, { color: c.ink2 }]}>{o.hint}</Text>
-              </View>
-              <Text style={[styles.count, { color: c.ink2 }]}>{count ?? "…"}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Words text={n === null ? "Counting…" : slateQuestion(n)} strong />
-      <Line text={SLATE_KEEPS} flush />
-      {error ? <Line text={error} tone="error" flush /> : null}
-      <Button variant="primary" label={slateConfirmLabel(n, busy)} disabled={busy || !n} onPress={() => void confirm()} />
-      <Button label="Cancel" onPress={onClose} />
-    </View>
   );
 }
 
@@ -245,11 +179,4 @@ const styles = StyleSheet.create({
   titles: { paddingLeft: 36, paddingRight: 16, paddingBottom: 6, gap: 4 },
   title: { fontFamily: font.regular, fontSize: 14, lineHeight: 20 },
   batchActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, paddingHorizontal: 16, paddingBottom: 10 },
-  gap: { gap: 10 },
-  scope: { minHeight: TARGET, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.6, alignItems: "center", justifyContent: "center" },
-  radioDot: { width: 10, height: 10, borderRadius: 5 },
-  scopeWords: { flex: 1 },
-  scopeLabel: { fontFamily: font.medium, fontSize: 17 },
-  count: { fontFamily: font.regular, fontSize: 16, fontVariant: ["tabular-nums"] },
 });

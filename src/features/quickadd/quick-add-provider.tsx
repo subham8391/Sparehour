@@ -13,6 +13,7 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { Icon } from "@/ui/icons";
+import { recordPaste } from "./paste-undo";
 import type { QuickAddSubmission } from "./quick-add";
 import { SPACE_SQL, saveSubmission } from "./save-submission";
 import { Kbd } from "@/ui/kbd";
@@ -94,20 +95,8 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   );
 
   // A paste is one undo entry for all its tasks (PRODUCT_SPEC.md §5.1 rule 6: "12 tasks — Undo"). The sheet's own
-  // Undo and the stack's run the same take-back, and it runs once, whichever comes first.
-  const onPasted = useCallback(
-    (ids: readonly string[]) => {
-      let taken: Promise<void> | null = null;
-      const takeBack = () => (taken ??= tasks.removeCreated(ids));
-      // Once a redo has made them again, the sheet's Undo takes them back again rather than answer with the old take-back.
-      const settled = (now: "redone" | "undone") => {
-        if (now === "redone") taken = null;
-      };
-      undo?.record({ label: `${ids.length} ${ids.length === 1 ? "task" : "tasks"} added`, toast: true, rows: { tasks: ids, task_tags: { task_id: ids } }, undo: takeBack, settled });
-      return takeBack;
-    },
-    [tasks, undo],
-  );
+  // Undo and the stack's run the same take-back, and it runs once, whichever comes first (paste-undo.ts).
+  const onPasted = useCallback((ids: readonly string[]) => recordPaste(tasks, undo, ids), [tasks, undo]);
 
   // Esc with words in the box discards them with a one-step undo (§5.1 rule 4): the toast reopens the sheet holding
   // them, and a redo discards them again.

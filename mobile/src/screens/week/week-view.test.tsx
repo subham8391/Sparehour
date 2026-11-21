@@ -2,6 +2,7 @@
 // folded free days, what lies past the week, "Not yet planned", and what each control calls. The week is
 // week-fixture.ts: made-up tasks, with every figure the shared capacity engine's own.
 import { fireEvent, render, screen, within } from "@testing-library/react-native";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 import { TODAY, task, weekFixture } from "./week-fixture";
 import { WeekView, type WeekViewProps } from "./week-view";
 
@@ -186,5 +187,28 @@ describe("<WeekView>", () => {
     expect(screen.getByText("Getting your tasks…")).toBeTruthy();
     expect(screen.queryByLabelText("Jump to a day")).toBeNull();
     expect(screen.queryByText("Nothing scheduled beyond today.")).toBeNull();
+  });
+
+  it("a planned row's ⋯ is the shared menu, with Today where it is not on today already; a row listed for its deadline has none", async () => {
+    const onMove = jest.fn();
+    const onSomeday = jest.fn();
+    // Inside its screen's frame, as week.tsx draws it.
+    await render(
+      <PreviewRows today={TODAY} wiring={{ onSomeday }}>
+        <WeekView {...props({ onMove, onBreakDown: jest.fn() })} />
+      </PreviewRows>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Call the bank" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Today" }));
+    expect(onMove).toHaveBeenCalledWith(expect.objectContaining({ id: "m2" }), "today");
+    // Tomorrow and Someday are said once: the menu's own lines stand in for the row's.
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Call the bank" }));
+    expect(screen.getAllByRole("button", { name: "Tomorrow" })).toHaveLength(1);
+    await fireEvent.press(screen.getByRole("button", { name: "Someday" }));
+    expect(onSomeday).toHaveBeenCalledWith("m2");
+    // On today already: no Today of its own.
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Water the plants" }));
+    expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More actions for Submit the expenses" })).toBeNull();
   });
 });

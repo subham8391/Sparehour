@@ -17,7 +17,7 @@ import { Empty } from "~/ui/empty";
 import { Icon } from "~/ui/icon";
 import { Screen } from "~/ui/screen";
 import { SectionLabel } from "~/ui/section-label";
-import { TaskLine } from "~/ui/task-line";
+import { TaskRow } from "~/screens/rows/task-row";
 import { TARGET, font, useColours, type Colours } from "~/ui/theme";
 
 /** Where "Show older" stands (features/finished/use-finished.ts). */
@@ -80,9 +80,11 @@ export function LogbookView(p: LogbookViewProps) {
     return (
       <CardRow key={e.key} first={first}>
         {e.kind === "dropped" ? (
-          <ActionLine title={e.task.title} detail={detail} onPress={() => p.onOpen(e)} action={{ label: "Restore", accessibilityLabel: `Restore ${e.task.title}`, onPress: () => p.onRestore(e) }} />
+          // A dropped task has no ring to press: Restore is its ⋯ and its right swipe, as on the web.
+          <TaskRow task={e.task} today={p.today} defaultEstimateMin={p.defaultEstimateMin} meta={detail} onOpen={() => p.onOpen(e)} actions={[{ label: "Restore", run: () => p.onRestore(e) }]} />
         ) : reopens ? (
-          <TaskLine task={e.task} today={p.today} defaultEstimateMin={p.defaultEstimateMin} detail={detail} done onComplete={() => p.onReopen(e)} onPress={() => p.onOpen(e)} />
+          // The ring reopens; so do the ⋯ and a right swipe. A task the server kept is listed, not ticked for a bulk edit.
+          <TaskRow task={e.task} today={p.today} defaultEstimateMin={p.defaultEstimateMin} meta={detail} done onComplete={() => p.onReopen(e)} onOpen={() => p.onOpen(e)} actions={[{ label: "Reopen", run: () => p.onReopen(e) }]} selectable={older === undefined} />
         ) : (
           // One finished day of a repeating task: it opens, and is not a task to reopen.
           <ActionLine title={e.task.title} detail={detail} mark="done" onPress={() => p.onOpen(e)} />

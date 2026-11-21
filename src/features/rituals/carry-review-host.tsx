@@ -21,7 +21,7 @@ import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { useSyncChip } from "@/features/shell/use-sync-chip";
 import { convertedProjectHref } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
-import { shouldReview } from "./carry-review";
+import { shouldReview, steppedOffToday } from "./carry-review";
 
 const loadSheet = () => import("./carry-review-sheet");
 const CarryReviewSheet = dynamic(() => loadSheet().then((m) => m.CarryReviewSheet), { ssr: false });
@@ -78,7 +78,7 @@ export function CarryReviewHost({ children }: { children: ReactNode }) {
   const loaded = settings !== null && !loadingTasks && !loadingToday && !loadingYesterday;
   // Today stepped to another day keeps the review for today itself (DECISIONS.md "Today on another day").
   const shown = useSearchParams().get("day");
-  const offDay = pathname === "/today" && shown !== null && /^\d{4}-\d{2}-\d{2}$/.test(shown) && shown !== todayIso;
+  const offDay = steppedOffToday(pathname === "/today", shown, todayIso);
   const auto = loaded && !offDay && handled !== todayIso && shouldReview({ enabled: settings.carryReview, carried: carried.length, syncState: sync.state, pathname, today: todayPlan, yesterday: yesterdayPlan });
   const show = auto || (manual && hasCarried);
 

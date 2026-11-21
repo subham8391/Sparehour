@@ -13,13 +13,14 @@ import { Icon } from "~/ui/icon";
 import { MonthCalendar } from "~/ui/month-calendar";
 import { Sheet } from "~/ui/sheet";
 import { TaskLine } from "~/ui/task-line";
-import { font, useColours } from "~/ui/theme";
+import { font, useColours, useShadows } from "~/ui/theme";
 import { DayStrip } from "./day-strip";
 
 export function UnplannedStrip({ count, onOpen, bottom }: { count: number; onOpen: () => void; /** How far over the screen's foot it sits. */ bottom: number }) {
   const c = useColours();
+  const shadows = useShadows();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Not yet planned, ${count}`} onPress={onOpen} style={[styles.strip, { bottom, backgroundColor: c.surface, borderColor: c.lineStrong }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Not yet planned, ${count}`} onPress={onOpen} style={[styles.strip, { bottom, backgroundColor: c.surface, borderColor: c.lineStrong, boxShadow: shadows.fab ?? undefined }]}>
       <Text numberOfLines={1} style={[styles.stripText, { color: c.ink }]}>
         Not yet planned <Text style={{ color: c.ink2 }}>· {count}</Text>
       </Text>
@@ -84,7 +85,7 @@ function PlaceTask({ task, days, today, onPlace }: { task: Task; days: readonly 
 
 const styles = StyleSheet.create({
   // The add button sits at the far edge (20 points in, 58 wide), so the strip stops 92 points from that edge.
-  strip: { position: "absolute", left: 16, right: 92, height: 48, borderWidth: 1, borderStyle: "dashed", borderRadius: 14, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, elevation: 4, shadowColor: "#0e2240", shadowOpacity: 0.16, shadowRadius: 10, shadowOffset: { width: 0, height: 6 } },
+  strip: { position: "absolute", left: 16, right: 92, height: 48, borderWidth: 1, borderStyle: "dashed", borderRadius: 14, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8 },
   stripText: { flex: 1, fontFamily: font.medium, fontSize: 16, fontVariant: ["tabular-nums"] },
   hint: { fontFamily: font.regular, fontSize: 14, lineHeight: 20 },
   card: { marginHorizontal: 0 },

@@ -3,8 +3,12 @@
 // "Create tag “x”" when no tag has the typed name (matched without regard to case, as quick-add does). Tab or
 // Enter takes the highlighted row. Presentational.
 import { useMemo, useState } from "react";
-import { fold, fuzzyScore } from "@/features/commands/fuzzy";
-import { PickerSheet, type PickerOption } from "./picker-sheet";
+import { PickerSheet } from "./picker-sheet";
+import { tagOptions } from "./tag-options";
+
+// The rows themselves live in tag-options.ts, free of this file's sheet; they are handed on from here so every
+// import of them from the picker stays as it was.
+export { tagName, tagOptions } from "./tag-options";
 
 export interface TagPickerProps {
   count: number;
@@ -13,27 +17,6 @@ export interface TagPickerProps {
   attached?: readonly string[];
   onPick: (name: string) => void;
   onClose: () => void;
-}
-
-/** The typed name as a tag: a leading @ and spaces dropped. */
-export const tagName = (query: string): string => query.trim().replace(/^@+/, "").trim();
-
-export function tagOptions(p: Pick<TagPickerProps, "tags" | "attached" | "onPick">, query: string): PickerOption[] {
-  const name = tagName(query);
-  const ranked = name
-    ? p.tags
-        .map((t) => ({ t, score: fuzzyScore(name, t.name) }))
-        .filter((x) => x.score > 0)
-        .sort((a, b) => b.score - a.score || a.t.name.localeCompare(b.t.name))
-        .map((x) => x.t)
-    : [...p.tags];
-  const out: PickerOption[] = ranked.map((t) => ({ key: t.id, label: `@${t.name}`, current: p.attached?.includes(t.id) ?? false, pick: () => p.onPick(t.name) }));
-  if (name && !p.tags.some((t) => fold(t.name) === fold(name))) {
-    // Below the matches, so Enter on a part-typed name takes the tag it finds rather than making a near twin;
-    // with no match it is the only row, and Enter or Tab makes it.
-    out.push({ key: "create", label: `Create tag “${name}”`, icon: "plus", hint: "New", pick: () => p.onPick(name) });
-  }
-  return out;
 }
 
 export function TagPicker(p: TagPickerProps) {

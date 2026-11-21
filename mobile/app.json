@@ -35,7 +35,24 @@
       ],
       "expo-secure-store",
       "expo-font",
-      "expo-sharing"
+      [
+        "expo-sharing",
+        {
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["text/plain"]
+          }
+        }
+      ],
+      [
+        "./plugins/app-shortcuts",
+        {
+          "shortcuts": [
+            { "name": "Add a task", "short_name": "Add", "url": "/today?quickadd=1" },
+            { "name": "Today", "short_name": "Today", "url": "/today" }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "tsconfigPaths": false

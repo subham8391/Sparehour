@@ -1,9 +1,11 @@
 // Search as the phone draws it: what it says before a search and when nothing matched, the groups of what was found,
 // where the words were found, what a row and its ⋯ call, the filters, and the older results under them.
 import { fireEvent, render, screen } from "@testing-library/react-native";
-import { Temporal, localDate } from "@/core/time";
+import { localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { OlderFoundView, type OlderFoundViewProps } from "./older-found-view";
+import { PreviewRows } from "~/screens/rows/preview-rows";
+import type { RowsWiring } from "~/screens/rows/rows-frame";
 import { SearchView, type SearchHit, type SearchViewProps } from "./search-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -37,18 +39,22 @@ const props = (over: Partial<SearchViewProps> = {}): SearchViewProps => ({
   ],
   areaMatches: [{ id: "a9", name: "Acme" }],
   today,
-  now: Temporal.Instant.from("2026-11-21T10:00:00Z"),
-  zone: "UTC",
   defaultEstimateMin: 35,
   onOpen: jest.fn(),
   onComplete: jest.fn(),
   onMove: jest.fn(),
-  onSnooze: jest.fn(),
   onOpenProject: jest.fn(),
   onOpenArea: jest.fn(),
   onAddTask: jest.fn(),
   ...over,
 });
+/** The view inside its screen's frame, as search.tsx draws it: a row's ⋯ is the frame's menu. */
+const show = (p: SearchViewProps, wiring: Partial<RowsWiring> = {}) =>
+  render(
+    <PreviewRows today={today} wiring={wiring}>
+      <SearchView {...p} />
+    </PreviewRows>,
+  );
 const press = (name: string | RegExp) => fireEvent.press(screen.getByRole("button", { name }));
 const id = (taskId: string) => expect.objectContaining({ id: taskId });
 
@@ -93,7 +99,9 @@ describe("<SearchView>", () => {
     expect(screen.queryByText("Send the Acme invoice")).toBeNull();
     await press("Also found · done, dropped or not started yet, 3");
     expect(screen.getByText("Send the Acme invoice")).toBeTruthy();
-    expect(screen.getByText("Dropped · Acme launch")).toBeTruthy();
+    // Each says its state, as a chip.
+    expect(screen.getByText("Done")).toBeTruthy();
+    expect(screen.getByText("Dropped")).toBeTruthy();
     expect(screen.getByText("Archived")).toBeTruthy();
   });
 
@@ -112,7 +120,8 @@ describe("<SearchView>", () => {
 
   it("an Inbox task's ⋯ offers the four moves, Complete, the presets and no second Tomorrow or Someday", async () => {
     const p = props();
-    await render(<SearchView {...p} />);
+    const onSnooze = jest.fn();
+    await show(p, { onSnooze });
     await press("More actions for Call the bank");
     for (const name of ["Today", "Tomorrow", "Someday", "Drop", "Complete", "This evening", "In 4 hours", "This weekend", "Next week"]) expect(screen.getAllByRole("button", { name }).length).toBe(1);
     await press("Drop");
@@ -120,17 +129,20 @@ describe("<SearchView>", () => {
     expect(screen.queryByRole("button", { name: "Drop" })).toBeNull();
     await press("More actions for Call the bank");
     await press("This weekend");
-    expect(p.onSnooze).toHaveBeenCalledWith(id("t2"), expect.objectContaining({ id: "weekend" }));
+    expect(onSnooze).toHaveBeenCalledWith(["t2"], expect.objectContaining({ id: "weekend" }));
   });
 
   it("a task on a day ahead offers Tomorrow and Someday; a carried one the four moves; a Someday one Today and Drop", async () => {
     const p = props();
-    await render(<SearchView {...p} />);
+    const onSomeday = jest.fn();
+    await show(p, { onSomeday });
     await press("More actions for Draft the Acme proposal");
     expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Drop" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Tomorrow" })).toHaveLength(1);
+    // Someday is the menu's own line on every open row.
     await press("Someday");
-    expect(p.onMove).toHaveBeenCalledWith(id("t1"), "someday");
+    expect(onSomeday).toHaveBeenCalledWith("t1");
     await press("More actions for Sort the garage");
     await press("Today");
     expect(p.onMove).toHaveBeenCalledWith(id("t3"), "today");
@@ -140,16 +152,23 @@ describe("<SearchView>", () => {
     expect(p.onComplete).toHaveBeenCalledWith(id("t4"));
   });
 
-  it("a finished task's ring reopens it, a dropped one offers Restore, and neither has a ⋯", async () => {
+  it("a finished task's ring and its ⋯ reopen it, a dropped one's ⋯ restores it, and an archived one only opens", async () => {
     const p = props({ hits: [], alsoFound: ALSO });
-    await render(<SearchView {...p} />);
+    await show(p);
     await press(/^Also found/);
     await press("Reopen Send the Acme invoice");
     expect(p.onMove).toHaveBeenCalledWith(id("t5"), "reopen");
-    await press("Restore Chase the Acme contract");
-    expect(p.onMove).toHaveBeenCalledWith(id("t6"), "restore");
-    expect(screen.queryByRole("button", { name: /More actions/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Restore Old Acme notes/ })).toBeNull();
+    await press("More actions for Send the Acme invoice");
+    // A closed task has nothing to move: no presets, no Move to…, no Complete.
+    for (const name of ["Tomorrow", "Move to…", "Complete", "Move to project…"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    await press("Reopen");
+    expect(p.onMove).toHaveBeenCalledTimes(2);
+    // A dropped task has no ring to press.
+    expect(screen.queryByRole("button", { name: "Complete Chase the Acme contract" })).toBeNull();
+    await press("More actions for Chase the Acme contract");
+    await press("Restore");
+    expect(p.onMove).toHaveBeenLastCalledWith(id("t6"), "restore");
+    expect(screen.queryByRole("button", { name: "More actions for Old Acme notes" })).toBeNull();
     await press("Old Acme notes");
     expect(p.onOpen).toHaveBeenCalledWith(id("t7"));
   });

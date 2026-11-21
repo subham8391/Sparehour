@@ -16,35 +16,12 @@ import { Segmented } from "@/ui/segmented";
 import { Sheet } from "@/ui/sheet";
 import { useCarryAsks, useRecordAsks } from "@/features/rollover/use-carry-asks";
 import { DefaultEstimate } from "@/features/tasks/default-estimate";
-import { DEFAULT_CHOICE, allFromYesterday, applyChoices, reviewLine, type Choice, type ChoiceRepo } from "./carry-review";
+import { DEFAULT_CHOICE, allFromYesterday, reviewLine, type ChoiceRepo } from "./carry-review";
+import { REVIEW_ASK_OPTIONS as ASK_OPTIONS, REVIEW_LABEL, REVIEW_LEAD as LEAD, REVIEW_OPTIONS as OPTIONS, REVIEW_WORDS as WORDS, applyReview, choiceLabel, chosenSegment, dayLabel, reviewAskLine, type AskRepo, type SheetChoice } from "./carry-review-answers";
 
-/** The dialog's accessible name. */
-export const REVIEW_LABEL = "Review carried-over tasks";
-const LEAD = "Keep what still matters. The rest can wait, or go.";
-
-type Segment = "keep" | "tomorrow" | "someday" | "drop";
-const OPTIONS: readonly { value: Segment; label: string }[] = [
-  { value: "keep", label: "Keep" },
-  { value: "tomorrow", label: "Tomorrow" },
-  { value: "someday", label: "Someday" },
-  { value: "drop", label: "Drop" },
-];
-/** A row at the three-carry ask answers the ask instead, in its order (SCREENS.md §2.3): "Break it down" converts it at Done. */
-type AskSegment = "keep" | "someday" | "breakdown" | "drop";
-const ASK_OPTIONS: readonly { value: AskSegment; label: string }[] = [
-  { value: "keep", label: "Keep today" },
-  { value: "someday", label: "Someday" },
-  { value: "breakdown", label: "Break it down" },
-  { value: "drop", label: "Drop" },
-];
-/** A review answer: the four moves, a picked day, or (at the ask) Break it down. */
-type SheetChoice = Choice | "breakdown";
-
-/** What the ask needs from the task repository beyond the moves; `TaskRepo` has both. */
-export interface AskRepo {
-  markAsked?: (ids: readonly string[], at: string) => Promise<void>;
-  convertToProject?: (id: string) => Promise<{ projectId: string } | null>;
-}
+// The words, the answers and Done's writes are in carry-review-answers.ts, shared with the Android app; handed on, so imports are unchanged.
+export { REVIEW_LABEL };
+export type { AskRepo };
 
 export interface CarryReviewSheetProps {
   /** The carried-over tasks, in the Carried over section's order. */
@@ -103,25 +80,14 @@ export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose, carryAs
   const done = async () => {
     if (busy) return;
     setBusy(true);
-    const all = new Map<string, Choice>();
-    const breakDown: string[] = [];
-    for (const t of tasks) {
-      const c = choiceOf(t.id);
-      if (c === "breakdown") breakDown.push(t.id);
-      else all.set(t.id, c);
-    }
-    let project: string | null = null;
+    // Each "Break it down" is its own conversion and undo; the first new project opens, cursor in its add row.
+    const out: { project: string | null } = { project: null };
     try {
-      await applyChoices(repo, all, today);
-      // Each one its own conversion and undo; the first new project opens, cursor in its add row.
-      for (const id of breakDown) {
-        const out = await repo.convertToProject?.(id);
-        project ??= out?.projectId ?? null;
-      }
+      await applyReview(repo, tasks, choices, today, out);
       await onStamp();
     } finally {
       onClose();
-      if (project) onOpenProject?.(project);
+      if (out.project) onOpenProject?.(out.project);
     }
   };
 
@@ -167,10 +133,10 @@ export function CarryReviewSheet({ tasks, today, repo, onStamp, onClose, carryAs
         </ul>
         <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-3 sm:py-4">
           <Button variant="quiet" size="sheet" disabled={busy} onClick={() => void notNow()} className="max-w-32 sm:h-9 sm:w-auto sm:max-w-none sm:text-body sm:touch:h-11">
-            Not now
+            {WORDS.notNow}
           </Button>
           <Button variant="primary" size="sheet" disabled={busy} onClick={() => void done()} className="flex-1 sm:h-9 sm:w-auto sm:flex-none sm:text-body sm:touch:h-11">
-            Done
+            {WORDS.done}
           </Button>
         </div>
       </div>
@@ -203,7 +169,7 @@ function Row({
   onPick: () => void;
 }) {
   const day = typeof choice === "object" ? choice.day.toString() : "";
-  const segment: Segment | AskSegment | "day" = typeof choice === "object" ? "day" : choice;
+  const segment = chosenSegment(choice);
   return (
     // Phone: a grid where the title spans the row, the quiet run and "Pick a day" share the line under it and the control
     // fills the next; from `sm` one flex row of the title block, the control and the link. The block dissolves on the phone
@@ -216,13 +182,13 @@ function Row({
           <Chip tone={task.estimateMin ? "neutral" : "guess"} size="sm">
             {task.estimateMin ? formatMinutes(task.estimateMin) : <GuessText />}
           </Chip>
-          {ask && <span className="text-over">Carried over {task.carryCount} times — still want this?</span>}
+          {ask && <span className="text-over">{reviewAskLine(task.carryCount)}</span>}
         </p>
       </div>
       {ask ? (
         // Two by two on a phone, where four words do not fit one 44 px rail; one rail from `sm`.
         <Segmented
-          label={`Choice for ${task.title}`}
+          label={choiceLabel(task.title)}
           options={ASK_OPTIONS}
           value={segment}
           onChange={(v) => {
@@ -232,7 +198,7 @@ function Row({
         />
       ) : (
         <Segmented
-          label={`Choice for ${task.title}`}
+          label={choiceLabel(task.title)}
           options={OPTIONS}
           value={segment}
           onChange={(v) => {
@@ -243,11 +209,11 @@ function Row({
       )}
       <div className="col-start-2 row-start-2 justify-self-end sm:-ml-3 sm:shrink-0">
         {picking || day ? (
-          <DateField aria-label={`Day for ${task.title}`} value={day} today={today} min={today.toString()} autoFocus={picking && !day} onChange={(e) => e.target.value && onChoose({ day: localDate(e.target.value) })} />
+          <DateField aria-label={dayLabel(task.title)} value={day} today={today} min={today.toString()} autoFocus={picking && !day} onChange={(e) => e.target.value && onChoose({ day: localDate(e.target.value) })} />
         ) : (
           // 44 px on the phone, pulled into the line's spacing so the quiet run keeps its height.
           <button type="button" onClick={onPick} className={cx(buttonClass({ variant: "link", size: "compact" }), "text-ink-2 max-sm:-my-3")}>
-            Pick a day
+            {WORDS.pickDay}
           </button>
         )}
       </div>

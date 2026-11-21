@@ -10,10 +10,8 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { formatMinutes, localDate } from "@/core/time";
-import type { Priority } from "@/core/types";
 import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
 import { projectOptionLabel, withAreaNames } from "@/data/queries/project-label";
-import type { TaskPatch } from "@/data/repositories/task-repo";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { onBulkField } from "@/features/tasks/bulk-field-request";
 import { ESTIMATE_PRESETS } from "@/features/tasks/estimate-presets";
@@ -27,18 +25,13 @@ import { Input } from "@/ui/field";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { RAISED } from "@/ui/sheet";
+import { BULK_PRIORITIES as PRIORITIES, bulkDay, bulkEstimate, bulkPriority, bulkProject, bulkTagName, bulkToday, bulkTomorrow, type BulkWrite } from "./bulk-actions";
 import { useSelection } from "./selection-provider";
 
 // The picker D, ⇧D, ⇧S and E open for every ticked row (it shares the task detail's pickers): fetched when asked for.
 const BulkField = dynamic(() => import("@/features/tasks/bulk-field").then((m) => m.BulkField), { ssr: false });
 
 const SPACE_SQL = `select personal_space_id from users limit 1`;
-const PRIORITIES: { value: Priority; label: string }[] = [
-  { value: 3, label: "!1 High" },
-  { value: 2, label: "!2 Medium" },
-  { value: 1, label: "!3 Low" },
-  { value: 0, label: "None" },
-];
 // Every action is the quiet button: a full-width 48 px row in the phone sheet, a touch
 // closer together than the default from `sm` up so the bar stays one line.
 const ACTION = "max-sm:min-h-12 max-sm:justify-start max-sm:rounded-lg max-sm:px-2 sm:px-2.5";
@@ -84,11 +77,11 @@ export function BulkBar() {
   const projects = withAreaNames(projectRows ?? [], areaRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", area: p.area }));
   const spaceId = users?.[0]?.personal_space_id ?? null;
   const done = () => sel.clearChecks();
-  const patch = (p: TaskPatch, note?: string) => void repo.updateMany(ids, p, note).then(done);
-  const tomorrow = today.add({ days: 1 });
+  // What each action writes, and its toast's words, are bulk-actions.ts.
+  const patch = (w: BulkWrite) => void repo.updateMany(ids, w.patch, w.note).then(done);
   // One write for the lot, with one undo toast ("Tagged 2 tasks @urgent") that takes back only the new links.
   const addTag = () => {
-    const name = tag.trim().replace(/^@/, "");
+    const name = bulkTagName(tag);
     if (!name || !spaceId) return;
     void tagRepo.attachMany(ids, spaceId, name).then(() => {
       setTag("");
@@ -125,10 +118,10 @@ export function BulkBar() {
       </span>
       {/* Two columns of 48 px rows on the phone; from `sm` the actions join the bar's own line. */}
       <div className="grid grid-cols-2 items-center gap-x-1 gap-y-0.5 p-2 sm:contents">
-        <Button variant="quiet" className={cx(ACTION, "text-ink")} onClick={() => patch({ doDate: today, doTime: null, evening: false }, "Moved {title} to today")}>
+        <Button variant="quiet" className={cx(ACTION, "text-ink")} onClick={() => patch(bulkToday(today))}>
           Today
         </Button>
-        <Button variant="quiet" className={ACTION} onClick={() => patch({ doDate: tomorrow, doTime: null, evening: false }, "Moved {title} to tomorrow")}>
+        <Button variant="quiet" className={ACTION} onClick={() => patch(bulkTomorrow(today))}>
           Tomorrow
         </Button>
         <DateField
@@ -137,16 +130,16 @@ export function BulkBar() {
           value=""
           today={today}
           className={cx(FIELD, "sm:w-32")}
-          onChange={(e) => e.target.value && patch({ doDate: localDate(e.target.value), doTime: null, evening: false }, "Moved {title}")}
+          onChange={(e) => e.target.value && patch(bulkDay(localDate(e.target.value)))}
         />
         <MenuButton label="Project" text="Project…" align="left" direction="up" className={QUIET}>
           {(close) => (
             <>
-              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: null }, "Moved {title} out of its project"))}>
+              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch(bulkProject(null)))}>
                 No project
               </button>
               {projects.map((p) => (
-                <button key={p.id} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ projectId: p.id }, `Moved {title} to ${p.name}`))}>
+                <button key={p.id} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch(bulkProject(p)))}>
                   {projectOptionLabel(p, projects)}
                 </button>
               ))}
@@ -156,7 +149,7 @@ export function BulkBar() {
         <MenuButton label="Priority" text="Priority" align="left" direction="up" className={QUIET}>
           {(close) =>
             PRIORITIES.map((x) => (
-              <button key={x.value} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ priority: x.value }, `Set {title} to ${x.label.toLowerCase()} priority`))}>
+              <button key={x.value} type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch(bulkPriority(x)))}>
                 {x.label}
               </button>
             ))
@@ -166,11 +159,11 @@ export function BulkBar() {
           {(close) => (
             <>
               {ESTIMATE_PRESETS.map((m) => (
-                <button key={m} type="button" role="menuitem" className={cx(MENU_ITEM, "num")} onClick={() => (close(), patch({ estimateMin: m }, `Estimated {title} at ${formatMinutes(m)}`))}>
+                <button key={m} type="button" role="menuitem" className={cx(MENU_ITEM, "num")} onClick={() => (close(), patch(bulkEstimate(m)))}>
                   {formatMinutes(m)}
                 </button>
               ))}
-              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch({ estimateMin: null }, "Cleared the estimate on {title}"))}>
+              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => (close(), patch(bulkEstimate(null)))}>
                 No estimate
               </button>
             </>

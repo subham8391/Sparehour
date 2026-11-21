@@ -5,7 +5,7 @@
 // (quick-add/quick-add.tsx) and the repository that writes. The drawing is week-view.tsx.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
 import { compareDates, localDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import { toTask } from "@/data/mappers";
@@ -23,9 +23,11 @@ import { capacityRange, laterReadout, nextSevenDays, nothingAhead, rangeTitle, w
 import { laterGroups } from "@/features/upcoming/later";
 import { useWeekCapacity } from "@/features/upcoming/use-week-capacity";
 import { clampOffset, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
+import { Fab } from "~/ui/fab";
 import { Icon } from "~/ui/icon";
 import { useColours } from "~/ui/theme";
 import { useQuickAdd } from "../quick-add/quick-add";
+import { Rows, useBreakDown } from "../rows/rows";
 import { useWeekMode } from "./use-week-mode";
 import { WeekView } from "./week-view";
 
@@ -86,11 +88,12 @@ export function Week() {
   // The + buttons: a day's "+ Add" opens quick add on that day (a line that names no day of its own is for it); the
   // screen's own + is plain capture, as on the web.
   const quickAdd = useQuickAdd();
+  const breakDown = useBreakDown();
   // The repository records the undo; the toast with Undo is the app's one (ui/undo-provider.tsx).
   const complete = (task: Task) => void repo.complete(task.id);
 
   return (
-    <View style={styles.fill}>
+    <Rows tab>
       <WeekView
         part={dayPart(now.toZonedDateTimeISO(zone).hour)}
         eyebrow={mode === "calendar" ? "Upcoming · calendar week" : "Upcoming · rolling 7 days"}
@@ -116,20 +119,18 @@ export function Week() {
         onThisWeek={() => setOffset(0)}
         onComplete={complete}
         onOpen={(task) => router.push(`/task/${task.id}`)}
+        onMove={(task, to) => void (to === "someday" ? repo.setState(task.id, "someday") : repo.reschedule(task.id, to === "today" ? today : today.add({ days: 1 })))}
+        onBreakDown={(task) => breakDown(task.id)}
         // Today on that day; today itself is plain Today, as the web addresses it (features/today/day-address.ts).
         onOpenDay={(day) => router.push(day.equals(today) ? "/" : `/?day=${day.toString()}`)}
         onAdd={(day) => quickAdd.open(day ? { day } : undefined)}
         onPlace={(task, day) => void moveToDay(db, repo, task.id, day)}
         bottomRoom={88}
       />
-      <Pressable accessibilityRole="button" accessibilityLabel="Add a task" onPress={() => quickAdd.open()} style={[styles.fab, { backgroundColor: c.ink }]}>
-        <Icon name="plus" size={26} color={c.paper} strokeWidth={2} />
-      </Pressable>
-    </View>
+      <Fab label="Add a task" onPress={() => quickAdd.open()} />
+    </Rows>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
-  fab: { position: "absolute", right: 20, bottom: 20, width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", elevation: 6, shadowColor: "#0e2240", shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
 });

@@ -4,7 +4,8 @@
 // up to three stretches each, for split days. The zone line names the device's zone, which the account takes on
 // "That's right". Nothing is written until then.
 import { useId, useState } from "react";
-import { mergeSegments, nextSegment, segmentMinutes, segmentsLabel, segmentsOverlap, timeZoneOptions } from "@/features/settings/settings-rules";
+import { joinedNote, workingDayLabel } from "@/features/settings/section-words";
+import { mergeSegments, nextSegment, segmentMinutes, segmentsOverlap, timeZoneOptions } from "@/features/settings/settings-rules";
 import { Button, iconButtonClass } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
 import { chipButtonClass } from "@/ui/chip";
@@ -14,6 +15,7 @@ import { Select } from "@/ui/select";
 import { TimeField } from "@/ui/time-field";
 import { FOOTER_BUTTON, WelcomeFrame } from "./welcome-frame";
 import { DAY_LETTERS, DAY_NAMES, hoursError, hoursNote, settledWeek, startingHours, stripWeek, type Segment, type Strip } from "./welcome-rules";
+import { HOURS_WORDS } from "./welcome-words";
 
 export interface HoursStepProps {
   /** The week as saved, Monday first: a new account's Mon–Fri 09:00–18:00. */
@@ -54,22 +56,22 @@ export function HoursStep({ saved, zone: proposedZone, onConfirm, busy = false, 
     if (segs.length < 2 || segs.some((s) => segmentMinutes(s) === null) || !segmentsOverlap(segs)) return;
     const merged = mergeSegments(segs);
     setPerDay((w) => (w ? w.map((day, i) => (i === d ? merged : day)) : w));
-    setJoined((j) => ({ ...j, [d]: `Overlapping hours were joined: ${segmentsLabel(merged)}.` }));
+    setJoined((j) => ({ ...j, [d]: joinedNote(merged) }));
   };
 
   return (
     <WelcomeFrame
-      title="When do you work?"
-      lead="This is how we know what's left. You can change it any time."
+      title={HOURS_WORDS.title}
+      lead={HOURS_WORDS.lead}
       footer={
         <>
           {!perDay && (
             <Button variant="secondary" size="sheet" className={FOOTER_BUTTON} onClick={() => setPerDay(stripWeek(strip))}>
-              Edit my hours
+              {HOURS_WORDS.edit}
             </Button>
           )}
           <Button variant="primary" size="sheet" className={FOOTER_BUTTON} disabled={error !== null || busy} onClick={() => onConfirm(settledWeek(week), zone)}>
-            That&rsquo;s right
+            {HOURS_WORDS.confirm}
           </Button>
         </>
       }
@@ -82,7 +84,7 @@ export function HoursStep({ saved, zone: proposedZone, onConfirm, busy = false, 
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div role="group" aria-label="Working days" className="grid grid-cols-7 gap-0.5 sm:flex sm:gap-1.5">
+          <div role="group" aria-label={HOURS_WORDS.days} className="grid grid-cols-7 gap-0.5 sm:flex sm:gap-1.5">
             {DAY_NAMES.map((name, d) => (
               <button key={name} type="button" aria-label={name} aria-pressed={strip.days[d]} onClick={() => toggleDay(d)} className={cx(chipButtonClass({ size: "touch" }), "justify-center")}>
                 <span aria-hidden="true" className="sm:hidden">
@@ -95,9 +97,9 @@ export function HoursStep({ saved, zone: proposedZone, onConfirm, busy = false, 
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <TimeField aria-label="Start" value={strip.hours.start} onChange={(v) => setStrip((s) => ({ ...s, hours: { ...s.hours, start: v } }))} />
+            <TimeField aria-label={HOURS_WORDS.start} value={strip.hours.start} onChange={(v) => setStrip((s) => ({ ...s, hours: { ...s.hours, start: v } }))} />
             <span className="text-ink-3">–</span>
-            <TimeField aria-label="End" value={strip.hours.end} onChange={(v) => setStrip((s) => ({ ...s, hours: { ...s.hours, end: v } }))} />
+            <TimeField aria-label={HOURS_WORDS.end} value={strip.hours.end} onChange={(v) => setStrip((s) => ({ ...s, hours: { ...s.hours, end: v } }))} />
           </div>
         </div>
       )}
@@ -116,18 +118,18 @@ export function HoursStep({ saved, zone: proposedZone, onConfirm, busy = false, 
       <div className="flex flex-col gap-2">
         <p className="flex flex-wrap items-center gap-x-1 text-body text-ink-2">
           <span>
-            Times are in <span className="font-medium text-ink">{zone}</span>.
+            {HOURS_WORDS.zoneLead} <span className="font-medium text-ink">{zone}</span>.
           </span>
           {!pickingZone && (
             <Button variant="link" size="compact" className="-my-2" onClick={() => setPickingZone(true)}>
-              Change
+              {HOURS_WORDS.changeZone}
             </Button>
           )}
         </p>
         {pickingZone && (
           <span className="flex flex-col gap-1">
             <label htmlFor={zoneId} className="sr-only">
-              Time zone
+              {HOURS_WORDS.zone}
             </label>
             <Select id={zoneId} value={zone} onChange={(e) => setZone(e.target.value)} className="w-full sm:w-80">
               {timeZoneOptions(zone).map((z) => (
@@ -172,7 +174,7 @@ function DayRow({
     >
       {/* The 44 px checkbox pulls left so its 20 px box sits on the row's text edge. */}
       <label className="-ml-3 flex items-center gap-2">
-        <Checkbox checked={on} onChange={(e) => onChange(e.target.checked ? [{ ...fallback }] : [])} aria-label={`${name} is a working day`} />
+        <Checkbox checked={on} onChange={(e) => onChange(e.target.checked ? [{ ...fallback }] : [])} aria-label={workingDayLabel(name)} />
         <span className="w-24 text-body font-medium text-ink">{name}</span>
       </label>
       {on ? (
@@ -194,7 +196,7 @@ function DayRow({
           ))}
           {next && (
             <Button variant="link" size="compact" className="text-ink-2" onClick={() => onChange([...segments, next])}>
-              <Icon name="plus" size={14} /> Add hours
+              <Icon name="plus" size={14} /> {HOURS_WORDS.addHours}
             </Button>
           )}
           {note && (
@@ -204,7 +206,7 @@ function DayRow({
           )}
         </span>
       ) : (
-        <span className="self-center py-3 text-body text-ink-3">Off</span>
+        <span className="self-center py-3 text-body text-ink-3">{HOURS_WORDS.off}</span>
       )}
     </div>
   );

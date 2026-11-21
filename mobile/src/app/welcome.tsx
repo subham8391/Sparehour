@@ -1,6 +1,2 @@
-// The first run. Its screen is not built for the phone yet (ANDROID_APP_SPEC.md §10).
-import { ComingSoon } from "~/screens/coming-soon";
-
-export default function Route() {
-  return <ComingSoon title="Welcome" back />;
-}
+// The first run: a new account's working hours, its calendar, and what is on its plate today.
+export { Welcome as default } from "~/screens/welcome/welcome";

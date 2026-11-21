@@ -2,20 +2,14 @@
 // Settings › Planning "Open to" (SCREENS.md §18 "default view on open"): `/`
 // (which lands on /today?src=home) and the installed app's start URL
 // (/today?src=pwa) go on to the view chosen there, read from the device's own
-// copy of the settings. Today stays where it is, minus the marker.
+// copy of the settings. Today stays where it is, minus the marker. Where it
+// lands is open-to-target.ts, which the Android app's start gate reads too.
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useQuery } from "@/data/powersync";
+import { OPEN_TO_SQL, openToTarget } from "./open-to-target";
 
-const OPEN_TO_SQL = `select default_view from user_settings limit 1`;
-
-/** Where an app open lands: null when this visit is not an app open (no `src=home|pwa`). */
-export function openToTarget(src: string | null, defaultView: string | null | undefined): "/today" | "/inbox" | "/upcoming" | null {
-  if (src !== "home" && src !== "pwa") return null;
-  if (defaultView === "inbox") return "/inbox";
-  if (defaultView === "upcoming") return "/upcoming";
-  return "/today";
-}
+export { openToTarget } from "./open-to-target";
 
 export function OpenTo() {
   const pathname = usePathname();

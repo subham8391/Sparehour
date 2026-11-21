@@ -21,6 +21,8 @@ import { PlanningView } from "~/screens/settings/planning-view";
 import { phoneSection } from "~/screens/settings/sections";
 import { ACCOUNTS, APPS, BATCHES, CALENDARS, CLOCK, ENDPOINT, TODAY, VALUES, WORK_WEEK } from "~/screens/settings/settings-fixture";
 import { SettingsView } from "~/screens/settings/settings-view";
+import { setLookChoice, useLookChoice } from "~/ui/looks/look-choice";
+import { setMotionChoice, useMotionChoice } from "~/ui/motion";
 import { setThemeChoice, useThemeChoice } from "~/ui/theme-choice";
 
 const nothing = () => undefined;
@@ -30,6 +32,8 @@ export default function Preview() {
   const key = phoneSection(q.section);
   const state = q.state ?? "";
   const theme = useThemeChoice();
+  const look = useLookChoice();
+  const motion = useMotionChoice();
   const [values, setValues] = useState<SettingsValues>(VALUES);
   const [week, setWeek] = useState<Segment[][]>(WORK_WEEK);
   const [calendars, setCalendars] = useState(CALENDARS);
@@ -60,9 +64,14 @@ export default function Preview() {
           <CalendarView
             accounts={state === "none" ? [] : ACCOUNTS}
             calendars={state === "none" ? [] : calendars}
+            configured={state === "unset" ? false : true}
+            outlook={state !== "unset"}
             notice={null}
             busy={false}
             now={CLOCK}
+            onConnect={nothing}
+            onAllowWrite={nothing}
+            onFullAccess={nothing}
             onSyncNow={nothing}
             onDisconnect={nothing}
             onRead={(id, read) => setCalendars((list) => list.map((c) => (c.id === id ? { ...c, read } : c)))}
@@ -87,7 +96,8 @@ export default function Preview() {
       case "planning":
         return <PlanningView values={values} usual={state === "usual" ? 45 : null} onChange={change} />;
       case "appearance":
-        return <AppearanceView look={values.look} theme={theme} onLook={(look) => change({ look })} onTheme={setThemeChoice} />;
+        // The preview is drawn in whatever is chosen here, as the app is: every look, in light and dark.
+        return <AppearanceView look={look} theme={theme} motion={motion} onLook={setLookChoice} onTheme={setThemeChoice} onMotion={setMotionChoice} />;
       case "data":
         return (
           <DataView
@@ -96,8 +106,7 @@ export default function Preview() {
             today={TODAY}
             archivedIds={state === "empty" ? [] : ["t1", "t2", "t3", "t4"]}
             droppedIds={state === "empty" ? [] : ["d1", "d2"]}
-            slateCounts={{ today: 12, backlog: 30 }}
-            onClearSlate={async () => 12}
+            onClearSlate={nothing}
             onRestore={async (batch) => batch.tasks.length}
             onDeletePermanently={async (ids) => ids.length}
           />

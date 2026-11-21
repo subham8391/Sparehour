@@ -10,7 +10,10 @@ let client: SupabaseClient | null = null;
 export function supabase(): SupabaseClient {
   if (client) return client;
   client = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
+    // PKCE: a Google sign-in comes back through the app's link with a code, and the code is only good together with
+    // the verifier this client made and kept on the device, so another app that sees the link cannot use it
+    // (google-sign-in.ts). The emailed six-digit code signs in the same way under either flow.
+    auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false, flowType: "pkce" },
   });
   const auth = client.auth;
   // Tokens are refreshed only while someone is looking: a timer in the background is killed by Android anyway.

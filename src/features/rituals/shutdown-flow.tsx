@@ -15,6 +15,8 @@ import { RatingSparkline } from "./rating-sparkline";
 import type { RatingTrend } from "./rating-trend";
 import { Lead, RitualFooter, RitualFrame } from "./ritual-frame";
 import { OUTCOME_LABEL, SHUTDOWN_STEPS, carriedLine, carriedToTomorrow, closingLedger, doneLine, isRating, nextStep, previousStep, tomorrowLine, type CarryChoice, type CarryRow, type ShutdownStep } from "./shutdown";
+// The titles, the fixed lines and the small rules are in shutdown-words.ts, shared with the Android app.
+import { CARRY_CHOICE_LABEL, HIGHLIGHT_PICKS, SHUTDOWN_LABELS as LABELS, SHUTDOWN_TITLES as TITLES, SHUTDOWN_WORDS as WORDS, carryAnswers, highlightToSave, rateLabel, waitingCount } from "./shutdown-words";
 
 export type { CarryChoice } from "./shutdown";
 
@@ -40,16 +42,6 @@ export interface ShutdownFlowProps {
   onSkip: () => void;
 }
 
-const TITLES: Record<ShutdownStep, string> = {
-  done: "Done today",
-  carried: "Carried to tomorrow",
-  rating: "How was the day?",
-  highlight: "What was worth it today?",
-  tomorrow: "Tomorrow",
-  close: "Close the day",
-};
-const LABELS = SHUTDOWN_STEPS.map((s) => TITLES[s]);
-
 const RATING =
   "flex size-11 items-center justify-center rounded-lg border border-line-strong bg-surface text-body font-medium text-ink num transition-[background-color,border-color,color,transform] dur-fast hover:bg-hover motion-safe:active:scale-97 aria-checked:border-ink aria-checked:bg-ink aria-checked:text-ink-inverse";
 
@@ -66,7 +58,8 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
   const stepIndex = SHUTDOWN_STEPS.indexOf(step);
 
   const commitHighlight = () => {
-    if (highlight.trim() !== p.highlight.trim()) p.onHighlight(highlight.trim());
+    const text = highlightToSave(highlight, p.highlight);
+    if (text !== null) p.onHighlight(text);
   };
   const goNext = () => {
     if (step === "highlight") commitHighlight();
@@ -116,7 +109,7 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
       );
       break;
     case "carried": {
-      const waiting = p.unfinished.filter((r) => r.outcome === null).length;
+      const waiting = waitingCount(p.unfinished);
       body = (
         <>
           <Lead>{carriedLine(p.unfinished.length)}</Lead>
@@ -135,15 +128,13 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
                         </Chip>
                       )
                     }
+                    // Keeping wrote nothing, so the other answers stay open; a settled row offers none (carryAnswers).
                     actions={
-                      outcome === null ? (
+                      carryAnswers(outcome).length > 0 ? (
                         <>
                           <MoveActions onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />
-                          <RowAction label="Keep for today" onClick={() => p.onCarry(t.id, "keep")} />
+                          {carryAnswers(outcome).includes("keep") && <RowAction label={CARRY_CHOICE_LABEL.keep} onClick={() => p.onCarry(t.id, "keep")} />}
                         </>
-                      ) : outcome === "kept" ? (
-                        // Keeping wrote nothing, so the other answers stay open.
-                        <MoveActions onTomorrow={() => p.onCarry(t.id, "tomorrow")} onSomeday={() => p.onCarry(t.id, "someday")} onDrop={() => p.onCarry(t.id, "drop")} />
                       ) : undefined
                     }
                   />
@@ -151,9 +142,9 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
               </TaskList>
               {waiting > 0 && (
                 <>
-                  <p className="text-body-sm text-pretty text-ink-3">Anything you leave here carries to tomorrow on its own.</p>
+                  <p className="text-body-sm text-pretty text-ink-3">{WORDS.carryNote}</p>
                   <Button variant="link" className="-ml-2 self-start" onClick={p.onCarryAll}>
-                    Move all to tomorrow
+                    {WORDS.carryAll}
                   </Button>
                 </>
               )}
@@ -166,10 +157,10 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
     case "rating":
       body = (
         <>
-          <Lead>One tap. Skip if you&rsquo;d rather not.</Lead>
-          <div role="radiogroup" aria-label="Day rating" className="flex flex-wrap gap-2">
+          <Lead>{WORDS.ratingLead}</Lead>
+          <div role="radiogroup" aria-label={WORDS.ratingGroup} className="flex flex-wrap gap-2">
             {([1, 2, 3, 4, 5] as const).map((n) => (
-              <button key={n} type="button" role="radio" aria-checked={p.rating === n} aria-label={`Rate ${n}`} onClick={() => p.onRating(n)} className={RATING}>
+              <button key={n} type="button" role="radio" aria-checked={p.rating === n} aria-label={rateLabel(n)} onClick={() => p.onRating(n)} className={RATING}>
                 {n}
               </button>
             ))}
@@ -181,10 +172,10 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
     case "highlight":
       body = (
         <>
-          <Input size="touch" autoFocus aria-label="Highlight" placeholder="One line is plenty." value={highlight} onChange={(e) => setHighlight(e.target.value)} onBlur={commitHighlight} onKeyDown={onHighlightKey} />
+          <Input size="touch" autoFocus aria-label={WORDS.highlightLabel} placeholder={WORDS.highlightHint} value={highlight} onChange={(e) => setHighlight(e.target.value)} onBlur={commitHighlight} onKeyDown={onHighlightKey} />
           {p.done.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {p.done.slice(0, 6).map((t) => (
+              {p.done.slice(0, HIGHLIGHT_PICKS).map((t) => (
                 <Button key={t.id} variant="secondary" className="max-w-full" onClick={() => setHighlight(t.title)}>
                   <span className="min-w-0 truncate">{t.title}</span>
                 </Button>
@@ -200,10 +191,10 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
           <Lead>{tomorrowLine(p.tomorrow.spareMin, p.tomorrow.planned)}</Lead>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={p.onPlanTomorrow}>
-              Plan tomorrow now
+              {WORDS.planNow}
             </Button>
             <Button variant="quiet" onClick={goNext}>
-              Plan it in the morning
+              {WORDS.planMorning}
             </Button>
           </div>
         </>
@@ -212,7 +203,7 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
     case "close":
       body = (
         <>
-          <Lead>That&rsquo;s the day. Nothing is waiting for you.</Lead>
+          <Lead>{WORDS.closeLead}</Lead>
           <dl className="divide-y divide-line rounded-xl border border-line bg-surface">
             {closingLedger({ done: p.done, carried: carriedToTomorrow(p.unfinished), defaultEstimateMin: p.defaultEstimateMin, rating: p.rating, highlight, tomorrow: p.tomorrow }).map((row) => (
               <div key={row.label} className="flex items-baseline justify-between gap-4 px-4 py-2.5 sm:py-3">
@@ -230,13 +221,13 @@ export function ShutdownFlow(p: ShutdownFlowProps) {
     <RitualFrame
       eyebrow={
         <>
-          Evening shutdown · <span className="num">{stepIndex + 1}</span> of <span className="num">{SHUTDOWN_STEPS.length}</span>
+          {WORDS.eyebrow} · <span className="num">{stepIndex + 1}</span> of <span className="num">{SHUTDOWN_STEPS.length}</span>
         </>
       }
       title={TITLES[step]}
       steps={{ labels: LABELS, index: stepIndex, onStep: (i) => setStep(SHUTDOWN_STEPS[i]) }}
       onSkip={p.onSkip}
-      footer={<RitualFooter onBack={() => prev && setStep(prev)} canGoBack={prev !== null} primary={step === "close" ? { label: "Close the day", onClick: p.onClose } : { label: "Next", onClick: goNext }} />}
+      footer={<RitualFooter onBack={() => prev && setStep(prev)} canGoBack={prev !== null} primary={step === "close" ? { label: WORDS.close, onClick: p.onClose } : { label: WORDS.next, onClick: goNext }} />}
     >
       {body}
     </RitualFrame>

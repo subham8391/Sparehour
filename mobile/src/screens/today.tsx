@@ -4,7 +4,9 @@
 // rule and words, the sort, the day's states, the carried-over asks, the suggested move of a day that is over, the
 // expired digest, the calendar's reading, the placing hook behind the timeline, the repositories that write (they
 // record their own undo; the toast is the app's one), and quick add behind the + button (quick-add/quick-add.tsx),
-// opened on the day shown so a line with no day of its own is for that day. The drawing is today-view.tsx, with the
+// opened on the day shown so a line with no day of its own is for that day. Plan my day is offered on the line under
+// the ritual row, as on the web's phone layout: its preview docks over the Day view (plan-my-day/), the timeline
+// shows what the proposal leaves free, and nothing is written until Approve. The drawing is today-view.tsx, with the
 // parts in today/.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -24,6 +26,8 @@ import { SettingsRepo, type SettingsPatch } from "@/data/repositories/user-setti
 import type { TaskRow } from "@/data/schema.client";
 import { olderThanDevice } from "@/features/finished/older-than-device";
 import { dayPart } from "@/features/looks/look";
+import { PLAN_LABEL, planMode } from "@/features/planning/drawing";
+import { usePlanPreviewState } from "@/features/planning/use-plan-preview-state";
 import { useProjectNames } from "@/features/projects/use-project-names";
 import { easiestMove } from "@/features/rituals/easiest-move";
 import { pullInSuggestions } from "@/features/rituals/morning-plan";
@@ -42,13 +46,16 @@ import { useToday } from "@/features/today/hooks/use-today";
 import { CALENDAR_PATIENCE_MS } from "@/features/today/ribbon-words";
 import { todayAsText } from "@/features/today/today-text";
 import { relativeDay } from "@/ui/relative-day";
+import { TodayRows } from "./rows/rows";
+import { Fab } from "~/ui/fab";
 import { Icon } from "~/ui/icon";
 import { font, useColours } from "~/ui/theme";
+import { PlanMyDay } from "./plan-my-day/plan-preview";
 import { useQuickAdd } from "./quick-add/quick-add";
 import { DayPane } from "./today/day-pane";
 import { OlderDone } from "./today/done";
 import { TodayMenuSheet, TrimSheet } from "./today/menus";
-import { ribbonShape } from "./today/ribbon-shape";
+import { ribbonBreakdown, ribbonShape } from "./today/ribbon-shape";
 import { DoneSection, type RowContext } from "./today/sections";
 import { useCalendarLine } from "./today/use-calendar-line";
 import { useDeviceValue } from "./today/use-device-value";
@@ -141,7 +148,25 @@ export function Today() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [placingId, setPlacingId] = useState<string | null>(null);
   const placingTask = placingId ? findTask(placingId) : undefined;
-  // What belongs to one day lets go when the day changes.
+  // Plan my day (SCREENS.md §2.1, §2.6a): the preview shows the Day view with the proposal's free time on it, nothing
+  // written until Approve. It plans today, so asked for on another day it comes home first.
+  const planning = usePlanPreviewState(() => {
+    if (!onToday) openDay(model.today);
+    setMode("day");
+    setSelectedBlockId(null);
+    setPlacingId(null);
+  });
+  // A meeting picked on the ribbon (SCREENS.md §2.2): the Day view, the hours turned to it, outlined for a moment.
+  const [shownMeeting, setShownMeeting] = useState<number | null>(null);
+  useEffect(() => {
+    if (shownMeeting === null) return;
+    const t = setTimeout(() => setShownMeeting(null), 2400);
+    return () => clearTimeout(t);
+  }, [shownMeeting]);
+  /** How tall the docked preview is, so the day can be scrolled clear of it. */
+  const [dockHeight, setDockHeight] = useState(0);
+  // What belongs to one day lets go when the day changes: the selected block, a task waiting for a time, and a plan
+  // preview when the day stepped away from today.
   const dayIso = day.toString();
   const [daySeen, setDaySeen] = useState(dayIso);
   if (dayIso !== daySeen) {
@@ -149,6 +174,7 @@ export function Today() {
     setSelectedBlockId(null);
     setPlacingId(null);
     setTrimOpen(false);
+    if (!onToday && planning.mode) planning.close();
   }
 
   // The day's ritual state: once shut down, the ribbon gives way to the day's summary.
@@ -180,7 +206,9 @@ export function Today() {
   const { spareMin: tomorrowSpare } = useTomorrowSpare(tomorrow, model.settings, overMin > 0);
   const overMove = overMin > 0 ? (easiestMove(model.todayTasks, overMin, tomorrowSpare, defaultEstimate)?.task.title ?? null) : null;
   const hasDay = Boolean(model.capacity && model.capacity.state !== "no_work_day");
-  const shown: TodayMode = hasDay && mode === "day" ? "day" : "list";
+  // Plan my day's preview, which plans today and takes the lists' place: the Day view, whatever was shown before.
+  const previewing = planning.mode !== null && onToday && !closedAt && hasDay;
+  const shown: TodayMode = hasDay && (mode === "day" || previewing) ? "day" : "list";
   const shutdownReady = !model.capacity || model.capacity.state === "no_work_day" || nowMinute >= model.capacity.windows[model.capacity.windows.length - 1].end - 120;
   const finish = model.capacity?.projectedFinish ?? null;
   // The ritual row turns to the shutdown once the plan is projected to be done, or the day is two hours from its end.
@@ -252,20 +280,30 @@ export function Today() {
   const doneLabel = onToday ? "Done today" : `Done on ${formatDay(day, { today: model.today })}`;
   // "Your day": the timeline in the lists' place, with the placing hook behind every tap (today/day-pane.tsx).
   const cap = model.capacity;
+  // Once the day has started and the plan has put blocks on it, the line offers to re-plan what is left.
+  const nextPlan = planMode(nowMinute, dayStart, model.blocks.some((b) => b.source === "plan"));
+  // While previewing, the gaps are what the proposal leaves and the plan's own earlier blocks it replaces are hidden;
+  // the "done by" marker belongs to the day as it is, so it steps aside.
+  const drawing = previewing ? planning.drawing : null;
+  const replacedIds = new Set(drawing?.replacedIds ?? []);
   const dayPane =
     cap && hasDay
       ? (above: ReactNode) => (
           <DayPane
             above={above}
-            c={cap}
+            c={drawing ? { ...cap, free: [...drawing.free], projectedFinish: null } : cap}
             nowMin={dayMinute}
             nowShown={nowOnDay}
-            blocks={model.blocks}
+            blocks={drawing ? model.blocks.filter((b) => !replacedIds.has(b.id)) : model.blocks}
+            proposed={drawing?.ghosts}
+            shownMeeting={shownMeeting}
             meetings={model.meetings}
             dayStart={dayStart}
             dayEnd={dayEnd}
             bufferPct={model.settings?.bufferPct}
-            hint={model.blocks.length === 0 && !placingTask && !past}
+            hint={model.blocks.length === 0 && !placingTask && !previewing && !past}
+            // Room to scroll the whole day above the docked preview.
+            bottomRoom={previewing ? dockHeight : undefined}
             // A day that has passed is drawn, not edited.
             readOnly={past}
             placing={{
@@ -287,7 +325,19 @@ export function Today() {
         )
       : undefined;
   return (
-    <>
+    // Today's rows are the shared row (screens/rows): its ⋯, swipes and long-press ticks, with Today's own actions.
+    <TodayRows
+      actions={{
+        onToday: (task) => void model.repo.reschedule(task.id, model.today),
+        onTomorrow: day.equals(tomorrow) ? undefined : toTomorrow,
+        onSomeday: toSomeday,
+        onDrop: drop,
+        onConvert: convert,
+        onMoveUp: manual ? (task) => move(task, -1) : undefined,
+        onMoveDown: manual ? (task) => move(task, 1) : undefined,
+        onBlock: hasDay ? startPlacing : undefined,
+      }}
+    >
       <View style={styles.fill}>
         <TodayView
           part={dayPart(clock.hour)}
@@ -311,6 +361,15 @@ export function Today() {
           })}
           // No now mark and no elapsed part on another day.
           ribbon={model.capacity ? ribbonShape(model.capacity, onToday ? nowMinute : undefined) : null}
+          // A tap on the ribbon: the breakdown behind the figure, the web's own equation and segment names.
+          breakdown={cap ? ribbonBreakdown(cap, { bufferPct: model.settings?.bufferPct ?? 15, connected: model.calendarConnected, meetings: model.meetings, blocks: model.blocks }) : null}
+          // Free time: "Add something" for the day shown, the box empty and the day carried beside it.
+          onAddSomething={() => quickAdd.open({ day: model.day })}
+          // A meeting: the Day view, where it is drawn by name.
+          onShowMeeting={(meeting) => {
+            setMode("day");
+            setShownMeeting(meeting.start);
+          }}
           onTrim={onToday ? () => setTrimOpen(true) : undefined}
           onPlanDay={() => router.push(PLAN)}
           onConnectCalendar={() => router.push(CALENDAR)}
@@ -337,13 +396,19 @@ export function Today() {
                   plannedLabel: plannedAt ? plannedLabel(plannedAt) : null,
                   onPlan: () => router.push(PLAN),
                   onShutdown: () => router.push(SHUTDOWN),
+                  plan: hasDay ? { label: PLAN_LABEL[nextPlan], open: planning.mode !== null, onOpen: () => planning.open(nextPlan) } : null,
                   onReview: model.carried.length > 0 ? () => router.push(REVIEW) : undefined,
                 }
               : null
           }
           mode={shown}
-          onMode={setMode}
+          // List, asked for while a plan is previewed, puts the preview away: nothing was written.
+          onMode={(next) => {
+            if (next === "list" && planning.mode) planning.close();
+            setMode(next);
+          }}
           dayPane={dayPane}
+          previewing={previewing}
           rows={todayRows(model.carried, todayList, eveningList, onToday ? "Today" : relativeDay(day, model.today))}
           dayLabel={onToday ? "Today" : relativeDay(day, model.today)}
           dayState={allDone ? "all-done" : emptyDay ? "empty" : "planned"}
@@ -389,10 +454,12 @@ export function Today() {
         />
         {/* The Day view is a timeline, not a task list: its free gaps are what a tap schedules into, so the + steps aside. */}
         {shown === "list" && (
-          <Pressable accessibilityRole="button" accessibilityLabel="Add a task" onPress={() => quickAdd.open({ day: model.day })} style={[styles.fab, { backgroundColor: c.ink }]}>
-            <Icon name="plus" size={26} color={c.paper} strokeWidth={2} />
-          </Pressable>
+          <Fab label="Add a task" onPress={() => quickAdd.open({ day: model.day })} />
         )}
+        {previewing && planning.mode ? (
+          // A sheet docked over the Day view: the bottom of the screen, the day in sight above it.
+          <PlanMyDay mode={planning.mode} model={model} now={now} layout="dock" onDrawing={planning.setDrawing} onClose={planning.close} onHeight={setDockHeight} />
+        ) : null}
         <TodayMenuSheet
           open={menu}
           onClose={() => setMenu(false)}
@@ -412,7 +479,7 @@ export function Today() {
         />
         <TrimSheet open={trimOpen && onToday} tasks={model.todayTasks} overMin={overMin} defaultEstimateMin={defaultEstimate} onTomorrow={toTomorrow} onSomeday={toSomeday} onDrop={drop} onClose={() => setTrimOpen(false)} />
       </View>
-    </>
+    </TodayRows>
   );
 }
 
@@ -420,5 +487,4 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   waiting: { flex: 1, paddingHorizontal: 24 },
   waitingText: { fontFamily: font.medium, fontSize: 17 },
-  fab: { position: "absolute", right: 20, bottom: 20, width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", elevation: 6, shadowColor: "#0e2240", shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
 });

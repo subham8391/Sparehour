@@ -4,13 +4,14 @@ import { fireEvent, render, screen } from "@testing-library/react-native";
 import type { LogbookDay, LogbookEntry } from "@/app/(app)/logbook/logbook-days";
 import { localDate } from "@/core/time";
 import type { Task } from "@/core/types";
+import { PreviewRows } from "~/screens/rows/preview-rows";
 import { LogbookView, type LogbookViewProps } from "./logbook-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn(), canGoBack: () => false }) }));
 
 const TODAY = localDate("2026-11-21");
-const entry = (key: string, title: string, kind: LogbookEntry["kind"], at: string, more: Partial<LogbookEntry> = {}, projectId: string | null = null): LogbookEntry => ({ key, kind, at, task: { id: key, title, estimateMin: 30, carryCount: 0, projectId } as unknown as Task, ...more });
+const entry = (key: string, title: string, kind: LogbookEntry["kind"], at: string, more: Partial<LogbookEntry> = {}, projectId: string | null = null): LogbookEntry => ({ key, kind, at, task: { id: key, title, state: kind === "dropped" ? "dropped" : "done", priority: 0, estimateMin: 30, carryCount: 0, projectId } as unknown as Task, ...more });
 const DAYS: LogbookDay[] = [
   { day: TODAY, minutes: 125, done: [entry("d1", "Write the report", "done", "16:20", { tookMin: 95 }, "p1"), entry("c1", "Take B12 Vit", "completion", "08:05")], dropped: [entry("x1", "Chase the invoice", "dropped", "09:15", { expired: true })] },
   { day: TODAY.subtract({ days: 1 }), minutes: 30, done: [entry("d2", "Book the dentist", "done", "10:30")], dropped: [] },
@@ -37,6 +38,14 @@ const props = (over: Partial<LogbookViewProps> = {}): LogbookViewProps => ({
   onRestore: jest.fn(),
   ...over,
 });
+
+/** The view inside its screen's frame, as logbook.tsx draws it: a row's ⋯ is the frame's menu. */
+const show = (p: LogbookViewProps) =>
+  render(
+    <PreviewRows today={TODAY}>
+      <LogbookView {...p} />
+    </PreviewRows>,
+  );
 
 describe("<LogbookView>", () => {
   it("lists the last week by day, each with what was done and how long it came to, and a rated day's line", async () => {
@@ -66,14 +75,28 @@ describe("<LogbookView>", () => {
     expect(p.onOpen).toHaveBeenCalledWith(expect.objectContaining({ key: "c1" }));
   });
 
-  it("keeps a day's dropped tasks folded; opened, an expired one says so and offers Restore", async () => {
+  it("keeps a day's dropped tasks folded; opened, an expired one says so and its ⋯ restores it", async () => {
     const p = props();
-    await render(<LogbookView {...p} />);
+    await show(p);
     expect(screen.queryByText("Chase the invoice")).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Dropped, 1" }));
     expect(screen.getByText("Expired · 09:15")).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "Restore Chase the invoice" }));
+    // A dropped task has no ring to press: Restore is in its ⋯ (and its right swipe).
+    expect(screen.queryByRole("button", { name: /^(Complete|Reopen) Chase the invoice/ })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Chase the invoice" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Restore" }));
     expect(p.onRestore).toHaveBeenCalledWith(expect.objectContaining({ key: "x1" }));
+  });
+
+  it("a finished row's ⋯ reopens it too, and offers nothing that moves it; one finished day of a repeat has no ⋯", async () => {
+    const p = props();
+    await show(p);
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Write the report" }));
+    for (const name of ["Complete", "Tomorrow", "Move to…", "Move to project…"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    for (const name of ["Duplicate", "Copy link"]) expect(screen.getByRole("button", { name })).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Reopen" }));
+    expect(p.onReopen).toHaveBeenCalledWith(expect.objectContaining({ key: "d1" }));
+    expect(screen.queryByRole("button", { name: "More actions for Take B12 Vit" })).toBeNull();
   });
 
   it("asked for on their own, the dropped tasks are the list, open", async () => {
@@ -154,12 +177,13 @@ describe("<LogbookView>", () => {
 
   it("the expired list shows only those, each with Restore, and the way back to the whole Logbook", async () => {
     const p = props({ expired: DAYS[0].dropped, onWholeLogbook: jest.fn() });
-    const view = await render(<LogbookView {...p} />);
+    const view = await show(p);
     expect(screen.getByRole("header", { name: "Expired" })).toBeTruthy();
     expect(screen.getByText("Time-sensitive tasks the day moved past. Restore brings one back.")).toBeTruthy();
     expect(screen.getByRole("header", { name: /DROPPED 1/ })).toBeTruthy();
     expect(screen.queryByText("Write the report")).toBeNull();
-    await fireEvent.press(screen.getByRole("button", { name: "Restore Chase the invoice" }));
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Chase the invoice" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Restore" }));
     expect(p.onRestore).toHaveBeenCalledWith(expect.objectContaining({ key: "x1" }));
     await fireEvent.press(screen.getByRole("button", { name: "The whole Logbook" }));
     expect(p.onWholeLogbook).toHaveBeenCalledTimes(1);

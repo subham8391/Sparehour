@@ -1,7 +1,9 @@
 // Quick add as the phone draws it: the line read by the web's own parser, the strip of what was understood, the day
 // or the area the sheet was opened on, the project and tag suggestions, what a save is handed and what it says after.
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 import { Temporal, localDate } from "@/core/time";
+import { colours } from "~/ui/theme";
+import { wordsIn } from "./box-words";
 import { QuickAddView, type QuickAddViewProps } from "./quick-add-view";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -30,6 +32,8 @@ const props = (over: Partial<QuickAddViewProps> = {}): QuickAddViewProps => ({
   ...over,
 });
 const box = () => screen.getByLabelText("Task");
+/** The words in the box, every space kept. */
+const said = () => wordsIn(box());
 const type = (text: string) => fireEvent.changeText(box(), text);
 const press = (name: string | RegExp) => fireEvent.press(screen.getByRole("button", { name }));
 const done = async () => {
@@ -43,20 +47,21 @@ describe("<QuickAddView>", () => {
   it("opens empty, says what is understood, and offers the tokens to tap", async () => {
     await render(<QuickAddView {...props()} />);
     expect(screen.getByRole("header", { name: "Quick add" })).toBeTruthy();
-    expect(box().props.value).toBe("");
+    expect(said()).toBe("");
     expect(screen.getByText("Dates, times, ~estimates, #projects, @tags and !priority are understood.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add" }).props.accessibilityState.disabled).toBe(true);
     await press("tmrw");
-    expect(box().props.value).toBe("tomorrow");
+    expect(said()).toBe("tomorrow");
     await type("Call the bank");
     await press("~30m");
-    expect(box().props.value).toBe("Call the bank ~30m");
+    expect(said()).toBe("Call the bank ~30m");
   });
 
   it("restates the line as chips, with where the task will go", async () => {
     await render(<QuickAddView {...props()} />);
     await type("Draft the proposal tomorrow 3pm ~45m !1 {fri} every week");
-    for (const words of ["Tomorrow 15:00", "45m", "Due Fri", "every week", "priority 1"]) expect(screen.getByText(words)).toBeTruthy();
+    // Each as a chip of the strip ("every week" is also a run of the line itself, painted where it was typed).
+    for (const words of ["Tomorrow 15:00", "45m", "Due Fri", "every week", "priority 1"]) expect(screen.getByRole("button", { name: `Remove “${words}”` })).toBeTruthy();
     expect(screen.getByLabelText("Goes to Upcoming")).toBeTruthy();
     await type("Call the bank");
     expect(screen.getByLabelText("Goes to Inbox")).toBeTruthy();
@@ -97,7 +102,7 @@ describe("<QuickAddView>", () => {
     expect(sent).toMatchObject({ projectId: "p1", createProjectName: null });
     expect(sent.draft).toMatchObject({ title: "Email the accountant", tagNames: ["calls"] });
     expect(here).toEqual({ pageProject: false, areaId: null });
-    expect(box().props.value).toBe("");
+    expect(said()).toBe("");
     expect(screen.getByText("Added “Email the accountant” to Acme launch")).toBeTruthy();
     expect(p.onClose).not.toHaveBeenCalled();
     await type("Second line");
@@ -111,7 +116,7 @@ describe("<QuickAddView>", () => {
   it("opened on a day, the day is beside the line from the start and a line that names none is for it", async () => {
     const p = props({ here: { day: localDate("2026-11-24") } });
     await render(<QuickAddView {...p} />);
-    expect(box().props.value).toBe("");
+    expect(said()).toBe("");
     expect(screen.getByText("Tue 24 Nov")).toBeTruthy();
     expect(screen.getByLabelText("Goes to Upcoming")).toBeTruthy();
     await type("Workout 8am");
@@ -178,7 +183,7 @@ describe("<QuickAddView>", () => {
     // Two projects of one name are told apart by their area.
     expect(screen.getByRole("button", { name: "Website · Work" })).toBeTruthy();
     await press("Website · Personal");
-    expect(box().props.value).toBe("Fix the footer #Website");
+    expect(said()).toBe("Fix the footer #Website");
     expect(screen.getByLabelText("Goes to Website · Personal")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Website · Work" })).toBeNull();
     await done();
@@ -224,8 +229,8 @@ describe("<QuickAddView>", () => {
     expect(screen.getByRole("button", { name: "Create @cal" })).toBeTruthy();
     expect(screen.getByText("new tag @cal")).toBeTruthy();
     await press("@calendar");
-    expect(box().props.value).toBe("Ring Dana @calendar ");
-    expect(screen.getByText("@calendar")).toBeTruthy();
+    expect(said()).toBe("Ring Dana @calendar ");
+    expect(screen.getByRole("button", { name: "Remove “@calendar”" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Create @/ })).toBeNull();
   });
 
@@ -244,7 +249,7 @@ describe("<QuickAddView>", () => {
     await type("Write the report ~30m tomorrow");
     expect(screen.getByText("Tasks like this usually take you 1h.")).toBeTruthy();
     await press("Use 1h");
-    expect(box().props.value).toBe("Write the report ~1h tomorrow");
+    expect(said()).toBe("Write the report ~1h tomorrow");
     expect(screen.queryByText(/usually take you/)).toBeNull();
   });
 
@@ -266,7 +271,7 @@ describe("<QuickAddView>", () => {
     await type("Call the bank");
     await done();
     expect(screen.getByText("Couldn't save “Call the bank”: Your account is still loading — try again in a moment.")).toBeTruthy();
-    expect(box().props.value).toBe("Call the bank");
+    expect(said()).toBe("Call the bank");
   });
 
   it("closing with words in the box hands them back to be offered again; an empty box just closes", async () => {
@@ -284,7 +289,135 @@ describe("<QuickAddView>", () => {
 
   it("opens holding the words it is handed", async () => {
     await render(<QuickAddView {...props({ initial: "Pricing review" })} />);
-    expect(box().props.value).toBe("Pricing review");
+    expect(said()).toBe("Pricing review");
     expect(screen.getByLabelText("Goes to Inbox")).toBeTruthy();
+  });
+
+  describe("tokens painted in the line as they are recognised", () => {
+    const colourOf = (words: string) => (within(box()).getByText(words).props.style as { color?: string } | undefined)?.color;
+
+    it("a date, an estimate, a tag, a priority and a repeat step back to ink-2, a project is the meet token, a note ink-3; the title stays ink", async () => {
+      await render(<QuickAddView {...props()} />);
+      await type("Draft the proposal tomorrow 3pm ~45m #acme @calls !1 every week // ask Dana");
+      expect(said()).toBe("Draft the proposal tomorrow 3pm ~45m #acme @calls !1 every week // ask Dana");
+      for (const token of ["tomorrow", "3pm", "~45m", "@calls", "!1", "every week"]) expect(colourOf(token)).toBe(colours.light.ink2);
+      expect(colourOf("#acme")).toBe(colours.light.meet);
+      expect(colourOf("// ask Dana")).toBe(colours.light.ink3);
+      // The title's own words are plain runs of the box: no colour of their own, so the box's ink.
+      expect(within(box()).queryByText("Draft the proposal ")).toBeNull();
+    });
+
+    it("words turned back into title words lose their colour", async () => {
+      await render(<QuickAddView {...props()} />);
+      await type("Plan tomorrow ~30m");
+      expect(colourOf("tomorrow")).toBe(colours.light.ink2);
+      await press("Remove “Tomorrow”");
+      expect(within(box()).queryByText("tomorrow")).toBeNull();
+      expect(colourOf("~30m")).toBe(colours.light.ink2);
+      expect(said()).toBe("Plan tomorrow ~30m");
+    });
+  });
+
+  describe("a Backspace right after a token (PRODUCT_SPEC.md §5.1 rule 3)", () => {
+    const key = (name: string) => fireEvent(box(), "keyPress", { nativeEvent: { key: name } });
+
+    it("the first one turns the token back into words and deletes nothing; the next one deletes as usual", async () => {
+      const p = props();
+      await render(<QuickAddView {...p} />);
+      await type("Plan tomorrow");
+      expect(screen.getByRole("button", { name: "Remove “Tomorrow”" })).toBeTruthy();
+      await key("Backspace");
+      await type("Plan tomorro");
+      expect(said()).toBe("Plan tomorrow");
+      expect(screen.queryByRole("button", { name: "Remove “Tomorrow”" })).toBeNull();
+      await key("Backspace");
+      await type("Plan tomorro");
+      expect(said()).toBe("Plan tomorro");
+      await done();
+      expect(submitted(p)[0].draft).toMatchObject({ title: "Plan tomorro", doDate: null });
+    });
+
+    it("a Backspace anywhere else just deletes", async () => {
+      await render(<QuickAddView {...props()} />);
+      await type("Plan tomorrow now");
+      await key("Backspace");
+      await type("Plan tomorrow no");
+      expect(said()).toBe("Plan tomorrow no");
+      expect(screen.getByRole("button", { name: "Remove “Tomorrow”" })).toBeTruthy();
+    });
+  });
+
+  describe("a list pasted into the line (PRODUCT_SPEC.md §5.1 rule 6)", () => {
+    const pasting = (text: string) =>
+      act(async () => {
+        await fireEvent.changeText(box(), text);
+      });
+
+    it("is one task per line, without its list markers, said once with one Undo that takes back exactly those", async () => {
+      let n = 0;
+      const takeBack = jest.fn(async () => undefined);
+      const p = props({ onSubmit: jest.fn(async () => `task-${++n}`), onPasted: jest.fn(() => takeBack) });
+      await render(<QuickAddView {...p} />);
+      await pasting("- Buy milk\n* Call Dana tmr\n[ ] Pay rent\n\n1. Book the dentist\n");
+      expect((p.onSubmit as jest.Mock).mock.calls.map((c) => c[0].draft.title)).toEqual(["Buy milk", "Call Dana", "Pay rent", "Book the dentist"]);
+      expect(screen.getByText("4 tasks added")).toBeTruthy();
+      // The box is left as it was: none of the list stays in it.
+      expect(said()).toBe("");
+      expect(p.onPasted).toHaveBeenCalledTimes(1);
+      expect((p.onPasted as jest.Mock).mock.calls[0][0]).toEqual(["task-1", "task-2", "task-3", "task-4"]);
+      await act(async () => {
+        await press("Undo");
+      });
+      expect(takeBack).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Took back 4 tasks")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    });
+
+    it("keeps the words already in the box, and files each line where the sheet was opened", async () => {
+      const p = props({ here: { area: { id: "a1", name: "Home" } } });
+      await render(<QuickAddView {...p} />);
+      await type("Half a thought");
+      await pasting("Half a thoughtBuy milk\nCall Dana #acme");
+      expect(said()).toBe("Half a thought");
+      expect(submitted(p, 0)).toMatchObject([{ draft: { title: "Buy milk" }, projectId: null }, { pageProject: false, areaId: "a1" }]);
+      expect(submitted(p, 1)).toMatchObject([{ draft: { title: "Call Dana" }, projectId: "p1" }, { pageProject: false, areaId: null }]);
+      expect(screen.getByText("2 tasks added")).toBeTruthy();
+    });
+
+    it("a line with no name is skipped and said so; a save that fails stops there, keeps that line, and says what was lost", async () => {
+      const onSubmit = jest.fn().mockResolvedValueOnce("task-1").mockRejectedValueOnce(new Error("Your account is still loading — try again in a moment."));
+      const p = props({ onSubmit, onPasted: jest.fn(() => jest.fn(async () => undefined)) });
+      await render(<QuickAddView {...p} />);
+      await pasting("Buy milk\ntomorrow ~30m\nCall Dana\nPay rent");
+      expect(screen.getByText("Couldn't save “Call Dana”: Your account is still loading — try again in a moment. 1 line after it was not saved either.")).toBeTruthy();
+      expect(screen.getByText("1 task added · 1 line with no name skipped")).toBeTruthy();
+      expect(p.onPasted).toHaveBeenCalledWith(["task-1"]);
+      expect(said()).toBe("Call Dana");
+    });
+
+    it("one line that came with a line break is not a list: it is typed in, on one line", async () => {
+      const p = props();
+      await render(<QuickAddView {...p} />);
+      await pasting("Call the bank\n");
+      expect(p.onSubmit).not.toHaveBeenCalled();
+      expect(said()).toBe("Call the bank ");
+      expect(screen.getByLabelText("Goes to Inbox")).toBeTruthy();
+    });
+
+    it("had the box kept the list, typing on is typing: the same lines are never added twice", async () => {
+      let n = 0;
+      const p = props({ onSubmit: jest.fn(async () => `task-${++n}`) });
+      await render(<QuickAddView {...p} />);
+      await pasting("Buy milk\nCall Dana");
+      expect(p.onSubmit).toHaveBeenCalledTimes(2);
+      // The box still holding the list, with one more letter typed after it.
+      await pasting("Buy milk\nCall Danax");
+      expect(p.onSubmit).toHaveBeenCalledTimes(2);
+      expect(said()).toBe("Buy milk Call Danax");
+      // A second list, pasted for real, is a paste.
+      await type("");
+      await pasting("Pay rent\nBook the dentist");
+      expect(p.onSubmit).toHaveBeenCalledTimes(4);
+    });
   });
 });

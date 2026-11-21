@@ -23,7 +23,7 @@ import { SECTIONS, sectionSummary } from "@/features/settings/sections";
 import { SettingsLayout, useSettingsSection } from "@/features/settings/settings-layout";
 import { withPendingDays, type Segment } from "@/features/settings/settings-rules";
 // How the row reads as the form's values is shared with the Android app's Settings (settings-values.ts).
-import { USER_SQL, asPatch, asValues, caughtUp, settingsValues } from "@/features/settings/settings-values";
+import { HOURS_CHANGED, SETTING_CHANGED, USER_SQL, asPatch, asValues, caughtUp, settingsValues } from "@/features/settings/settings-values";
 import type { SettingsFormProps, SettingsValues } from "@/features/settings/types";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { VIEW_COLUMN, ViewHeader } from "@/features/shell/view-header";
@@ -97,7 +97,7 @@ export default function SettingsPage() {
     if (!s || !values) return;
     const previous = asPatch(values, Object.keys(patch) as (keyof SettingsPatch)[]);
     void write(s.id, patch);
-    undo?.record(valueEntry("Changed a setting", (to: SettingsPatch) => write(s.id, to), previous, patch));
+    undo?.record(valueEntry(SETTING_CHANGED, (to: SettingsPatch) => write(s.id, to), previous, patch));
   };
   // A day's segments are written together, so one ⌘Z puts the whole day back.
   const onWorkHours = (weekday: number, segments: Segment[]) => {
@@ -109,13 +109,13 @@ export default function SettingsPage() {
       return hoursRepo.replaceDay(weekday, segs, ctx);
     };
     void writeDay(segments);
-    undo?.record(valueEntry("Changed working hours", writeDay, previous, segments));
+    undo?.record(valueEntry(HOURS_CHANGED, writeDay, previous, segments));
   };
   // Reduce motion is this device's choice, like the theme; it answers ⌘Z too.
   const onMotion = (next: MotionChoice) => {
     const previous = readMotion();
     applyMotion(next);
-    undo?.record(valueEntry("Changed a setting", applyMotion, previous, next));
+    undo?.record(valueEntry(SETTING_CHANGED, applyMotion, previous, next));
   };
 
   async function signOut(anyway = false) {

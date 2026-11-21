@@ -3,8 +3,10 @@
 // person signing in on the device starts at the beginning. Storage that cannot be read just means step 1b again.
 // The calendar step (ONBOARDING.md step 2) is remembered the same way once it is answered, by a connection or by
 // "Skip for now", so it is offered once and never asks again on a reload.
-const KEY = "sparehour.first-run.hours";
-const CALENDAR_KEY = "sparehour.first-run.calendar";
+// The two keys are the Android app's too: it keeps the same answers under them in the phone's own storage.
+export const HOURS_KEY = "sparehour.first-run.hours";
+export const CALENDAR_KEY = "sparehour.first-run.calendar";
+const KEY = HOURS_KEY;
 
 export function hoursConfirmedHere(userId: string): boolean {
   try {

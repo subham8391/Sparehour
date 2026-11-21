@@ -2,24 +2,26 @@
 // header"), at /settings/<section>, wired to the phone's own database. Every synced setting is read and written as
 // the web's page does it (use-settings.ts); the sections that reach the server (Calendar's Sync now and Disconnect,
 // Connected apps, the permanent deletes, the older half of the export, deleting the account) call the web app's own
-// API with the session's token (~/api). An unknown name is the list, as on the web. The drawing is the *-view.tsx
-// beside this file.
-import { Redirect, useLocalSearchParams } from "expo-router";
+// API with the session's token (~/api). Connecting a calendar leaves for the provider's consent in the system
+// browser and comes back (~/calendar/connect). An unknown name is the list, as on the web. The drawing is the
+// *-view.tsx beside this file.
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Linking, Share, Text } from "react-native";
 import { suggestDefault } from "@/core/estimates";
-import type { SlateScope } from "@/core/rollover";
 import { Temporal, todayFor } from "@/core/time";
 import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
-import { ARCHIVED_SQL, DROPPED_SQL, SLATE_COUNTS_SQL, slateCountArgs, type ArchivedRow } from "@/data/queries/archive";
+import { ARCHIVED_SQL, DROPPED_SQL, type ArchivedRow } from "@/data/queries/archive";
 import { CALENDARS_FULL_SQL, CALENDAR_CONNECTIONS_SQL, type CalendarConnectionRow, type CalendarFullRow } from "@/data/queries/calendar";
-import { clearTheSlate, restoreBatch } from "@/data/repositories/archive";
+import { restoreBatch } from "@/data/repositories/archive";
 import { CalendarRepo } from "@/data/repositories/calendar-repo";
 import { DELETED_SIGNED_OUT, DELETE_ACCOUNT, deletedHeadline, deletionDay, requestAccountDeletion } from "@/features/account/deletion";
 import { waitForUploads } from "@/features/account/leaving";
 import { signInMethodLabels } from "@/features/account/sign-in-labels";
 import { deletePermanently, groupBatches } from "@/features/archive/batches";
 import { disconnectNotice, toAccountView, toCalendarView } from "@/features/calendar/calendar-views";
+import { appConnectNotice } from "@/features/calendar/consent-outcome";
+import type { CalendarProviderId } from "@/features/calendar/providers";
 import { calendarSyncNow } from "@/features/calendar/sync-now";
 import { useLearned } from "@/features/estimates/use-learned";
 import { sectionTitle } from "@/features/settings/sections";
@@ -27,6 +29,7 @@ import { useConnections } from "@/features/settings/use-connections";
 import { useUndoSink } from "@/features/undo/undo-context";
 import { apiFetch } from "~/api";
 import { supabase } from "~/auth/supabase";
+import { useCalendarConnect, type ConnectPurpose } from "~/calendar/connect";
 import { config } from "~/config";
 import { BUILD, signOut } from "~/sync/database";
 import { font, useColours } from "~/ui/theme";
@@ -76,7 +79,7 @@ export function SettingsSection() {
       case "planning":
         return <PlanningSection data={ready} />;
       case "appearance":
-        return <AppearanceView look={ready.values.look} theme={ready.values.theme} onLook={(look) => ready.change({ look })} onTheme={ready.setTheme} />;
+        return <AppearanceView look={ready.values.look} theme={ready.values.theme} motion={ready.motion.value} onLook={(look) => ready.change({ look })} onTheme={(theme) => ready.change({ theme })} onMotion={ready.motion.onChange} />;
       case "data":
         return <DataSection data={ready} />;
     }
@@ -96,7 +99,8 @@ function PlanningSection({ data }: { data: Ready }) {
   return <PlanningView values={data.values} usual={usual?.minutes ?? null} onChange={data.change} />;
 }
 
-function CalendarSection() {
+/** Exported for its test: the ways out to a consent screen, and what each comes back as. */
+export function CalendarSection() {
   const db = useLocalDatabase() as LocalDatabase;
   const repo = useMemo(() => new CalendarRepo(db), [db]);
   const { data: connectionRows } = useQuery<CalendarConnectionRow>(CALENDAR_CONNECTIONS_SQL);
@@ -105,16 +109,31 @@ function CalendarSection() {
   const [notice, setNotice] = useState<string | null>(null);
   const accounts = useMemo(() => (connectionRows ?? []).map(toAccountView), [connectionRows]);
   const calendars = useMemo(() => (calendarRows ?? []).map(toCalendarView), [calendarRows]);
+  const connecting = useCalendarConnect();
   const during = (work: Promise<string>) => {
     setBusy(true);
     void work.then(setNotice).finally(() => setBusy(false));
   };
+  // The consent runs in the system browser and comes back here. What it came to is said in the web's own words; the
+  // account and its calendars then arrive by sync, as they do on the web after its redirect.
+  const consent = (provider: CalendarProviderId, purpose: ConnectPurpose) =>
+    during(
+      connecting.connect(provider, purpose).then(
+        (outcome) => appConnectNotice(outcome, purpose),
+        () => appConnectNotice("failed", purpose),
+      ),
+    );
   return (
     <CalendarView
       accounts={accounts}
       calendars={calendars}
+      configured={connecting.available ? connecting.available.google : null}
+      outlook={connecting.available?.microsoft === true}
       notice={notice}
-      busy={busy}
+      busy={busy || connecting.busy}
+      onConnect={(provider) => consent(provider, "read")}
+      onAllowWrite={() => consent("google", "write")}
+      onFullAccess={() => consent("google", "full")}
       // The one Sync now path, shared with the web (features/calendar/sync-now.ts).
       onSyncNow={() => during(calendarSyncNow(askServer).then((outcome) => outcome.message))}
       onDisconnect={(id) =>
@@ -151,12 +170,11 @@ function DataSection({ data }: { data: Ready }) {
   const db = useLocalDatabase() as LocalDatabase;
   const undo = useUndoSink();
   const exporter = usePhoneExport();
+  const router = useRouter();
   const { timezone, dayRolloverHour } = data.values;
   const { data: archived } = useQuery<ArchivedRow>(ARCHIVED_SQL);
   const { data: dropped } = useQuery<{ id: string }>(DROPPED_SQL);
   const today = todayFor({ timezone, dayRolloverHour }, Temporal.Now.instant());
-  const todayIso = today.toString();
-  const { data: counts } = useQuery<{ today: number; backlog: number }>(SLATE_COUNTS_SQL, slateCountArgs(todayIso));
   const batches = useMemo(() => groupBatches(archived ?? [], timezone), [archived, timezone]);
   const archivedIds = useMemo(() => (archived ?? []).map((r) => r.id), [archived]);
   const droppedIds = useMemo(() => (dropped ?? []).map((r) => r.id), [dropped]);
@@ -167,9 +185,9 @@ function DataSection({ data }: { data: Ready }) {
       today={today}
       archivedIds={archivedIds}
       droppedIds={droppedIds}
-      slateCounts={counts?.[0]}
-      // Both record their own undo: the app's toast offers it.
-      onClearSlate={(scope: SlateScope) => clearTheSlate(db, undo ?? undefined, scope, todayIso)}
+      // Clear the slate is a screen of its own (/slate), as it is a sheet of its own on the web.
+      onClearSlate={() => router.push("/slate")}
+      // Records its own undo: the app's toast offers it.
       onRestore={(batch) => restoreBatch(db, undo ?? undefined, batch.key)}
       // The one hard delete, done by the server as the signed-in person; it has no undo.
       onDeletePermanently={(ids) => deletePermanently(ids, askServer)}

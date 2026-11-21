@@ -2,21 +2,21 @@
 // keyboard up, the filters behind an "Add filter" button with the active ones as removable chips in one row that
 // scrolls sideways, then what was found as the web groups it: Tasks, Projects, Areas, and "Also found" folded
 // (done, dropped, not started yet). A task's row says where the words were found under its title; a tap opens it, the
-// ring completes it (or reopens a finished one), and an open task's ⋯ offers what its own list offers, the snooze
-// presets and Someday. Under the results, the way to what was finished before the week the phone holds. Before
+// ring completes it (or reopens a finished one), and its ⋯ and its swipes are the ones every list has (screens/rows),
+// with what its own list offers as its own lines. Under the results, the way to what was finished before the week the phone holds. Before
 // there is anything to search for it says what it searches, and when nothing matched it offers the words as a task.
 // Presentational: it is handed what was found and says what was chosen; search.tsx reads and writes.
 import { useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import type { Instant, LocalDate } from "@/core/time";
+import type { LocalDate } from "@/core/time";
 import type { Task } from "@/core/types";
 import type { DayPart } from "@/features/looks/look";
 import { FILTER_STATES, datePresets } from "@/features/search/filter-choices";
 import { HIT_MOVE_LABEL, hitMoves, type HitMove } from "@/features/search/hit-moves";
 import { STATE_LABEL, filterLabel, hasFilters, type FilterKey, type SearchFilters, type Snippet } from "@/features/search/search";
 import { dayChip } from "@/features/tasks/day-chip";
-import { snoozePresets, type SnoozePreset } from "@/features/tasks/snooze";
-import { ActionLine } from "~/ui/action-line";
+import { moveActions, type RowAction } from "~/screens/rows/row-menu";
+import { TaskRow } from "~/screens/rows/task-row";
 import { Button } from "~/ui/button";
 import { Card, CardRow } from "~/ui/card";
 import { Chip } from "~/ui/chip";
@@ -24,12 +24,11 @@ import { ChipRow, RemovableChip } from "~/ui/chip-button";
 import { CollapsedGroup } from "~/ui/collapsed-group";
 import { Empty } from "~/ui/empty";
 import { Icon } from "~/ui/icon";
-import { MenuDivider, MenuHeading, MenuRow } from "~/ui/menu-row";
-import { NavRow, RowMore } from "~/ui/nav-row";
+import { MenuHeading, MenuRow } from "~/ui/menu-row";
+import { NavRow } from "~/ui/nav-row";
 import { IconButton, Screen } from "~/ui/screen";
 import { SectionLabel } from "~/ui/section-label";
 import { Sheet } from "~/ui/sheet";
-import { TaskLine } from "~/ui/task-line";
 import { TextField } from "~/ui/text-field";
 import { font, useColours } from "~/ui/theme";
 
@@ -64,15 +63,11 @@ export interface SearchViewProps {
   projectMatches: readonly Named[];
   areaMatches: readonly Named[];
   today: LocalDate;
-  now: Instant;
-  zone: string;
   defaultEstimateMin: number;
   onOpen: (task: Task) => void;
   onComplete: (task: Task) => void;
   /** Today, Tomorrow, Someday, Drop, Reopen or Restore: what the task's own list offers. */
   onMove: (task: Task, move: HitMove) => void;
-  /** This evening, In 4 hours, This weekend or Next week. */
-  onSnooze: (task: Task, preset: SnoozePreset) => void;
   onOpenProject: (id: string) => void;
   onOpenArea: (id: string) => void;
   onAddTask: (title: string) => void;
@@ -80,13 +75,10 @@ export interface SearchViewProps {
   older?: ReactNode;
 }
 
-const open = (task: Task) => task.state === "inbox" || task.state === "active" || task.state === "someday";
-
 export function SearchView(p: SearchViewProps) {
   const c = useColours();
   const { filters, onFiltersChange } = p;
   const [filterSheet, setFilterSheet] = useState(false);
-  const [menu, setMenu] = useState<Task | null>(null);
   const names = { projects: new Map(p.projects.map((x) => [x.id, x.name])), areas: new Map(p.areas.map((x) => [x.id, x.name])) };
   const active = (Object.keys(filters) as FilterKey[]).filter((k) => filters[k] !== undefined && filters[k] !== false && filters[k] !== "");
   const set = (patch: SearchFilters) => {
@@ -103,16 +95,18 @@ export function SearchView(p: SearchViewProps) {
   const isSearch = words.length > 0 || hasFilters(filters);
   const nothing = isSearch && !p.searching && p.hits.length === 0 && p.alsoFound.length === 0 && p.projectMatches.length === 0 && p.areaMatches.length === 0;
 
-  /** A choice from a row's sheet: the sheet closes, then the choice is made. */
-  const choose = (run: (task: Task) => void) => () => {
-    const task = menu;
-    setMenu(null);
-    if (task) run(task);
+  /** What a result's row offers: what its state's own list offers (hit-moves.ts), as the web's row draws them. */
+  const actionsFor = (task: Task): RowAction[] | undefined => {
+    const moves = hitMoves(task, p.today);
+    if (moves.length === 0) return undefined;
+    const run = (move: HitMove) => () => p.onMove(task, move);
+    const on = (move: HitMove) => (moves.includes(move) ? run(move) : undefined);
+    if (moves[0] === "reopen" || moves[0] === "restore") return [{ label: HIT_MOVE_LABEL[moves[0]], run: run(moves[0]) }];
+    // On today or later: Tomorrow alone (the ⋯ adds Someday, as on every open row).
+    if (moves.length === 1 && moves[0] === "tomorrow") return [{ label: HIT_MOVE_LABEL.tomorrow, run: run("tomorrow") }];
+    // The Inbox's and a carried-over task's four moves; Someday's Today and Drop.
+    return moveActions({ onToday: on("today"), onTomorrow: on("tomorrow"), onSomeday: on("someday"), onDrop: on("drop") });
   };
-  const moves = menu ? hitMoves(menu, p.today) : [];
-  const said = new Set(moves.map((m) => HIT_MOVE_LABEL[m]));
-  // Under the row's own moves, the snooze presets; one that says the same as a move ("Tomorrow") steps aside.
-  const presets = menu ? snoozePresets(p.now, p.zone, p.today).filter((preset) => !said.has(preset.label)) : [];
 
   const hit = (h: SearchHit, first: boolean) => {
     const { task } = h;
@@ -126,42 +120,26 @@ export function SearchView(p: SearchViewProps) {
         </Text>
       </View>
     ) : null;
-    if (task.state === "dropped" || task.state === "archived") {
-      // A dropped task offers Restore; an archived one only opens.
-      const detail = [STATE_LABEL[task.state], h.projectName].filter(Boolean).join(" · ");
-      return (
-        <CardRow key={task.id} first={first}>
-          <ActionLine title={task.title} detail={detail} onPress={() => p.onOpen(task)} action={task.state === "dropped" ? { label: HIT_MOVE_LABEL.restore, accessibilityLabel: `${HIT_MOVE_LABEL.restore} ${task.title}`, onPress: () => p.onMove(task, "restore") } : undefined} />
-          {context}
-        </CardRow>
-      );
-    }
     const done = task.state === "done";
-    const day = done ? null : dayChip(task, p.today);
+    const closed = done || task.state === "dropped" || task.state === "archived";
+    const day = closed ? null : dayChip(task, p.today);
     return (
       <CardRow key={task.id} first={first}>
-        <View style={styles.row}>
-          <View style={styles.line}>
-            <TaskLine
-              task={task}
-              today={p.today}
-              defaultEstimateMin={p.defaultEstimateMin}
-              // Where it is filed and its tags, as the web's row says them under the title.
-              detail={[h.projectName, ...(task.tags ?? []).map((t) => `@${t}`)].filter(Boolean).join(" · ") || undefined}
-              done={done}
-              // A finished task says so; any other says its day (a carried one already carries its count).
-              extra={done ? <Chip label={STATE_LABEL.done} /> : day && day.tone !== "carried" ? <Chip tone="time" label={day.label} /> : undefined}
-              onComplete={done ? () => p.onMove(task, "reopen") : p.onComplete}
-              onPress={p.onOpen}
-            />
-          </View>
-          {open(task) ? (
-            <View style={styles.more}>
-              <RowMore label={`More actions for ${task.title}`} onPress={() => setMenu(task)} />
-            </View>
-          ) : null}
-        </View>
-        {context}
+        <TaskRow
+          task={task}
+          today={p.today}
+          defaultEstimateMin={p.defaultEstimateMin}
+          // Where it is filed; its tags follow, as the web's row says them under the title.
+          meta={h.projectName ?? undefined}
+          done={done}
+          // A finished, dropped or archived task says so; any other says its day (a carried one already carries its count).
+          extra={closed ? <Chip label={STATE_LABEL[task.state]} /> : day && day.tone !== "carried" ? <Chip tone="time" label={day.label} /> : undefined}
+          // A finished task's ring reopens it; a dropped or archived one has no ring to press.
+          onComplete={done ? () => p.onMove(task, "reopen") : closed ? undefined : p.onComplete}
+          onOpen={p.onOpen}
+          actions={actionsFor(task)}
+          footer={context}
+        />
       </CardRow>
     );
   };
@@ -270,23 +248,6 @@ export function SearchView(p: SearchViewProps) {
         </Group>
       </Sheet>
 
-      <Sheet open={menu !== null} onClose={() => setMenu(null)}>
-        <Text accessibilityRole="header" numberOfLines={2} style={[styles.menuTitle, { color: c.ink }]}>
-          {menu?.title ?? ""}
-        </Text>
-        <View>
-          {moves.map((move) => (
-            <MenuRow key={move} label={HIT_MOVE_LABEL[move]} onPress={choose((task) => p.onMove(task, move))} />
-          ))}
-          <MenuRow label="Complete" onPress={choose(p.onComplete)} />
-          <MenuDivider />
-          {presets.map((preset) => (
-            <MenuRow key={preset.id} label={preset.label} onPress={choose((task) => p.onSnooze(task, preset))} />
-          ))}
-          {/* Someday for every open task not there yet, after the presets, as on the web's row menu. */}
-          {menu && menu.state !== "someday" && !moves.includes("someday") ? <MenuRow label={HIT_MOVE_LABEL.someday} onPress={choose((task) => p.onMove(task, "someday"))} /> : null}
-        </View>
-      </Sheet>
     </Screen>
   );
 }
@@ -307,15 +268,12 @@ const styles = StyleSheet.create({
   input: { flex: 1 },
   filters: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: 8, marginTop: 8 },
   nothing: { marginTop: 12 },
-  more: { marginLeft: -12, justifyContent: "center" },
   about: { fontFamily: font.regular, fontSize: 15, lineHeight: 22, marginHorizontal: 20, marginTop: 10 },
   emptyAction: { alignSelf: "flex-start", marginLeft: -12 },
-  row: { flexDirection: "row", alignItems: "stretch" },
   line: { flex: 1 },
   context: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: 52, marginRight: 16, marginTop: -4, marginBottom: 10 },
   step: { width: 10, height: 10, borderRadius: 2, borderWidth: 1 },
   contextText: { flex: 1, fontFamily: font.regular, fontSize: 13, lineHeight: 18 },
   match: { fontFamily: font.semibold },
   also: { marginTop: 14 },
-  menuTitle: { fontFamily: font.semibold, fontSize: 18, lineHeight: 24 },
 });
