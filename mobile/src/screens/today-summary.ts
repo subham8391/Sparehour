@@ -1,7 +1,9 @@
-// What Today's hero card says, worked out from the shared capacity engine's own result (../../../src/core/capacity).
-// No sum is redone here: every figure is one the engine gave. Its own file, free of the screen, so it is tested plainly.
+// What Today's hero card says, worked out from the shared capacity engine's own result (../../../src/core/capacity)
+// by the web hero's own rule (../../../src/features/today/hero-state.ts). No sum is redone here: every figure is one
+// the engine gave. Its own file, free of the screen, so it is tested plainly.
 import type { Capacity } from "@/core/capacity";
-import { formatMinutes, formatTime } from "@/core/time";
+import { formatMinutes } from "@/core/time";
+import { heroState } from "@/features/today/hero-state";
 
 export type Summary =
   | { kind: "none"; line: string }
@@ -18,17 +20,20 @@ export type Summary =
 export function todaySummary(cap: Capacity | null): Summary {
   if (cap === null) return { kind: "none", line: "" };
   if (cap.state === "no_work_day") return { kind: "none", line: cap.reason === "out_of_office" ? "Out of office today" : "No working hours today" };
+  // Spare or over, and by how much: the web hero's own rule (a plan that spills past the day's end is over even when
+  // the budget still looks generous), so Today, the Week tab and the web all say the same thing.
+  const hero = heroState(cap);
   const planned = cap.committedMin + cap.unscheduledMin;
   const parts = [planned > 0 ? `${formatMinutes(planned)} planned` : "nothing planned yet"];
   if (cap.busyMin > 0) parts.push(`${formatMinutes(cap.busyMin)} in meetings`);
-  if (cap.projectedFinish) parts.push(`done by ${formatTime(cap.projectedFinish)}`);
-  const over = cap.overMin > 0;
+  if (hero.spill) parts.push(hero.spill);
+  if (hero.finish) parts.push(hero.finish);
   const whole = Math.max(1, cap.workMin);
   const share = (minutes: number) => Math.max(0, Math.min(1, minutes / whole));
   return {
-    kind: over ? "over" : "spare",
-    figure: formatMinutes(over ? cap.overMin : cap.spareMin),
+    kind: hero.over ? "over" : "spare",
+    figure: formatMinutes(hero.min),
     line: parts.join(" · "),
-    shares: { busy: share(cap.busyMin + cap.gapMin), planned: share(planned), buffer: share(cap.bufferMin), spare: over ? 0 : share(cap.spareMin) },
+    shares: { busy: share(cap.busyMin + cap.gapMin), planned: share(planned), buffer: share(cap.bufferMin), spare: hero.over ? 0 : share(cap.spareMin) },
   };
 }

@@ -5,11 +5,7 @@
 // decision is written at once with its undo, and the walk moves on; ⌘Z or Undo takes the last one back and returns
 // to it. It ends on "Inbox zero. Nice." It takes a list of task ids and an action set, so Someday's Review and the
 // weekly review (M2) walk their own lists with it. Lazy: loaded when it is opened (and in idle time before).
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useQuery } from "@/data/powersync";
-import { useLocalDay, useNow } from "@/features/shell/use-local-day";
-import { useTaskRepo } from "@/features/tasks/use-task-repo";
-import { useUndoOptional } from "@/features/undo/undo-provider";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import { buttonClass } from "@/ui/button";
 import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
@@ -17,22 +13,14 @@ import { Kbd } from "@/ui/kbd";
 import { notePlain } from "@/ui/markdown-plain";
 import { trapTab, useDialogFocus } from "@/ui/sheet";
 import { addedLabel } from "./age";
-import { TRIAGE_LABEL, triage, walkKey, type TriageAction, type TriageChoice } from "./triage";
-import { TriageSheet, type TriagePick } from "./triage-sheet";
+import { TRIAGE_LABEL, walkKey, type TriageAction } from "./triage";
+import { TriageSheet } from "./triage-sheet";
+import { ALL_ACTIONS, CHOICES, inTheInbox, useTriageWalk } from "./use-triage-walk";
 
-export const ALL_ACTIONS: readonly TriageAction[] = ["today", "tomorrow", "week", "someday", "drop", "project", "estimate", "deadline"];
+// The walk's own rules (the queue, the decisions, their undo) live in use-triage-walk.ts, free of this file's screen
+// parts, so the Android app walks by them too; the action set is handed on from here as before.
+export { ALL_ACTIONS } from "./use-triage-walk";
 const KEY_HINT: Partial<Record<TriageAction, string>> = { today: "T", tomorrow: "⇧T", someday: "S", drop: "⌫", project: "#", estimate: "E", deadline: "⇧D" };
-const CHOICES = new Set<TriageAction>(["today", "tomorrow", "week", "someday", "drop"]);
-
-const WALK_SQL = `select id, title, notes_md, created_at, state from tasks where id in (select value from json_each(?)) and deleted_at is null`;
-
-interface WalkRow {
-  id: string;
-  title: string | null;
-  notes_md: string | null;
-  created_at: string | null;
-  state: string | null;
-}
 
 export interface TriageWalkProps {
   /** The tasks to walk, in order. */
@@ -50,68 +38,9 @@ export interface TriageWalkProps {
   onClose: () => void;
 }
 
-const inTheInbox = (n: number) => `That’s every one. ${n === 1 ? "One stays" : `${n} stay`} in the Inbox for later.`;
-
 export function TriageWalk({ ids, waiting = "inbox", actions = ALL_ACTIONS, label = "Triage", done = "Inbox zero. Nice.", remaining = inTheInbox, onClose }: TriageWalkProps) {
-  const repo = useTaskRepo();
-  const undoApi = useUndoOptional();
-  const now = useNow();
-  const { today, zone } = useLocalDay(now);
+  const { loaded, id, row, left, last, canUndo, canBack, picking, setPicking, today, zone, act, step, undo, wrote } = useTriageWalk({ ids, waiting, actions });
   const panel = useDialogFocus();
-  const { data } = useQuery<WalkRow>(WALK_SQL, [JSON.stringify(ids)]);
-  const rows = useMemo(() => new Map((data ?? []).map((r) => [r.id, r])), [data]);
-  const [at, setAt] = useState(0);
-  // Decided here: passed at once, before the write comes back through the query.
-  const [decided, setDecided] = useState<ReadonlySet<string>>(new Set());
-  // What this walk wrote, newest last, for ⌘Z: the task it was, whether it was a decision, and its toast's words.
-  const [written, setWritten] = useState<{ id: string; decision: boolean; title: string }[]>([]);
-  const [picking, setPicking] = useState<TriagePick | null>(null);
-
-  const open = (id: string) => !decided.has(id) && rows.get(id)?.state === waiting;
-  const find = (from: number, dir: 1 | -1) => {
-    for (let i = from; i >= 0 && i < ids.length; i += dir) if (open(ids[i])) return i;
-    return -1;
-  };
-  // The task on screen: the first one still waiting at or after the cursor (a decision elsewhere may have taken it).
-  const loaded = data !== undefined;
-  const current = loaded ? find(at, 1) : -1;
-  const id = current >= 0 ? ids[current] : null;
-  const row = id ? rows.get(id) : undefined;
-  const left = loaded ? ids.filter(open).length : 0;
-
-  const wrote = (taskId: string, decision: boolean) => {
-    setWritten((w) => [...w, { id: taskId, decision, title: rows.get(taskId)?.title ?? "" }]);
-    if (!decision) return;
-    setDecided((d) => new Set(d).add(taskId));
-    setAt(ids.indexOf(taskId) + 1);
-  };
-  const act = (action: TriageAction) => {
-    if (!id || !actions.includes(action)) return;
-    if (CHOICES.has(action)) {
-      void triage(repo, id, action as TriageChoice, today);
-      wrote(id, true);
-    } else setPicking(action as TriagePick);
-  };
-  const step = (dir: 1 | -1) => {
-    if (dir === 1) setAt(current >= 0 ? current + 1 : at);
-    else {
-      const back = find((current >= 0 ? current : ids.length) - 1, -1);
-      if (back >= 0) setAt(back);
-    }
-  };
-  const undo = async () => {
-    const last = written.at(-1);
-    if (!last || !undoApi) return;
-    setWritten((w) => w.slice(0, -1));
-    await undoApi.undo();
-    if (last.decision)
-      setDecided((d) => {
-        const next = new Set(d);
-        next.delete(last.id);
-        return next;
-      });
-    setAt(ids.indexOf(last.id));
-  };
 
   // The keys are the walk's wherever focus is (a button that went away leaves it on the page), except while a
   // picker is open over it; a focused button keeps Enter and Space. Taken before the app's own keyboard layer.
@@ -141,7 +70,6 @@ export function TriageWalk({ ids, waiting = "inbox", actions = ALL_ACTIONS, labe
 
   const age = row ? addedLabel(row.created_at, today, zone) : null;
   const note = row ? notePlain(row.notes_md) : "";
-  const last = written.at(-1);
   const BTN = cx(buttonClass({ variant: "secondary" }), "h-11 justify-between gap-2 sm:h-10 touch:h-11");
 
   return (
@@ -195,7 +123,7 @@ export function TriageWalk({ ids, waiting = "inbox", actions = ALL_ACTIONS, labe
                 ))}
               </div>
               <nav aria-label="The queue" className="flex items-center justify-between gap-2">
-                <button type="button" onClick={() => step(-1)} disabled={find(current - 1, -1) < 0} className={cx(buttonClass({ variant: "quiet", size: "touch" }), "-ml-2 gap-2 px-2.5 disabled:opacity-40")}>
+                <button type="button" onClick={() => step(-1)} disabled={!canBack} className={cx(buttonClass({ variant: "quiet", size: "touch" }), "-ml-2 gap-2 px-2.5 disabled:opacity-40")}>
                   <Icon name="chevron-right" size={16} className="rotate-180" />
                   Back
                   <Kbd>K</Kbd>
@@ -216,7 +144,7 @@ export function TriageWalk({ ids, waiting = "inbox", actions = ALL_ACTIONS, labe
             </div>
           )}
 
-          {last && undoApi && (
+          {last && canUndo && (
             <p className="mt-auto flex min-h-11 items-center gap-1 text-body-sm text-ink-2">
               <span className="min-w-0 truncate">Last: “{last.title}”</span>
               <button type="button" onClick={() => void undo()} className={buttonClass({ variant: "link", size: "compact" })}>

@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { CapacityTask } from "@/core/capacity";
 import { keyBetween } from "@/core/ordering";
 import { compareDates, formatMinutes, localDate, type LocalDate } from "@/core/time";
-import { formatDay, weekdayName } from "@/core/time/format-day";
+import { formatDay } from "@/core/time/format-day";
 import type { Task } from "@/core/types";
 import { useQuery } from "@/data/powersync";
 import { toTask } from "@/data/mappers";
@@ -40,15 +40,16 @@ import { useTaskDetail } from "@/features/tasks/task-detail";
 import { TaskList, TaskRow } from "@/features/tasks/task-row";
 import { useConvertToProject } from "@/features/tasks/use-convert";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
+import { agendaDays, capacityRange, isFreeDay, laterReadout, nextSevenDays, nothingAhead, plannedMinutes, rangeTitle, weekDays } from "@/features/upcoming/agenda";
 import { DayBar, ReadoutText } from "@/features/upcoming/capacity-bar";
 import { CompactRow } from "@/features/upcoming/compact-row";
 import { DayStrip, type StripDay } from "@/features/upcoming/day-strip";
-import { dueByDay, laterGroups, startingByDay, type AgendaDay } from "@/features/upcoming/later";
+import { laterGroups, type AgendaDay } from "@/features/upcoming/later";
 import { RailColumn, UnplannedButton, UnplannedStrip } from "@/features/upcoming/unplanned";
 import { useWeekCapacity } from "@/features/upcoming/use-week-capacity";
 import { useWeekKeys } from "@/features/upcoming/use-week-keys";
 import { useWeekBand, useWeekMode } from "@/features/upcoming/use-week-view";
-import { clampOffset, dayReadout, shiftDay, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
+import { clampOffset, shiftDay, weekTotalLine, weekWindow, type DayReadout } from "@/features/upcoming/week";
 import { WeekColumns, bandColumns, columnIds, dayLabel, type ColumnDay } from "@/features/upcoming/week-columns";
 import { Button, iconButtonClass } from "@/ui/button";
 import { CollapsedGroup } from "@/ui/collapsed-group";
@@ -60,21 +61,12 @@ import { scrollMotion } from "@/ui/reduced-motion";
 import { Segmented } from "@/ui/segmented";
 import { LOADING_LINE } from "../loading-view";
 
-/** Capacity readouts reach this many days ahead (SCREENS.md §6). */
-const READOUT_DAYS = 14;
-
 // The rail's sheet, with a day picker per task, loads in idle time and mounts on the first open.
 const loadUnplannedSheet = () => import("@/features/upcoming/unplanned-sheet");
 const UnplannedSheet = dynamic(() => loadUnplannedSheet().then((m) => m.UnplannedSheet), { ssr: false });
 
 /** The id of a stacked day's header, where the strip's jump lands. */
 const agendaId = (day: LocalDate) => `agenda-${day.toString()}`;
-
-/** "Tue 6 – Mon 12 October", or "Wed 28 Oct – Tue 3 Nov" across a month. */
-function rangeTitle(first: LocalDate, last: LocalDate, today: LocalDate): string {
-  if (first.month === last.month && first.year === last.year) return `${weekdayName(first)} ${first.day} – ${formatDay(last, { month: "long", today })}`;
-  return `${formatDay(first, { today })} – ${formatDay(last, { today })}`;
-}
 
 /** Where a row in the air would land, read from the drop target under it (a day's `data-day`). */
 interface DragOver {
@@ -157,41 +149,9 @@ export default function UpcomingPage() {
   }, [over, findTask]);
 
   // ---- capacity: the week's days from today on, and every day out to day 14 for the agenda's readouts
-  const capFrom = compareDates(first, today) < 0 ? today : first;
-  const readoutEnd = today.add({ days: READOUT_DAYS - 1 });
-  const capTo = compareDates(last, readoutEnd) > 0 ? last : readoutEnd;
+  const { from: capFrom, to: capTo } = capacityRange(first, last, today);
   const capacity = useWeekCapacity({ from: capFrom, to: capTo, today, now, settings, preview });
-  const readoutFor = useCallback(
-    (day: LocalDate): DayReadout | null => {
-      const c = capacity.byDay.get(day.toString());
-      return c && compareDates(day, today) >= 0 ? dayReadout(c, day.equals(today)) : null;
-    },
-    [capacity, today],
-  );
-
-  const days = useMemo((): ColumnDay[] => {
-    const byDay = new Map<string, Task[]>();
-    for (const t of plannedTasks) {
-      const key = t.doDate?.toString() ?? "";
-      byDay.set(key, [...(byDay.get(key) ?? []), t]);
-    }
-    const startsOn = startingByDay(starting);
-    const dueOn = dueByDay(due);
-    return windowDays.map((day) => {
-      const iso = day.toString();
-      const past = compareDates(day, today) < 0;
-      return {
-        day,
-        tasks: byDay.get(iso) ?? [],
-        startingLater: startsOn.get(iso) ?? [],
-        due: dueOn.get(iso) ?? [],
-        isToday: day.equals(today),
-        past,
-        capacity: past ? null : (capacity.byDay.get(iso) ?? null),
-        readout: readoutFor(day),
-      };
-    });
-  }, [plannedTasks, starting, due, windowDays, today, capacity, readoutFor]);
+  const days = useMemo((): ColumnDay[] => weekDays(windowDays, today, plannedTasks, starting, due, capacity.byDay), [plannedTasks, starting, due, windowDays, today, capacity]);
   const totalLine = capacity.byDay.size > 0 ? weekTotalLine(days.filter((d) => !d.past).map((d) => d.readout), offset === 0) : null;
 
   // ---- what J/K and Tab walk: the columns (or the stacked days), the rail, then the later days
@@ -214,7 +174,7 @@ export default function UpcomingPage() {
   const loaded = planned !== undefined && unplannedRows !== undefined && laterRows !== undefined && startingRows !== undefined;
   const waiting = loaded && !synced && plannedTasks.length === 0 && unplanned.length === 0 && later.length === 0;
   // "Nothing scheduled beyond today." (SCREENS.md §21): no day after today has anything, here or further on.
-  const noneAhead = loaded && synced && offset === 0 && later.length === 0 && days.every((d) => d.isToday || d.past || (d.tasks.length === 0 && d.startingLater.length === 0));
+  const noneAhead = loaded && synced && offset === 0 && later.length === 0 && nothingAhead(days);
 
   // ---- moves
   /** The day's last place, so a task moved there goes to the end of it. Keys compare as plain strings (§5.6). */
@@ -324,7 +284,7 @@ export default function UpcomingPage() {
         <ul className="flex flex-col gap-1.5">{d.due.map((t) => compactRow(t, { selectable: false }))}</ul>
       </div>
     );
-  const minutes = (tasks: Task[]) => formatMinutes(tasks.reduce((s, t) => s + (t.estimateMin ?? settings?.defaultEstimateMin ?? 30), 0));
+  const minutes = (tasks: Task[]) => formatMinutes(plannedMinutes(tasks, settings?.defaultEstimateMin ?? 30));
   const capacityLine = (readout: DayReadout | null, d: AgendaDay) => {
     const c = capacity.byDay.get(d.day.toString());
     return readout && c ? (
@@ -369,11 +329,11 @@ export default function UpcomingPage() {
       </div>
     );
   };
-  const phoneDays = days.filter((d) => !d.past || d.tasks.length > 0 || d.due.length > 0);
+  const phoneDays = agendaDays(days);
   const [phoneFirst, ...phoneRest] = phoneDays;
   // A day the strip jumped to is unfolded out of its run of free days, so it has a header to land on.
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
-  const phoneSegments = foldFreeDays(phoneRest, (d) => d.tasks.length === 0 && d.startingLater.length === 0 && d.due.length === 0 && !unfolded.has(d.day.toString()));
+  const phoneSegments = foldFreeDays(phoneRest, (d) => isFreeDay(d) && !unfolded.has(d.day.toString()));
 
   // ---- the strip: tap a day to jump to it (SCREENS.md §3 "Responsive")
   const [jump, setJump] = useState<{ iso: string; seq: number } | null>(null);
@@ -390,14 +350,7 @@ export default function UpcomingPage() {
   }, [jump]);
   const shown = new Set(phoneDays.map((d) => d.day.toString()));
   // The next seven days from today, for the sheet's per-task pickers; their bars come from the same capacity.
-  const nextDays = useMemo(
-    (): StripDay[] =>
-      Array.from({ length: 7 }, (_, i) => {
-        const day = today.add({ days: i });
-        return { day, isToday: i === 0, capacity: capacity.byDay.get(day.toString()) ?? null, readout: readoutFor(day) };
-      }),
-    [today, capacity, readoutFor],
-  );
+  const nextDays = useMemo((): StripDay[] => nextSevenDays(today, capacity.byDay), [today, capacity]);
 
   const railRows = unplanned.map((t) => compactRow(t));
   const stepButton = (delta: 1 | -1) => (
@@ -550,7 +503,7 @@ export default function UpcomingPage() {
                 {g.label}
               </SectionLabel>
               {g.days.map((d) => {
-                const readout = compareDates(d.day, readoutEnd) <= 0 ? readoutFor(d.day) : null;
+                const readout = laterReadout(capacity.byDay, d.day, today);
                 const daytime = d.tasks.filter((t) => !t.evening);
                 const evening = d.tasks.filter((t) => t.evening);
                 return (

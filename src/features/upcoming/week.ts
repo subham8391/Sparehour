@@ -5,7 +5,7 @@
 // keyboard goes between columns.
 import type { Capacity } from "@/core/capacity";
 import { compareDates, formatMinutes, type LocalDate } from "@/core/time";
-import { heroState } from "@/features/today/ribbon";
+import { heroState } from "@/features/today/hero-state";
 
 export const WEEK_DAYS = 7;
 

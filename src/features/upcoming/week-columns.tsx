@@ -9,7 +9,6 @@
 // a day without working hours is greyed and still takes a drop; a day already
 // gone (the calendar week's start) is shown but takes nothing.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Capacity } from "@/core/capacity";
 import type { Task } from "@/core/types";
 import { weekdayName } from "@/core/time/format-day";
 import { DropZone } from "@/features/tasks/drop-zone";
@@ -18,23 +17,17 @@ import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { scrollMotion } from "@/ui/reduced-motion";
 import { EYEBROW } from "@/ui/section-label";
-import type { AgendaDay } from "./later";
+import { dayLabel, type ColumnDay } from "./agenda";
 import { DayBar, ReadoutText } from "./capacity-bar";
-import { weekColumns, type DayReadout, type WeekBand, type WeekColumn } from "./week";
+import { weekColumns, type WeekBand, type WeekColumn } from "./week";
 import s from "./week.module.css";
 
 /** Rows a column shows before "…N more" (SCREENS.md §3 "Overflow"). */
 export const COLUMN_CAP = 6;
 
-export interface ColumnDay extends AgendaDay {
-  isToday: boolean;
-  /** Before today: the calendar week's first days, shown for what is still dated there. */
-  past: boolean;
-  capacity: Capacity | null;
-  readout: DayReadout | null;
-}
-
-export const dayLabel = (d: { day: AgendaDay["day"] }) => `${weekdayName(d.day)} ${d.day.day}`;
+// A day's type and its label live in agenda.ts, free of this file's screen parts; they are handed on from here so
+// every import of them from the columns stays as it was.
+export { dayLabel, type ColumnDay } from "./agenda";
 
 /** The rows J/K walk in one column: its days' tasks, the evening's after them, then any open "Starting later". */
 export function columnIds(days: readonly ColumnDay[], openStarting: ReadonlySet<string>): string[] {

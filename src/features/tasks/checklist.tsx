@@ -16,6 +16,7 @@ import { bareFieldClass } from "@/ui/field";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MenuButton } from "@/ui/popover";
 import { SectionLabel } from "@/ui/section-label";
+import { keyForStep } from "./checklist-order";
 import { edgeFor, planDrop, type Edge } from "./reorder";
 
 const BARE = bareFieldClass();
@@ -32,15 +33,8 @@ export interface ChecklistProps {
   onConvert?: () => void;
 }
 
-/** The key that moves `id` one place up (-1) or down (+1) in `items`, or null at either end. */
-export function keyForStep(items: readonly { id: string; sortKey: string | null }[], id: string, dir: -1 | 1): string | null {
-  const i = items.findIndex((x) => x.id === id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= items.length) return null;
-  const before = dir === -1 ? items[j - 1] : items[j];
-  const after = dir === -1 ? items[j] : items[j + 1];
-  return keyBetween(before?.sortKey ?? null, after?.sortKey ?? null);
-}
+// The key a step takes when it moves one place: web-free (checklist-order.ts), so the Android app moves a step the same way.
+export { keyForStep } from "./checklist-order";
 
 export function Checklist({ items, onAdd, onToggle, onRename, onRemove, onReorder, onConvert }: ChecklistProps) {
   const [draft, setDraft] = useState("");

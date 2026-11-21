@@ -3,24 +3,22 @@
 // undo — and the estimate and the deadline, the detail's own pickers in a sheet. The phone's "Project…" walks
 // them in that order: a project, then the estimate and the deadline behind it, each skippable. An estimate alone
 // keeps the task in the Inbox; a project or a deadline files it (TaskRepo's rule, PRODUCT_SPEC.md §5.1 rule 5).
-import { useMemo, useRef, useState } from "react";
-import { formatMinutes, localDate, type LocalDate } from "@/core/time";
+import { useRef, useState } from "react";
+import { localDate, type LocalDate } from "@/core/time";
 import { useQuery } from "@/data/powersync";
-import { AREAS_SQL, PROJECTS_SQL, type AreaRow, type ProjectRow } from "@/data/queries/nav";
-import { withAreaNames } from "@/data/queries/project-label";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { MovePicker, type MoveTarget } from "@/features/tasks/move-picker";
 import { snoozePresets } from "@/features/tasks/snooze";
 import { DatePicker, EstimatePicker } from "@/features/tasks/task-detail-panel";
+import { useMoveProjects } from "@/features/tasks/use-move-projects";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import { Button } from "@/ui/button";
 import { Icon } from "@/ui/icons";
 import { Sheet } from "@/ui/sheet";
 import { EYEBROW } from "@/ui/section-label";
+import { TRIAGE_TASK_SQL, fileInProject, giveDeadline, giveEstimate, type TriageTaskRow } from "./triage-fields";
 
 export type TriagePick = "project" | "estimate" | "deadline" | "project-then";
-
-const TASK_SQL = `select id, title, estimate_min, deadline, project_id from tasks where id = ?`;
 
 const dateOrNull = (iso: string | null | undefined): LocalDate | null => {
   if (!iso) return null;
@@ -38,29 +36,22 @@ export function TriageSheet({ id, pick, onDone, onClose }: { id: string; pick: T
   const { today, zone } = useLocalDay(now);
   const [step, setStep] = useState<"project" | "estimate" | "deadline" | "details">(pick === "project-then" ? "project" : pick);
   const picked = useRef(false);
-  const { data: rows } = useQuery<{ id: string; title: string | null; estimate_min: number | null; deadline: string | null; project_id: string | null }>(TASK_SQL, [id]);
+  const { data: rows } = useQuery<TriageTaskRow>(TRIAGE_TASK_SQL, [id]);
   const task = rows?.[0];
-  const { data: projectRows } = useQuery<ProjectRow>(step === "project" ? PROJECTS_SQL : `select id, name from projects where 0`);
-  const { data: areaRows } = useQuery<AreaRow>(step === "project" ? AREAS_SQL : `select id, name from areas where 0`);
-  const projects = useMemo(
-    () => withAreaNames(projectRows ?? [], areaRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", area: p.area, areaId: p.area_id })),
-    [projectRows, areaRows],
-  );
-  const areaOrder = useMemo(() => (areaRows ?? []).map((a) => ({ id: a.id, name: a.name ?? "Untitled area" })), [areaRows]);
+  const { projects, areaOrder } = useMoveProjects(step === "project");
 
   const fileIn = (target: MoveTarget) => {
     if (target.kind !== "project") return;
-    const note = target.id ? `Moved {title} to ${target.name ?? "the project"}` : "Moved {title} out of its project";
-    void repo.update(id, { projectId: target.id }, note).then(() => onDone?.(Boolean(target.id)));
+    void fileInProject(repo, id, target).then((filed) => onDone?.(filed));
     if (pick === "project-then") setStep("details");
     else onClose();
   };
   const estimate = (m: number | null) => {
-    void repo.update(id, { estimateMin: m }, m == null ? "Cleared the estimate on {title}" : `Estimated {title} at ${formatMinutes(m)}`).then(() => onDone?.(false));
+    void giveEstimate(repo, id, m).then((filed) => onDone?.(filed));
     if (step === "estimate") onClose();
   };
   const deadline = (d: LocalDate | null) => {
-    void repo.update(id, { deadline: d }, d ? "Set the deadline on {title}" : "Cleared the deadline on {title}").then(() => onDone?.(Boolean(d)));
+    void giveDeadline(repo, id, d).then((filed) => onDone?.(filed));
     if (step === "deadline") onClose();
   };
 

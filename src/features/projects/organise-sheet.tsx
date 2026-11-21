@@ -8,7 +8,6 @@
 // so neither the picker nor the confirmation rides in a first download.
 import { useState } from "react";
 import { useQuery } from "@/data/powersync";
-import type { NavTree } from "@/features/shell/nav-drag";
 import { useNavData } from "@/features/shell/use-nav-data";
 import { useAreaRepo, useProjectOrderRepo } from "@/features/tasks/use-repos";
 import { Button } from "@/ui/button";
@@ -16,36 +15,10 @@ import { cx } from "@/ui/cx";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, MENU_ITEM_DESTRUCTIVE } from "@/ui/popover";
 import { Sheet } from "@/ui/sheet";
+import { AREA_CONTENTS_SQL, deleteAreaNote, moveToArea, placeOf, type OrganiseTarget } from "./organise-place";
 
-export type OrganiseTarget = { kind: "area"; id: string; name: string } | { kind: "project"; id: string; name: string };
+export { AREA_CONTENTS_SQL, deleteAreaNote, type OrganiseTarget };
 export type OrganiseStep = "menu" | "move" | "delete";
-
-/** What deleting an area leaves without one: its projects (any state) and the tasks filed in it directly. */
-export const AREA_CONTENTS_SQL = `
-  select (select count(*) from projects where deleted_at is null and area_id = ?1) as projects,
-         (select count(*) from tasks where deleted_at is null and area_id = ?1) as tasks`;
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-/** The sentence under "Delete “Work”?": what stays, and where. */
-export function deleteAreaNote(projects: number, tasks: number): string {
-  const parts = [projects > 0 && plural(projects, "project", "projects"), tasks > 0 && plural(tasks, "task", "tasks")].filter(Boolean);
-  if (parts.length === 0) return "Nothing is filed in it.";
-  const what = parts.join(" and ");
-  return `Its ${what} stay${projects + tasks === 1 ? "s" : ""}, without an area.`;
-}
-
-/** The area or project's place in the tree: its group, and its index there (among the areas, for an area). */
-function placeOf(tree: readonly NavTree[], target: OrganiseTarget): { list: readonly string[]; index: number; areaId: string | null } | null {
-  if (target.kind === "area") {
-    const list = tree.filter((g) => !g.loose).map((g) => g.id);
-    return { list, index: list.indexOf(target.id), areaId: null };
-  }
-  const group = tree.find((g) => g.projects.some((p) => p.id === target.id));
-  if (!group) return null;
-  const list = group.projects.map((p) => p.id);
-  return { list, index: list.indexOf(target.id), areaId: group.loose ? null : group.id };
-}
 
 export function OrganiseSheet({ target, step: initial = "menu", onClose, onDeleted }: { target: OrganiseTarget; step?: OrganiseStep; onClose: () => void; onDeleted?: () => void }) {
   const { areas: tree } = useNavData();
@@ -66,9 +39,8 @@ export function OrganiseSheet({ target, step: initial = "menu", onClose, onDelet
   };
   const moveTo = (areaId: string | null) => {
     if (target.kind !== "project") return;
-    if (place && place.areaId === areaId) return onClose();
-    const dest = tree.find((g) => (areaId ? g.id === areaId : g.loose));
-    void projectOrder.move(target.id, { areaId, index: dest?.projects.length ?? 0 }, dest && !dest.loose ? dest.name : null);
+    const move = moveToArea(tree, place, areaId);
+    if (move) void projectOrder.move(target.id, move.to, move.areaName);
     onClose();
   };
   const remove = () => {

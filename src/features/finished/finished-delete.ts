@@ -10,8 +10,9 @@ export type FinishedDeleted = "deleted" | "gone" | "unavailable";
  * Only the server's own word counts: it throws when the server cannot be reached, answers with an error, or answers
  * with anything that does not say whether the row went, so nothing is ever taken for deleted that was not.
  */
-export async function deleteFinished(id: string, signal?: AbortSignal): Promise<FinishedDeleted> {
-  const res = await fetch(`/api/logbook/older/${encodeURIComponent(id)}`, { method: "DELETE", signal, credentials: "same-origin", headers: { accept: "application/json" } });
+export async function deleteFinished(id: string, signal?: AbortSignal, api?: (path: string, init?: RequestInit) => Promise<Response>): Promise<FinishedDeleted> {
+  // `api` is the Android app's way to the same route (its session's token in place of the cookie); the browser's fetch when left out.
+  const res = await (api ?? fetch)(`/api/logbook/older/${encodeURIComponent(id)}`, { method: "DELETE", signal, credentials: "same-origin", headers: { accept: "application/json" } });
   const body = (await res.json().catch(() => null)) as { available?: unknown; deleted?: unknown } | null;
   // The database has not got the function yet (its migration has not run there).
   if (body?.available === false) return "unavailable";

@@ -5,43 +5,17 @@
 // question a new do-date asks (Just this once · Change the rule), and the
 // pause picker. Part of the detail's lazy island, with the recurrence engine.
 import { useEffect, useRef, useState } from "react";
-import { currentOccurrence, followingOccurrence, rebaseRule } from "@/core/recurrence/series";
-import { ruleWords } from "@/core/recurrence/words";
 import { compareDates, localDate, type LocalDate } from "@/core/time";
-import { formatDay, weekdayName } from "@/core/time/format-day";
+import { formatDay } from "@/core/time/format-day";
 import type { RecurrenceException, Task } from "@/core/types";
 import { Button } from "@/ui/button";
 import { chipButtonClass } from "@/ui/chip";
 import { DateField } from "@/ui/date-field";
 import { Icon } from "@/ui/icons";
+import { pauseChoices, pausedUntil, rebasedWords, repeatSummary } from "./series-words";
 
-/** "today", "tomorrow", "Mon 16" within four weeks, else "Mon 16 Nov". */
-export function shortDay(day: LocalDate, today: LocalDate): string {
-  const days = day.since(today, { largestUnit: "days" }).days;
-  if (days === 0) return "today";
-  if (days === 1) return "tomorrow";
-  if (days > 1 && days < 28) return `${weekdayName(day)} ${day.day}`;
-  return formatDay(day, { today });
-}
-
-/** The pause still running on `today`, or null. */
-export function pausedUntil(task: Pick<Task, "recurrencePausedUntil">, today: LocalDate): LocalDate | null {
-  const until = task.recurrencePausedUntil;
-  return until && compareDates(until, today) > 0 ? until : null;
-}
-
-/** "Repeats every Monday · next Mon 16": the rule in words and the occurrence after the current one. */
-export function repeatSummary(task: Pick<Task, "recurrenceRule" | "recurrenceMode" | "doDate">, today: LocalDate, exceptions: readonly RecurrenceException[] = []): string | null {
-  if (!task.recurrenceRule) return null;
-  const mode = task.recurrenceMode ?? "fixed";
-  let next: LocalDate | null = null;
-  try {
-    next = followingOccurrence({ rule: task.recurrenceRule, mode, occurrence: currentOccurrence(task.doDate, today, exceptions), today, exceptions });
-  } catch {
-    // A rule the engine cannot read still gets its words.
-  }
-  return `Repeats ${ruleWords(task.recurrenceRule, mode)}${next ? ` · next ${shortDay(next, today)}` : ""}`;
-}
+// The words themselves are web-free (series-words.ts), so the Android app's detail says the same; handed on from here.
+export { pausedUntil, repeatSummary, shortDay } from "./series-words";
 
 /** The header line under the title: what the repeat does next, or the pause and the way out of it. */
 export function RepeatLine({ task, today, exceptions, onResume }: { task: Task; today: LocalDate; exceptions?: readonly RecurrenceException[]; onResume?: () => void }) {
@@ -87,8 +61,7 @@ export function SeriesPrompt({
   onOnce: () => void;
   onRule: () => void;
 }) {
-  const rule = task.recurrenceRule ?? "";
-  const rebased = rule ? ruleWords(rebaseRule(rule, currentOccurrence(task.doDate, today, exceptions), day), task.recurrenceMode ?? "fixed") : "";
+  const rebased = rebasedWords(task, day, today, exceptions);
   // It opens at the foot of the Do sheet: on a short phone that is below the fold, so it brings itself into view.
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -115,11 +88,7 @@ export function SeriesPrompt({
 /** "Pause repeats until…": a few days from now, or any day; the task is hidden until its schedule's first day from then. */
 export function PausePicker({ today, onPause }: { today: LocalDate; onPause: (until: LocalDate) => void }) {
   const [day, setDay] = useState("");
-  const choices = [
-    { label: "In a week", date: today.add({ days: 7 }) },
-    { label: "In two weeks", date: today.add({ days: 14 }) },
-    { label: "In a month", date: today.add({ months: 1 }) },
-  ];
+  const choices = pauseChoices(today);
   return (
     <div role="group" aria-label="Pause repeats until" className="flex flex-col gap-2">
       <p className="text-body-sm text-ink-2">Pause repeats until</p>

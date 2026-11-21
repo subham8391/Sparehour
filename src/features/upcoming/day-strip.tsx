@@ -6,39 +6,14 @@
 // there. Seven cells always fit across 360 px at 44 px each, so nothing
 // scrolls sideways. Each cell says its day and readout in words for
 // assistive tech ("Thu 17, 20 minutes over"); the bar itself is hidden.
-import type { Capacity } from "@/core/capacity";
-import type { LocalDate } from "@/core/time";
 import { weekdayName } from "@/core/time/format-day";
 import { cx } from "@/ui/cx";
+import { stripCellName, type StripDay } from "./agenda";
 import { DayBar } from "./capacity-bar";
-import type { DayReadout } from "./week";
 
-export interface StripDay {
-  day: LocalDate;
-  isToday: boolean;
-  capacity: Capacity | null;
-  readout: DayReadout | null;
-}
-
-/** "1 hour 5 minutes", "20 minutes", "2 hours": a duration as it is spoken. */
-export function spokenMinutes(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  const hours = h === 0 ? "" : h === 1 ? "1 hour" : `${h} hours`;
-  const minutes = m === 0 ? "" : m === 1 ? "1 minute" : `${m} minutes`;
-  return [hours, minutes].filter(Boolean).join(" ") || "0 minutes";
-}
-
-/** A day's readout in words: "3 hours 20 minutes spare", "20 minutes over", "no working hours". */
-export function spokenReadout(r: DayReadout): string {
-  if (r.kind === "off") return r.text;
-  return `${spokenMinutes(r.min)} ${r.kind}`;
-}
-
-/** The cell's accessible name: "Thu 17, today, 20 minutes over". */
-export function stripCellName(d: StripDay): string {
-  return [`${weekdayName(d.day)} ${d.day.day}`, d.isToday ? "today" : null, d.readout ? spokenReadout(d.readout) : null].filter(Boolean).join(", ");
-}
+// The cell's type and its spoken names live in agenda.ts, free of this file's screen parts; they are handed on from
+// here so every import of them from the strip stays as it was.
+export { spokenMinutes, spokenReadout, stripCellName, type StripDay } from "./agenda";
 
 export function DayStrip({
   days,

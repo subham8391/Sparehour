@@ -6,8 +6,11 @@
 import { ruleToSpec } from "@/core/quickadd/recurrence";
 import type { Range, Span, TaskDraft } from "@/core/quickadd";
 import { formatMinutes, formatTime, type LocalDate } from "@/core/time";
-import { formatDay } from "@/core/time/format-day";
 import { deadlineWording } from "@/ui/relative-day";
+import { dayLabel } from "./day-label";
+
+// "Today", "Tomorrow", else "Thu 17 Sep": in its own web-free module (day-label.ts), handed on from here.
+export { dayLabel } from "./day-label";
 
 export interface QuickAddProject {
   id: string;
@@ -19,15 +22,6 @@ export interface QuickAddProject {
 export interface QuickAddTag {
   id: string;
   name: string;
-}
-
-/** "Today", "Tomorrow", "Yesterday", else "Thu 17 Sep" (with the year when it differs). */
-export function dayLabel(date: LocalDate, today: LocalDate): string {
-  const days = date.since(today, { largestUnit: "days" }).days;
-  if (days === 0) return "Today";
-  if (days === 1) return "Tomorrow";
-  if (days === -1) return "Yesterday";
-  return formatDay(date, { today });
 }
 
 /** `!1` is the highest priority and is stored as 3; people read "priority 1". */

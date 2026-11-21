@@ -20,9 +20,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalDatabase, useQuery } from "@/data/powersync";
-import { formatMinutes, instant } from "@/core/time";
+import { formatMinutes } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import { normaliseTimestamp } from "@/data/mappers";
 import { ALL_PROJECTS_SQL, AREAS_SQL, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
 import { DAY_NOTES_SQL, DROPPED_SQL, LOGBOOK_COMPLETIONS_SQL, LOGBOOK_SQL, TAG_NAMES_SQL, logbookStream } from "@/data/queries/views";
 import { restoreFinished } from "@/data/repositories/finished-restore";
@@ -47,6 +46,7 @@ import { SectionLabel } from "@/ui/section-label";
 import { LogbookFilterBar } from "./logbook-filter-bar";
 import { dayLine, filterKeys, filterLogbookDays, olderLogbookQuery, parseLogbookParams, toLogbookParams, withoutLast, type LogbookFilters } from "./logbook-filters";
 import { logbookDays, type CompletionRow, type LogbookEntry } from "./logbook-days";
+import { NO_OLDER, NO_TAGS, NO_TAG_IDS, NOTES_DAYS, TAGS_BY_ID_SQL, logbookOptions, partDayOf, type DayNote } from "./logbook-options";
 
 /** Reads the query: `?show=expired` (the view Review on Today's digest opens) and the filters. */
 function ParamsFromQuery({ onChange }: { onChange: (query: string) => void }) {
@@ -54,16 +54,6 @@ function ParamsFromQuery({ onChange }: { onChange: (query: string) => void }) {
   useEffect(() => onChange(query), [query, onChange]);
   return null;
 }
-
-type DayNote = { date: string; day_rating: number | null; highlights: string | null };
-const NO_TAGS = `select task_id, name from task_tags where 0`;
-/** The tags by id, lower-cased as the tag filter compares them: an older row names its tags by id. */
-const TAGS_BY_ID_SQL = `select id, lower(name) as name from tags where deleted_at is null`;
-const NO_TAG_IDS = `select id, name from tags where 0`;
-/** How far back the day line looks: the device holds a week of done tasks, dropped ones longer. */
-const NOTES_DAYS = 60;
-/** With "Dropped" alone asked for there is nothing older to fetch: the question that is never sent. */
-const NO_OLDER = { limit: 1 } as const;
 
 /** The way to what was finished before the week the device holds: a page per press, and when there is no more. */
 function ShowOlder({ older, filtering }: { older: Finished; filtering: boolean }) {
@@ -129,7 +119,7 @@ export default function LogbookPage() {
   const finished = useMemo(() => new Map(olderRows.map((r) => [r.id, r])), [olderRows]);
   // While there is more to fetch, the oldest day shown may be cut by the page: its count would be of part of it.
   const lastOlder = older.more && olderRows.length > 0 ? olderRows[olderRows.length - 1].completed_at : null;
-  const partDay = useMemo(() => (lastOlder ? instant(normaliseTimestamp(lastOlder)).toZonedDateTimeISO(zone).toPlainDate().toString() : null), [lastOlder, zone]);
+  const partDay = useMemo(() => partDayOf(lastOlder, zone), [lastOlder, zone]);
   const [peek, setPeek] = useState<FinishedRow | null>(null);
   const removeOlder = older.remove;
   const reopenOlder = useCallback(
@@ -164,26 +154,7 @@ export default function LogbookPage() {
   const { data: tagIdRows } = useQuery<{ id: string; name: string }>(olderRows.length > 0 ? TAGS_BY_ID_SQL : NO_TAG_IDS);
   const { data: noteRows } = useQuery<DayNote>(DAY_NOTES_SQL, [today.subtract({ days: NOTES_DAYS }).toString()]);
   const notes = useMemo(() => new Map((noteRows ?? []).map((n) => [String(n.date).slice(0, 10), n])), [noteRows]);
-  const { options, ctx } = useMemo(() => {
-    const areaOfProject = new Map((projectRows ?? []).map((p) => [p.id, p.area_id]));
-    const tagsByTask = new Map<string, string[]>();
-    for (const t of tagRows ?? []) tagsByTask.set(t.task_id, [...(tagsByTask.get(t.task_id) ?? []), t.name]);
-    // An older task's tags are in its own row, by id; a repeat's occurrence takes its task's, as above.
-    const tagName = new Map((tagIdRows ?? []).map((t) => [t.id, t.name]));
-    for (const f of olderRows) if (!f.occurrence_of && f.tag_ids?.length) tagsByTask.set(f.id, f.tag_ids.flatMap((id) => tagName.get(id) ?? []));
-    const tasks = allDays.flatMap((d) => [...d.done, ...d.dropped]).map((e) => e.task);
-    const projectIds = new Set<string>(tasks.flatMap((t) => (t.projectId ? [t.projectId] : [])));
-    const areaIds = new Set([...projectIds].map((id) => areaOfProject.get(id)).filter((id): id is string => Boolean(id)));
-    const tagNames = [...new Set(tasks.flatMap((t) => tagsByTask.get(t.id) ?? []))].sort();
-    return {
-      options: {
-        projects: (projectRows ?? []).filter((p) => projectIds.has(p.id)).map((p) => ({ id: p.id, name: p.name ?? "Untitled project" })),
-        areas: (areaRows ?? []).filter((a) => areaIds.has(a.id)).map((a) => ({ id: a.id, name: a.name ?? "Untitled area" })),
-        tags: tagNames.map((name) => ({ name })),
-      },
-      ctx: { areaOf: (id: string) => areaOfProject.get(id) ?? null, tagsOf: (id: string) => tagsByTask.get(id) ?? [] },
-    };
-  }, [projectRows, areaRows, tagRows, tagIdRows, olderRows, allDays]);
+  const { options, ctx } = useMemo(() => logbookOptions({ projects: projectRows, areas: areaRows, tags: tagRows, tagIds: tagIdRows, older: olderRows, days: allDays }), [projectRows, areaRows, tagRows, tagIdRows, olderRows, allDays]);
   const days = useMemo(() => filterLogbookDays(allDays, filters, ctx, defaultEstimateMin), [allDays, filters, ctx, defaultEstimateMin]);
 
   // Escape takes off the newest filter, once nothing nearer wants the key (an open task, ticked rows, a dialog).

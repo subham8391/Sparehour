@@ -4,7 +4,7 @@
 // that was already gone (or was never theirs: the two are not told apart). Where the database has not got the
 // function yet the answer is a plain "not available" with a status no caller can take for success.
 import { NextResponse } from "next/server";
-import { createUserScopedClient } from "@/server/auth/supabase";
+import { requestUser } from "@/server/auth/request-user";
 import { notThere, rowId } from "@/server/logbook/older";
 
 export const runtime = "nodejs";
@@ -12,11 +12,9 @@ export const dynamic = "force-dynamic";
 
 const answer = (body: Record<string, unknown>, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createUserScopedClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // The browser's cookie session, or the phone app's access token (server/auth/request-user.ts).
+  const { supabase, user } = await requestUser(req);
   if (!user) return answer({ error: "unauthenticated" }, 401);
   const id = rowId((await params).id);
   if (!id) return answer({ error: "bad_request" }, 400);

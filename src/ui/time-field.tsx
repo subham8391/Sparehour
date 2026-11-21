@@ -4,6 +4,7 @@
 // tap opens the wheel (ui/time-wheel.tsx), never the keyboard: the phone's own picker was the one that could not
 // be used. The wheel is fetched the first time it is wanted, so the shells carry only this field.
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type KeyboardEvent } from "react";
+import { parseTime } from "@/core/time/parse-time";
 import { cx } from "./cx";
 import { fieldClass, type FieldSize } from "./field";
 import { Icon } from "./icons";
@@ -22,13 +23,8 @@ const subscribe = (cb: () => void) => {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** "930", "9:30", "09.30", "21", "9" → "HH:MM"; null for anything that is not a time of day. */
-export function parseTime(text: string): string | null {
-  const m = /^(\d{1,2})(?:[:.h]?(\d{2}))?$/i.exec(text.trim());
-  if (!m) return null;
-  const [h, min] = [Number(m[1]), Number(m[2] ?? 0)];
-  return h < 24 && min < 60 ? `${pad(h)}:${pad(min)}` : null;
-}
+// How a typed time is read: web-free (core/time/parse-time.ts), so the Android app reads one the same way; handed on from here.
+export { parseTime } from "@/core/time/parse-time";
 
 export function TimeField({
   size = "auto",

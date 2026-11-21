@@ -3,16 +3,18 @@
 import { Slot } from "expo-router";
 import { View } from "react-native";
 import { TabBar } from "~/ui/tab-bar";
+import { useInboxCount } from "~/ui/use-inbox-count";
 import { useColours } from "~/ui/theme";
 
 export default function TabsLayout() {
   const c = useColours();
+  const inboxCount = useInboxCount();
   return (
     <View style={{ flex: 1, backgroundColor: c.paper }}>
       <View style={{ flex: 1 }}>
         <Slot />
       </View>
-      <TabBar />
+      <TabBar inboxCount={inboxCount} />
     </View>
   );
 }

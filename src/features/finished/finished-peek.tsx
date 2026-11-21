@@ -8,27 +8,18 @@
 // Keep and Delete, and only that Delete carries the destructive tone. The view closes on the server's word alone;
 // anything else (no connection, an error, a server that cannot delete yet) is said here and nothing is removed.
 import { useId, useState, type KeyboardEvent } from "react";
-import { formatMinutes, formatTime, instant, localDate, type LocalDate } from "@/core/time";
-import { formatDay } from "@/core/time/format-day";
-import { normaliseTimestamp } from "@/data/mappers";
+import type { LocalDate } from "@/core/time";
 import { Button } from "@/ui/button";
 import { Chip } from "@/ui/chip";
 import { Icon } from "@/ui/icons";
 import { Sheet } from "@/ui/sheet";
 import type { FinishedRow } from "./finished";
 import { deleteFinished } from "./finished-delete";
+import { DELETE_WAIT_MS, finishedFacts, finishedWhen } from "./finished-words";
 
-/** How long a delete may go unanswered before the view says it could not: a request that hangs must still end. */
-const DELETE_WAIT_MS = 20_000;
+export { finishedWhen };
 
 const LABEL = "text-label font-semibold uppercase tracking-eyebrow text-ink-3";
-
-/** "Tuesday 3 March · 14:05", in the person's zone; the year when it is not this one. */
-export function finishedWhen(completedAt: string | null, zone: string, today?: LocalDate): string | null {
-  if (!completedAt) return null;
-  const at = instant(normaliseTimestamp(completedAt)).toZonedDateTimeISO(zone);
-  return `${formatDay(at.toPlainDate(), { weekday: "long", month: "long", today })} · ${formatTime(at.toPlainTime())}`;
-}
 
 export function FinishedPeek({
   row,
@@ -92,7 +83,7 @@ export function FinishedPeek({
     if (stage === "asking") keep();
   };
   const when = finishedWhen(row.completed_at, zone, today);
-  const facts = [projectName, row.estimate_min ? formatMinutes(row.estimate_min) : null, row.actual_min ? `took ${formatMinutes(row.actual_min)}` : null, row.deadline ? `due ${formatDay(localDate(String(row.deadline).slice(0, 10)), { today })}` : null].filter(Boolean);
+  const facts = finishedFacts(row, projectName, today);
   const steps = row.checklist ?? [];
   return (
     <Sheet label="Finished task" onClose={deleting ? () => undefined : onClose} onKeyDown={keys} align="center" width="sm" data-testid="finished-peek">

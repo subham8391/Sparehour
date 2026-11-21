@@ -8,11 +8,9 @@
 // no shell carries it (row-islands.tsx).
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { keyBetween } from "@/core/ordering";
 import { compareDates, localDate, type LocalDate } from "@/core/time";
 import { weekdayName } from "@/core/time/format-day";
-import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
-import type { TaskRepo } from "@/data/repositories/task-repo";
+import { useLocalDatabase } from "@/data/powersync";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 import { ReadoutText } from "@/features/upcoming/capacity-bar";
 import { useWeekCapacity } from "@/features/upcoming/use-week-capacity";
@@ -22,37 +20,16 @@ import { DateField } from "@/ui/date-field";
 import { Icon } from "@/ui/icons";
 import { MENU_ITEM, phoneWidth, useAnchoredPlacement, useDismiss } from "@/ui/popover";
 import { RAISED, Sheet, trapTab } from "@/ui/sheet";
+import { moveToDay } from "./move-to-day";
+import { PICKER_DAYS, pickerDayName, pickerDays } from "./picker-days";
 import { useTaskRepo } from "./use-task-repo";
 
-/** How many days the picker lists before "Pick a date". */
-export const PICKER_DAYS = 7;
+// The move itself lives in move-to-day.ts, free of this file's screen parts; it is handed on from here so every
+// import of it from the picker stays as it was.
+export { moveToDay } from "./move-to-day";
 
-/** The open tasks already on a day and in the same part of it, for the place at its end. */
-const LAST_IN_DAY_SQL = `select max(day_sort_key) as k from tasks where do_date = ? and evening = ? and id <> ? and state in ('active', 'inbox')`;
-
-/**
- * Moves a task to `day`, at the end of that day's list and in the same part of it (a This evening task stays in the
- * evening, as a drag keeps it): one statement, one undo entry with its toast ("Moved “X” to Thu 8 Oct"). A task
- * already on that day is left where it is. Someday and Inbox tasks become active, as with any date.
- */
-export async function moveToDay(db: Pick<LocalDatabase, "getOptional">, repo: Pick<TaskRepo, "placeInDay">, id: string, day: LocalDate): Promise<void> {
-  const task = await db.getOptional<{ do_date: string | null; evening: number | null }>(`select do_date, evening from tasks where id = ?`, [id]);
-  if (!task || task.do_date === day.toString()) return;
-  const evening = Boolean(task.evening);
-  const last = (await db.getOptional<{ k: string | null }>(LAST_IN_DAY_SQL, [day.toString(), evening ? 1 : 0, id]))?.k ?? null;
-  await repo.placeInDay(id, day, keyBetween(last, null), evening);
-}
-
-/** The picker's days: today and the six after it. */
-export function pickerDays(today: LocalDate, count = PICKER_DAYS): LocalDate[] {
-  return Array.from({ length: count }, (_, i) => today.add({ days: i }));
-}
-
-/** "Today", "Tomorrow", else "Thu 8": what a day reads as in the list. */
-export function pickerDayName(day: LocalDate, today: LocalDate): string {
-  const ahead = day.since(today, { largestUnit: "days" }).days;
-  return ahead === 0 ? "Today" : ahead === 1 ? "Tomorrow" : `${weekdayName(day)} ${day.day}`;
-}
+// The picker's days and their names live in picker-days.ts, free of this file's screen parts, and are handed on too.
+export { PICKER_DAYS, pickerDayName, pickerDays };
 
 /**
  * The person's next seven days and each one's readout, from the capacity engine Upcoming uses. `ready` once the

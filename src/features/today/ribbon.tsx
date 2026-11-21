@@ -16,6 +16,7 @@ import type { Capacity } from "@/core/capacity";
 import { formatMinutes, formatTime, timeFromMinutes } from "@/core/time";
 import { useRibbonShape } from "@/features/looks/look-shape";
 import { cx } from "@/ui/cx";
+import { heroState, type HeroState } from "./hero-state";
 import type { RibbonOverlayProps } from "./ribbon-overlay";
 
 // The ribbon's hands — the breakdown, the segment names, a click on free time or a meeting (SCREENS.md §2.2) — are
@@ -91,35 +92,9 @@ export interface RibbonLabel {
   hide: "never" | "narrow" | "always";
 }
 
-/** The hero's one state (ruling R3): the spare figure and a spill never share a card. */
-export interface HeroState {
-  /** True when the plan cannot fit: it spills past the end of the day, or it is already over the day's budget. */
-  over: boolean;
-  /** The figure the hero prints: what is spare, or how much is over. */
-  min: number;
-  /** One sentence naming the spill, when there is one: "~40m spills past 18:00". */
-  spill: string | null;
-  /** "done by 16:25" — only when the day finishes with nothing left over. */
-  finish: string | null;
-}
-
-/**
- * Which state the hero is in, for both heroes at once. A plan that spills past
- * the end of the day is over even when the day's budget still looks generous —
- * which is what every evening looks like — so the amber sentence and the green
- * figure can never appear together (ruling R3). After the working day with
- * nothing over, the day's spare figure simply stands.
- */
-export function heroState(c: Capacity): HeroState {
-  const end = c.windows.length > 0 ? c.windows[c.windows.length - 1].end : 0;
-  const spills = c.overflowMin > 0;
-  return {
-    over: spills || c.spareMin < 0,
-    min: spills ? c.overflowMin : Math.abs(c.spareMin),
-    spill: spills ? `~${formatMinutes(c.overflowMin)} spills past ${formatTime(timeFromMinutes(end))}` : null,
-    finish: !spills && c.projectedFinish ? `done by ${formatTime(c.projectedFinish)}` : null,
-  };
-}
+// The hero's state and its rule live in hero-state.ts, free of this file's drawing; they are handed on from here
+// so every import of them from the ribbon stays as it was.
+export { heroState, type HeroState } from "./hero-state";
 
 /** "1h planned outside working hours" (PRODUCT_SPEC.md §10.2). */
 export const outsideHoursLine = (min: number) => `${formatMinutes(min)} planned outside working hours`;

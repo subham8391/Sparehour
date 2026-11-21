@@ -1,6 +1,2 @@
-// The Browse tab. Its screen is not built for the phone yet (ANDROID_APP_SPEC.md §10).
-import { ComingSoon } from "~/screens/coming-soon";
-
-export default function BrowseTab() {
-  return <ComingSoon title="Browse" />;
-}
+// The Browse tab: the phone's sidebar.
+export { Browse as default } from "~/screens/browse/browse";

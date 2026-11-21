@@ -4,19 +4,12 @@
 // writes. It travels with the panel in one island (task-detail.tsx fetches
 // it in idle time), so neither the queries nor the repositories ride in the
 // shell's first download (SYSTEM_DESIGN.md §11.6).
-import { useContext, useEffect, useMemo } from "react";
-import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
+import { useContext, useEffect } from "react";
+import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import { suggestEstimate } from "@/core/estimates";
-import { localDate } from "@/core/time";
-import type { RecurrenceException, TagRef } from "@/core/types";
-import { toChecklistItem, toTask } from "@/data/mappers";
-import { ALL_PROJECTS_SQL, AREAS_SQL, isOpenProject, type AreaRow, type ProjectStateRow } from "@/data/queries/nav";
-import { withAreaNames } from "@/data/queries/project-label";
-import { CHECKLIST_SQL, SERIES_EXCEPTIONS_SQL, TAGS_SQL, TASK_SQL, TASK_TAGS_SQL, PROJECT_HEADINGS_SQL } from "@/data/queries/views";
 import type { SeriesRepo } from "@/data/repositories/series-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { setTook } from "@/data/repositories/took";
-import type { TaskRow as TaskRowType } from "@/data/schema.client";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { learnedIsOld } from "@/features/estimates/learned-store";
 import { useLearned } from "@/features/estimates/use-learned";
@@ -31,9 +24,8 @@ import { Opening } from "./task-detail-surface";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useChecklistRepo, useTagRepo } from "./use-repos";
 import { useConvertToProject } from "./use-convert";
+import { useTaskDetail } from "./use-task-detail";
 import { useTaskRepo } from "./use-task-repo";
-
-type ChecklistRow = Parameters<typeof toChecklistItem>[0];
 
 export function TaskDetail({ id, field = null, onClose }: { id: string; field?: FieldRequest | null; onClose: () => void }) {
   const repo = useTaskRepo();
@@ -49,37 +41,16 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
   const blocking = useBlockingOptional();
   // Convert to project closes the detail and opens the new project, cursor in its add row.
   const convert = useConvertToProject(repo, onClose);
-  const { data: rows, isLoading } = useQuery<TaskRowType>(TASK_SQL, [id]);
-  const { data: projectRows } = useQuery<ProjectStateRow>(ALL_PROJECTS_SQL);
-  const { data: areaRows } = useQuery<AreaRow>(AREAS_SQL);
-  const { data: checklistRows } = useQuery<ChecklistRow>(CHECKLIST_SQL, [id]);
-  const { data: tagRows } = useQuery<TagRef>(TASK_TAGS_SQL, [id]);
-  const projectId = rows?.[0]?.project_id ?? null;
-  const { data: headingRows } = useQuery<{ id: string; title: string | null }>(projectId ? PROJECT_HEADINGS_SQL : `select * from headings where 0`, projectId ? [projectId] : []);
-  const { data: allTagRows } = useQuery<TagRef>(TAGS_SQL);
-  const seriesId = rows?.[0]?.recurrence_rule ? (rows[0].recurrence_series_id ?? rows[0].id) : null;
-  const { data: exceptionRows } = useQuery<ExceptionRow>(seriesId ? SERIES_EXCEPTIONS_SQL : `select * from recurrence_exceptions where 0`, seriesId ? [seriesId] : []);
-  const exceptions = useMemo(() => (exceptionRows ?? []).map(toException), [exceptionRows]);
-  const checklist = useMemo(() => (checklistRows ?? []).map(toChecklistItem), [checklistRows]);
-  const task = rows?.[0] ? toTask(rows[0]) : null;
-  // The picker offers projects work can still go into; the label names the task's own project whatever its state.
-  const allProjects = useMemo(
-    () => withAreaNames(projectRows ?? [], areaRows ?? []).map((p) => ({ id: p.id, name: p.name ?? "Untitled project", areaId: p.area_id, area: p.area, open: isOpenProject(p.state) })),
-    [projectRows, areaRows],
-  );
-  const projects = useMemo(() => allProjects.filter((p) => p.open), [allProjects]);
-  const project = allProjects.find((p) => p.id === task?.projectId) ?? null;
-  // A project task's area is its project's; a loose task names its own (a project or an area, never both).
-  const area = (areaRows ?? []).find((a) => a.id === (project ? project.areaId : task?.areaId)) ?? null;
-  const areas = useMemo(() => (areaRows ?? []).map((a) => ({ id: a.id, name: a.name ?? "Untitled area" })), [areaRows]);
+  // The task and everything about it the panel shows: read in a web-free hook the Android app's detail shares (use-task-detail.ts).
+  const { task, row, missing, project, area, projects, areas, headings, checklist, tags, allTags, exceptions } = useTaskDetail(id);
 
   // The notes' Markdown renderer is its own small chunk: fetched as the detail opens, so a note is drawn, not flashed as raw text.
   useEffect(() => void preloadMarkdown(), []);
 
   // The task left this device (completed elsewhere, dropped, synced away): close rather than show a blank.
   useEffect(() => {
-    if (!isLoading && rows && rows.length === 0) onClose();
-  }, [isLoading, rows, onClose]);
+    if (missing) onClose();
+  }, [missing, onClose]);
 
   if (!task) return <Opening />;
   const patch = (p: TaskPatch) => void repo.update(task.id, p);
@@ -92,11 +63,11 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       areaName={area?.name ?? null}
       projects={projects}
       areas={areas}
-      headings={(headingRows ?? []).map((h) => ({ id: h.id, title: h.title ?? "Untitled heading" }))}
+      headings={headings}
       onHeading={(headingId) => void repo.setHeading(task.id, headingId)}
       checklist={checklist}
-      tags={tagRows ?? []}
-      allTags={allTagRows ?? []}
+      tags={tags}
+      allTags={allTags}
       now={now}
       zone={zone}
       today={today}
@@ -114,7 +85,7 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
       blockRows={<BlockRows taskId={task.id} estimateMin={task.estimateMin} zone={zone} today={today} />}
-      took={rows?.[0]?.actual_min ?? null}
+      took={row?.actual_min ?? null}
       onTook={(minutes) => void setTook(db, undo, task.id, minutes).then(learnedIsOld)}
       usual={suggestEstimate(learned, task, defaultEstimate)?.minutes ?? null}
       onConvert={() => void convert(task.id)}
@@ -132,13 +103,4 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onResume={() => series((s) => s.resume(task.id))}
     />
   );
-}
-
-type ExceptionRow = { occurrence_date: string; kind: string; moved_to: string | null };
-
-/** An exception row as the recurrence engine reads it: a move with the day it went to, else a skip. */
-function toException(e: ExceptionRow): RecurrenceException {
-  return e.kind === "move" && e.moved_to
-    ? { occurrenceDate: localDate(e.occurrence_date.slice(0, 10)), kind: "move", movedTo: localDate(e.moved_to.slice(0, 10)) }
-    : { occurrenceDate: localDate(e.occurrence_date.slice(0, 10)), kind: "skip" };
 }

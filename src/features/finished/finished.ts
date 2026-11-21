@@ -86,9 +86,15 @@ export function finishedUrl(q: FinishedQuery): string {
   return query ? `/api/logbook/older?${query}` : "/api/logbook/older";
 }
 
+/**
+ * How the app's own API is called. The browser's `fetch` when left out (the session cookie says who is asking); the
+ * Android app hands in its own, which sends the session's token to the same routes (mobile/src/api.ts).
+ */
+export type ApiFetch = (path: string, init?: RequestInit) => Promise<Response>;
+
 /** One page, newest first. Throws when the server cannot be reached or answers with an error. */
-export async function fetchFinished(q: FinishedQuery, signal?: AbortSignal): Promise<FinishedPage> {
-  const res = await fetch(finishedUrl(q), { signal, credentials: "same-origin", headers: { accept: "application/json" } });
+export async function fetchFinished(q: FinishedQuery, signal?: AbortSignal, api?: ApiFetch): Promise<FinishedPage> {
+  const res = await (api ?? fetch)(finishedUrl(q), { signal, credentials: "same-origin", headers: { accept: "application/json" } });
   if (!res.ok) throw new Error(`older finished tasks: ${res.status}`);
   const body = (await res.json()) as Partial<FinishedPage>;
   return { available: body.available !== false, rows: Array.isArray(body.rows) ? body.rows : [], more: body.more === true };

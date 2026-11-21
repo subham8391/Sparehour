@@ -3,7 +3,7 @@ import type { Capacity } from "@/core/capacity";
 import { todaySummary } from "./today-summary";
 
 const cap = (over: Partial<Capacity>): Capacity =>
-  ({ state: "ok", reason: null, workMin: 480, busyMin: 60, gapMin: 0, bufferMin: 72, committedMin: 90, unscheduledMin: 65, spareMin: 193, overMin: 0, projectedFinish: null, ...over }) as unknown as Capacity;
+  ({ state: "ok", reason: null, workMin: 480, busyMin: 60, gapMin: 0, bufferMin: 72, committedMin: 90, unscheduledMin: 65, spareMin: 193, overMin: 0, overflowMin: 0, windows: [{ start: 540, end: 1080 }], projectedFinish: null, ...over }) as unknown as Capacity;
 
 describe("todaySummary", () => {
   it("says nothing until the day is known, and names a day with no hours or out of office", () => {
@@ -30,11 +30,18 @@ describe("todaySummary", () => {
 
   it("an empty day says so, and a day over says by how much with no spare on the bar", () => {
     expect(todaySummary(cap({ committedMin: 0, unscheduledMin: 0, busyMin: 0, spareMin: 408 }))).toMatchObject({ kind: "spare", figure: "6h 48m", line: "nothing planned yet" });
-    const over = todaySummary(cap({ committedMin: 300, unscheduledMin: 220, spareMin: 0, overMin: 70 }));
+    const over = todaySummary(cap({ committedMin: 300, unscheduledMin: 220, spareMin: -70, overMin: 70 }));
     expect(over).toMatchObject({ kind: "over", figure: "1h 10m", line: "8h 40m planned · 1h in meetings" });
     if (over.kind === "none") throw new Error("expected a figure");
     expect(over.shares.spare).toBe(0);
     // A share never runs past the bar.
     expect(over.shares.planned).toBe(1);
+  });
+
+  it("a plan that spills past the end of the day is over, by the spill, as the web's hero says it", () => {
+    const spilled = todaySummary(cap({ spareMin: 120, overflowMin: 40 }));
+    expect(spilled).toMatchObject({ kind: "over", figure: "40m" });
+    if (spilled.kind === "none") throw new Error("expected a figure");
+    expect(spilled.line).toContain("~40m spills past 18:00");
   });
 });

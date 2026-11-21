@@ -18,20 +18,12 @@ import { Icon, type IconName } from "@/ui/icons";
 import { Kbd } from "@/ui/kbd";
 import { displayShortcut } from "@/features/commands/keys";
 import { EYEBROW } from "@/ui/section-label";
-import { SIDEBAR_VIEWS, VIEWS, countLabel, isActive, type NavCounts, type NavView, type ViewId } from "./nav";
+import { SIDEBAR_VIEWS, VIEWS, countLabel, isActive, type NavCounts, type NavView } from "./nav";
 import { toggleSidebar } from "./panes";
 import { SyncChip, type SyncChipModel } from "./sync-chip";
+import { VIEW_ICONS } from "./view-icons";
 
-export const VIEW_ICONS: Record<ViewId, IconName> = {
-  inbox: "inbox",
-  today: "sun",
-  upcoming: "calendar-week",
-  calendar: "calendar",
-  someday: "moon",
-  logbook: "book",
-  browse: "grid",
-  settings: "sliders",
-};
+export { VIEW_ICONS };
 
 export interface NavProject {
   id: string;

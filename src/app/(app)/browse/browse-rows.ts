@@ -1,8 +1,8 @@
 // Browse's own rows after the areas (SCREENS.md §1 "Responsive", §22): Someday,
 // Logbook, Carried over, Settings. Pure.
 import { BROWSE_VIEWS, type NavView } from "@/features/shell/nav";
-import { VIEW_ICONS } from "@/features/shell/sidebar";
-import type { IconName } from "@/ui/icons";
+import { VIEW_ICONS } from "@/features/shell/view-icons";
+import type { IconName } from "@/ui/icon-paths";
 
 export interface BrowseRow {
   id: string;

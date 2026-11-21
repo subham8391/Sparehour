@@ -4,15 +4,12 @@
 // (PRODUCT_SPEC.md §5.4). `M` adds the areas themselves, where a task can sit loose (tasks.area_id, DECISIONS.md
 // "Loose tasks in an area"): given `areaTargets`, they are listed after the projects. Presentational.
 import { useMemo, useState } from "react";
-import { fuzzyScore } from "@/features/commands/fuzzy";
-import { projectOptionLabel, type LabelledProject } from "@/data/queries/project-label";
-import { PickerSheet, type PickerOption } from "./picker-sheet";
+import { moveOptions, type MoveProject, type MoveTarget } from "./move-options";
+import { PickerSheet } from "./picker-sheet";
 
-export interface MoveProject extends LabelledProject {
-  areaId: string | null;
-}
-
-export type MoveTarget = { kind: "project"; id: string | null; name: string | null } | { kind: "area"; id: string; name: string };
+// The rows themselves live in move-options.ts, free of this file's sheet; they are handed on from here so every
+// import of them from the picker stays as it was.
+export { moveOptions, type MoveProject, type MoveTarget } from "./move-options";
 
 export interface MovePickerProps {
   /** How many tasks move: "Move 3 tasks to…" names the sheet. */
@@ -26,39 +23,6 @@ export interface MovePickerProps {
   areaTargets?: readonly { id: string; name: string }[];
   onPick: (target: MoveTarget) => void;
   onClose: () => void;
-}
-
-const NO_AREA = "No area";
-
-/** The rows in the order the sheet lists them: No project, then each area's projects under its name, then loose ones. */
-export function moveOptions(p: Omit<MovePickerProps, "onClose" | "count">, query: string): PickerOption[] {
-  const q = query.trim();
-  const matches = (text: string) => !q || fuzzyScore(q, text) > 0;
-  const groupOf = (areaId: string | null) => (areaId ? (p.areaOrder.find((a) => a.id === areaId)?.name ?? NO_AREA) : NO_AREA);
-  const order = [...p.areaOrder.map((a) => a.name), NO_AREA];
-  const out: PickerOption[] = [];
-  if (matches("No project")) {
-    out.push({ key: "none", label: "No project", icon: "inbox", current: p.currentProjectId === null, pick: () => p.onPick({ kind: "project", id: null, name: null }) });
-  }
-  const projects = p.projects
-    .filter((x) => matches(x.name) || (x.area ? matches(`${x.name} ${x.area}`) : false))
-    .map((x) => ({ x, group: groupOf(x.areaId), score: q ? fuzzyScore(q, x.name) : 0 }))
-    // Grouped as the sidebar orders areas; with a query, the best match leads inside its group.
-    .sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || b.score - a.score);
-  for (const { x, group } of projects) {
-    out.push({
-      key: `p:${x.id}`,
-      label: projectOptionLabel(x, p.projects),
-      group,
-      icon: "grid",
-      current: p.currentProjectId === x.id,
-      pick: () => p.onPick({ kind: "project", id: x.id, name: x.name }),
-    });
-  }
-  for (const a of p.areaTargets ?? []) {
-    if (matches(a.name)) out.push({ key: `a:${a.id}`, label: a.name, hint: "Area", group: "Areas", icon: "grid", pick: () => p.onPick({ kind: "area", id: a.id, name: a.name }) });
-  }
-  return out;
 }
 
 export function MovePicker(p: MovePickerProps) {

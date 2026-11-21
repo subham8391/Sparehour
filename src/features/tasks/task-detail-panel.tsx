@@ -8,12 +8,10 @@
 // the footer sits above the safe area and the quiet actions fold into a menu.
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, useLayoutEffect } from "react";
 import { readTypedDate, type TypedDate as TypedDateValue } from "@/core/quickadd/read-date";
-import { ruleToSpec, specToRule } from "@/core/quickadd/recurrence";
-import { occurrencesAfter } from "@/core/recurrence";
-import { compareDates, formatMinutes, formatTime, localDate, localTime, type Instant, type LocalDate, type LocalTime } from "@/core/time";
+import { formatMinutes, formatTime, localDate, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { parseLength } from "@/core/time/parse-length";
-import type { ChecklistItem, MissPolicy, Priority, RecurrenceException, RecurrenceMode, TagRef, Task } from "@/core/types";
+import type { ChecklistItem, RecurrenceException, RecurrenceMode, TagRef, Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
@@ -32,9 +30,29 @@ import { TimeField } from "@/ui/time-field";
 import { projectOptionLabel } from "@/data/queries/project-label";
 import { dayLabel } from "@/features/quickadd/interpret";
 import { Checklist } from "./checklist";
-import { repeatPolicy } from "./repeat-policy";
+import {
+  MISS_POLICIES,
+  PRIORITIES,
+  asksSeriesDay,
+  carriedWords,
+  detailActions,
+  dueBeforeDo as isDueBeforeDo,
+  movesDay,
+  nextRepeats,
+  readRepeat,
+  repeatChange,
+  repeatValue,
+  stopRepeat,
+  tagDraft,
+  timePatch,
+  typedDateValue,
+  typedDateWords,
+  unattachedTags,
+  type SeriesDayChange,
+} from "./detail-rules";
 import { PausePicker, pausedUntil, RepeatLine, SeriesPrompt } from "./series-controls";
 import { UsualLine } from "@/features/estimates/usual-line";
+import { dateChoices } from "./date-choices";
 import { DefaultEstimate } from "./default-estimate";
 import { ESTIMATE_PRESETS, guessLabel } from "./estimate-presets";
 import { BLOCK_GLYPH } from "./task-actions";
@@ -106,24 +124,9 @@ export interface TaskDetailPanelProps {
   onResume?: () => void;
 }
 
-/** The new day of an occurrence as the Do field picked it, with the time and evening flag that came with it. */
-export interface SeriesDayChange {
-  doDate: LocalDate;
-  doTime?: LocalTime | null;
-  evening?: boolean;
-}
-
-const PRIORITIES: { value: Priority; label: string }[] = [
-  { value: 0, label: "None" },
-  { value: 3, label: "!1 High" },
-  { value: 2, label: "!2 Medium" },
-  { value: 1, label: "!3 Low" },
-];
-const MISS_POLICIES: { value: MissPolicy; label: string; help: string }[] = [
-  { value: "carry", label: "Carry over", help: "It moves to the next day and counts as carried." },
-  { value: "skip", label: "Skip this one", help: "Suits routines — a missed one just doesn't count." },
-  { value: "expire", label: "Expire", help: "It goes to the Logbook as missed." },
-];
+// The detail's rules and words, apart from how they are drawn here, are web-free (detail-rules.ts): the Android
+// app's task detail reads the same ones. The day an occurrence moves to is handed on from here.
+export type { SeriesDayChange } from "./detail-rules";
 
 /** A choice inside a panel: the chip that is a button (DESIGN_SYSTEM.md §5 "Chips"). */
 const PICK = chipButtonClass();
@@ -268,12 +271,10 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
     setTitle(task.title);
   }
 
-  const done = task.state === "done";
+  const can = detailActions(task);
+  const done = can.done;
   const presets = useMemo(() => snoozePresets(p.now, p.zone, today), [p.now, p.zone, today]);
-  const repeatPreview = useMemo(() => {
-    if (!task.recurrenceRule) return [];
-    return occurrencesAfter(task.recurrenceRule, task.doDate ?? today, today, 3);
-  }, [task.recurrenceRule, task.doDate, today]);
+  const repeatPreview = useMemo(() => nextRepeats({ recurrenceRule: task.recurrenceRule, doDate: task.doDate }, today), [task.recurrenceRule, task.doDate, today]);
 
   const commitTitle = () => {
     const next = title.trim();
@@ -300,12 +301,12 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
     el.style.height = `${el.scrollHeight}px`;
   }, [title]);
   const applyRepeat = (spec: string) => {
-    const parsed = specToRule(spec.trim().replace(/^every\s+/i, ""));
+    const parsed = readRepeat(spec);
     if (!parsed) return false;
     // A task that already repeats changes its rule: the series starts again from today (SYSTEM_DESIGN.md §5.2).
-    if (task.recurrenceRule && p.onChangeRule) {
-      if (parsed.rule !== task.recurrenceRule) p.onChangeRule(parsed.rule, task.recurrenceMode ?? "fixed");
-    } else onPatch({ recurrenceRule: parsed.rule, recurrenceMode: task.recurrenceMode ?? "fixed", ...repeatPolicy(task, parsed.rule) });
+    const change = repeatChange(task, parsed.rule, Boolean(p.onChangeRule));
+    if (change?.kind === "rule") p.onChangeRule?.(change.rule, change.mode);
+    else if (change) onPatch(change.patch);
     setRepeatSpec("");
     return true;
   };
@@ -313,9 +314,9 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   // A new do-date on a repeating task asks first: just this once, or change the rule (SCREENS.md §10). The time
   // alone, the evening flag alone and clearing the day are not asked (DECISIONS.md "Time-only change on a repeat").
   const [pendingDo, setPendingDo] = useState<{ change: SeriesDayChange; focus: boolean } | null>(null);
-  const asksSeries = Boolean(task.recurrenceRule && task.doDate && p.onSeriesDay && !done);
+  const asksSeries = asksSeriesDay(task, Boolean(p.onSeriesDay));
   const pickDo = (patch: TaskPatch, close: (() => void) | null) => {
-    if (asksSeries && patch.doDate && task.doDate && !patch.doDate.equals(task.doDate)) {
+    if (asksSeries && movesDay(task, patch)) {
       setPendingDo({ change: { doDate: patch.doDate, doTime: patch.doTime, evening: patch.evening }, focus: close !== null });
       return;
     }
@@ -339,7 +340,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
     if (pauseRequest > 0) setPauseOpen(true);
   }
   const paused = pausedUntil(task, today);
-  const repeating = Boolean(task.recurrenceRule) && !done;
+  const repeating = can.repeating;
 
   const doValue = task.doDate ? (
     <>
@@ -353,15 +354,15 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
   const deadlineValue = task.deadline ? <Chip tone={deadlineWording(task.deadline, today).near ? "near" : "deadline"}>{formatDay(task.deadline, { today })}</Chip> : <Muted>—</Muted>;
   /** The open request for a field's picker, as the count its row watches. */
   const asked = (name: DetailField) => (p.fieldRequest?.name === name ? p.fieldRequest.seq : 0);
-  const dueBeforeDo = !done && task.deadline != null && task.doDate != null && compareDates(task.deadline, task.doDate) < 0;
+  const dueBeforeDo = isDueBeforeDo(task);
   const quietActions = (
     <>
-      {task.state !== "someday" && !done && (
+      {can.someday && (
         <Button variant="quiet" className="max-sm:hidden" onClick={p.onSomeday}>
           Someday
         </Button>
       )}
-      {task.state !== "dropped" && (
+      {can.drop && (
         // Drop is undoable, so it stays ink; the deadline role is for Delete alone (DESIGN_SYSTEM.md §2).
         <Button variant="quiet" className="max-sm:hidden" onClick={p.onDrop}>
           Drop
@@ -369,12 +370,12 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
       )}
     </>
   );
-  const hasQuiet = (task.state !== "someday" && !done) || task.state !== "dropped";
+  const hasQuiet = can.someday || can.drop;
   // An open or parked task can become a project; a finished, dropped or archived one cannot.
-  const onConvert = p.onConvert && !done && task.state !== "dropped" && task.state !== "archived" ? p.onConvert : undefined;
+  const onConvert = p.onConvert && can.convert ? p.onConvert : undefined;
   const seriesActions = repeating && Boolean(p.onSkipOccurrence || p.onPause || p.onResume);
   /** Still open: it can be filed and tagged from the menu. */
-  const open = task.state === "inbox" || task.state === "active" || task.state === "someday";
+  const open = can.open;
 
   return (
     // flex-1, not h-full: on the phone the sheet's grabber sits above, and a full height pushed the footer off the screen.
@@ -445,7 +446,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                     clearable
                     className="flex-1"
                     value={task.doTime ? task.doTime.toString({ smallestUnit: "minute" }) : ""}
-                    onChange={(v) => onPatch({ doTime: v ? localTime(v) : null, ...(v && !task.doDate ? { doDate: today } : {}) })}
+                    onChange={(v) => onPatch(timePatch(task, v, today))}
                   />
                 </label>
                 {task.doDate && <Clear onClick={() => pickDo({ doDate: null, doTime: null, evening: false }, close)}>No day</Clear>}
@@ -492,7 +493,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
             {(close) => <EstimatePicker value={task.estimateMin} onChange={(m) => (onPatch({ estimateMin: m }), close())} />}
           </FieldRow>
           {/* What finished tasks say about this estimate: said, and taken only with a tap (DECISIONS.md, amendment 2026-11-15). */}
-          {p.usual != null && !done && task.state !== "dropped" && <UsualLine className="min-h-11 px-4 py-1.5 sm:px-5" minutes={p.usual} onUse={() => onPatch({ estimateMin: p.usual })} />}
+          {p.usual != null && can.usual && <UsualLine className="min-h-11 px-4 py-1.5 sm:px-5" minutes={p.usual} onUse={() => onPatch({ estimateMin: p.usual })} />}
           {done && p.onTook && (
             <FieldRow label="Took" value={p.took ? <Chip>{formatMinutes(p.took)}</Chip> : <Muted>—</Muted>}>
               {(close) => <EstimatePicker value={p.took ?? null} clear="Not recorded" onChange={(m) => (p.onTook?.(m), close())} />}
@@ -562,7 +563,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
 
           <FieldRow
             label="Repeat"
-            value={task.recurrenceRule ? `every ${ruleToSpec(task.recurrenceRule)}${task.recurrenceMode === "after_completion" ? ", after completion" : ""}` : <Muted>Never</Muted>}
+            value={repeatValue(task) ?? <Muted>Never</Muted>}
             request={asked("repeat") + pauseRequest}
             onClosed={() => setPauseOpen(false)}
           >
@@ -589,7 +590,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                       <Checkbox className="-ml-3" checked={task.recurrenceMode === "after_completion"} onChange={(e) => onPatch({ recurrenceMode: e.target.checked ? "after_completion" : "fixed" })} />
                       Count from when I complete it
                     </label>
-                    <Clear onClick={() => (onPatch({ recurrenceRule: null, recurrenceMode: null, ...repeatPolicy(task, null) }), close())}>Never</Clear>
+                    <Clear onClick={() => (onPatch(stopRepeat(task)), close())}>Never</Clear>
                   </>
                 )}
                 {seriesActions && (
@@ -645,12 +646,7 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
           <NoteField value={task.notes} onSave={(next) => onPatch({ notes: next })} label="Notes" placeholder="Anything worth remembering." />
         </section>
 
-        {(task.carryCount > 0 || task.lastCarriedAt) && (
-          <p className="mt-4 text-body-sm text-ink-3">
-            Carried over {task.carryCount} {task.carryCount === 1 ? "time" : "times"}
-            {task.lastCarriedAt && `, last ${dayLabel(task.lastCarriedAt, today).toLowerCase()}`}
-          </p>
-        )}
+        {carriedWords(task, today) && <p className="mt-4 text-body-sm text-ink-3">{carriedWords(task, today)}</p>}
       </div>
 
       {/* Complete first, Block beside it; Someday and Drop stay quiet on the right, and on a phone fold into a menu so the footer fits at 360 px. */}
@@ -688,12 +684,12 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
                       Pause repeats until…
                     </button>
                   )}
-                  {task.state !== "someday" && !done && (
+                  {can.someday && (
                     <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onSomeday())}>
                       Someday
                     </button>
                   )}
-                  {task.state !== "dropped" && (
+                  {can.drop && (
                     <button type="button" role="menuitem" className={cx(MENU_ITEM, "sm:hidden")} onClick={() => (close(), p.onDrop())}>
                       Drop
                     </button>
@@ -736,9 +732,8 @@ export function TaskDetailPanel(p: TaskDetailPanelProps) {
 function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; allTags: readonly TagRef[]; onAdd?: (name: string) => void; onRemove?: (tagId: string) => void }) {
   const [draft, setDraft] = useState("");
   const listId = useId();
-  const attached = new Set(tags.map((t) => t.id));
   const add = () => {
-    const name = draft.trim().replace(/^@/, "");
+    const name = tagDraft(draft);
     if (!name) return;
     onAdd?.(name);
     setDraft("");
@@ -772,11 +767,9 @@ function Tags({ tags, allTags, onAdd, onRemove }: { tags: readonly TagRef[]; all
           className={cx(BARE, "h-11 min-w-24 flex-1 text-body text-ink sm:h-9 touch:h-11")}
         />
         <datalist id={listId}>
-          {allTags
-            .filter((t) => !attached.has(t.id))
-            .map((t) => (
-              <option key={t.id} value={t.name} />
-            ))}
+          {unattachedTags(allTags, tags).map((t) => (
+            <option key={t.id} value={t.name} />
+          ))}
         </datalist>
       </div>
     </section>
@@ -808,7 +801,7 @@ export function TypedDate({
   const [missed, setMissed] = useState(false);
   const hintId = useId();
   const read = text.trim() ? readTypedDate(text, { now, zone, today }) : null;
-  const preview = read && `${dayLabel(read.date, today)}${withTime ? (read.time ? ` ${formatTime(read.time)}` : read.evening ? ", evening" : "") : ""}`;
+  const preview = read && typedDateWords(read, today, withTime);
   return (
     <div className="flex flex-col gap-1">
       <input
@@ -827,7 +820,7 @@ export function TypedDate({
         onKeyDown={(e) => {
           if (e.key !== "Enter") return;
           e.preventDefault();
-          if (read) onApply(withTime ? read : { ...read, time: null, evening: false });
+          if (read) onApply(typedDateValue(read, withTime));
           else if (text.trim()) setMissed(true);
         }}
         className={FIELD_INPUT}
@@ -867,9 +860,7 @@ export function DatePicker({
   autoFocus?: boolean;
   onChange: (d: LocalDate | null) => void;
 }) {
-  const days = [{ label: "Today", date: today }];
-  for (const s of presets) if (!days.some((d) => d.date.equals(s.patch.doDate))) days.push({ label: s.label, date: s.patch.doDate });
-  if (!days.some((d) => d.date.equals(today.add({ days: 7 })))) days.push({ label: "In a week", date: today.add({ days: 7 }) });
+  const days = dateChoices(today, presets);
   return (
     <>
       <TypedDate now={now} zone={zone} today={today} autoFocus={autoFocus} onApply={(d) => onChange(d.date)} />
