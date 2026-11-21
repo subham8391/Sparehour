@@ -4,35 +4,19 @@
 // keeps the way to make it again: ⇧⌘Z (Ctrl+Y), the palette's Redo, and the
 // toast that confirms the undo (DECISIONS.md "Redo"). A new write clears it.
 import dynamic from "next/dynamic";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import type * as RedoCapture from "@/data/repositories/redo-capture";
 import type { TookAsk, UndoRecord } from "@/data/repositories/undo";
 import { preloadOnIdle } from "@/features/shell/preload-on-idle";
 import { Button } from "@/ui/button";
 import { Toast } from "@/ui/toast";
+import { UndoContext, type UndoApi } from "./undo-context";
 import { UndoHistory, redoneWords, undoneWords, type UndoEntry } from "./undo-stack";
 
-export interface UndoSink {
-  /** A repository's record (the rows it declares make it redoable), or a screen's own entry (its undo resolves its redo). */
-  record: (entry: UndoEntry | UndoRecord) => void;
-}
-
-interface UndoApi extends UndoSink {
-  /** Undo the latest entry; resolves false when there was nothing to undo. */
-  undo: () => Promise<boolean>;
-  /** Make the latest undone entry again; resolves false when there was nothing to redo. */
-  redo: () => Promise<boolean>;
-  canUndo: boolean;
-  canRedo: boolean;
-}
-
-const UndoContext = createContext<UndoApi | null>(null);
-
-/** The sink for repositories; null outside the provider (tests, scripts) so writes still work. */
-export function useUndoSink(): UndoSink | null {
-  return useContext(UndoContext);
-}
+// The context and its sink live in undo-context.ts, free of this file's screen parts; they are handed on from here
+// so every screen keeps importing them from one place.
+export { useUndoSink, type UndoSink } from "./undo-context";
 
 /** The full API, or null outside the provider. */
 export function useUndoOptional(): UndoApi | null {
