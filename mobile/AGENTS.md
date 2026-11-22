@@ -47,6 +47,7 @@ This folder is Sparehour's Android app. Read `../docs/mobile/ANDROID_APP_SPEC.md
 - The rules and the data layer are not copied here. They are read from `../src` (`@/…`); this app's own code is `~/…`. Do not duplicate a rule, a query or a mapper into this folder: change it in `../src`, where the web app's tests cover it.
 - `src/sync/adapter.ts` stands in for `../src/data/powersync/index.ts` (Metro and Jest swap it). Keep the two files' exports the same.
 - Anything imported from `../src` must be free of web-only code (`next/*`, `@/ui/*`, the DOM). If a shared hook pulls one in, split the web part out in `../src`, as `features/undo/undo-context.ts` was.
+- The phone's engine (Hermes) is not a browser and not Node. What the shared code takes from a browser and Hermes lacks is put in by `src/polyfills/` before anything runs: `crypto.randomUUID`/`getRandomValues` (every new row's id; a missing one made every save fail on the phone, 2026-11-22) and `Intl.supportedValuesOf("timeZone")`. The tests run without Node's own `crypto` and zone list (`src/test-setup.ts`), so shared code reaching for another browser or Node global fails a test: add it to the polyfills, or guard it, never work around it in one screen. Hermes's `Intl` has no `RelativeTimeFormat`, `ListFormat`, `PluralRules`, `Segmenter` or `DisplayNames`.
 - Checks: `npm run typecheck`, `npm test`, `npm run bundle` (builds the Android JavaScript bundle; proves the shared code resolves).
 
 ## Building a screen

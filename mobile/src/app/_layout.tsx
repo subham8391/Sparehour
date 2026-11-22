@@ -2,6 +2,8 @@
 // the screens as a stack: the four tabs ((tabs)/) at the bottom of it, and whatever is opened from them pushed over.
 // Signed out, the sign-in screen stands in for every route; signed in, nothing is drawn until the copy on the phone
 // is known to be this person's own.
+// First, before anything can make a new row: what the shared code takes from a browser and Hermes lacks (crypto).
+import "~/polyfills";
 import { Stack } from "expo-router/stack";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";

@@ -226,7 +226,8 @@ describe("<TaskDetailView> Do, Deadline and Starts", () => {
     await open("Do");
     await press("Time, none");
     await press("14 hours");
-    await press("30 minutes");
+    // The picker starts at the clock rounded up, so between :26 and :30 past the hour this one is already ", chosen".
+    await press(/^30 minutes/);
     await press("Set 14:30");
     expect(p.onPatch).toHaveBeenCalledWith({ doTime: localTime("14:30"), doDate: today });
   });

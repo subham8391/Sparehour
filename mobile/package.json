@@ -47,6 +47,7 @@
     "expo": "~58.0.26",
     "expo-clipboard": "~58.0.4",
     "expo-constants": "~58.0.16",
+    "expo-crypto": "~58.0.8",
     "expo-device": "~58.0.5",
     "expo-file-system": "~58.0.14",
     "expo-font": "~58.0.12",
@@ -117,6 +118,9 @@
       "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|standard-navigation|@powersync|temporal-polyfill|temporal-utils))",
       "/node_modules/react-native-reanimated/plugin/",
       "/node_modules/@react-native/babel-preset/"
+    ],
+    "setupFiles": [
+      "<rootDir>/src/test-setup.ts"
     ]
   },
   "overrides": {
