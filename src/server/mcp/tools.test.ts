@@ -31,6 +31,12 @@ async function rpc(access: Access, method: string, params: Record<string, unknow
   return { status: res.status, json: JSON.parse(body) };
 }
 
+/** The draft code the server gives a task, as an assistant reads it. */
+async function codeOf(task: Record<string, unknown>): Promise<string> {
+  return /Draft code: ([0-9a-f]{6})/.exec((await call("write", "draft_task", { tasks: [task] })).text)?.[1] ?? "none";
+}
+const drafted = async (task: Record<string, unknown>) => ({ ...task, draft: await codeOf(task) });
+
 async function call(access: Access, name: string, args: Record<string, unknown> = {}) {
   const r = await rpc(access, "tools/call", { name, arguments: args });
   expect(r.status).toBe(200);
@@ -46,24 +52,31 @@ beforeEach(() => {
 });
 
 describe("the Sparehour MCP server", () => {
-  it("introduces itself with its instructions and lists seven reads and seven writes, annotated, and no list tools", async () => {
+  it("introduces itself with its instructions and lists its reads and writes, annotated, and no list tools", async () => {
     const init = await rpc("write", "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } });
     expect(init.json.result.serverInfo).toMatchObject({ name: "sparehour", title: "Sparehour" });
     expect(init.json.result.instructions).toBe(SERVER_INSTRUCTIONS);
     const { tools } = (await rpc("write", "tools/list")).json.result as { tools: { name: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean }; inputSchema: { properties?: Record<string, unknown> } }[] };
     const reads = tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name);
     const writes = tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name);
-    expect(reads).toEqual(["get_today", "get_inbox", "get_upcoming", "get_task", "search", "list_projects", "plan_day"]);
-    expect(writes).toEqual(["apply_day_plan", "add_task", "complete_task", "reopen_task", "reschedule_task", "update_task", "drop_task"]);
-    expect(init.json.result.instructions).not.toMatch(/\blists?\b/i);
+    expect(reads).toEqual(["get_today", "get_inbox", "get_upcoming", "get_task", "search", "get_day", "get_someday", "get_logbook", "get_project", "list_tags", "get_settings", "draft_task", "list_projects", "plan_day"]);
+    expect(writes).toEqual([
+      "apply_day_plan", "add_task", "complete_task", "reopen_task", "reschedule_task", "update_task", "edit_steps", "change_repeat", "duplicate_task", "make_task_a_project", "drop_task",
+      "block_time", "change_block", "remove_block", "add_project", "update_project", "duplicate_project", "add_area", "rename_area", "delete_area", "update_settings", "close_day",
+    ]);
+    expect(writes.filter((n) => tools.find((t) => t.name === n)?.annotations.destructiveHint)).toEqual(["drop_task", "delete_area"]);
+    // The instructions tell any assistant to ask before it adds.
+    expect(init.json.result.instructions).toMatch(/always call draft_task first[\s\S]*confirmed: true[\s\S]*Never fill in a project/);
+    expect(init.json.result.instructions).not.toMatch(/\blists\b/i);
     expect(tools.find((t) => t.name === "drop_task")?.annotations.destructiveHint).toBe(true);
-    expect(Object.keys(tools.find((t) => t.name === "add_task")?.inputSchema.properties ?? {})).toEqual(["text", "notes"]);
+    expect(Object.keys(tools.find((t) => t.name === "add_task")?.inputSchema.properties ?? {})).toEqual(["tasks", "confirmed"]);
   });
 
   it("answers in short text with ids, and refuses with the reason as an error result", async () => {
-    const added = await call("write", "add_task", { text: "Pick up the parcel tomorrow 5pm ~15m" });
+    const added = await call("write", "add_task", { tasks: [await drafted({ text: "Pick up the parcel tomorrow 5pm ~15m" })], confirmed: true });
     expect(added.isError).toBe(false);
-    expect(added.text).toMatch(/^Added “Pick up the parcel” — Tomorrow 17:00 · 15m → Upcoming\n- Pick up the parcel — Tomorrow 17:00 · 15m \[id [0-9a-f-]{36}\]$/);
+    expect(added.text).toMatch(/^Added “Pick up the parcel” — Tomorrow 17:00 · 15m → Upcoming · blocked 17:00–17:15\n- Pick up the parcel — Tomorrow 17:00 · 15m \[id [0-9a-f-]{36}\]$/);
+    expect(effects.calendarChanged).toHaveBeenCalledTimes(1);
     const inbox = await call("write", "get_inbox");
     expect(inbox.text).toBe("The inbox is empty.");
     const missing = await call("write", "complete_task", { task: "Nothing called this" });
@@ -79,7 +92,23 @@ describe("the Sparehour MCP server", () => {
 
   it("on a read-only connection refuses every write before the store, and still reads", async () => {
     for (const [name, args] of [
-      ["add_task", { text: "Anything" }],
+      ["add_task", { tasks: [{ text: "Anything" }], confirmed: true }],
+      ["add_task", { tasks: [{ text: "Anything" }] }],
+      ["edit_steps", { task: "x", add: ["y"] }],
+      ["change_repeat", { task: "x", action: "stop" }],
+      ["duplicate_task", { task: "x" }],
+      ["make_task_a_project", { task: "x" }],
+      ["block_time", { title: "x" }],
+      ["change_block", { block: "x", locked: true }],
+      ["remove_block", { block: "x" }],
+      ["add_project", { name: "x" }],
+      ["update_project", { project: "x", state: "done" }],
+      ["duplicate_project", { project: "x" }],
+      ["add_area", { name: "x" }],
+      ["rename_area", { area: "x", name: "y" }],
+      ["delete_area", { area: "x" }],
+      ["update_settings", { buffer_percent: 10 }],
+      ["close_day", {}],
       ["complete_task", { task: "x" }],
       ["reschedule_task", { task: "x", when: "tomorrow" }],
       ["update_task", { task: "x", title: "y" }],
@@ -92,6 +121,51 @@ describe("the Sparehour MCP server", () => {
     }
     expect(store.ops).toHaveLength(0);
     expect((await call("read", "get_inbox")).text).toBe("The inbox is empty.");
+  });
+
+  it("adds nothing until the person has answered: add_task without confirmed answers with the draft", async () => {
+    const asked = await call("write", "add_task", { tasks: [{ text: "Pay the rent" }] });
+    expect(asked.isError).toBe(false);
+    expect(asked.text).toMatch(/^Nothing has been added: ask the person first, then call add_task again with confirmed: true\./);
+    expect(asked.text).toContain("Not set: day, how long, project, deadline, priority, tags");
+    expect(store.ops).toHaveLength(0);
+    // The draft itself is a read: a read-only connection may look.
+    expect((await call("read", "draft_task", { tasks: [{ text: "Pay the rent" }] })).text).toMatch(/^Not added yet\./);
+    expect(store.ops).toHaveLength(0);
+  });
+
+  it("adds no task that was not drafted, whatever the assistant says it was told", async () => {
+    const code = await codeOf({ text: "Pay the rent" });
+    const r = await call("write", "add_task", { tasks: [{ text: "Pay the rent tomorrow", estimate: 10, draft: code }, { text: "Water the garden every sunday morning" }, { text: "Something else", draft: code }], confirmed: true });
+    expect(r.text).toContain("Added “Pay the rent”");
+    expect(r.text).toContain("These were not added: they have not been drafted yet, so the person has not been asked. Ask them now.");
+    expect(r.text).toContain("“morning” is not a time, so it stays in the title. Ask what time, if they meant one.");
+    expect(store.ops.filter((o) => o.table === "tasks").map((o) => o.data?.title)).toEqual(["Pay the rent"]);
+    const vague = await call("read", "draft_task", { tasks: [{ text: "Water the garden", do: "sunday morning" }] });
+    expect(vague.text).toContain("“morning” is not a time. Ask the person what time, or give the day alone.");
+  });
+
+  it("adds several at once, and says which could not be added without losing the rest", async () => {
+    const r = await call("write", "add_task", { tasks: [await drafted({ text: "One" }), { text: "Two", project: "Nowhere", draft: "abc123" }, await drafted({ title: "Three" })], confirmed: true });
+    expect(r.isError).toBe(false);
+    expect(r.text).toContain("Added “One”");
+    expect(r.text).toMatch(/Not added “Two”: No project is called “Nowhere”/);
+    expect(r.text).toContain("Added “Three”");
+    expect(store.ops.filter((o) => o.table === "tasks")).toHaveLength(2);
+  });
+
+  it("does the same to several tasks in one call, and refuses only when none could be changed", async () => {
+    for (const t of ["A", "B"]) store.tables.tasks.push({ id: t, space_id: "s1", title: `Task ${t}`, state: "active", priority: 0, evening: 0, carry_count: 0, sort_key: "a0", deleted_at: null });
+    const r = await call("write", "complete_task", { task: ["Task A", "Task B", "Task C"] });
+    expect(r).toMatchObject({ isError: false, text: "Completed “Task A”\nCompleted “Task B”\nNot changed: No task matches “Task C”. Search with search, or give its id." });
+    expect((await call("write", "drop_task", { task: ["Nope", "Nor this"] })).isError).toBe(true);
+  });
+
+  it("offers ready-made requests", async () => {
+    const { prompts } = (await rpc("read", "prompts/list")).json.result as { prompts: { name: string }[] };
+    expect(prompts.map((p) => p.name)).toEqual(["add_task", "brain_dump", "plan_my_day", "close_my_day", "weekly_review"]);
+    const got = (await rpc("read", "prompts/get", { name: "add_task", arguments: { task: "call mum" } })).json.result;
+    expect(got.messages[0].content.text).toContain("call mum");
   });
 
   it("asks for the calendar when blocks are let go", async () => {

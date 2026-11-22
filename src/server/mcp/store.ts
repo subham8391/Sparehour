@@ -5,6 +5,8 @@
 // upload. Rows come back in the shape the app's mappers read (booleans as 0/1, as SQLite has them), so the server
 // reads a task exactly as Today does. Tests swap in an in-memory store (store.fake.ts).
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Learned } from "@/core/estimates";
+import { readLearned } from "@/server/estimates/learned";
 import type { WireOp } from "@/server/sync/upload";
 
 export type TaskState = "inbox" | "active" | "someday" | "done" | "dropped" | "archived";
@@ -34,7 +36,17 @@ export interface TaskQuery {
   /** Title or note contains this (case-insensitive). */
   text?: string;
   ids?: readonly string[];
+  projectId?: string;
+  /** Filed directly in this area, with no project. */
+  areaId?: string;
   limit?: number;
+}
+
+/** Finished between two instants: one-off tasks, days of repeats (with the task's title) and what the archive holds. */
+export interface DoneRows {
+  tasks: Row[];
+  completions: Row[];
+  older: Row[];
 }
 
 export interface ApplyResult {
@@ -51,6 +63,8 @@ export interface PlannerStore {
   taskTags(taskIds: readonly string[]): Promise<{ task_id: string; tag_id: string; name: string; link_id: string }[]>;
   checklist(taskId: string): Promise<Row[]>;
   projects(): Promise<Row[]>;
+  /** A project's headings, or every heading. */
+  headings(projectId?: string): Promise<Row[]>;
   areas(): Promise<Row[]>;
   tags(): Promise<Row[]>;
   workHours(): Promise<Row[]>;
@@ -59,6 +73,14 @@ export interface PlannerStore {
   events(from: string, to: string): Promise<Row[]>;
   /** Live blocks starting between the two ISO dates (inclusive). */
   blocks(from: string, to: string): Promise<Row[]>;
+  /** One live block. */
+  block(id: string): Promise<Row | null>;
+  /** The day's day_plans row, if it has one. */
+  dayPlan(day: string): Promise<Row | null>;
+  /** What was finished from one instant up to another. */
+  done(from: string, to: string): Promise<DoneRows>;
+  /** How this person's estimates run (core/estimates); null when nothing can be read. */
+  learned(): Promise<Learned | null>;
   /** A task's live blocks. */
   blocksOf(taskId: string): Promise<Row[]>;
   /** A series' exceptions, live ones only. */
@@ -128,6 +150,8 @@ export class SupabaseStore implements PlannerStore {
       if (q.startedBy) s = s.or(`start_date.is.null,start_date.lte.${q.startedBy}`);
       if (q.startsAfter) s = s.gt("start_date", q.startsAfter);
       if (ids) s = s.in("id", [...ids]);
+      if (q.projectId) s = s.eq("project_id", q.projectId);
+      if (q.areaId) s = s.eq("area_id", q.areaId);
       if (column && q.text) s = s.ilike(column, ilikePattern(q.text));
       return this.rows(s.limit(q.limit ?? 1000));
     };
@@ -154,11 +178,16 @@ export class SupabaseStore implements PlannerStore {
   }
 
   checklist(taskId: string) {
-    return this.rows(this.db.from("checklist_items").select("id, title, done, sort_key").eq("task_id", taskId).is("deleted_at", null));
+    return this.rows(this.db.from("checklist_items").select("id, title, done, sort_key, updated_at").eq("task_id", taskId).is("deleted_at", null));
   }
 
   projects() {
-    return this.rows(this.db.from("projects").select("id, area_id, name, state, deadline, sort_key").is("deleted_at", null));
+    return this.rows(this.db.from("projects").select("id, area_id, name, notes_md, state, do_date, deadline, sort_key").is("deleted_at", null));
+  }
+
+  headings(projectId?: string) {
+    const s = this.db.from("headings").select("id, project_id, title, sort_key").is("deleted_at", null);
+    return this.rows(projectId ? s.eq("project_id", projectId) : s);
   }
 
   areas() {
@@ -170,7 +199,7 @@ export class SupabaseStore implements PlannerStore {
   }
 
   workHours() {
-    return this.rows(this.db.from("work_hours").select("weekday, start_time, end_time").is("deleted_at", null));
+    return this.rows(this.db.from("work_hours").select("id, weekday, start_time, end_time").is("deleted_at", null));
   }
 
   calendars() {
@@ -197,8 +226,34 @@ export class SupabaseStore implements PlannerStore {
     );
   }
 
+  async block(id: string) {
+    return (await this.rows(this.db.from("time_blocks").select("id, space_id, task_id, title, start_at, end_at, locked, source").eq("id", id).is("deleted_at", null).limit(1)))[0] ?? null;
+  }
+
+  async dayPlan(day: string) {
+    return (await this.rows(this.db.from("day_plans").select("id, date, shutdown_at, highlights, day_rating").eq("user_id", this.userId).eq("date", day).is("deleted_at", null).limit(1)))[0] ?? null;
+  }
+
+  async done(from: string, to: string): Promise<DoneRows> {
+    const [tasks, completions, older] = await Promise.all([
+      this.rows(this.db.from("tasks").select(TASK_COLUMNS).is("deleted_at", null).eq("state", "done").gte("completed_at", from).lt("completed_at", to).order("completed_at", { ascending: false }).limit(200)),
+      this.rows(this.db.from("task_completions").select("id, task_id, occurrence_date, completed_at, actual_min").is("deleted_at", null).gte("completed_at", from).lt("completed_at", to).order("completed_at", { ascending: false }).limit(200)),
+      this.finishedPage({ p_limit: 200, p_from: from, p_to: to }),
+    ]);
+    return { tasks, completions, older };
+  }
+
+  async learned(): Promise<Learned | null> {
+    try {
+      return await readLearned(this.db);
+    } catch (e) {
+      console.error("mcp learned estimates failed", e);
+      return null;
+    }
+  }
+
   blocksOf(taskId: string) {
-    return this.rows(this.db.from("time_blocks").select("id, task_id, start_at, end_at, locked").eq("task_id", taskId).is("deleted_at", null));
+    return this.rows(this.db.from("time_blocks").select("id, task_id, title, start_at, end_at, locked").eq("task_id", taskId).is("deleted_at", null));
   }
 
   exceptions(seriesId: string) {
@@ -206,7 +261,11 @@ export class SupabaseStore implements PlannerStore {
   }
 
   async finished(q: { words: readonly string[]; limit?: number }) {
-    const { data, error } = await this.db.rpc("finished_tasks_page", { p_words: [...q.words], p_limit: q.limit ?? 15 });
+    return this.finishedPage({ p_words: [...q.words], p_limit: q.limit ?? 15 });
+  }
+
+  private async finishedPage(args: Record<string, unknown>): Promise<Row[]> {
+    const { data, error } = await this.db.rpc("finished_tasks_page", args);
     // A database that has not got the table yet (its migration has not run there) simply has nothing older.
     if (error) {
       if (error.code === "PGRST202" || error.code === "42883" || error.code === "42P01") return [];

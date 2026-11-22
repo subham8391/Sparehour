@@ -6,6 +6,10 @@ import { explain } from "@/core/planning";
 import { compareDates, formatMinutes, formatTime, timeFromMinutes, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { deadlineWording, relativeDay } from "@/ui/relative-day";
+import type { SettingsView } from "./account";
+import type { DayView, LogView } from "./blocks";
+import type { DraftView, Gap } from "./drafts";
+import type { PlaceView } from "./places";
 import type { Added, DayPlanView, Meeting, ProjectLine, SearchView, TaskDetail, TaskView, TodayView, UpcomingView } from "./planner";
 
 /** "!1" for the highest priority (stored as 3), as quick-add reads it. */
@@ -43,6 +47,9 @@ const section = (title: string, lines: readonly string[]) => (lines.length ? [`$
 
 const span = (m: Meeting) => `${m.start}–${m.end} ${m.title}`;
 
+/** A block's line, with the id the block tools act on. */
+const blockLine = (m: Meeting) => `- ${span(m)}${m.locked ? " · locked" : ""} [block ${m.id}]`;
+
 /**
  * "3h 20m spare · done by 16:30 (work 9h, meetings 2h, buffer 1h 20m, planned 2h 20m)", as the ribbon and the hero say
  * it. A day with open stretches too short to use names them in the ribbon's words, so the parts still add up.
@@ -63,8 +70,8 @@ export function formatToday(v: TodayView): string {
   const cap = capacityLine(v.capacity);
   if (cap) out.push(`Spare time: ${cap}`);
   if (v.meetings.length) out.push(`Calendar: ${v.meetings.map(span).join(" · ")}`);
-  if (v.blocks.length) out.push(`Time blocks: ${v.blocks.map(span).join(" · ")}`);
   const body = [
+    section("Time blocks", v.blocks.map(blockLine)),
     section("Today", v.tasks.map((t) => taskLine(t, v.today))),
     section("This evening", v.evening.map((t) => taskLine(t, v.today))),
     section(
@@ -72,7 +79,7 @@ export function formatToday(v: TodayView): string {
       v.carried.map((t) => taskLine(t, v.today, { day: true })),
     ),
   ].filter((s): s is string => s !== null);
-  if (body.length === 0) body.push("Nothing planned for today.");
+  if (v.tasks.length + v.evening.length + v.carried.length === 0) body.push("Nothing planned for today.");
   return [...out, "", ...body.flatMap((s, i) => (i ? ["", s] : [s]))].join("\n");
 }
 
@@ -136,8 +143,120 @@ export function formatSearch(v: SearchView, query: string, today: LocalDate): st
   return parts.length ? parts.join("\n\n") : `Nothing matches “${query}”.`;
 }
 
+/** Any day: what is on it, and what was finished on it. */
+export function formatDayView(v: DayView): string {
+  const out = [`${formatDay(v.day, { weekday: "long", month: "long", today: v.today })}`];
+  const cap = capacityLine(v.capacity);
+  if (cap) out.push(`Spare time: ${cap}`);
+  if (v.meetings.length) out.push(`Calendar: ${v.meetings.map(span).join(" · ")}`);
+  const body = [
+    section("Time blocks", v.blocks.map(blockLine)),
+    section("Tasks", v.tasks.filter((t) => !t.evening).map((t) => taskLine(t, v.today))),
+    section("Evening", v.tasks.filter((t) => t.evening).map((t) => taskLine(t, v.today))),
+    section("Finished", v.done.map((d) => `- ${d.title} (${d.at})`)),
+  ].filter((x): x is string => x !== null);
+  if (body.length === 0) body.push("Nothing on this day.");
+  return [...out, "", body.join("\n\n")].join("\n");
+}
+
+export function formatLog(v: LogView): string {
+  if (v.days.length === 0) return "Nothing was finished in those days.";
+  return v.days.map((d) => [`${formatDay(d.day, { today: v.today })} (${d.done.length} finished)`, ...d.done.map((t) => `- ${t}`)].join("\n")).join("\n\n");
+}
+
+export function formatPlace(v: PlaceView, today: LocalDate): string {
+  const line = (t: TaskView) => taskLine(t, today, { day: true });
+  const facts = [v.area ? `in ${v.area}` : null, v.state === "someday" ? "parked" : v.state && v.state !== "active" ? v.state : null, v.deadline ? `due ${deadlineWording(v.deadline, today).label}` : null].filter(Boolean);
+  const out = [`${v.name} (${v.kind})${facts.length ? ` — ${facts.join(" · ")}` : ""} [id ${v.id}]`];
+  if (v.notes) out.push(`note:\n${v.notes}`);
+  const body = [
+    section("Projects", v.projects.map((p) => `- ${p.name} — ${p.open} open${p.state === "someday" ? " · parked" : ""} [id ${p.id}]`)),
+    section(v.kind === "area" ? "Tasks in the area itself" : "Tasks", v.loose.map(line)),
+    ...v.headings.map((h) => [`${h.title} (heading, ${h.tasks.length})`, ...h.tasks.map(line)].join("\n")),
+    section("Someday", v.someday.map(line)),
+  ].filter((x): x is string => x !== null);
+  if (body.length === 0) body.push("Nothing open here.");
+  return [...out, "", body.join("\n\n")].join("\n");
+}
+
+export function formatSomeday(v: { tasks: TaskView[]; projects: { id: string; name: string }[] }, today: LocalDate): string {
+  const parts = [section("Someday", v.tasks.map((t) => taskLine(t, today))), section("Parked projects", v.projects.map((p) => `- ${p.name} [id ${p.id}]`))].filter((x): x is string => x !== null);
+  return parts.length ? parts.join("\n\n") : "Someday is empty.";
+}
+
+export const formatTags = (tags: readonly { name: string; open: number }[]): string =>
+  tags.length ? [`Tags (${tags.length})`, ...tags.map((t) => `- ${tagToken(t.name)} — ${t.open} open`)].join("\n") : "No tags yet.";
+
+export function formatSettings(v: SettingsView): string {
+  return [
+    `Time zone: ${v.zone}`,
+    "Working hours:",
+    ...v.hours.map((h) => `  ${h.day}: ${h.label}`),
+    `Buffer: ${v.bufferPct}% of the working day`,
+    `Default estimate: ${v.defaultEstimateMin}m`,
+    `Evening: ${v.evening}`,
+    `A day ends at: ${String(v.rolloverHour).padStart(2, "0")}:00`,
+    `A new task that misses its day: ${v.ifMissed}`,
+    v.carryAskAfter !== null ? `Asks “Still want this?” after: ${v.carryAskAfter} carries` : null,
+    v.autoSomedayDays !== null ? `Untouched tasks go to Someday after: ${v.autoSomedayDays} days` : null,
+    `Reminders: ${v.reminders}`,
+    `Morning message: ${v.morning ?? "off"}`,
+    `Shutdown reminder: ${v.shutdown ?? "off"}`,
+  ]
+    .filter((l): l is string => l !== null)
+    .join("\n");
+}
+
+const GAP_WORDS: Record<Gap, string> = { when: "day", length: "how long", project: "project", deadline: "deadline", priority: "priority", tags: "tags", repeat: "repeat", steps: "steps", note: "note" };
+/** The questions worth asking, in the order people think of them; the rest are offered in one line. */
+const ASKED: readonly Gap[] = ["when", "length", "project", "deadline", "priority", "tags"];
+const EXTRAS: readonly Gap[] = ["repeat", "steps", "note"];
+
+/**
+ * A draft: what Sparehour understood, what nobody has said, and the choices for it, for the assistant to put to the
+ * person in one short message. Says first that nothing has been added.
+ */
+export function formatDraft(v: DraftView, blocked: "" | "unconfirmed" | "undrafted" = ""): string {
+  const many = v.lines.length > 1;
+  const out = [blocked === "unconfirmed" ? "Nothing has been added: ask the person first, then call add_task again with confirmed: true." : blocked === "undrafted" ? `${many ? "These were" : "This was"} not added: ${many ? "they have" : "it has"} not been drafted yet, so the person has not been asked. Ask them now.` : `Not added yet. This is how Sparehour reads ${many ? "these" : "it"}.`, ""];
+  v.lines.forEach((l, i) => {
+    out.push(`${many ? `${i + 1}. ` : ""}“${l.title}”`);
+    if (l.problem) {
+      out.push(`   Can't be added as it is: ${l.problem}`);
+      return;
+    }
+    out.push(`   Set: ${l.strip || "only the title"}`);
+    const asked = l.missing.filter((g) => ASKED.includes(g));
+    if (asked.length) out.push(`   Not set: ${asked.map((g) => GAP_WORDS[g]).join(", ")}`);
+    out.push(`   Goes to: ${l.destination}`);
+    if (l.steps.length) out.push(`   Steps: ${l.steps.join(" / ")}`);
+    if (l.note) out.push(`   Note: ${l.note}`);
+    if (l.likelyProject) out.push(`   Its words point at the project ${l.likelyProject} (ask, don't assume).`);
+    if (l.code) out.push(`   Draft code: ${l.code}`);
+    if (l.usual) out.push(`   Tasks like this usually take them ${formatMinutes(l.usual.minutes)} (from ${l.usual.n} finished).`);
+    for (const n of l.notices) out.push(`   Tell them: ${n}`);
+  });
+  const need = new Set(v.lines.flatMap((l) => l.missing));
+  const ask: string[] = [];
+  if (need.has("when")) ask.push(`When? ${v.choices.days.map((d) => `${d.label}${d.spareMin !== null ? ` (${d.spareMin >= 0 ? `${formatMinutes(d.spareMin)} spare` : `${formatMinutes(-d.spareMin)} over`})` : ""}`).join(" · ")} · this evening · Someday · no day yet. A time too, if it has one.`);
+  if (need.has("length")) ask.push(`How long? 15m · 30m · 1h · 2h (with none it counts as ${formatMinutes(v.choices.defaultEstimateMin)})`);
+  if (need.has("project")) ask.push(`Which project? ${v.choices.projects.length ? `${v.choices.projects.join(" · ")}${v.choices.moreProjects ? ` · ${v.choices.moreProjects} more (list_projects)` : ""} · ` : ""}none · a new one`);
+  if (need.has("deadline")) ask.push("A deadline? Only if something is really due; none is fine.");
+  if (need.has("priority")) ask.push("Priority? 1 (highest) · 2 · 3 · none");
+  if (need.has("tags")) ask.push(`Tags? ${v.choices.tags.length ? `${v.choices.tags.map(tagToken).join(" · ")} · ` : ""}none · a new one`);
+  if (ask.length) out.push("", "Ask the person:", ...ask.map((a) => `- ${a}`));
+  const extras = EXTRAS.filter((g) => need.has(g));
+  if (extras.length) out.push(`- Anything else? ${extras.map((g) => ({ repeat: "a repeat", steps: "steps", note: "a note" })[g as "repeat" | "steps" | "note"]).join(", ")}, or where it goes if its day is missed.`);
+  out.push(
+    "",
+    `Put this to them in one short message${many ? " for all of them together" : ""}, with tappable choices if you can show them, and let them answer only what they want or say “add as is”. Then call add_task with the same ${many ? "tasks" : "task"}, each with its draft code, their answers in the fields, and confirmed: true. Leave off whatever they did not answer. Do not call add_task before they have replied. If their reply names another task, draft that one and ask about it too.`,
+  );
+  return out.join("\n");
+}
+
 export function formatAdded(a: Added, today: LocalDate): string {
-  const lines = [`Added “${a.task.title}”${a.strip ? ` — ${a.strip}` : ""} → ${a.destination}`, taskLine(a.task, today, { day: true })];
+  const lines = [`Added “${a.task.title}”${a.strip ? ` — ${a.strip}` : ""} → ${a.destination}${a.blocked}`, taskLine(a.task, today, { day: true })];
+  if (a.steps.length) lines.push(`steps: ${a.steps.join(" / ")}`);
   if (a.unfiled) lines.push(a.unfiled.several ? `#${a.unfiled.name} fits more than one project, so it stayed in the title.` : `No project is called “${a.unfiled.name}”, so it stayed in the title (#+${a.unfiled.name} makes a new one).`);
   return lines.join("\n");
 }

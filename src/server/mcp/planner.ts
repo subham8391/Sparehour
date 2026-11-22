@@ -6,51 +6,30 @@
 // first and written only when asked (DECISIONS.md, amendment 2026-11-14). Anything that cannot be done is a Refusal
 // with a reason the tools pass on.
 import { capacityFor, type Capacity } from "@/core/capacity";
-import { keyBetween } from "@/core/ordering";
 import { plan, type PlanBlock, type PlanInput, type Proposal } from "@/core/planning";
-import { parse, type ParseContext, type TaskDraft } from "@/core/quickadd";
-import { draftRow } from "@/core/quickadd/draft-row";
-import { readTypedDate } from "@/core/quickadd/read-date";
 import { planCompletion, toExceptions } from "@/core/recurrence/completion";
 import { exceptionId } from "@/core/recurrence/exception-id";
 import { currentOccurrence } from "@/core/recurrence/series";
 import { ruleWords } from "@/core/recurrence/words";
 import { carriedOver } from "@/core/rollover/carried";
-import { Temporal, compareDates, formatMinutes, localDate, todayFor, type Instant, type LocalDate, type LocalTime } from "@/core/time";
-import type { RecurrenceMode, Task } from "@/core/types";
-import { normaliseTimestamp, toCapacityBlock, toCapacityEvent, toCapacityTask, toSettings, toTask, toWorkWindow, type Settings } from "@/data/mappers";
-import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
+import { Temporal, compareDates, formatMinutes, localDate, type LocalDate, type LocalTime } from "@/core/time";
+import type { MissPolicy, RecurrenceMode, Task } from "@/core/types";
+import { normaliseTimestamp, toCapacityTask, toTask } from "@/data/mappers";
+import type { TaskRow } from "@/data/schema.client";
 import { canApprovePlan } from "@/features/planning/entitlement";
 import { aheadDays, aheadThrough, isoAt, planTask } from "@/features/planning/plan-input";
-import { chooseProject, fileLine } from "@/features/quickadd/file-line";
-import { interpret, resolveTag, type QuickAddProject } from "@/features/quickadd/interpret";
 import { minuteOnDay } from "@/features/today/day-minute";
-import { sanitize, type WireOp } from "@/server/sync/upload";
-import type { PlannerStore, Row, TaskState } from "./store";
+import type { WireOp } from "@/server/sync/upload";
+import { Account } from "./account";
+import { Blocks } from "./blocks";
+import { PlannerCore, Refusal, byCodeUnit, dayWords, estimateMinutes, exceptionRow, fold, quoted, str, type Changed, type Ctx, type Meeting, type TaskView } from "./core";
+import { Drafts, type Added } from "./drafts";
+import { Places } from "./places";
+import { Repeats } from "./repeats";
+import type { Row, TaskState } from "./store";
 
-/** A request the planner will not carry out, with the reason in words for the person. */
-export class Refusal extends Error {}
-
-const OPEN: readonly TaskState[] = ["inbox", "active", "someday"];
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-const byCodeUnit = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
-const fold = (s: string) => s.trim().toLocaleLowerCase();
-const str = (v: string | number | null | undefined): string | null => (v == null ? null : String(v));
-const quoted = (s: string) => `“${s}”`;
-
-export interface TaskView extends Task {
-  project: string | null;
-  area: string | null;
-  tagNames: string[];
-  repeats: string | null;
-}
-
-export interface Meeting {
-  start: string;
-  end: string;
-  title: string;
-}
+export { Refusal, dayWords, estimateMinutes, lastKey, type Changed, type Meeting, type TaskView } from "./core";
+export type { Added } from "./drafts";
 
 export interface TodayView {
   today: LocalDate;
@@ -92,28 +71,25 @@ export interface TaskDetail extends TaskView {
   checklist: { title: string; done: boolean }[];
 }
 
+/** What a search may be narrowed to; nothing set is a plain search. */
+export interface SearchFilter {
+  tag?: string;
+  project?: string;
+  area?: string;
+  /** 1 (highest) to 3, or 0 for none. */
+  priority?: number;
+  /** A deadline on or before this day. */
+  dueBy?: string;
+  noEstimate?: boolean;
+  repeating?: boolean;
+}
+
 export interface SearchView {
   tasks: TaskView[];
   projects: { id: string; name: string; area: string | null }[];
   areas: { id: string; name: string }[];
   /** Finished longer ago than the Logbook holds (asked for with finished ones): the day it was finished, in the person's zone. */
   older: { id: string; title: string; finished: LocalDate; project: string | null; occurrence: boolean }[];
-}
-
-export interface Added {
-  task: TaskView;
-  strip: string;
-  destination: string;
-  /** A `#name` that filed nothing and stayed in the title. */
-  unfiled: { name: string; several: boolean } | null;
-}
-
-export interface Changed {
-  /** What happened, in words: "Completed “Gym” · next Mon 26 Oct". */
-  said: string;
-  id: string;
-  /** Blocks this change took off the calendar, so the caller can push the calendar now rather than at the tick. */
-  blocksReleased: number;
 }
 
 export interface TaskPatchInput {
@@ -127,87 +103,26 @@ export interface TaskPatchInput {
   priority?: number;
   /** A project name; "none" takes it out of any project. */
   project?: string | null;
+  /** An area to file it in directly, with no project. */
+  area?: string | null;
+  /** A heading of its project; "none" for under none. */
+  heading?: string | null;
+  /** Hidden until this day; "none" clears it. */
+  start?: string | null;
+  /** A time of day, "15:00"; "none" takes the time off and keeps the day. */
+  time?: string | null;
+  evening?: boolean;
+  ifMissed?: MissPolicy;
   addTags?: string[];
   removeTags?: string[];
 }
 
-interface Ctx {
-  userId: string;
-  spaceId: string;
-  zone: string;
-  today: LocalDate;
-  now: Instant;
-  settings: Settings;
-  defaultMissPolicy: string | null;
-  parse: ParseContext;
-}
-
-export interface PlannerOptions {
-  /** apply_mutations' device id for this connection: "mcp:<client id>". */
-  device: string;
-  now?: () => Instant;
-  newId?: () => string;
-}
-
-export class Planner {
-  private ctxP: Promise<Ctx> | null = null;
-  private opSeq = 0;
-  private readonly now: () => Instant;
-  private readonly newId: () => string;
-
-  constructor(
-    private readonly store: PlannerStore,
-    private readonly opts: PlannerOptions,
-  ) {
-    this.now = opts.now ?? (() => Temporal.Now.instant());
-    this.newId = opts.newId ?? (() => crypto.randomUUID());
-  }
-
-  // ---------------------------------------------------------------- context
-
-  private ctx(): Promise<Ctx> {
-    this.ctxP ??= (async () => {
-      const p = await this.store.profile();
-      const settings = toSettings((p.settings ?? {}) as unknown as UserSettingsRow);
-      const now = this.now();
-      const today = todayFor({ timezone: settings.timezone, dayRolloverHour: settings.dayRolloverHour }, now);
-      return {
-        userId: p.userId,
-        spaceId: p.spaceId,
-        zone: settings.timezone,
-        today,
-        now,
-        settings,
-        defaultMissPolicy: str(p.settings?.default_miss_policy),
-        parse: { now, zone: settings.timezone, today, eveningStartsAt: settings.eveningStartsAt },
-      };
-    })();
-    return this.ctxP;
-  }
-
-  /** The person's day now: their zone and their rollover hour. */
-  async today(): Promise<LocalDate> {
-    return (await this.ctx()).today;
-  }
-
-  private async views(rows: readonly Row[]): Promise<TaskView[]> {
-    if (rows.length === 0) return [];
-    const [projects, areas, tags] = await Promise.all([this.store.projects(), this.store.areas(), this.store.taskTags(rows.map((r) => String(r.id)))]);
-    const projectName = new Map(projects.map((p) => [String(p.id), str(p.name)]));
-    const areaName = new Map(areas.map((a) => [String(a.id), str(a.name)]));
-    const tagsOf = new Map<string, string[]>();
-    for (const t of tags) tagsOf.set(t.task_id, [...(tagsOf.get(t.task_id) ?? []), t.name]);
-    return rows.map((r) => {
-      const t = toTask(r as unknown as TaskRow);
-      return {
-        ...t,
-        project: t.projectId ? (projectName.get(t.projectId) ?? null) : null,
-        area: t.areaId ? (areaName.get(t.areaId) ?? null) : null,
-        tagNames: (tagsOf.get(t.id) ?? []).sort((a, b) => a.localeCompare(b)),
-        repeats: t.recurrenceRule ? ruleWords(t.recurrenceRule, t.recurrenceMode as RecurrenceMode | null) : null,
-      };
-    });
-  }
+export class Planner extends PlannerCore {
+  readonly drafts = new Drafts(this);
+  readonly blocks = new Blocks(this);
+  readonly repeats = new Repeats(this);
+  readonly places = new Places(this);
+  readonly account = new Account(this);
 
   // ---------------------------------------------------------------- reads
 
@@ -234,82 +149,6 @@ export class Planner {
       meetings,
       blocks,
     };
-  }
-
-  /**
-   * The calendar between two ISO days, read once: the working hours, the meetings, and the blocks as capacity counts
-   * them, with the raw rows for the lines the answers draw.
-   */
-  private async around(from: string, to: string, taskRows: readonly Row[]) {
-    const c = await this.ctx();
-    const [workRows, calendars, eventRows, blockRows] = await Promise.all([this.store.workHours(), this.store.calendars(), this.store.events(from, to), this.store.blocks(from, to)]);
-    const read = new Map(calendars.map((k) => [String(k.id), k.read !== 0]));
-    const hidden = new Set(calendars.filter((k) => k.private === 1).map((k) => String(k.id)));
-    const workHours = workRows.map((w) => toWorkWindow(w as unknown as WorkHoursRow)).filter((w): w is NonNullable<typeof w> => w !== null);
-    const events = eventRows.map((e) => toCapacityEvent(e as unknown as CalendarEventRow, read.get(String(e.calendar_id ?? "")) ?? true));
-    const titleOf = new Map(taskRows.map((t) => [String(t.id), str(t.title)]));
-    // A block whose task is finished counts only for what already ran (use-today.ts capacityBlocks).
-    const stateOf = new Map(taskRows.map((t) => [String(t.id), str(t.state)]));
-    const others = [...new Set(blockRows.map((b) => str(b.task_id)).filter((id): id is string => id !== null && !stateOf.has(id)))];
-    if (others.length) for (const t of await this.store.tasks({ states: ["inbox", "active", "someday", "done", "dropped", "archived"], ids: others })) {
-      stateOf.set(String(t.id), str(t.state));
-      titleOf.set(String(t.id), str(t.title));
-    }
-    const closed = (taskId: string | null) => {
-      const s = taskId ? stateOf.get(taskId) : null;
-      return Boolean(s) && s !== "inbox" && s !== "active";
-    };
-    const blocks = blockRows
-      .map((b) => toCapacityBlock(b as unknown as TimeBlockRow))
-      .filter((b): b is NonNullable<typeof b> => b !== null)
-      .flatMap((b) => {
-        if (!closed(b.taskId)) return [b];
-        if (Temporal.Instant.compare(b.startAt, c.now) >= 0) return [];
-        return Temporal.Instant.compare(b.endAt, c.now) <= 0 ? [b] : [{ ...b, endAt: c.now }];
-      });
-    return { workHours, events, blocks, eventRows, blockRows, read, hidden, titleOf, closed };
-  }
-
-  /** The capacity, meetings and blocks of each day, from one read of the calendar around them. */
-  private async days(days: readonly LocalDate[], taskRows: readonly Row[]): Promise<{ capacity: Capacity | null; meetings: Meeting[]; blocks: Meeting[] }[]> {
-    const c = await this.ctx();
-    const { workHours, events, blocks, eventRows, blockRows, read, hidden, titleOf } = await this.around(days[0].subtract({ days: 1 }).toString(), days[days.length - 1].add({ days: 1 }).toString(), taskRows);
-    const tasks = taskRows.map((t) => toCapacityTask(t as unknown as TaskRow));
-    return days.map((day) => {
-      const capacity = capacityFor({
-        day,
-        settings: { timezone: c.zone, bufferPct: c.settings.bufferPct, defaultEstimateMin: c.settings.defaultEstimateMin },
-        workHours,
-        events,
-        blocks,
-        tasks,
-        now: day.equals(c.today) ? c.now : undefined,
-      });
-      const span = (startAt: unknown, endAt: unknown): { start: string; end: string } | null => {
-        if (typeof startAt !== "string" || typeof endAt !== "string") return null;
-        const s = Temporal.Instant.from(normaliseTimestamp(startAt)).toZonedDateTimeISO(c.zone);
-        const e = Temporal.Instant.from(normaliseTimestamp(endAt)).toZonedDateTimeISO(c.zone);
-        if (!s.toPlainDate().equals(day)) return null;
-        const hm = (z: Temporal.ZonedDateTime) => `${String(z.hour).padStart(2, "0")}:${String(z.minute).padStart(2, "0")}`;
-        return { start: hm(s), end: e.toPlainDate().equals(day) ? hm(e) : "24:00" };
-      };
-      const meetings: Meeting[] = [];
-      for (const e of eventRows) {
-        if (e.all_day === 1 || e.status === "cancelled" || e.is_ours === 1) continue;
-        if (e.calendar_id && read.get(String(e.calendar_id)) === false) continue;
-        const at = span(e.start_at, e.end_at);
-        if (!at) continue;
-        const title = (e.calendar_id && hidden.has(String(e.calendar_id))) || !e.summary ? "Busy" : String(e.summary);
-        meetings.push({ ...at, title: e.self_response === "declined" ? `${title} (declined)` : title });
-      }
-      const blockLines: Meeting[] = [];
-      for (const b of blockRows) {
-        const at = span(b.start_at, b.end_at);
-        if (at) blockLines.push({ ...at, title: str(b.title) ?? (b.task_id ? (titleOf.get(String(b.task_id)) ?? "A task") : "Block") });
-      }
-      const byStart = (a: Meeting, b: Meeting) => a.start.localeCompare(b.start);
-      return { capacity, meetings: meetings.sort(byStart), blocks: blockLines.sort(byStart) };
-    });
   }
 
   /**
@@ -456,9 +295,10 @@ export class Planner {
    * Open tasks (and finished ones when asked), projects and areas matching every word. Finished ones come from
    * two places: the week the Logbook holds, and everything before it, which is kept in finished_tasks.
    */
-  async search(query: string, includeDone = false): Promise<SearchView> {
+  async search(query: string, includeDone = false, only: SearchFilter = {}): Promise<SearchView> {
     const words = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
-    if (words.length === 0) throw new Refusal("Search for at least one word.");
+    if (Object.values(only).some((v) => v !== undefined)) return this.filter(words, includeDone, only);
+    if (words.length === 0) throw new Refusal("Search for at least one word, or give something to filter by.");
     const longest = [...words].sort((a, b) => b.length - a.length)[0];
     const has = (...texts: (string | null | undefined)[]) => {
       const hay = texts.map((t) => (t ?? "").toLocaleLowerCase()).join("\n");
@@ -496,55 +336,34 @@ export class Planner {
     };
   }
 
+  /** Open tasks picked out by tag, project, area, priority, deadline or a missing estimate, and the words when given. */
+  private async filter(words: readonly string[], includeDone: boolean, f: SearchFilter): Promise<SearchView> {
+    const c = await this.ctx();
+    const states: TaskState[] = includeDone ? ["inbox", "active", "someday", "done", "dropped"] : ["inbox", "active", "someday"];
+    const project = f.project ? this.findProject(f.project, await this.store.projects()) : null;
+    const area = f.area ? await this.findArea(f.area) : null;
+    const inArea = area ? new Set((await this.store.projects()).filter((p) => p.area_id === area.id).map((p) => String(p.id))) : null;
+    const due = f.dueBy ? this.readDay(f.dueBy, c).date : null;
+    const rows = await this.store.tasks({ states, ...(project ? { projectId: String(project.id) } : {}) });
+    const tag = f.tag ? fold(f.tag.replace(/^[@#]/, "")) : null;
+    const tasks = (await this.views(rows))
+      .filter((t) => words.every((w) => `${t.title}\n${t.notes ?? ""}`.toLocaleLowerCase().includes(w.toLocaleLowerCase())))
+      .filter((t) => !tag || t.tagNames.some((n) => fold(n) === tag))
+      .filter((t) => !area || t.areaId === area.id || (t.projectId !== null && inArea?.has(t.projectId)))
+      .filter((t) => f.priority === undefined || t.priority === (f.priority === 0 ? 0 : 4 - f.priority))
+      .filter((t) => !due || (t.deadline !== null && compareDates(t.deadline, due) <= 0))
+      .filter((t) => !f.noEstimate || t.estimateMin === null)
+      .filter((t) => !f.repeating || t.repeats !== null)
+      .sort((a, b) => Number(a.doDate === null) - Number(b.doDate === null) || (a.doDate && b.doDate ? compareDates(a.doDate, b.doDate) : 0) || byCodeUnit(a.sortKey, b.sortKey))
+      .slice(0, 50);
+    return { tasks, projects: [], areas: [], older: [] };
+  }
+
   // ---------------------------------------------------------------- task writes
 
   /** A task from one line of quick-add, filed and dated exactly as the app's sheet would file it. */
-  async addTask(text: string, notes?: string | null): Promise<Added> {
-    const c = await this.ctx();
-    const line = text.trim();
-    if (!line) throw new Refusal("There is nothing to add: the text is empty.");
-    if (line.includes("\n")) throw new Refusal("One task per call: send each line on its own.");
-    const parsed = parse(line, c.parse);
-    if (!parsed.ok) throw new Refusal("There is nothing to add: once the date, time and tags are read, no title is left.");
-    const projectRows = (await this.store.projects()).filter((p) => p.state !== "done" && p.state !== "archived" && p.state !== "dropped");
-    const projects: QuickAddProject[] = projectRows.map((p) => ({ id: String(p.id), name: String(p.name ?? ""), area: str(p.area_id) }));
-    const filed = fileLine(line, parsed, projects, c.parse, chooseProject(parsed.draft, projects, null, false));
-    const draft: TaskDraft = { ...filed.submission.draft };
-    const extra = notes?.trim();
-    if (extra) draft.notes = draft.notes ? `${draft.notes}\n\n${extra}` : extra;
-
-    const ops: WireOp[] = [];
-    let projectId = filed.submission.projectId;
-    if (!projectId && filed.submission.createProjectName) {
-      const name = filed.submission.createProjectName;
-      // Two lines naming one new project: the second joins the first (quick-add-provider does the same).
-      const existing = projectRows.find((p) => fold(String(p.name ?? "")) === fold(name));
-      if (existing) projectId = String(existing.id);
-      else {
-        projectId = this.newId();
-        ops.push(this.put("projects", projectId, { space_id: c.spaceId, area_id: null, name: name.trim(), state: "active", sort_key: keyBetween(lastKey(await this.store.projectSortKeys(null)), null) }));
-      }
-    }
-
-    const id = this.newId();
-    const row = draftRow(id, draft, {
-      projectId,
-      areaId: null,
-      headingId: null,
-      defaultMissPolicy: c.defaultMissPolicy,
-      lastSortKey: lastKey(await this.store.taskSortKeys(projectId, null)),
-      daySortAfter: draft.doDate ? lastKey(await this.store.daySortKeys(draft.doDate.toString())) : null,
-    });
-    ops.push(this.put("tasks", id, { space_id: c.spaceId, ...row, source: "mcp" }));
-    const { ops: tagOps, newTags } = await this.tagLinks("task_tags", "task_id", id, c.spaceId, draft.tagNames);
-    ops.push(...tagOps);
-    await this.apply(ops, `add ${quoted(draft.title)}`);
-
-    const label = filed.submission.createProjectName && projectId && !projectRows.some((p) => p.id === projectId) ? `new project ${filed.submission.createProjectName}` : filed.project;
-    const said = interpret(draft, c.today, label, newTags);
-    const fresh = await this.store.task(id);
-    const [task] = await this.views([fresh ?? (this.syntheticRow(id, c.spaceId, row) as Row)]);
-    return { task, strip: said.strip, destination: said.destination, unfiled: filed.unfiled };
+  addTask(text: string, notes?: string | null): Promise<Added> {
+    return this.drafts.add({ text, notes });
   }
 
   /**
@@ -579,10 +398,12 @@ export class Planner {
         ops.push(this.patch("tasks", id, { state: "done", completed_at: at }));
       }
       await this.apply(ops, `complete ${quoted(title)}`);
-      return { said: `${plan.next ? `Completed ${quoted(title)} · it repeats, next on ${dayWords(plan.next, c.today)}` : `Completed ${quoted(title)} · that was the last one in its series`}${tookWords}`, id, blocksReleased: 0 };
+      // It keeps its time on the day it moved on to, as the app rolls it forward.
+      const timed = plan.next ? await this.keepTime(id, null) : { changed: 0 };
+      return { said: `${plan.next ? `Completed ${quoted(title)} · it repeats, next on ${dayWords(plan.next, c.today)}` : `Completed ${quoted(title)} · that was the last one in its series`}${tookWords}`, id, blocksChanged: timed.changed };
     }
     await this.apply([this.patch("tasks", id, { state: "done", completed_at: at, ...(took == null ? {} : { actual_min: took }) })], `complete ${quoted(title)}`);
-    return { said: `Completed ${quoted(title)}${tookWords}`, id, blocksReleased: 0 };
+    return { said: `Completed ${quoted(title)}${tookWords}`, id, blocksChanged: 0 };
   }
 
   /** Un-completes a finished task, or brings back a dropped one (PRODUCT_SPEC.md §7 rule 2). */
@@ -592,12 +413,12 @@ export class Planner {
     const id = String(row.id);
     if (row.state === "dropped" || row.state === "archived") {
       await this.apply([this.patch("tasks", id, { state: "active" })], `bring back ${quoted(title)}`);
-      return { said: `Brought back ${quoted(title)}`, id, blocksReleased: 0 };
+      return { said: `Brought back ${quoted(title)}`, id, blocksChanged: 0 };
     }
     if (row.state !== "done") throw new Refusal(`${quoted(title)} is not done, so there is nothing to reopen.`);
     const filedOrDated = row.project_id || row.area_id || row.do_date || row.deadline || row.start_date;
     await this.apply([this.patch("tasks", id, { state: filedOrDated ? "active" : "inbox", completed_at: null })], `reopen ${quoted(title)}`);
-    return { said: `Reopened ${quoted(title)}`, id, blocksReleased: 0 };
+    return { said: `Reopened ${quoted(title)}`, id, blocksChanged: 0 };
   }
 
   /** Drop it: out of every list, kept under the Logbook's Dropped, and reopen_task brings it back. */
@@ -607,7 +428,7 @@ export class Planner {
     const id = String(row.id);
     const released = await this.releasedBlocks(id, null);
     await this.apply([this.patch("tasks", id, { state: "dropped" }), ...released.map((b) => this.del("time_blocks", b))], `drop ${quoted(title)}`);
-    return { said: `Dropped ${quoted(title)} (it stays in the Logbook under Dropped; reopen_task brings it back)`, id, blocksReleased: released.length };
+    return { said: `Dropped ${quoted(title)} (it stays in the Logbook under Dropped; reopen_task brings it back)`, id, blocksChanged: released.length };
   }
 
   /**
@@ -627,7 +448,7 @@ export class Planner {
       const released = await this.releasedBlocks(id, null);
       const patch = words === "someday" ? { state: "someday", do_date: null, do_time: null } : { state: "active", do_date: null, do_time: null };
       await this.apply([this.patch("tasks", id, patch), ...released.map((b) => this.del("time_blocks", b))], `move ${quoted(title)}`);
-      return { said: words === "someday" ? `Moved ${quoted(title)} to Someday` : `Took the day off ${quoted(title)} (it waits in Upcoming's Not yet planned)`, id, blocksReleased: released.length };
+      return { said: words === "someday" ? `Moved ${quoted(title)} to Someday` : `Took the day off ${quoted(title)} (it waits in Upcoming's Not yet planned)`, id, blocksChanged: released.length };
     }
 
     const typed = this.readDay(when, c);
@@ -652,8 +473,9 @@ export class Planner {
       once = `, just this once (it still repeats ${ruleWords(String(row.recurrence_rule), row.recurrence_mode as RecurrenceMode)})`;
     }
     await this.apply(ops, `move ${quoted(title)}`);
+    const timed = await this.keepTime(id, row);
     const time = typed.time ? ` ${typed.time.toString({ smallestUnit: "minute" })}` : typed.evening ? ", evening" : "";
-    return { said: `Moved ${quoted(title)} to ${dayWords(typed.date, c.today)}${time}${once}`, id, blocksReleased: released.length };
+    return { said: `Moved ${quoted(title)} to ${dayWords(typed.date, c.today)}${time}${once}${timed.words}`, id, blocksChanged: released.length + timed.changed };
   }
 
   /** Edits the title, note, deadline, estimate, priority, project or tags; only the fields given change. */
@@ -704,16 +526,59 @@ export class Planner {
         patch.heading_id = null;
         said.push("out of its project");
       } else {
-        const projects = (await this.store.projects()).filter((p) => p.state !== "done" && p.state !== "archived" && p.state !== "dropped");
-        const project = this.findProject(name, projects);
+        const project = this.findProject(name, await this.openProjects());
         patch.project_id = project.id;
         patch.area_id = null;
         if (row.project_id !== project.id) patch.heading_id = null;
         said.push(`in ${String(project.name)}`);
       }
     }
-    // A project, a deadline or a start date takes a task out of the Inbox (PRODUCT_SPEC.md §5.1 rule 5).
-    if (row.state === "inbox" && (patch.project_id || patch.deadline)) patch.state = "active";
+    if (input.area !== undefined && input.area !== null && fold(input.area) !== "none") {
+      const area = await this.findArea(input.area);
+      Object.assign(patch, { area_id: area.id, project_id: null, heading_id: null });
+      said.push(`in ${String(area.name)}`);
+    } else if (input.area !== undefined) {
+      patch.area_id = null;
+      said.push("out of its area");
+    }
+    if (input.heading !== undefined) {
+      const projectId = patch.project_id !== undefined ? patch.project_id : row.project_id;
+      const words = input.heading?.trim() ?? "";
+      if (!words || fold(words) === "none") {
+        patch.heading_id = null;
+        said.push("under no heading");
+      } else {
+        if (!projectId) throw new Refusal("A heading is inside a project, and this task is in none.");
+        const headings = await this.store.headings(String(projectId));
+        const heading = headings.find((h) => h.id === words || fold(String(h.title ?? "")) === fold(words));
+        if (!heading) throw new Refusal(`Its project has no heading called ${quoted(words)}.${headings.length ? ` It has: ${headings.map((h) => quoted(String(h.title))).join(", ")}.` : ""} update_project adds one.`);
+        patch.heading_id = heading.id;
+        said.push(`under ${String(heading.title)}`);
+      }
+    }
+    if (input.start !== undefined) {
+      const day = !input.start || fold(input.start) === "none" ? null : this.readDay(input.start, c).date;
+      patch.start_date = day?.toString() ?? null;
+      said.push(day ? `starts ${dayWords(day, c.today)}` : "start date cleared");
+    }
+    if (input.time !== undefined) {
+      const none = !input.time || fold(input.time) === "none";
+      if (!none && !row.do_date) throw new Refusal(`${quoted(title)} has no day yet: give it one with reschedule_task, with the time in the same words ("fri 3pm").`);
+      const time = none ? null : this.readTime(input.time as string, c);
+      patch.do_time = time?.toString({ smallestUnit: "minute" }) ?? null;
+      if (time) patch.evening = Temporal.PlainTime.compare(time, c.settings.eveningStartsAt) >= 0;
+      said.push(time ? `at ${patch.do_time}` : "no time");
+    }
+    if (input.evening !== undefined) {
+      patch.evening = input.evening;
+      said.push(input.evening ? "this evening" : "not in the evening");
+    }
+    if (input.ifMissed !== undefined) {
+      patch.miss_policy = input.ifMissed;
+      said.push(`if missed: ${input.ifMissed}`);
+    }
+    // A project, an area, a deadline or a start date takes a task out of the Inbox (PRODUCT_SPEC.md §5.1 rule 5).
+    if (row.state === "inbox" && (patch.project_id || patch.area_id || patch.deadline || patch.start_date)) patch.state = "active";
     const ops: WireOp[] = Object.keys(patch).length ? [this.patch("tasks", id, patch)] : [];
     if (input.addTags?.length || input.removeTags?.length) {
       const tagOps = await this.retag("task_tags", "task_id", id, String(row.space_id), input.addTags ?? [], input.removeTags ?? []);
@@ -722,151 +587,8 @@ export class Planner {
     }
     if (ops.length === 0) throw new Refusal("Nothing to change: give at least one field.");
     await this.apply(ops, `change ${quoted(title)}`);
-    return { said: `Changed ${quoted(title)}: ${said.join(", ")}`, id, blocksReleased: 0 };
-  }
-
-  // ---------------------------------------------------------------- finding things
-
-  /** A task by id, or by its title (exactly, else the one title that contains the words). */
-  private async findTask(ref: string, opts: { anyState?: boolean } = {}): Promise<Row> {
-    const want = ref.trim();
-    if (!want) throw new Refusal("Say which task: its id or its title.");
-    if (UUID.test(want)) {
-      const row = await this.store.task(want);
-      if (!row) throw new Refusal(`No task has the id ${want}.`);
-      if (!opts.anyState && !OPEN.includes(row.state as TaskState)) throw new Refusal(`${quoted(String(row.title))} is ${row.state}; reopen_task brings it back first.`);
-      return row;
-    }
-    const states: TaskState[] = opts.anyState ? ["inbox", "active", "someday", "done", "dropped"] : [...OPEN];
-    const rows = (await this.store.tasks({ states, text: want, limit: 50 })).filter((r) => fold(String(r.title ?? "")).includes(fold(want)));
-    const exact = rows.filter((r) => fold(String(r.title ?? "")) === fold(want));
-    const pool = exact.length ? exact : rows;
-    // An open task wins over a finished one of the same title.
-    const open = pool.filter((r) => OPEN.includes(r.state as TaskState));
-    const candidates = open.length ? open : pool;
-    if (candidates.length === 1) return candidates[0];
-    if (candidates.length === 0) throw new Refusal(`No ${opts.anyState ? "" : "open "}task matches ${quoted(want)}. Search with search, or give its id.`);
-    const list = candidates
-      .slice(0, 6)
-      .map((r) => `${quoted(String(r.title))} (${r.state}${r.do_date ? `, ${r.do_date}` : ""}, id ${r.id})`)
-      .join("; ");
-    throw new Refusal(`${candidates.length} tasks match ${quoted(want)}: ${list}. Say which by its id.`);
-  }
-
-  private findProject(name: string, projects: readonly Row[]): Row {
-    if (UUID.test(name.trim())) {
-      const p = projects.find((x) => x.id === name.trim());
-      if (p) return p;
-    }
-    const exact = projects.filter((p) => fold(String(p.name ?? "")) === fold(name));
-    if (exact.length === 1) return exact[0];
-    if (exact.length > 1) throw new Refusal(`${exact.length} projects are called ${quoted(name)}: give the project's id (list_projects shows them).`);
-    const within = projects.filter((p) => fold(String(p.name ?? "")).includes(fold(name)));
-    if (within.length === 1) return within[0];
-    throw new Refusal(within.length ? `${quoted(name)} fits ${within.length} projects: ${within.map((p) => quoted(String(p.name))).join(", ")}.` : `No project is called ${quoted(name)}. Add one with add_task and #+${name.replace(/\s+/g, "")} or in Sparehour.`);
-  }
-
-  /** A day as the task detail's Do field reads words, else an ISO date. */
-  private readDay(when: string, c: Ctx): { date: LocalDate; time: LocalTime | null; evening: boolean } {
-    const words = when.trim();
-    if (ISO_DAY.test(words)) {
-      try {
-        return { date: localDate(words), time: null, evening: false };
-      } catch {
-        throw new Refusal(`${quoted(words)} is not a real date.`);
-      }
-    }
-    const typed = readTypedDate(words, c.parse);
-    if (!typed) throw new Refusal(`Couldn't read ${quoted(words)} as a day. Try "tomorrow", "fri", "fri 3pm", "next week", "in 3 days" or 2026-11-02.`);
-    return typed;
-  }
-
-  // ---------------------------------------------------------------- write helpers
-
-  private op(op: WireOp["op"], table: string, id: string, data?: Record<string, unknown>): WireOp {
-    return { client_id: `${Date.now().toString(36)}-${++this.opSeq}-${this.newId()}`, op, table, id, ...(data ? { data } : {}) };
-  }
-
-  private put(table: string, id: string, data: Record<string, unknown>): WireOp {
-    return this.op("PUT", table, id, data);
-  }
-
-  private patch(table: string, id: string, data: Record<string, unknown>): WireOp {
-    return this.op("PATCH", table, id, data);
-  }
-
-  private del(table: string, id: string): WireOp {
-    return this.op("DELETE", table, id);
-  }
-
-  /** Sends the ops as the person, through the same sanitising the sync upload does; any refused op refuses the whole. */
-  private async apply(ops: readonly WireOp[], what: string): Promise<void> {
-    const clean = ops.map(sanitize).filter((o): o is WireOp => o !== null);
-    if (clean.length === 0) return;
-    const result = await this.store.apply(this.opts.device, clean);
-    if (result.rejected.length === 0) return;
-    const codes = [...new Set(result.rejected.map((r) => r.code))];
-    if (codes.includes("42501")) throw new Refusal(`Sparehour refused to ${what}: this connection may not change that (it may be read only, or the row is not yours).`);
-    throw new Refusal(`Sparehour refused to ${what} (database code ${codes.join(", ")}).${result.applied.length ? " Some of it was saved; check the app." : ""}`);
-  }
-
-  /** Links to the named tags, made if they are new (create-if-missing, case-insensitive); `pending` holds tags made earlier in the same batch. */
-  private async tagLinks(table: "task_tags", column: "task_id", ownerId: string, spaceId: string, names: readonly string[], pending: readonly WireOp[] = []): Promise<{ ops: WireOp[]; newTags: string[] }> {
-    const clean = [...new Map(names.map((n) => n.trim().replace(/^[@#]/, "")).filter(Boolean).map((n) => [fold(n), n])).values()];
-    if (clean.length === 0) return { ops: [], newTags: [] };
-    const known = (await this.store.tags()).map((t) => ({ id: String(t.id), name: String(t.name ?? "") }));
-    for (const p of pending) if (p.table === "tags" && p.data) known.push({ id: p.id, name: String(p.data.name) });
-    const ops: WireOp[] = [];
-    const newTags: string[] = [];
-    for (const name of clean) {
-      let tag = resolveTag(name, known);
-      if (!tag) {
-        tag = { id: this.newId(), name };
-        known.push(tag);
-        newTags.push(name);
-        ops.push(this.put("tags", tag.id, { space_id: spaceId, name }));
-      }
-      ops.push(this.put(table, this.newId(), { space_id: spaceId, [column]: ownerId, tag_id: tag.id }));
-    }
-    return { ops, newTags };
-  }
-
-  private async retag(table: "task_tags", column: "task_id", ownerId: string, spaceId: string, add: readonly string[], remove: readonly string[]): Promise<{ ops: WireOp[]; said: string[] }> {
-    const current = (await this.store.taskTags([ownerId])).map((t) => ({ name: t.name, linkId: t.link_id }));
-    const has = new Set(current.map((t) => fold(t.name)));
-    const ops: WireOp[] = [];
-    const said: string[] = [];
-    const adding = add.map((n) => n.trim().replace(/^[@#]/, "")).filter((n) => n && !has.has(fold(n)));
-    if (adding.length) {
-      ops.push(...(await this.tagLinks(table, column, ownerId, spaceId, adding)).ops);
-      said.push(`tagged ${adding.map((n) => `@${n}`).join(" ")}`);
-    }
-    const dropping = remove.map((n) => fold(n.replace(/^[@#]/, ""))).filter(Boolean);
-    const gone = current.filter((t) => dropping.includes(fold(t.name)));
-    if (gone.length) {
-      for (const t of gone) ops.push(this.del(table, t.linkId));
-      said.push(`untagged ${gone.map((t) => `@${t.name}`).join(" ")}`);
-    }
-    return { ops, said };
-  }
-
-  /** Blocks a task gives up when it leaves a day (task-repo.ts releaseBlocks): not started, not locked, not on `keepOn`. */
-  private async releasedBlocks(taskId: string, keepOn: LocalDate | null): Promise<string[]> {
-    const c = await this.ctx();
-    const blocks = await this.store.blocksOf(taskId);
-    return blocks
-      .filter((b) => {
-        if (b.locked === 1 || typeof b.start_at !== "string") return false;
-        const start = Temporal.Instant.from(normaliseTimestamp(b.start_at));
-        if (Temporal.Instant.compare(start, c.now) <= 0) return false;
-        return !keepOn || !start.toZonedDateTimeISO(c.zone).toPlainDate().equals(keepOn);
-      })
-      .map((b) => String(b.id));
-  }
-
-  /** The task as written, for the answer when the read-back has not caught up. */
-  private syntheticRow(id: string, spaceId: string, row: object): Record<string, unknown> {
-    return { id, space_id: spaceId, ...row, evening: (row as { evening: boolean }).evening ? 1 : 0, carry_count: 0 };
+    const timed = "do_time" in patch || "estimate_min" in patch ? await this.keepTime(id, row) : { words: "", changed: 0 };
+    return { said: `Changed ${quoted(title)}: ${said.join(", ")}${timed.words}`, id, blocksChanged: timed.changed };
   }
 }
 
@@ -881,39 +603,4 @@ export interface ProjectLine {
 
 function rowOf(rows: readonly Row[], id: string): Row {
   return rows.find((r) => r.id === id) as Row;
-}
-
-function exceptionRow(e: Row) {
-  return { occurrence_date: String(e.occurrence_date), kind: String(e.kind), moved_to: str(e.moved_to) };
-}
-
-/**
- * The greatest key, compared as the app's SQLite compares text (code units). Postgres here sorts text by en_US
- * collation, where "a0" < "Zz", so the store returns keys and the last one is picked here, never by ORDER BY.
- */
-export function lastKey(keys: readonly (string | null | undefined)[]): string | null {
-  let last: string | null = null;
-  for (const k of keys) if (k && (last === null || k > last)) last = k;
-  return last;
-}
-
-/** "today", "tomorrow", else "Mon 26 Oct". */
-export function dayWords(day: LocalDate, today: LocalDate): string {
-  const days = day.since(today, { largestUnit: "days" }).days;
-  if (days === 0) return "today";
-  if (days === 1) return "tomorrow";
-  if (days === -1) return "yesterday";
-  return `${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][day.dayOfWeek - 1]} ${day.day} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][day.month - 1]}${day.year !== today.year ? ` ${day.year}` : ""}`;
-}
-
-/** Minutes from a number or "45m", "1h", "1h30", "1.5h", "90"; null clears; undefined when unreadable. */
-export function estimateMinutes(v: number | string | null): number | null | undefined {
-  if (v === null) return null;
-  if (typeof v === "number") return Number.isFinite(v) && v >= 1 && v <= 1440 ? Math.round(v) : undefined;
-  const t = v.trim().toLowerCase().replace(/\s+/g, "");
-  if (t === "" || t === "none") return null;
-  const m = /^(?:(\d+(?:\.\d+)?)h)?(?:(\d+)m?)?$/.exec(t);
-  if (!m || (!m[1] && !m[2])) return undefined;
-  const min = Math.round((m[1] ? Number(m[1]) * 60 : 0) + (m[2] ? Number(m[2]) : 0));
-  return min >= 1 && min <= 1440 ? min : undefined;
 }

@@ -28,7 +28,7 @@
 | **M3 — public launch** | Billing, onboarding, landing page, data export |
 
 ## Connect Claude to Sparehour
-Claude can read your planner and, if you let it, change it: add tasks in quick-add words ("Draft proposal fri 3pm ~45m #Acme"), see Today with its spare time, the Inbox and Upcoming, complete, move and edit tasks, search, and plan your day. It signs in as you through Sparehour's own consent screen, where you choose **Read and change** or **Read only**; Settings › Connected apps changes that or disconnects.
+Claude, or another AI app that takes MCP connectors, can read your planner and, if you let it, change it: tasks with their steps, repeats, tags and notes, any day with its spare time, time blocks, projects, areas and headings, Someday, the Logbook, planning your day, closing it, and your planning settings. When you ask it to add a task it drafts it first, shows what is not set (day, how long, project, deadline, priority, tags) with your own choices, and adds it once you have answered or said "add as is". It signs in as you through Sparehour's own consent screen, where you choose **Read and change** or **Read only**; Settings › Connected apps changes that or disconnects.
 
 The address is `https://sparehour-dev.vercel.app/api/mcp` (Settings › Connected apps shows it with a Copy button).
 

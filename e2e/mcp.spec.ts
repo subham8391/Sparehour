@@ -34,6 +34,12 @@ test.afterAll(async () => {
   await withDb(async (c) => {
     await c.query("delete from public.task_tags where task_id in (select id from public.tasks where title like $1)", [`%${n}`]);
     await c.query("delete from public.tasks where title like $1", [`%${n}`]);
+    await c.query("delete from public.time_blocks where title like $1", [`%${n}`]);
+    // The project, its copy, and the one a task was made into, with the tasks made from steps in them.
+    const made = (await c.query("select id from public.projects where name like $1", [`%${n}%`])).rows.map((r) => r.id);
+    await c.query("delete from public.tasks where project_id = any($1::uuid[])", [made]);
+    await c.query("delete from public.headings where project_id = any($1::uuid[])", [made]);
+    await c.query("delete from public.projects where id = any($1::uuid[])", [made]);
     await c.query("delete from public.tags where name = $1", [tag]);
     await c.query("delete from public.app_connections where client_name = $1", [CLIENT]);
     await c.query("delete from auth.oauth_clients where client_name = $1", [CLIENT]);
@@ -119,12 +125,22 @@ test("Claude connects through the consent screen and works the planner over MCP"
   expect(init.json.result.serverInfo.name).toBe("sparehour");
   const tools = await rpc(request, token, "tools/list");
   const names: string[] = tools.json.result.tools.map((t: { name: string }) => t.name);
-  expect(names).toEqual(expect.arrayContaining(["get_today", "get_inbox", "get_upcoming", "search", "add_task", "complete_task", "reschedule_task", "plan_day", "apply_day_plan"]));
+  expect(names).toEqual(expect.arrayContaining(["get_today", "get_inbox", "get_upcoming", "search", "add_task", "complete_task", "reschedule_task", "plan_day", "apply_day_plan", "draft_task", "block_time", "add_project"]));
   // Lists were taken out of the app (DECISIONS.md, amendment 2026-11-14): Claude is offered no list tool.
   expect(names.filter((name) => /list_item|_lists?$/.test(name))).toEqual([]);
 
-  // add_task reads quick-add as the app does: a Friday at 15:00, 45 minutes, a new tag; written as the person, by MCP.
-  const added = await call(request, token, "add_task", { text: `${title} fri 3pm ~45m @${tag}` });
+  // Adding asks first (DECISIONS.md, amendment 2026-11-22): the draft says what is not set with the person's choices,
+  // and add_task without the person's answer writes nothing.
+  const asked = await call(request, token, "add_task", { tasks: [{ text: `${title} fri 3pm ~45m` }] });
+  expect(asked.text).toMatch(/^Nothing has been added: ask the person first/);
+  expect(asked.text).toContain("Not set: project, deadline, priority, tags");
+  expect(asked.text).toContain("Which project?");
+  expect((await withDb((c) => c.query("select 1 from public.tasks where title = $1", [title]))).rowCount).toBe(0);
+
+  const unasked = await call(request, token, "add_task", { tasks: [{ text: `${title} fri 3pm ~45m` }], confirmed: true });
+  expect(unasked.text).toContain("This was not added: it has not been drafted yet");
+  // Answered, it reads quick-add as the app does: a Friday at 15:00, 45 minutes, a new tag; written as the person, by MCP.
+  const added = await call(request, token, "add_task", { tasks: [{ text: `${title} fri 3pm ~45m`, tags: [tag], steps: ["One", "Two"], draft: /Draft code: ([0-9a-f]{6})/.exec(asked.text)?.[1] }], confirmed: true });
   expect(added.isError, added.text).toBe(false);
   expect(added.text).toContain(`Added “${title}”`);
   const taskId = idIn(added.text) as string;
@@ -139,6 +155,38 @@ test("Claude connects through the consent screen and works the planner over MCP"
     ).rows[0],
   );
   expect(row).toEqual({ source: "mcp", state: "active", do_time: "15:00:00", estimate_min: 45, dow: 5, mine: true, tagged: 1 });
+
+  // With its steps, and its time on the timeline (unless that Friday's 15:00 is already behind).
+  const made = await withDb(async (c) => ({
+    steps: (await c.query("select title from public.checklist_items where task_id = $1 and deleted_at is null order by sort_key", [taskId])).rows.map((r) => r.title),
+    blocks: (await c.query("select source, locked, user_id = $2 as mine, (extract(epoch from end_at - start_at) / 60)::int as minutes from public.time_blocks where task_id = $1 and deleted_at is null", [taskId, me.uid])).rows,
+  }));
+  expect(made.steps).toEqual(["One", "Two"]);
+  if (added.text.includes("· blocked")) expect(made.blocks).toEqual([{ source: "manual", locked: false, mine: true, minutes: 45 }]);
+
+  // The rest of the app, against the real database as this person: steps, a block, a project with a heading, settings.
+  expect((await call(request, token, "edit_steps", { task: taskId, check: ["One"], add: ["Three"] })).text).toContain("ticked “One”, added “Three”");
+  const project = await call(request, token, "add_project", { name: `${E2E_PREFIX}Project ${n}`, headings: ["Plan"] });
+  expect(project.isError, project.text).toBe(false);
+  const projectId = idIn(project.text) as string;
+  expect((await call(request, token, "update_task", { task: taskId, project: projectId, heading: "Plan" })).text).toContain("under Plan");
+  expect((await call(request, token, "get_project", { project: projectId })).text).toContain(`Plan (heading, 1)\n- ${title}`);
+  const ad = await call(request, token, "block_time", { title: `${E2E_PREFIX}Block ${n}`, day: isoPlus(me.today, 2), start: "11:00", minutes: 45 });
+  const blockId = /\[block ([0-9a-f-]{36})\]/.exec(ad.text)?.[1] as string;
+  expect((await call(request, token, "change_block", { block: blockId, start: "12:00", locked: true })).text).toContain("12:00–12:45");
+  expect((await call(request, token, "get_day", { day: isoPlus(me.today, 2) })).text).toContain(`12:00–12:45 ${E2E_PREFIX}Block ${n} · locked`);
+  expect((await call(request, token, "remove_block", { block: blockId })).isError).toBe(false);
+  for (const [name, args] of [["get_settings", {}], ["list_tags", {}], ["get_someday", {}], ["get_logbook", { days: 7 }], ["search", { tag }]] as const) {
+    const r = await call(request, token, name, args);
+    expect(r.isError, `${name}: ${r.text}`).toBe(false);
+  }
+  const repeat = await call(request, token, "change_repeat", { task: taskId, action: "set", repeat: "every friday" });
+  expect(repeat.text).toContain("now repeats every Friday");
+  expect((await call(request, token, "change_repeat", { task: taskId, action: "skip" })).text).toContain("Skipped");
+  expect((await call(request, token, "change_repeat", { task: taskId, action: "stop" })).text).toContain("no longer repeats");
+  const copy = await call(request, token, "duplicate_project", { project: projectId });
+  expect(copy.text).toContain("with 1 open task");
+  expect((await call(request, token, "make_task_a_project", { task: idIn((await call(request, token, "duplicate_task", { task: taskId })).text) as string })).text).toContain("3 tasks from its steps");
 
   // It reaches the app through the sync streams like any other write.
   await openApp(page, `/search?q=${encodeURIComponent(title)}`);
@@ -202,7 +250,7 @@ test("Claude connects through the consent screen and works the planner over MCP"
   const moved = await call(request, token, "reschedule_task", { task: taskId, when: "tomorrow" });
   expect(moved.text).toContain("Moved");
   expect((await withDb((c) => c.query("select do_date::text from public.tasks where id = $1", [taskId]))).rows[0].do_date).toBe(isoPlus(me.today, 1));
-  expect((await call(request, token, "complete_task", { task: title })).text).toBe(`Completed “${title}”`);
+  expect((await call(request, token, "complete_task", { task: taskId })).text).toBe(`Completed “${title}”`);
   expect((await withDb((c) => c.query("select state from public.tasks where id = $1", [taskId]))).rows[0].state).toBe("done");
 
   // Settings › Connected apps: read only. Writes are refused with the way back; reads still answer.
@@ -211,7 +259,7 @@ test("Claude connects through the consent screen and works the planner over MCP"
   await expect(appRow).toBeVisible();
   await appRow.getByRole("radiogroup", { name: `What ${CLIENT} may do` }).getByRole("radio", { name: "Read only" }).click();
   await expect.poll(async () => (await withDb((c) => c.query("select access from public.app_connections where client_id = $1", [reg.client_id]))).rows[0]?.access).toBe("read");
-  const refused = await call(request, token, "add_task", { text: `${E2E_PREFIX}Refused ${n}` });
+  const refused = await call(request, token, "add_task", { tasks: [{ text: `${E2E_PREFIX}Refused ${n}` }], confirmed: true });
   expect(refused.isError).toBe(true);
   expect(refused.text).toContain("read only");
   expect((await call(request, token, "get_inbox")).isError).toBe(false);

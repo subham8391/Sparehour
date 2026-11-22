@@ -12,7 +12,7 @@
 //   (releaseBlocks); the new day gets its block here.
 //
 // Loaded by TaskRepo the first time a write touches a day or a time, never in a shell.
-import { blockLength } from "@/core/blocking";
+import { startOf, timedStep } from "@/core/blocking/timed";
 import { Temporal } from "@/core/time";
 import { normaliseTimestamp } from "../mappers";
 import type { LocalDatabase } from "../powersync";
@@ -45,16 +45,6 @@ const instantOf = (stamp: string | number | null): Temporal.Instant | null => {
   }
 };
 
-/** The moment a day and a time name in the person's zone; null when either is missing or unreadable. */
-function startOf(date: string | null, time: string | null, zone: string): Temporal.Instant | null {
-  if (!date || !time) return null;
-  try {
-    return Temporal.PlainDate.from(date.slice(0, 10)).toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from(time) }).toInstant();
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Brings the blocks of `ids` in step with the tasks as they are now. `was` is how they were before the write that
  * has just been made (null for a task that is new): it tells the block made for the old time from one placed by hand.
@@ -78,37 +68,30 @@ export async function keepTimedBlocks(db: LocalDatabase, ids: readonly string[],
       const blocks = await tx.getAll<BlockRow>(`select * from time_blocks where task_id = ? and deleted_at is null`, [id]);
       const live = Array.isArray(blocks) ? blocks : [];
       const before = was?.find((w) => w.id === id) ?? null;
-      const oldStart = before ? startOf(before.do_date, before.do_time, zone) : null;
-      // The block that was made for the old time, if it is still where it was put and can still be moved.
-      const own = oldStart
-        ? (live.find((b) => {
-            const start = instantOf(b.start_at);
-            return start !== null && Temporal.Instant.compare(start, oldStart) === 0 && !b.locked && Temporal.Instant.compare(start, now) > 0;
-          }) ?? null)
-        : null;
-
       const open = !task.deleted_at && (task.state === "active" || task.state === "inbox");
-      const start = open ? startOf(task.do_date, task.do_time, zone) : null;
-      if (!start) {
-        if (own) {
-          await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [stamp, stamp, own.id]);
-          removed.push(own);
-        }
+      const step = timedStep({
+        start: open ? startOf(task.do_date, task.do_time, zone) : null,
+        oldStart: before ? startOf(before.do_date, before.do_time, zone) : null,
+        estimateMin: task.estimate_min,
+        defaultEstimateMin: settings?.default_estimate_min ?? 30,
+        blocks: live.map((b) => ({ id: b.id, start: instantOf(b.start_at), end: instantOf(b.end_at), locked: Boolean(b.locked) })),
+        zone,
+        now,
+      });
+      if (step.kind === "none") continue;
+      if (step.kind === "remove") {
+        await tx.execute(`update time_blocks set deleted_at = ?, updated_at = ? where id = ?`, [stamp, stamp, step.id]);
+        removed.push(live.find((b) => b.id === step.id) as BlockRow);
         continue;
       }
-      const end = start.add({ minutes: blockLength(task.estimate_min, settings?.default_estimate_min ?? 30) });
-      if (own) {
-        const ownEnd = instantOf(own.end_at);
-        if (Temporal.Instant.compare(start, oldStart as Temporal.Instant) !== 0 || !ownEnd || Temporal.Instant.compare(end, ownEnd) !== 0) {
-          await tx.execute(`update time_blocks set start_at = ?, end_at = ?, updated_at = ? where id = ?`, [start.toString(), end.toString(), stamp, own.id]);
-          moved.push({ id: own.id, start_at: String(own.start_at), end_at: String(own.end_at) });
-        }
+      const { start, end } = step;
+      if (step.kind === "move") {
+        const own = live.find((b) => b.id === step.id) as BlockRow;
+        await tx.execute(`update time_blocks set start_at = ?, end_at = ?, updated_at = ? where id = ?`, [start.toString(), end.toString(), stamp, own.id]);
+        moved.push({ id: own.id, start_at: String(own.start_at), end_at: String(own.end_at) });
         continue;
       }
-      // A block already on that day is where the person (or an earlier pass) put the task: nothing is added beside it.
-      const day = start.toZonedDateTimeISO(zone).toPlainDate();
-      if (live.some((b) => instantOf(b.start_at)?.toZonedDateTimeISO(zone).toPlainDate().equals(day))) continue;
-      if (Temporal.Instant.compare(end, now) <= 0 || !user || !task.space_id) continue;
+      if (!user || !task.space_id) continue;
       const blockId = crypto.randomUUID();
       await tx.execute(
         `insert into time_blocks (id, space_id, user_id, task_id, title, start_at, end_at, locked, source, push_state, created_at, updated_at)

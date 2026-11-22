@@ -48,7 +48,7 @@ export function ConnectionsSection(_: SettingsFormProps) {
         <>
           <div className={ROW}>
             <span className="flex min-w-0 flex-col">
-              <span className={LABEL}>Connect Claude</span>
+              <span className={LABEL}>Connect an AI app</span>
               <span className={HINT}>{CONNECTIONS.connectHint}</span>
               <code className="mt-1 text-body-sm break-all text-ink">{state.endpoint}</code>
             </span>

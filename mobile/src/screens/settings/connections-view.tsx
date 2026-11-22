@@ -45,7 +45,7 @@ export function ConnectionsView({ state, busy, error, onRetry, onShare, onAccess
       {state.kind === "ready" ? (
         <>
           <CardRow first>
-            <SettingRow label="Connect Claude" hint={CONNECTIONS.connectHint}>
+            <SettingRow label="Connect an AI app" hint={CONNECTIONS.connectHint}>
               <Text selectable accessibilityLabel={`Address: ${state.endpoint}`} style={[styles.address, { color: c.ink }]}>
                 {state.endpoint}
               </Text>

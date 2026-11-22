@@ -1,6 +1,7 @@
 // An in-memory PlannerStore for the MCP tests: tables as arrays of SQLite-shaped rows, read with the same filters
 // the PostgREST store sends, and written the way apply_mutations writes (PUT upserts the row, PATCH sets the given
 // columns, DELETE soft-deletes). Every op it was sent is kept, so a test can say exactly what reached the database.
+import type { Learned } from "@/core/estimates";
 import type { WireOp } from "@/server/sync/upload";
 import type { ApplyResult, PlannerStore, Profile, Row, TaskQuery } from "./store";
 
@@ -20,11 +21,12 @@ export class FakeStore implements PlannerStore {
     public tables: Tables,
     private readonly me: { userId: string; spaceId: string; settings?: Row | null },
   ) {
-    for (const t of ["tasks", "task_tags", "tags", "projects", "areas", "checklist_items", "work_hours", "calendars", "calendar_events", "time_blocks", "recurrence_exceptions", "lists", "list_items", "list_item_tags", "task_completions"]) this.tables[t] ??= [];
+    for (const t of ["tasks", "task_tags", "tags", "projects", "areas", "headings", "day_plans", "user_settings", "checklist_items", "work_hours", "calendars", "calendar_events", "time_blocks", "recurrence_exceptions", "lists", "list_items", "list_item_tags", "task_completions"]) this.tables[t] ??= [];
   }
 
   private t(name: string): Row[] {
-    return (this.tables[name] ??= []).filter(live);
+    // Copies, as a read from the database is: a later write never changes a row already read.
+    return (this.tables[name] ??= []).filter(live).map((r) => ({ ...r }));
   }
 
   async profile(): Promise<Profile> {
@@ -40,6 +42,8 @@ export class FakeStore implements PlannerStore {
       .filter((r) => !q.startedBy || r.start_date == null || String(r.start_date) <= q.startedBy)
       .filter((r) => !q.startsAfter || (r.start_date != null && String(r.start_date) > q.startsAfter))
       .filter((r) => !q.ids || q.ids.includes(String(r.id)))
+      .filter((r) => !q.projectId || r.project_id === q.projectId)
+      .filter((r) => !q.areaId || r.area_id === q.areaId)
       .filter((r) => !q.text || has(r.title, q.text) || has(r.notes_md, q.text))
       .slice(0, q.limit ?? 1000);
   }
@@ -61,6 +65,9 @@ export class FakeStore implements PlannerStore {
   async projects() {
     return this.t("projects");
   }
+  async headings(projectId?: string) {
+    return this.t("headings").filter((h) => !projectId || h.project_id === projectId);
+  }
   async areas() {
     return this.t("areas");
   }
@@ -78,6 +85,21 @@ export class FakeStore implements PlannerStore {
   }
   async blocks(from: string, to: string) {
     return this.t("time_blocks").filter((b) => String(b.start_at).slice(0, 10) >= from && String(b.start_at).slice(0, 10) <= to);
+  }
+  async block(id: string) {
+    return this.t("time_blocks").find((b) => b.id === id) ?? null;
+  }
+  async dayPlan(day: string) {
+    return this.t("day_plans").find((d) => d.date === day) ?? null;
+  }
+  async done(from: string, to: string) {
+    const within = (r: Row) => typeof r.completed_at === "string" && r.completed_at >= from && r.completed_at < to;
+    return { tasks: this.t("tasks").filter((r) => r.state === "done" && within(r)), completions: this.t("task_completions").filter(within), older: this.t("finished_tasks").filter(within) };
+  }
+  /** What a test wants the person's finished tasks to say. */
+  learnedIs: Learned | null = null;
+  async learned() {
+    return this.learnedIs;
   }
   async blocksOf(taskId: string) {
     return this.t("time_blocks").filter((b) => b.task_id === taskId);

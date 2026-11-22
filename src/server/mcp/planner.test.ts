@@ -108,7 +108,10 @@ describe("add_task reads quick-add as the app does", () => {
     // An existing tag is linked, never made again; the device names the connection.
     expect(opsOn("tags")).toHaveLength(0);
     expect(only(opsOn("task_tags")).data).toMatchObject({ task_id: put.id, tag_id: CLIENT_TAG, space_id: "s1" });
-    expect(store.devices).toEqual(["mcp:client-1"]);
+    expect([...new Set(store.devices)]).toEqual(["mcp:client-1"]);
+    // Its time is on the timeline, as the app puts it there (DECISIONS.md, amendment 2026-11-16).
+    expect(only(opsOn("time_blocks")).data).toMatchObject({ task_id: put.id, title: "Draft proposal", start_at: "2026-10-26T15:00:00Z", end_at: "2026-10-26T15:45:00Z", locked: false, source: "manual", user_id: "u1" });
+    expect(added.blocked).toBe(" · blocked 15:00–15:45");
     expect(added.destination).toBe("Upcoming");
     expect(added.strip).toContain("Acme");
     expect(added.task.tagNames).toEqual(["client"]);
@@ -160,7 +163,7 @@ describe("add_task reads quick-add as the app does", () => {
   it("refuses an empty line, a line with nothing but tokens, and several lines", async () => {
     expect(await refusal(planner.addTask("   "))).toMatch(/empty/);
     expect(await refusal(planner.addTask("tomorrow ~30m"))).toMatch(/no title is left/);
-    expect(await refusal(planner.addTask("One\nTwo"))).toMatch(/One task per call/);
+    expect(await refusal(planner.addTask("One\nTwo"))).toMatch(/One task per line/);
     expect(store.ops).toHaveLength(0);
   });
 
@@ -351,7 +354,7 @@ describe("completing, moving and dropping", () => {
     const r = await planner.reschedule("Draft", "mon 9am");
     expect(only(opsOn("tasks")).data).toEqual({ do_date: "2026-10-26", do_time: "09:00", evening: false, state: "active" });
     expect(opsOn("time_blocks").map((o) => [o.op, o.id])).toEqual([["DELETE", "b-later"]]);
-    expect(r).toMatchObject({ said: "Moved “Draft” to Mon 26 Oct 09:00", blocksReleased: 1 });
+    expect(r).toMatchObject({ said: "Moved “Draft” to Mon 26 Oct 09:00", blocksChanged: 1 });
   });
 
   it("reads ISO dates, parks in Someday, takes the day off, and says what it could not read", async () => {
@@ -378,7 +381,7 @@ describe("completing, moving and dropping", () => {
       tasks: [task({ id: "t1", title: "Old idea", do_date: "2026-10-24" }), task({ id: "t2", title: "Loose end", state: "done", completed_at: "2026-10-22T08:00:00Z" })],
       time_blocks: [{ id: "b1", task_id: "t1", start_at: "2026-10-24T09:00:00+00:00", end_at: "2026-10-24T10:00:00+00:00", locked: 0, deleted_at: null }],
     });
-    expect((await planner.drop("Old idea")).blocksReleased).toBe(1);
+    expect((await planner.drop("Old idea")).blocksChanged).toBe(1);
     expect(store.ops.map((o) => [o.op, o.table, o.data?.state])).toEqual([
       ["PATCH", "tasks", "dropped"],
       ["DELETE", "time_blocks", undefined],
@@ -487,7 +490,7 @@ describe("Plan my day is the app's own scheduler, shown first and written only w
     const before = await planner.planDay();
     const v = await planner.applyPlan();
     expect(v.applied).toEqual({ placed: 4, replaced: 0 });
-    expect(store.devices).toEqual(["mcp:client-1"]);
+    expect([...new Set(store.devices)]).toEqual(["mcp:client-1"]);
     const puts = opsOn("time_blocks");
     expect(puts.map((o) => o.op)).toEqual(["PUT", "PUT", "PUT", "PUT"]);
     expect(puts.map((o) => [o.data?.title, o.data?.start_at, o.data?.end_at]).sort()).toEqual(

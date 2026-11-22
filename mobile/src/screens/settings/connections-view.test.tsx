@@ -19,7 +19,7 @@ describe("<ConnectionsView>", () => {
   it("shows the address to give Claude and each app with what it may do", async () => {
     const p = props();
     await render(<ConnectionsView {...p} />);
-    expect(screen.getByText("In Claude, add a custom connector with this address, then sign in here when it asks.")).toBeTruthy();
+    expect(screen.getByText("In Claude, or another AI app that takes MCP connectors, add a custom connector with this address, then sign in here when it asks.")).toBeTruthy();
     expect(screen.getByText(ENDPOINT)).toBeTruthy();
     expect(screen.getByText("Claude")).toBeTruthy();
     expect(screen.getByText(/^Connected .*23 Oct/)).toBeTruthy();

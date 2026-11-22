@@ -150,7 +150,7 @@ export const CONNECTIONS = {
   /** Under the card. */
   note: "An app sees your tasks, projects and calendar busy times. Disconnecting stops it at once.",
   offline: "Connected apps need a connection to the internet.",
-  connectHint: "In Claude, add a custom connector with this address, then sign in here when it asks.",
+  connectHint: "In Claude, or another AI app that takes MCP connectors, add a custom connector with this address, then sign in here when it asks.",
   unavailable: "Connecting apps isn’t switched on for this server yet.",
   none: "No apps connected yet.",
   accessLabel: (name: string): string => `What ${name} may do`,

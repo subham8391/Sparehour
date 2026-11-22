@@ -1,7 +1,9 @@
 // What a person's finished tasks say about their estimates (DECISIONS.md, amendment 2026-11-15), from the three
 // places a recorded length lives: a task finished this week (`tasks`), a repeat's finished day
 // (`task_completions`) and what was finished before (`finished_tasks`, where the nightly job moves both). The
-// newest of them together are the samples core/estimates learns from. Pure: the route reads, this joins.
+// newest of them together are the samples core/estimates learns from. Read as the person, for the app's route and for
+// the MCP server's draft of a task.
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { SAMPLE_LIMIT, learn, type Learned, type TookSample } from "@/core/estimates";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,4 +54,28 @@ export function learnedFrom(...sources: readonly (readonly TookRecord[])[]): Lea
 /** The table is not in this database yet (its migration has not run there): that source simply has nothing. */
 export function tableMissing(error: { code?: string | null } | null): boolean {
   return error?.code === "PGRST205" || error?.code === "42P01";
+}
+
+const COLUMNS = "estimate_min, actual_min, project_id, completed_at";
+
+/** What this person's finished tasks say, read as them (the tables' read policies hold); throws when a read fails. */
+export async function readLearned(db: Pick<SupabaseClient, "from">, space: string | null = null): Promise<Learned> {
+  // The newest of each, with a length: finished this week, finished days of repeats, and finished before.
+  let tasks = db.from("tasks").select(COLUMNS).eq("state", "done").is("deleted_at", null).not("actual_min", "is", null);
+  let completions = db.from("task_completions").select("actual_min, completed_at, task:tasks(estimate_min, project_id)").is("deleted_at", null).not("actual_min", "is", null);
+  let finished = db.from("finished_tasks").select(COLUMNS).not("actual_min", "is", null);
+  if (space) {
+    tasks = tasks.eq("space_id", space);
+    completions = completions.eq("space_id", space);
+    finished = finished.eq("space_id", space);
+  }
+  const newest = { ascending: false } as const;
+  const [t, c, f] = await Promise.all([
+    tasks.order("completed_at", newest).limit(SAMPLE_LIMIT),
+    completions.order("completed_at", newest).limit(SAMPLE_LIMIT),
+    finished.order("completed_at", newest).limit(SAMPLE_LIMIT),
+  ]);
+  const failed = t.error ?? c.error ?? (tableMissing(f.error) ? null : f.error);
+  if (failed) throw new Error(failed.message);
+  return learnedFrom((t.data ?? []) as TookRecord[], ((c.data ?? []) as CompletionRecord[]).map(completionRecord), (f.error ? [] : (f.data ?? [])) as TookRecord[]);
 }
