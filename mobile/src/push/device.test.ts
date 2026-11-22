@@ -2,7 +2,7 @@
 // web's words, the token handed over and remembered, given back on turning off and at sign-out, and handed over
 // again at launch only while reminders are on here and Android still allows them.
 import { apiFetch } from "~/api";
-import { FORGET_WAIT_MS, STORE_KEY, asPermission, ensureChannel, forgetReminders, readPermission, register, registerAgain, storedToken, unregister } from "./device";
+import { FORGET_WAIT_MS, STEP_WAIT_MS, STORE_KEY, asPermission, ensureChannel, forgetReminders, readPermission, register, registerAgain, storedToken, unregister } from "./device";
 
 const mockKept = new Map<string, string>();
 jest.mock("expo-secure-store", () => ({
@@ -80,6 +80,23 @@ describe("turning reminders on and off", () => {
     Notifications.getExpoPushTokenAsync.mockRejectedValueOnce(new Error("SERVICE_NOT_AVAILABLE"));
     await expect(register()).rejects.toThrow("Android didn’t give this phone a reminder address. Check your connection and try again.");
     expect(await storedToken()).toBeNull();
+  });
+
+  it("a step that never answers stops after its wait, in words, instead of waiting for good", async () => {
+    jest.useFakeTimers();
+    try {
+      Notifications.getExpoPushTokenAsync.mockReturnValueOnce(new Promise(() => undefined));
+      const noToken = expect(register()).rejects.toThrow("Android didn’t give this phone a reminder address. Check your connection and try again.");
+      await jest.advanceTimersByTimeAsync(STEP_WAIT_MS);
+      await noToken;
+      jest.mocked(apiFetch).mockReturnValueOnce(new Promise(() => undefined));
+      const noServer = expect(register()).rejects.toThrow("Couldn’t reach Sparehour. Check your connection and try again.");
+      await jest.advanceTimersByTimeAsync(STEP_WAIT_MS);
+      await noServer;
+      expect(await storedToken()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("unregister has the server let go of the token, then forgets it", async () => {

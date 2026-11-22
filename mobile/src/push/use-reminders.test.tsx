@@ -47,7 +47,9 @@ describe("useReminders", () => {
     const { result } = await mount();
     expect(result.current.copy.action).toBe("enable");
     mockPermission = "granted";
-    await act(() => result.current.enable());
+    let on = false;
+    await act(async () => void (on = await result.current.enable()));
+    expect(on).toBe(true);
     expect(device.ensureChannel.mock.invocationCallOrder[0]).toBeLessThan(device.requestPermission.mock.invocationCallOrder[0]);
     expect(device.register).toHaveBeenCalled();
     expect(result.current).toMatchObject({ permission: "granted", registered: true, busy: false, error: null });
@@ -67,8 +69,20 @@ describe("useReminders", () => {
     const { result } = await mount();
     mockPermission = "granted";
     device.register.mockRejectedValueOnce(new device.ReminderError("Not signed in."));
-    await act(() => result.current.enable());
+    let on = true;
+    await act(async () => void (on = await result.current.enable()));
+    expect(on).toBe(false);
     expect(result.current).toMatchObject({ registered: false, busy: false, error: "Not signed in." });
+  });
+
+  it("turning on from one screen is seen at once by another left open underneath", async () => {
+    const today = await mount();
+    const settings = await mount();
+    mockPermission = "granted";
+    // As device.register does: the token is remembered on the device once the server has it.
+    device.register.mockImplementationOnce(async () => (mockToken = "ExponentPushToken[abc]"));
+    await act(async () => void (await settings.result.current.enable()));
+    expect(today.result.current).toMatchObject({ permission: "granted", registered: true });
   });
 
   it("disable turns it off; a failure keeps it on and says so", async () => {

@@ -21,6 +21,19 @@ export const FORGET_WAIT_MS = 4000;
 /** A failure with words for the Settings row. */
 export class ReminderError extends Error {}
 
+/**
+ * How long Android's push address and the server each get before turning on stops with words: a step that never
+ * answers would otherwise leave the ask waiting for good (it did on a phone, 2026-11-22).
+ */
+export const STEP_WAIT_MS = 20_000;
+
+/** The step's answer, or the error once `ms` has passed without one. */
+export function within<T>(step: Promise<T>, ms: number, error: Error): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(error), ms)));
+  return Promise.race([step, late]).finally(() => clearTimeout(timer));
+}
+
 export const WORDS = {
   noToken: "Android didn’t give this phone a reminder address. Check your connection and try again.",
   notSignedIn: "Not signed in.",
@@ -69,7 +82,7 @@ export async function requestPermission(): Promise<PermissionState> {
 
 async function expoToken(): Promise<string> {
   try {
-    return (await Notifications.getExpoPushTokenAsync({ projectId: projectId() })).data;
+    return (await within(Notifications.getExpoPushTokenAsync({ projectId: projectId() }), STEP_WAIT_MS, new ReminderError(WORDS.noToken))).data;
   } catch {
     throw new ReminderError(WORDS.noToken);
   }
@@ -77,7 +90,7 @@ async function expoToken(): Promise<string> {
 
 async function send(method: "POST" | "DELETE", token: string): Promise<Response> {
   try {
-    return await apiFetch(TOKEN_PATH, { method, headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
+    return await within(apiFetch(TOKEN_PATH, { method, headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) }), STEP_WAIT_MS, new ReminderError(WORDS.failed));
   } catch {
     throw new ReminderError(WORDS.failed);
   }

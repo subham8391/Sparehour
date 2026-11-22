@@ -362,6 +362,17 @@ describe("<TodayView>: the sections", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Dismiss" }));
     expect(nudge.onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("after Yes the nudge line says reminders are being turned on, then that they are on", async () => {
+    const nudge = { error: null, asking: true, done: false, onYes: jest.fn(), onNotNow: jest.fn(), onClose: jest.fn() };
+    const view = await render(<TodayView {...props({ blockNudge: nudge })} />);
+    expect(screen.getByText("Turning on reminders…")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Yes" })).toBeNull();
+    await view.rerender(<TodayView {...props({ blockNudge: { ...nudge, asking: false, done: true } })} />);
+    expect(screen.getByText("Reminders are on. You’ll get a nudge when it starts.")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Dismiss" }));
+    expect(nudge.onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("<TodayView>: the ribbon's breakdown", () => {

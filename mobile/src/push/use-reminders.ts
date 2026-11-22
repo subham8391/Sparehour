@@ -3,7 +3,7 @@
 // Turning on makes the channel, asks Android (Android 13 and later show the system box), takes the token and hands it
 // to the server; turning off has the server let go of it. The permission is read again whenever the app comes back to
 // the front, so coming back from Android's settings after lifting a block shows the new state at once.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import type { PermissionCopy, PermissionState } from "@/features/notifications/push";
 import { reminderCopy } from "./copy";
@@ -18,9 +18,15 @@ export interface RemindersApi {
   busy: boolean;
   error: string | null;
   copy: PermissionCopy;
-  enable: () => Promise<void>;
+  /** Resolves true once reminders are on here (never throws: a failure is `error`). */
+  enable: () => Promise<boolean>;
   disable: () => Promise<void>;
 }
+
+// Every other screen holding this hook (Today's first-block ask, Settings) reads again when one of them turns
+// reminders on or off, so a screen left open underneath never asks again after the other one turned them on.
+const changed = new Set<() => void>();
+const announce = (from: () => void) => changed.forEach((read) => read !== from && read());
 
 const words = (e: unknown, fallback: string) => (e instanceof ReminderError ? e.message : fallback);
 
@@ -31,6 +37,8 @@ export function useReminders(): RemindersApi {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const available = useMemo(() => pushAvailable(), []);
+  /** This copy's own read, so its own change is not read back over what it just set. */
+  const self = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let live = true;
@@ -42,11 +50,14 @@ export function useReminders(): RemindersApi {
         setReady(true);
       });
     read();
+    self.current = read;
+    changed.add(read);
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") read();
     });
     return () => {
       live = false;
+      changed.delete(read);
       sub.remove();
     };
   }, []);
@@ -58,11 +69,14 @@ export function useReminders(): RemindersApi {
       await ensureChannel();
       const result = await requestPermission();
       setPermission(result);
-      if (result !== "granted") return;
+      if (result !== "granted") return false;
       await register();
       setRegistered(true);
+      announce(self.current);
+      return true;
     } catch (e) {
       setError(words(e, "Couldn’t turn reminders on just now. Try again."));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -74,6 +88,7 @@ export function useReminders(): RemindersApi {
     try {
       await unregister();
       setRegistered(false);
+      announce(self.current);
     } catch (e) {
       setError(words(e, "Couldn’t turn reminders off just now. Try again."));
     } finally {

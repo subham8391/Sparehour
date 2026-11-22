@@ -75,7 +75,7 @@ export interface TodayViewProps {
   closed?: { line: string; highlights: string | null } | null;
   expired?: { line: string; onReview: () => void; onDismiss: () => void } | null;
   /** "Want a nudge when this starts?", asked once after the first block made here (push/use-block-nudge.ts). */
-  blockNudge?: { error: string | null; asking: boolean; onYes: () => void; onNotNow: () => void; onClose: () => void } | null;
+  blockNudge?: { error: string | null; asking: boolean; done?: boolean; onYes: () => void; onNotNow: () => void; onClose: () => void } | null;
   calendar?: CalendarLineProps | null;
   ritual?: Ritual | null;
   /** List or Day; Day needs `dayPane`, which a day without working hours does not have. */

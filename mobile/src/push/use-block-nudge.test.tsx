@@ -1,9 +1,9 @@
 // The first-block ask on the phone: nothing until a block was just made here; then asked only where a yes would bring
-// the reminder (the shared nudgeEligible); Yes turns reminders on and the line goes once Android has answered; Not now
+// the reminder (the shared nudgeEligible); Yes says it is turning reminders on, then that they are on, and goes; Not now
 // is remembered on this phone.
 import { act, renderHook } from "@testing-library/react-native";
 import { closeBlockNudge, noteBlockCreated } from "@/features/notifications/block-nudge-store";
-import { openAnswer, useBlockNudge } from "./use-block-nudge";
+import { DONE_MS, openAnswer, useBlockNudge } from "./use-block-nudge";
 
 const mockStore = new Map<string, string>();
 jest.mock("expo-secure-store", () => ({
@@ -11,14 +11,13 @@ jest.mock("expo-secure-store", () => ({
   setItemAsync: jest.fn(async (k: string, v: string) => void mockStore.set(k, v)),
 }));
 
-let mockReminders = { ready: true, permission: "default", registered: false, error: null as string | null, enable: jest.fn(async () => undefined) };
+let mockReminders = { ready: true, permission: "default", registered: false, error: null as string | null, enable: jest.fn(async () => true) };
 jest.mock("./use-reminders", () => ({ useReminders: () => mockReminders }));
 
-let mockAfter = { permission: "granted", token: "ExponentPushToken[abc]" as string | null };
+let mockAfter = { permission: "granted" };
 jest.mock("./device", () => ({
   pushAvailable: () => true,
   readPermission: jest.fn(async () => mockAfter.permission),
-  storedToken: jest.fn(async () => mockAfter.token),
 }));
 
 let mockNotify: number | null = 1;
@@ -34,8 +33,8 @@ beforeEach(() => {
   closeBlockNudge();
   mockStore.clear();
   mockNotify = 1;
-  mockAfter = { permission: "granted", token: "ExponentPushToken[abc]" };
-  mockReminders = { ready: true, permission: "default", registered: false, error: null, enable: jest.fn(async () => undefined) };
+  mockAfter = { permission: "granted" };
+  mockReminders = { ready: true, permission: "default", registered: false, error: null, enable: jest.fn(async () => true) };
 });
 
 describe("useBlockNudge", () => {
@@ -44,12 +43,36 @@ describe("useBlockNudge", () => {
     expect(result.current).toBeNull();
   });
 
-  it("asks after the first block; Yes turns reminders on and the line goes once Android has answered", async () => {
+  it("asks after the first block; after Yes it says it is turning them on, then that they are on, then goes", async () => {
+    jest.useFakeTimers();
+    try {
+      noteBlockCreated(() => true);
+      const { result } = await mount();
+      expect(result.current).toMatchObject({ error: null, asking: false, done: false });
+      let finish: (on: boolean) => void = () => undefined;
+      mockReminders.enable = jest.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
+      await act(async () => result.current!.onYes());
+      expect(mockReminders.enable).toHaveBeenCalledTimes(1);
+      expect(result.current).toMatchObject({ asking: true, done: false });
+      // The server has the address now: the line says so even before this screen's own copy reads again.
+      await act(async () => finish(true));
+      expect(result.current).toMatchObject({ asking: false, done: true });
+      await act(async () => void jest.advanceTimersByTime(DONE_MS));
+      expect(result.current).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("an Android box closed without an answer leaves Yes to try again; a refusal for good puts the ask away", async () => {
     noteBlockCreated(() => true);
     const { result } = await mount();
-    expect(result.current).toMatchObject({ error: null, asking: false });
+    mockReminders.enable = jest.fn(async () => false);
+    mockAfter = { permission: "default" };
     await act(async () => result.current!.onYes());
-    expect(mockReminders.enable).toHaveBeenCalledTimes(1);
+    expect(result.current).toMatchObject({ asking: false, done: false, error: null });
+    mockAfter = { permission: "denied" };
+    await act(async () => result.current!.onYes());
     expect(result.current).toBeNull();
   });
 
