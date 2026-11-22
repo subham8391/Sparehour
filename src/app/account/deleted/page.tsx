@@ -4,7 +4,7 @@
 // date and how to change one's mind. Outside the app shell: nothing syncs here.
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DELETED_SIGNED_OUT, deleteAfter, deletedHeadline, deletionDay } from "@/features/account/deletion";
+import { DELETED_SIGNED_OUT, RESTORE, deleteAfter, deletedHeadline, deletionDay } from "@/features/account/deletion";
 import { RestoreAccount } from "@/features/account/restore-account";
 import { createUserScopedClient } from "@/server/auth/supabase";
 import { Wordmark } from "@/ui/brand";
@@ -31,7 +31,7 @@ export default async function DeletedAccountPage({ searchParams }: { searchParam
       <h1 className="font-display text-title font-book text-balance text-ink">{deletedHeadline(day)}</h1>
       {user ? (
         <>
-          <p className="text-body-lg text-pretty text-ink-2">Everything is still here until then. Restore it and carry on where you left off; a connected calendar needs connecting again.</p>
+          <p className="text-body-lg text-pretty text-ink-2">{RESTORE.body}</p>
           <RestoreAccount />
         </>
       ) : (

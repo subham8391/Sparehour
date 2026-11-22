@@ -42,6 +42,16 @@ export const DELETE_ACCOUNT = {
 /** The headline once an account waits for deletion: the day it goes, when that is known. */
 export const deletedHeadline = (day: string | null): string => (day ? `Your account will be deleted on ${day}.` : "Your account is set to be deleted.");
 
+/** Under that headline for someone signed in during the 30 days, said the same on the web and in the Android app. */
+export const RESTORE = {
+  body: "Everything is still here until then. Restore it and carry on where you left off; a connected calendar needs connecting again.",
+  restore: "Restore my account",
+  restoring: "Restoring…",
+  signOut: "Sign out",
+  signingOut: "Signing out…",
+  failed: "Couldn’t restore it just now — check your connection and try again.",
+} as const;
+
 /** Under that headline for someone signed out, straight after deleting. */
 export const DELETED_SIGNED_OUT = "You’re signed out on every device. Changed your mind? Sign in before then and you can restore everything.";
 

@@ -4,6 +4,7 @@
 // leaves the deletion as it is.
 import { useState } from "react";
 import { Button } from "@/ui/button";
+import { RESTORE } from "./deletion";
 
 export function RestoreAccount() {
   const [busy, setBusy] = useState<"restore" | "leave" | null>(null);
@@ -17,7 +18,7 @@ export function RestoreAccount() {
       // A full load: the app starts fresh and fetches its data again.
       window.location.replace("/today");
     } catch {
-      setError("Couldn’t restore it just now — check your connection and try again.");
+      setError(RESTORE.failed);
       setBusy(null);
     }
   };
@@ -33,10 +34,10 @@ export function RestoreAccount() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button variant="primary" onClick={() => void restore()} disabled={busy !== null}>
-          {busy === "restore" ? "Restoring…" : "Restore my account"}
+          {busy === "restore" ? RESTORE.restoring : RESTORE.restore}
         </Button>
         <Button variant="secondary" onClick={() => void leave()} disabled={busy !== null}>
-          {busy === "leave" ? "Signing out…" : "Sign out"}
+          {busy === "leave" ? RESTORE.signingOut : RESTORE.signOut}
         </Button>
       </div>
       {error && (

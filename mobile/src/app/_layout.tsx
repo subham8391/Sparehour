@@ -1,7 +1,7 @@
 // The app's one frame (ANDROID_APP_SPEC.md §4): the typeface, who is signed in, their local database, undo, then
 // the screens as a stack: the four tabs ((tabs)/) at the bottom of it, and whatever is opened from them pushed over.
-// Signed out, the sign-in screen stands in for every route; signed in, nothing is drawn until the copy on the phone
-// is known to be this person's own.
+// Signed out, the sign-in screen stands in for every route; signed in to an account waiting for deletion, the screen
+// that offers Restore does; signed in, nothing is drawn until the copy on the phone is known to be this person's own.
 // First, before anything can make a new row: what the shared code takes from a browser and Hermes lacks (crypto).
 import "~/polyfills";
 import { Stack } from "expo-router/stack";
@@ -12,6 +12,7 @@ import { Text } from "~/ui/text";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "~/auth/session";
 import { missingConfig } from "~/config";
+import { AccountDeleted, waitingForDeletion } from "~/screens/account-deleted";
 import { QuickAddProvider } from "~/screens/quick-add/quick-add";
 import { AppBadge } from "~/push/app-badge";
 import { ReminderHost } from "~/push/reminder-host";
@@ -54,6 +55,9 @@ function Gate() {
   // The device is still being read: paper, not a sign-in screen that goes away again.
   if (session === undefined) return <View style={[styles.fill, { backgroundColor: c.paper }]} />;
   if (session === null) return <SignIn />;
+  // Signed in to an account waiting for deletion: its sync is refused, so Restore or Sign out, never "Connecting…".
+  const after = waitingForDeletion(session);
+  if (after) return <AccountDeleted after={after} />;
   return (
     <SyncProvider userId={session.user.id} failed={() => <Notice title="Your data could not be opened" body="Close the app and open it again. If it stays like this, sign in again." />}>
       {/* Every shared repository records its undo here, whichever screen made the write. */}
