@@ -1,13 +1,15 @@
 // The browser preview of a Settings section (npm run preview, /settings/<section>): the real views, made-up data.
 // Changes are kept on the page, so a control can be tried; nothing is saved anywhere. `?state=` picks what is shown:
 // account `unsynced`; calendar `none`; connections `loading` | `offline` | `none` | `error`; data `empty` | `busy`;
-// planning `usual`. See _layout.web.tsx.
+// notifications `on` | `allowed` | `blocked` | `error` (this device's reminders; off by default); planning `usual`.
+// See _layout.web.tsx.
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import type { SettingsPatch } from "@/data/repositories/settings-repo";
 import { sectionTitle } from "@/features/settings/sections";
 import type { Segment } from "@/features/settings/settings-rules";
 import { asValues, type SettingsValues } from "@/features/settings/settings-values";
+import { reminderCopy } from "~/push/copy";
 import { AboutView } from "~/screens/settings/about-view";
 import { AccountView } from "~/screens/settings/account-view";
 import { AppearanceView } from "~/screens/settings/appearance-view";
@@ -92,7 +94,21 @@ export default function Preview() {
           />
         );
       case "notifications":
-        return <NotificationsView values={values} workHours={week} onChange={change} />;
+        return (
+          <NotificationsView
+            values={values}
+            workHours={week}
+            onChange={change}
+            device={{
+              copy: reminderCopy(state === "blocked" ? "denied" : state === "on" || state === "allowed" ? "granted" : "default", state === "on", true),
+              busy: false,
+              error: state === "error" ? "Couldn’t reach Sparehour. Check your connection and try again." : null,
+              onEnable: nothing,
+              onDisable: nothing,
+              onOpenSettings: nothing,
+            }}
+          />
+        );
       case "planning":
         return <PlanningView values={values} usual={state === "usual" ? 45 : null} onChange={change} />;
       case "appearance":

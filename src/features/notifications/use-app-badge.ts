@@ -10,7 +10,8 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { useLocalDay, useNow } from "@/features/shell/use-local-day";
 
-const BADGE_SQL = `
+/** The badge's two settings for a day: Settings' switch and whether that day was shut down. Read by the phone too. */
+export const BADGE_SQL = `
   select s.badge_enabled as enabled,
          (select p.shutdown_at from day_plans p where p.deleted_at is null and p.date = ? and p.shutdown_at is not null limit 1) as shutdown_at
   from user_settings s limit 1`;

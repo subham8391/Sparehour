@@ -1,12 +1,14 @@
 // The minute tick (SYSTEM_DESIGN.md §7.4): claims what is due and sends it
-// with web-push. Called by pg_cron through pg_net, or by any scheduler, with
+// with web-push to browsers and through Expo's push service to phones with
+// the app. Called by pg_cron through pg_net, or by any scheduler, with
 // the shared secret; never by a browser.
 import { NextResponse, type NextRequest } from "next/server";
 import webPush from "web-push";
 import { serviceRoleClient } from "@/server/auth/supabase";
 import { secretMatches } from "@/server/calendar/config";
 import type { DayContext } from "@/server/push/day-figures";
-import { sendDue, type DueNotification, type PushSubscriptionRow, type SenderDeps } from "@/server/push/sender";
+import { expoMessage, sendExpo, type AppTokenRow } from "@/server/push/expo";
+import { isAppToken, sendDue, type DueNotification, type PushSubscriptionRow, type SenderDeps, type WebSubscriptionRow } from "@/server/push/sender";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,12 +30,21 @@ export async function POST(req: NextRequest) {
       if (error) throw new Error(error.message);
       return (data ?? []) as DueNotification[];
     },
+    // Browsers, and phones with the app (their Expo tokens, ANDROID_APP_SPEC.md §6).
     subscriptionsFor: async (userId) => {
-      const { data, error } = await db.from("push_subscriptions").select("id, endpoint, p256dh, auth").eq("user_id", userId).is("deleted_at", null);
-      if (error) throw new Error(error.message);
-      return (data ?? []) as PushSubscriptionRow[];
+      const [web, app] = await Promise.all([
+        db.from("push_subscriptions").select("id, endpoint, p256dh, auth").eq("user_id", userId).is("deleted_at", null),
+        db.from("app_push_tokens").select("id, token").eq("user_id", userId).is("deleted_at", null),
+      ]);
+      if (web.error) throw new Error(web.error.message);
+      // A phone's trouble never stops a browser's reminder.
+      if (app.error) console.error("app push tokens not read", app.error.message);
+      return [...((web.data ?? []) as WebSubscriptionRow[]), ...((app.error ? [] : (app.data ?? [])) as AppTokenRow[])] satisfies PushSubscriptionRow[];
     },
-    push: (sub, body, options) => webPush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, body, { TTL: options.TTL, urgency: options.urgency, topic: options.topic }),
+    push: (sub, body, options) =>
+      isAppToken(sub)
+        ? sendExpo(expoMessage(sub.token, body, options), { accessToken: process.env.EXPO_ACCESS_TOKEN || undefined })
+        : webPush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, body, { TTL: options.TTL, urgency: options.urgency, topic: options.topic }),
     record: async (notificationId, subscriptionId, status, error) => {
       await db.rpc("record_notification_delivery", { p_notification: notificationId, p_subscription: subscriptionId, p_status: status, p_error: error });
     },

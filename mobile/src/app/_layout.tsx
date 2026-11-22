@@ -11,6 +11,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "~/auth/session";
 import { missingConfig } from "~/config";
 import { QuickAddProvider } from "~/screens/quick-add/quick-add";
+import { AppBadge } from "~/push/app-badge";
+import { ReminderHost } from "~/push/reminder-host";
 import { CarryReviewHost } from "~/screens/review/carry-review-host";
 import { SignIn } from "~/screens/sign-in";
 import { StartGate } from "~/screens/start/start-gate";
@@ -64,6 +66,10 @@ function Gate() {
             <StartGate />
             {/* The carried-over review opens itself once at the start of a day (screens/review); it draws nothing. */}
             <CarryReviewHost />
+            {/* Reminders: shown while open, their buttons, the launch re-register, a tap carried out (push/reminder-host.tsx). */}
+            <ReminderHost />
+            {/* The icon's badge: today's remaining count, kept right while the app is open (push/app-badge.tsx). */}
+            <AppBadge />
           </QuickAddProvider>
         </BlockWrites>
       </UndoProvider>

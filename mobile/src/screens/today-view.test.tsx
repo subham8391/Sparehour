@@ -347,6 +347,21 @@ describe("<TodayView>: the sections", () => {
     expect(calendar.onRetry).toHaveBeenCalledTimes(1);
     expect(calendar.onDismiss).toHaveBeenCalledTimes(1);
   });
+
+  it("asks once after the first block whether to be reminded, and a failure takes its place in words", async () => {
+    const nudge = { error: null, asking: false, onYes: jest.fn(), onNotNow: jest.fn(), onClose: jest.fn() };
+    const view = await render(<TodayView {...props({ blockNudge: nudge })} />);
+    expect(screen.getByText("Want a nudge when this starts?")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Yes" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Not now" }));
+    expect(nudge.onYes).toHaveBeenCalledTimes(1);
+    expect(nudge.onNotNow).toHaveBeenCalledTimes(1);
+    await view.rerender(<TodayView {...props({ blockNudge: { ...nudge, error: "Couldn’t reach Sparehour. Try again." } })} />);
+    expect(screen.queryByText("Want a nudge when this starts?")).toBeNull();
+    expect(screen.getByText("Couldn’t reach Sparehour. Try again.")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Dismiss" }));
+    expect(nudge.onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("<TodayView>: the ribbon's breakdown", () => {

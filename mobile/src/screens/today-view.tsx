@@ -20,7 +20,7 @@ import { Segmented } from "~/ui/segmented";
 import { StickyScreen } from "~/ui/sticky-screen";
 import { TARGET, font, useColours } from "~/ui/theme";
 import { RowMenuSheet, type RowMenuItem } from "./today/menus";
-import { CalendarLine, ClosedDay, ExpiredLine, PastDayNote, type CalendarLineProps } from "./today/notes";
+import { BlockNudgeLine, CalendarLine, ClosedDay, ExpiredLine, PastDayNote, type CalendarLineProps } from "./today/notes";
 import { Hero, type BreakdownOpen } from "./today/ribbon";
 import type { RibbonBreakdown, RibbonShape } from "./today/ribbon-shape";
 import { CarriedSection, DaySection, EveningSection, type PullInRow, type RowContext } from "./today/sections";
@@ -74,6 +74,8 @@ export interface TodayViewProps {
   /** The day was shut down: its summary stands where the hero would. */
   closed?: { line: string; highlights: string | null } | null;
   expired?: { line: string; onReview: () => void; onDismiss: () => void } | null;
+  /** "Want a nudge when this starts?", asked once after the first block made here (push/use-block-nudge.ts). */
+  blockNudge?: { error: string | null; asking: boolean; onYes: () => void; onNotNow: () => void; onClose: () => void } | null;
   calendar?: CalendarLineProps | null;
   ritual?: Ritual | null;
   /** List or Day; Day needs `dayPane`, which a day without working hours does not have. */
@@ -298,6 +300,7 @@ export function TodayView(p: TodayViewProps) {
           <>
             {under}
             {p.expired ? <ExpiredLine {...p.expired} /> : null}
+            {p.blockNudge ? <BlockNudgeLine {...p.blockNudge} /> : null}
             {p.past ? <PastDayNote /> : null}
             {p.calendar ? <CalendarLine {...p.calendar} /> : null}
             {closed}

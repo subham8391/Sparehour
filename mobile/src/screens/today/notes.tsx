@@ -26,6 +26,35 @@ export function ExpiredLine({ line, onReview, onDismiss }: { line: string; onRev
   );
 }
 
+/**
+ * "Want a nudge when this starts?" (the web's block-nudge.tsx, its words): asked once after the first block made
+ * here. A failure to turn reminders on takes its place, in words, until put away.
+ */
+export function BlockNudgeLine({ error, asking, onYes, onNotNow, onClose }: { error: string | null; asking: boolean; onYes: () => void; onNotNow: () => void; onClose: () => void }) {
+  const c = useColours();
+  if (error) {
+    return (
+      <Card style={styles.line}>
+        <Text accessibilityRole="alert" style={[styles.lineText, { color: c.deadline }]}>
+          {error}
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={onClose} style={styles.icon}>
+          <Icon name="close" size={16} color={c.ink3} />
+        </Pressable>
+      </Card>
+    );
+  }
+  return (
+    <Card style={styles.line}>
+      <Text accessibilityLiveRegion="polite" style={[styles.lineText, { color: c.ink2 }]}>
+        Want a nudge when this starts?
+      </Text>
+      <Button variant="quiet" label="Yes" disabled={asking} onPress={onYes} />
+      <Button variant="quiet" label="Not now" disabled={asking} onPress={onNotNow} />
+    </Card>
+  );
+}
+
 export interface CalendarLineProps {
   /** reauth: access lapsed or revoked; write_gone: the calendar blocks went to left Google; error: a sync failed. */
   kind: "reauth" | "write_gone" | "error";

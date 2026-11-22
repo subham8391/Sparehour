@@ -31,6 +31,8 @@ import { useUndoSink } from "@/features/undo/undo-context";
 import { apiFetch } from "~/api";
 import { supabase } from "~/auth/supabase";
 import { useCalendarConnect, type ConnectPurpose } from "~/calendar/connect";
+import { forgetReminders } from "~/push/device";
+import { useReminders } from "~/push/use-reminders";
 import { config } from "~/config";
 import { BUILD, signOut } from "~/sync/database";
 import { font, useColours } from "~/ui/theme";
@@ -76,7 +78,7 @@ export function SettingsSection() {
       case "calendar":
         return <CalendarSection />;
       case "notifications":
-        return <NotificationsView values={ready.values} workHours={ready.workHours} onChange={ready.change} />;
+        return <NotificationsSection data={ready} />;
       case "planning":
         return <PlanningSection data={ready} />;
       case "appearance":
@@ -91,6 +93,19 @@ export function SettingsSection() {
 function Opening() {
   const c = useColours();
   return <Text style={{ fontFamily: font.regular, fontSize: 16, marginHorizontal: 22, color: c.ink3 }}>Opening…</Text>;
+}
+
+/** The account's reminder settings, and this device's own reminders (~/push): turned on and off here, a block lifted in Android's settings. */
+function NotificationsSection({ data }: { data: Ready }) {
+  const r = useReminders();
+  return (
+    <NotificationsView
+      values={data.values}
+      workHours={data.workHours}
+      onChange={data.change}
+      device={r.ready ? { copy: r.copy, busy: r.busy, error: r.error, onEnable: () => void r.enable(), onDisable: () => void r.disable(), onOpenSettings: () => void Linking.openSettings().catch(() => undefined) } : null}
+    />
+  );
 }
 
 function PlanningSection({ data }: { data: Ready }) {
@@ -237,6 +252,8 @@ export function AccountSection({ data }: { data: Ready }) {
           return;
         }
       }
+      // This phone's reminders stop first, while the session can still say so to the server (~/push/device.ts).
+      await forgetReminders();
       // Clears the phone's copy and ends its session; the app's frame then shows the sign-in screen.
       await signOut();
     } catch {
@@ -254,6 +271,7 @@ export function AccountSection({ data }: { data: Ready }) {
     // The account is already marked and signed out everywhere: say the day it goes (the web's /account/deleted page
     // says the same), then leave this phone as signing out does, whatever fails on the way.
     Alert.alert(deletedHeadline(deletionDay(after)), DELETED_SIGNED_OUT);
+    await forgetReminders();
     await signOut().catch(() => undefined);
     return null;
   };

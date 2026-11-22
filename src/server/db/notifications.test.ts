@@ -4,7 +4,7 @@
 // verdicts. Every test rolls back.
 import type { Client } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
-import { asUser, inTx as inTxOn, newUser, spaceOf, tryConnect } from "./test-db";
+import { asAdmin, asUser, inTx as inTxOn, newUser, spaceOf, tryConnect } from "./test-db";
 
 const admin = await tryConnect();
 const inTx = (fn: (c: Client) => Promise<void>) => inTxOn(admin, fn);
@@ -357,6 +357,50 @@ describe.skipIf(admin === null)("claim_due_notifications", () => {
       await c.query("select id from private.claim_due_notifications(10)");
       await c.query("select private.finish_notification($1, 'retry')", [n]);
       expect(await status(c, n)).toEqual({ status: "failed", attempts: 3 });
+    }));
+
+  it("a phone's token (ANDROID_APP_SPEC.md §6) is moved by a delivery's answer exactly as a browser's subscription is", () =>
+    inTx(async (c) => {
+      const uid = await newUser(c, "claim-app@contract.test");
+      await isolate(c);
+      await quietNow(c, uid, false);
+      const n = await due(c, uid, "block_start");
+      const tok = (await c.query<{ id: string }>("insert into public.app_push_tokens (user_id, token, failure_count) values ($1, 'ExponentPushToken[phone-1]', 2) returning id", [uid])).rows[0].id;
+      const read = async () => (await c.query<{ failure_count: number; deleted_at: string | null; last_success_at: string | null }>("select failure_count, deleted_at, last_success_at from public.app_push_tokens where id = $1", [tok])).rows[0];
+      await c.query("select private.record_notification_delivery($1, $2, 200, null)", [n, tok]);
+      expect(await read()).toMatchObject({ failure_count: 0, deleted_at: null });
+      expect((await read()).last_success_at).not.toBeNull();
+      await c.query("select private.record_notification_delivery($1, $2, 400, 'InvalidCredentials')", [n, tok]);
+      expect((await read()).failure_count).toBe(1);
+      await c.query("select private.record_notification_delivery($1, $2, 410, 'DeviceNotRegistered')", [n, tok]);
+      expect((await read()).deleted_at).not.toBeNull();
+    }));
+
+  it("phone tokens: only Expo's, at most twenty live per account, nobody but the server reads them, gone when deletion is asked", () =>
+    inTx(async (c) => {
+      const uid = await newUser(c, "app-tokens@contract.test");
+      await c.query("savepoint not_expo");
+      await expect(c.query("insert into public.app_push_tokens (user_id, token) values ($1, 'https://push.test/1')", [uid])).rejects.toThrow(/app_push_tokens_token_check/);
+      await c.query("rollback to savepoint not_expo");
+      await c.query("insert into public.app_push_tokens (user_id, token) select $1, 'ExponentPushToken[t' || g || ']' from generate_series(1, 20) g", [uid]);
+      await c.query("savepoint full_up");
+      await expect(c.query("insert into public.app_push_tokens (user_id, token) values ($1, 'ExponentPushToken[t21]')", [uid])).rejects.toThrow(/too many push tokens/);
+      await c.query("rollback to savepoint full_up");
+      // A retired one makes room, and coming back counts as a new one.
+      await c.query("update public.app_push_tokens set deleted_at = now() where token = 'ExponentPushToken[t1]'");
+      await c.query("insert into public.app_push_tokens (user_id, token) values ($1, 'ExponentPushToken[t21]')", [uid]);
+      await c.query("savepoint again");
+      await expect(c.query("update public.app_push_tokens set deleted_at = null where token = 'ExponentPushToken[t1]'")).rejects.toThrow(/too many push tokens/);
+      await c.query("rollback to savepoint again");
+
+      await asUser(c, uid);
+      await c.query("savepoint refused");
+      await expect(c.query("select count(*) from public.app_push_tokens")).rejects.toThrow(/permission denied/);
+      await c.query("rollback to savepoint refused");
+      await asAdmin(c);
+
+      await c.query("select public.account_delete_request($1)", [uid]);
+      expect((await c.query("select count(*)::int as n from public.app_push_tokens where user_id = $1", [uid])).rows[0]).toEqual({ n: 0 });
     }));
 
   it("the service wrappers are for the service role only; a signed-in user cannot claim, and only sees their own subscriptions", () =>

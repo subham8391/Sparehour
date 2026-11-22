@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { personalise } from "./copy";
 import { dayFigures, type DayContext, type DayFigures } from "./day-figures";
 import type { NotificationKind, PushPayload } from "./delivery";
-import { sendDue, type DueNotification, type PushSubscriptionRow, type SenderDeps } from "./sender";
+import { isAppToken, sendDue, type DueNotification, type PushSubscriptionRow, type SenderDeps } from "./sender";
 
 const payload: PushPayload = {
   web_push: 8030,
@@ -172,6 +172,22 @@ describe("personalise: notification words with the day's numbers (SCREENS.md §1
   it("without figures the stored payload goes as it is", () => {
     const p = stored("morning", "Good morning.", "Plan your day — about 2 minutes.");
     expect(personalise("morning", p, null)).toBe(p);
+  });
+});
+
+describe("sendDue to phones with the app", () => {
+  it("sends to a person's phones and browsers alike, and a phone that is gone does not stop the browser", async () => {
+    const phone: PushSubscriptionRow = { id: "p1", token: "ExponentPushToken[abc]" };
+    const d = deps({
+      subscriptionsFor: vi.fn().mockResolvedValue([phone, sub("s1")]),
+      push: vi.fn().mockRejectedValueOnce({ statusCode: 410, message: "DeviceNotRegistered" }).mockResolvedValueOnce({ statusCode: 201 }),
+    });
+    const r = await sendDue(d, { appUrl: "https://sparehour.app" });
+    expect(r.delivered).toBe(1);
+    expect((d.push as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0].id)).toEqual(["p1", "s1"]);
+    expect(d.record).toHaveBeenNthCalledWith(1, "n1", "p1", 410, "DeviceNotRegistered");
+    expect(isAppToken(phone)).toBe(true);
+    expect(isAppToken(sub("s1"))).toBe(false);
   });
 });
 

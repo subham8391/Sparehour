@@ -17,42 +17,10 @@ import { Button } from "@/ui/button";
 import { Sheet } from "@/ui/sheet";
 import { actionsFor, type PushAction } from "./actions";
 import { parseDeepLink, type DeepLink } from "./push";
+import { NOT_HERE, SHEET_TITLES, carryOutPushAction, taskOnDevice } from "./push-action-rules";
 import { taskLinkId } from "./push-deep-link";
 
-const SNOOZE_MS = 15 * 60 * 1000;
-/** How long a device still on its first sync is given before a link says its task isn't here. */
-const FIRST_SYNC_WAIT_MS = 8000;
-export const NOT_HERE = "That task isn’t on this device.";
-const TASK_HERE_SQL = `select id from tasks where id = ? and deleted_at is null`;
-
-/** What the lookup needs of the local database. */
-interface TaskLookup {
-  getOptional: (sql: string, params: string[]) => Promise<unknown>;
-  waitForFirstSync: (request: { priority: number; signal: AbortSignal }) => Promise<void>;
-  currentStatus?: { hasSynced?: boolean };
-}
-
-/**
- * Whether the task is on this device. One that is not yet may only be waiting for the first sync after a sign-in:
- * that is given a few seconds, never longer, so the link always answers.
- */
-export async function taskOnDevice(db: TaskLookup, id: string, waitMs = FIRST_SYNC_WAIT_MS): Promise<boolean> {
-  const here = async () => Boolean(await db.getOptional(TASK_HERE_SQL, [id]));
-  if (await here()) return true;
-  if (db.currentStatus?.hasSynced) return false;
-  // Priority 1 is the working set (supabase/powersync/streams.yaml); the wait is let go of either way.
-  const stop = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([db.waitForFirstSync({ priority: 1, signal: stop.signal }), new Promise((resolve) => (timer = setTimeout(resolve, waitMs)))]);
-  } catch {
-    // no sync to wait for: answer from what is here
-  } finally {
-    clearTimeout(timer);
-    stop.abort();
-  }
-  return here();
-}
+export { NOT_HERE, taskOnDevice };
 
 /** Carries out a notification's action against the local database. */
 export function usePushActions(): (link: DeepLink, action: PushAction) => Promise<void> {
@@ -64,35 +32,7 @@ export function usePushActions(): (link: DeepLink, action: PushAction) => Promis
   const now = useNow();
   const { today } = useLocalDay(now);
   return useCallback(
-    async (link, action) => {
-      switch (action) {
-        case "start":
-          if (link.taskId) detail.open(link.taskId);
-          return;
-        case "snooze": {
-          if (!link.blockId) return;
-          const row = await db.getOptional<{ start_at: string; end_at: string }>(`select start_at, end_at from time_blocks where id = ? and deleted_at is null`, [link.blockId]);
-          if (!row) return;
-          const shift = (iso: string) => new Date(new Date(iso).getTime() + SNOOZE_MS).toISOString();
-          await blocks.move(link.blockId, shift(row.start_at), shift(row.end_at));
-          return;
-        }
-        case "today":
-          if (link.taskId) await tasks.update(link.taskId, { doDate: today, doTime: null, evening: false }, "Moved {title} to today");
-          return;
-        case "tomorrow":
-          if (link.taskId) await tasks.update(link.taskId, { doDate: today.add({ days: 1 }), doTime: null, evening: false }, "Moved {title} to tomorrow");
-          return;
-        case "plan":
-          router.push("/plan");
-          return;
-        case "shutdown":
-          router.push("/shutdown");
-          return;
-        case "dismiss":
-          return;
-      }
-    },
+    (link, action) => carryOutPushAction(link, action, { db, tasks, blocks, today, openTask: (id) => detail.open(id), go: (page) => router.push(page) }),
     [router, db, tasks, blocks, detail, today],
   );
 }
@@ -154,14 +94,6 @@ export function DeepLinkHandler() {
   return <PushActionSheet link={sheet} onPick={(a) => void run(sheet, a).finally(() => setSheet(null))} onClose={() => setSheet(null)} />;
 }
 
-const TITLES: Record<DeepLink["kind"], string> = {
-  block_start: "Your block is starting.",
-  deadline_eve: "Due tomorrow.",
-  deadline_day: "Due today.",
-  morning: "Good morning.",
-  shutdown: "Wrapping up?",
-};
-
 /** The same three choices a notification button would offer, as a bottom sheet. */
 export function PushActionSheet({ link, onPick, onClose }: { link: DeepLink; onPick: (action: PushAction) => void; onClose: () => void }) {
   useEffect(() => {
@@ -175,9 +107,9 @@ export function PushActionSheet({ link, onPick, onClose }: { link: DeepLink; onP
     return () => document.removeEventListener("keydown", onKey, true);
   }, [onClose]);
   return (
-    <Sheet label={TITLES[link.kind]} onClose={onClose} align="center" width="sm">
+    <Sheet label={SHEET_TITLES[link.kind]} onClose={onClose} align="center" width="sm">
       <div className="flex flex-col gap-4 p-5">
-        <p className="font-display text-pane font-medium text-ink">{TITLES[link.kind]}</p>
+        <p className="font-display text-pane font-medium text-ink">{SHEET_TITLES[link.kind]}</p>
         <div className="flex flex-col gap-2">
           {actionsFor(link.kind).map((a, i) => (
             <Button key={a.id} variant={i === 0 ? "primary" : "secondary"} size="sheet" onClick={() => onPick(a.id)}>

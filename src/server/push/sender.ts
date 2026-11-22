@@ -1,11 +1,13 @@
 // One tick of the sender (SYSTEM_DESIGN.md §7.4–7.5): claim what is due,
-// push it to every live subscription the person has, record each answer,
+// push it to every live subscription the person has (browsers, and phones
+// with the app, ANDROID_APP_SPEC.md §6), record each answer,
 // and hand a notification back for a retry when no subscription took it
 // for a transient reason. The transport and the database are injected so
 // the loop is tested without either.
 import { personalise } from "./copy";
 import { dayFigures, type DayContext, type DayFigures } from "./day-figures";
 import { classifyStatus, pushOptions, serialisePayload, type NotificationKind, type PushOptions, type PushPayload } from "./delivery";
+import type { AppTokenRow } from "./expo";
 
 export interface DueNotification {
   id: string;
@@ -16,12 +18,19 @@ export interface DueNotification {
   fire_at: string;
 }
 
-export interface PushSubscriptionRow {
+/** A browser's subscription (public.push_subscriptions). */
+export interface WebSubscriptionRow {
   id: string;
   endpoint: string;
   p256dh: string;
   auth: string;
 }
+
+/** Somewhere a reminder can go: a browser, or a phone app known by its Expo token (expo.ts). */
+export type PushSubscriptionRow = WebSubscriptionRow | AppTokenRow;
+
+/** Whether this is the phone app's token rather than a browser's subscription. */
+export const isAppToken = (sub: PushSubscriptionRow): sub is AppTokenRow => "token" in sub;
 
 export interface SenderDeps {
   claim: (limit: number) => Promise<DueNotification[]>;

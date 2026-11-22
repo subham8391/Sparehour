@@ -1,9 +1,11 @@
 // The two ways out of the account, wired (section.tsx): Sign out waits for changes that have not synced and says so
 // rather than losing them without a word; Delete account asks the server with the session's token, says the day the
-// account goes, and leaves the phone as signing out does. A refusal changes nothing.
+// account goes, and leaves the phone as signing out does. A refusal changes nothing. Either way out stops this phone's
+// reminders first, while the session can still tell the server.
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { Alert } from "react-native";
 import { apiFetch } from "~/api";
+import { forgetReminders } from "~/push/device";
 import { signOut } from "~/sync/database";
 import { AccountSection } from "./section";
 import { VALUES, WORK_WEEK } from "./settings-fixture";
@@ -15,6 +17,8 @@ jest.mock("@/data/powersync", () => ({ useLocalDatabase: () => mockDb, useQuery:
 jest.mock("~/sync/database", () => ({ BUILD: "android-test", signOut: jest.fn(async () => undefined) }));
 jest.mock("~/auth/supabase", () => ({ supabase: () => ({ auth: { getUserIdentities: async () => ({ data: { identities: [{ provider: "google" }] }, error: null }), getSession: async () => ({ data: { session: null } }) } }) }));
 jest.mock("~/api", () => ({ apiFetch: jest.fn() }));
+const mockOrder: string[] = [];
+jest.mock("~/push/device", () => ({ forgetReminders: jest.fn(async () => void mockOrder.push("forget")) }));
 jest.mock("./use-phone-export", () => ({ usePhoneExport: () => ({ exportData: jest.fn(), busy: null, error: null, lastFile: null }) }));
 
 const DATA = {
@@ -35,6 +39,8 @@ const typeDelete = async () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockOrder.length = 0;
+  jest.mocked(signOut).mockImplementation(async () => void mockOrder.push("signOut"));
   mockDb.getUploadQueueStats.mockResolvedValue({ count: 0 });
 });
 
@@ -49,6 +55,9 @@ describe("Settings › Account, wired", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Sign out" }));
     await screen.findByRole("button", { name: "Signing out…" });
     expect(signOut).toHaveBeenCalledTimes(1);
+    // This phone's reminders are given back before the session goes.
+    expect(forgetReminders).toHaveBeenCalledTimes(1);
+    expect(mockOrder).toEqual(["forget", "signOut"]);
   });
 
   it("stops with changes still on the phone, and only loses them when told to", async () => {
@@ -71,6 +80,7 @@ describe("Settings › Account, wired", () => {
     // The day is written by the web's own `deletionDay`; whether a comma follows the weekday is the runtime's.
     expect(alert).toHaveBeenCalledWith(expect.stringMatching(/^Your account will be deleted on Tuesday,? 22 December 2026\.$/), "You’re signed out on every device. Changed your mind? Sign in before then and you can restore everything.");
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(mockOrder).toEqual(["forget", "signOut"]);
   });
 
   it("changes nothing when the server refuses: the sheet stays, says so, and the phone stays signed in", async () => {
@@ -81,5 +91,6 @@ describe("Settings › Account, wired", () => {
     expect(await screen.findByText("Couldn’t delete your account just now. Nothing changed — try again.")).toBeTruthy();
     expect(alert).not.toHaveBeenCalled();
     expect(signOut).not.toHaveBeenCalled();
+    expect(forgetReminders).not.toHaveBeenCalled();
   });
 });

@@ -11,6 +11,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, Share, StyleSheet, View } from "react-native";
+import { useBlockNudge } from "~/push/use-block-nudge";
 import { Text } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { eveningBudget } from "@/core/capacity/evening";
@@ -233,6 +234,7 @@ export function Today() {
   const { data: expiredRows } = useQuery<{ expired_at: string | null }>(EXPIRED_SQL);
   const expiredStamps = useMemo(() => (expiredRows ?? []).map((r) => r.expired_at), [expiredRows]);
   const expired = useAnnouncement("expired", expiredStamps);
+  const blockNudge = useBlockNudge();
   const calendar = useCalendarLine({ shown: !closedAt && !past && Boolean(model.capacity) && model.calendarConnected, onToday, onReconnect: () => router.push(CALENDAR) });
 
   // "Block removed in Google Calendar" under a row, once: dismissed by its ×, or when Today is left.
@@ -387,6 +389,8 @@ export function Today() {
                 }
               : null
           }
+          // The first block made here asks once whether to be reminded (the web's inline banner, after the digest).
+          blockNudge={onToday ? blockNudge : null}
           calendar={calendar}
           // The rituals are today's, and a day that was shut down has none left to offer.
           ritual={

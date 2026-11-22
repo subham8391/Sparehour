@@ -7,12 +7,14 @@ import type { ReactNode } from "react";
 import { AfterBlockWriteContext, type AfterBlockWrite } from "@/features/blocking/block-repo-after";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { schedulePush } from "@/features/blocking/push-after-write";
+import { noteBlockCreated } from "@/features/notifications/block-nudge-store";
 import { apiFetch } from "~/api";
 
 const askServer: typeof fetch = (input, init) => apiFetch(String(input), init ?? {});
 
 /** Kept as one object, so the repository it is handed to is made once. */
-const AFTER: AfterBlockWrite = { changed: () => schedulePush(askServer) };
+// A block made here may bring the one-time reminder ask on Today (push/use-block-nudge.ts decides whether it is drawn).
+const AFTER: AfterBlockWrite = { changed: () => schedulePush(askServer), created: () => noteBlockCreated(() => true) };
 
 export function BlockWrites({ children }: { children: ReactNode }) {
   return (

@@ -9,29 +9,12 @@ import { useState } from "react";
 import { useQuery } from "@/data/powersync";
 import { Button, iconButtonClass } from "@/ui/button";
 import { Icon } from "@/ui/icons";
-import { BLOCK_NUDGE_KEY, closeBlockNudge } from "./block-nudge-store";
-import type { PermissionState, PushPlatform } from "./push";
+import { BLOCK_NUDGE_KEY, closeBlockNudge, nudgeEligible } from "./block-nudge-store";
 import { usePush } from "./use-push";
 
+export { nudgeEligible, type NudgeInput } from "./block-nudge-store";
+
 const NOTIFY_SQL = `select notify_block_start from user_settings limit 1`;
-
-export interface NudgeInput {
-  permission: PermissionState;
-  platform: Pick<PushPlatform, "isIOS" | "standalone">;
-  /** A service worker is registered here, so a subscription can exist. */
-  workerAvailable: boolean;
-  /** Settings › Notifications "A time block is starting"; on until the column has synced. */
-  notifyBlockStart: boolean;
-  /** "Not now" was chosen on this device before. */
-  dismissed: boolean;
-}
-
-/** Ask only where the answer is still open and a yes would actually bring the reminder. */
-export function nudgeEligible(i: NudgeInput): boolean {
-  if (i.permission !== "default") return false; // granted, denied or no push here
-  if (i.platform.isIOS && !i.platform.standalone) return false; // iOS gives push to Home Screen apps only
-  return i.workerAvailable && i.notifyBlockStart && !i.dismissed;
-}
 
 function readDismissed(): boolean {
   try {

@@ -1,6 +1,6 @@
 # Sparehour for Android: the spec
 
-Status: everything the web has on a phone is built; reminders wait on a Firebase project (see "Where it stands" in §10).
+Status: everything the web has on a phone is built, reminders included (see "Where it stands" in §10).
 Decided 2026-11-21 (DECISIONS.md, amendment of that date, "a real Android app"). This file is the plan; DECISIONS.md stays the record of what was ruled.
 
 ## 1. What is being built, and why
@@ -106,7 +106,7 @@ Every route the phone calls takes its caller this way: the sync token and upload
 
 **Connecting a calendar from the phone** (no cookie to prove who is in the consenting browser): `POST /api/calendar/<provider>/app-start` (bearer) answers the provider's consent address with a state marked "from the app"; the provider's callback, seeing that mark, exchanges and saves nothing and sends the browser to `sparehour://calendar-connected?ticket=…`, the code and state sealed with a key derived from `CALENDAR_TOKEN_KEY` (`server/calendar/ticket.ts`); `POST /api/calendar/<provider>/app-finish` (bearer) unseals it and saves the account only when the state's person is the caller, through the same `server/calendar/connect.ts` the web's callback uses. The phone side is `mobile/src/calendar/connect.ts` (`useCalendarConnect`). A known limit: someone who starts a connect with their own account and gets another person to approve it, while a hostile app on that person's phone has claimed the `sparehour` scheme, could finish it. Verified Android App Links (an `https` return address with `/.well-known/assetlinks.json`) close that; they need the app's signing fingerprint from Expo.
 
-Not done yet: phone reminders. The server sends web push (VAPID) today; the phone needs Android's push service (Firebase), which is a second sender beside the first; it needs a Firebase project of the user's.
+**Reminders on the phone** go through Expo's push service, which reaches Android through Firebase (the user's project `sparehour-fe920`; `mobile/google-services.json` names it, and its FCM V1 key is kept by Expo, never in the repo or on the server). A phone that turns reminders on gives its Expo token to `POST /api/push/app-token` (bearer; `DELETE` turns it off, and signing out does too); the server keeps it in `public.app_push_tokens`, which no person reads or writes directly (`server/push/app-tokens.ts`; a token another account had moves to the caller, and an account has at most twenty live phones, as with browsers). The minute tick sends each due reminder to the person's browsers by web push and to their phones through Expo (`server/push/expo.ts`): the same words, the kind as the notification's category (its buttons, from the shared `actionsFor`), `navigate` as the path the app opens, the badge, and the browser's lifetime as Firebase's. Expo's answer is put in the push services' terms, so a phone that is gone (`DeviceNotRegistered`, 410) is retired and one that fails gathers failures exactly as a browser does (`private.record_notification_delivery`). `EXPO_ACCESS_TOKEN` is optional: only needed if Expo's "enhanced push security" is turned on. Not yet read: Expo's delivery receipts (a token Firebase drops later is noticed at the next send, not at once).
 
 ## 7. Configuration
 
@@ -142,7 +142,7 @@ Builds so far are made with Expo's build service, profile `preview` (`mobile/eas
 - Settings: working hours, planning, appearance with every look, notifications, the calendar, connected apps, data, the account.
 - Sign-in by emailed code and by Google; reminders; the bottom strip and status bar following the look at once.
 
-Two parts need the user's own accounts before they can work, and are prepared up to that point: Google sign-in (an Android client in the Google Cloud project) and reminders (a Firebase project for Android's push service).
+Two parts needed the user's own accounts: Google sign-in (the hosted project's redirect allow-list) and reminders (the Firebase project `sparehour-fe920`, made 2026-11-22, its key uploaded to Expo).
 
 A phone has no keyboard palette and no multi-day calendar grid in the web's phone navigation either; those are the web's desktop parts and are not rebuilt.
 
@@ -167,7 +167,8 @@ Where it stands (2026-11-22):
 
 - **Step 1 ran on the user's phone** (sign-in by emailed code and sync, from an Expo build).
 - **Everything the web has on a phone is built**, in three groups of screens (`ba0ff22`, `0412d64`, and the group after): the four tabs; the task detail, project and area pages, quick add (coloured tokens, pasted lists, learned estimates), search with its filters in the address; the shared task row everywhere (⋯ menu, swipes, long-press selection and the bulk bar, the "took" chips); Today in full (the ribbon and its breakdown, the sticky hero, the Day timeline with blocks, carried asks); the morning plan, Plan my day, the shutdown, the carried-over review (opening itself once a day), Clear the slate; the first run and the start gate ("Open to" honoured); every Settings section but the web's own App; all 27 looks from the web's stylesheets (`mobile/scripts/build-looks.mjs`), following the account, with the status bar and bottom strip following the look; notes drawn as Markdown; Share to Sparehour and the icon's shortcuts; Google sign-in and calendar connect.
-- **Waiting on the user's own accounts**: reminders (a Firebase project); Google sign-in on the hosted project needs `sparehour://auth/callback` on its redirect allow-list.
+- **Reminders** (2026-11-22): Firebase project `sparehour-fe920`, its FCM V1 key in Expo, phone tokens in `public.app_push_tokens` (migration `20261122000100`), sent by the same minute tick through Expo.
+- **Waiting on the user**: Google sign-in on the hosted project needs `sparehour://auth/callback` on its redirect allow-list.
 - **Every look draws in its own typefaces** (`8f4463f`): the @expo-google-fonts files, loaded when a look is chosen; Indigo uses the web's own Latin-only cut.
 - **Not the same as the web yet**: a page shared from Chrome arrives without its title; the export's zip is stored, not compressed; day numbers in the week strip stay in the UI face.
 - **Nothing of the last two groups has run on a phone yet.** The next build is the check.
