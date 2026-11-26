@@ -25,12 +25,13 @@ Date: 2026-11-26. Six issues found in one week of real use on the phone and thro
 
 **Where it shows.**
 
-1. **On the task, under each block that has not started** (web: the task pane's block rows; phone: the task screen's blocks). One quiet line:
+1. **On the task, under each block that has not started.** One quiet line:
    `No reminder: 07:25 is inside quiet hours (21:00–08:00).` followed by **Change quiet hours**, which opens Settings › Notifications.
+   On the web it sits under the block's own row in the task pane. The phone's task screen has no row per block, so there it sits under the Do field, and the same sentence from two blocks is said once.
 2. **In Settings › Notifications, under Quiet hours** (web and phone), while any block in the next seven days is held:
-   `Held back now: going to gym (Fri 07:25), Vitamin D3 (Thu 21:25).` At most three are named, then `and 2 more`. It updates as the two times are changed, so the person sees the effect of the change before leaving the page.
+   `Held back now: Vitamin D3 (Thu 21:25), going to gym (Fri 07:25).` In the order the reminders would have come; at most three are named, then `and 2 more`. Each is named by its task (a block of its own by its title). It updates as the two times are changed, so the person sees the effect of the change before leaving the page.
 
-**Not shown** for a block already started, for a task that is done, when block reminders are off, or when there are no quiet hours. Never a popup, never red: it is a note in the secondary ink.
+**Not shown** for a block already started, for a task that is done, dropped or in Someday, when block reminders are off, or when there are no quiet hours. Never a popup, never red: it is a note in the secondary ink.
 
 **Tests.** The rule: unit tests on every edge (overnight wrap, the end is outside, the lead, the person's zone, switched off). Each surface: a component test that the line appears for a held block and not for another, and that the link goes to Notifications.
 

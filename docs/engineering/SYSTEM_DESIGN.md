@@ -2742,6 +2742,8 @@ flowchart LR
 
 *Late blocks (2026-11-26, migration `20261126000100_late_block_reminders.sql`).* A block made a few minutes before its reminder time got none: the five-minute reconcile only took reminder times still ahead, and by its next run the time had passed (a 10:05 block made at 09:58, reminder due 10:00). Now every block that has not started gets its `block_start` row: at its start less the lead when that is ahead, otherwise at once (`fire_at` now, sent by the next tick), with the body saying the minutes really left ("· starts in 3m"). A block already under way gets none. The materialiser's `–` and `·` are UTF-8: on hosted, the first paste through a C-locale clipboard turned them into `‚Äì` / `¬∑` (repaired 2026-11-26), so paste SQL into the editor as text.
 
+*Every minute, and said beforehand (2026-11-26, migration `20261126000200_minute_reminders.sql`; `docs/product/REMINDERS_AND_AI_SPEC.md`).* `sparehour_notifications` runs every minute, not every five, so a reminder made late is sent by the next tick or the one after. The materialiser still loops over every account; when that stops being a few milliseconds, the blocks about to start get their own pass and the full one returns to five minutes. Quiet hours are unchanged at the claim, and are now read on the device and in the MCP server too, by one pure function with the claim's own reading (`src/core/notifications/quiet-hours.ts`: `heldReminder(start, zone, settings)` judges the reminder's own time, the start less the lead, on the person's clock), so the apps and an assistant can say that a reminder will not come before it is missed.
+
 ### 7.5 Delivery reliability
 
 | Failure | Handling |

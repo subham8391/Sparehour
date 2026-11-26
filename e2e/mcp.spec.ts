@@ -182,6 +182,11 @@ test("Claude connects through the consent screen and works the planner over MCP"
     // Quiet hours are part of what an assistant reads (REMINDERS_AND_AI_SPEC.md §2).
     if (name === "get_settings") expect(r.text).toMatch(/Quiet hours: (none|\d\d:\d\d–\d\d:\d\d \(no reminders are sent then\))/);
   }
+  // Quiet hours change as one pair and read back from the database, then go back to what they were.
+  const quietWas = /Quiet hours: (\d\d:\d\d)–(\d\d:\d\d)/.exec((await call(request, token, "get_settings", {})).text);
+  expect((await call(request, token, "update_settings", { quiet_hours: "22:30-06:30" })).text).toContain("quiet hours 22:30–06:30");
+  expect((await call(request, token, "get_settings", {})).text).toContain("Quiet hours: 22:30–06:30 (no reminders are sent then)");
+  expect((await call(request, token, "update_settings", { quiet_hours: quietWas ? `${quietWas[1]}-${quietWas[2]}` : "none" })).isError).toBe(false);
   const repeat = await call(request, token, "change_repeat", { task: taskId, action: "set", repeat: "every friday" });
   expect(repeat.text).toContain("now repeats every Friday");
   expect((await call(request, token, "change_repeat", { task: taskId, action: "skip" })).text).toContain("Skipped");
