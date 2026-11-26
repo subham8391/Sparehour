@@ -74,7 +74,8 @@ describe("<QuickAddProvider>", () => {
     // The sheet is code-split: the first open waits for its module.
     const input = await screen.findByRole("textbox", { name: "Task" });
     expect(input).toHaveValue("Prefilled");
-    expect(input).toHaveFocus();
+    // The sheet takes focus in an effect, which can run a tick after its box is in the page: wait for it.
+    await waitFor(() => expect(input).toHaveFocus());
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -145,7 +146,7 @@ describe("<QuickAddProvider>", () => {
     );
     const input = await screen.findByRole("textbox", { name: "Task" });
     expect(input).toHaveValue("");
-    expect(input).toHaveFocus();
+    await waitFor(() => expect(input).toHaveFocus());
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     // Only its own mark goes: the rest of the address, and the history entry's state, stay.
     expect(window.location.pathname + window.location.search).toBe("/today?day=2026-10-08");
