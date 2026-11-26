@@ -45,6 +45,7 @@ import { minuteFromDay, minuteOnDay, partOfDay } from "@/features/today/day-minu
 import { dayState } from "@/features/today/day-state";
 import { heroState } from "@/features/today/hero-state";
 import { useToday } from "@/features/today/hooks/use-today";
+import { allDayOf, meetingsLineOf } from "@/features/today/meetings-line";
 import { CALENDAR_PATIENCE_MS } from "@/features/today/ribbon-words";
 import { todayAsText } from "@/features/today/today-text";
 import { relativeDay } from "@/ui/relative-day";
@@ -351,8 +352,8 @@ export function Today() {
           onBackToToday={onToday ? undefined : () => openDay(model.today)}
           onPrevDay={() => stepBy(-1)}
           onNextDay={() => stepBy(1)}
-          allDay={model.allDay}
-          meetingsLine={model.meetingsLine}
+          allDay={allDayOf(model)}
+          meetingsLine={meetingsLineOf(model, now)}
           past={past}
           summary={todaySummary(model.capacity, {
             connected: model.calendarConnected,

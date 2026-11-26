@@ -71,6 +71,8 @@ On Today (web and phone), under the date, where `All day: …` already is, one m
 3. At most three are named, then `+2 more`.
 4. Read-only text: no tick box, no menu. With no meeting left the line is not there. A screen reader hears it as the sentence it is.
 
+**Size.** Today's first download is at its ceiling (320 KB gzipped), so on the web the two lines under the date are a lazy island: the model hands over the calendar rows it already read, and the sentence is made after the first paint.
+
 **Tests.** The model's list for each rule above; the line on each platform's Today view.
 
 ## 6. The test that fails by chance

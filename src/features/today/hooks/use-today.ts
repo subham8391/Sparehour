@@ -19,7 +19,6 @@ import { monthsBack } from "@/data/queries/shell";
 import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { useCarryAsks } from "@/features/rollover/use-carry-asks";
-import { dayMeetings, meetingsLine } from "@/features/today/meetings-line";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 
@@ -147,10 +146,13 @@ export interface TodayModel {
   repo: TaskRepo;
   /** False until a calendar is connected: the ribbon offers to connect one (PRODUCT_SPEC.md §9.4). */
   calendarConnected: boolean;
-  /** The day shown's all-day events, by title, for the line under the date (SYSTEM_DESIGN.md §5.4: flagged, never busy). */
-  allDay: string[];
-  /** The day shown's meetings still to come, as the line under the date says them ("Meetings: 11:00 Daily Standup · +2 more"); null with none (REMINDERS_AND_AI_SPEC.md §5). */
-  meetingsLine: string | null;
+  /**
+   * The calendar's events around the day shown and its calendars, as read: what the two lines under the date (its
+   * all-day events, and its meetings still to come) are made from, in features/today/meetings-line.ts, away from
+   * Today's first download, which is at its size ceiling (SYSTEM_DESIGN.md §5.4, §11.6).
+   */
+  calendarEvents: readonly CalendarEventRow[];
+  calendars: readonly CalendarFullRow[];
   /** Each task's blocks that Google removed, for the row's one quiet note (PRODUCT_SPEC.md §10.3 rule 3). */
   removedBlocks: ReadonlyMap<string, readonly string[]>;
   /** A calendar is connected but the window of its events around the day shown has not arrived yet (SCREENS.md §21 Loading). */
@@ -276,20 +278,10 @@ export function useToday(now: Temporal.Instant, view?: LocalDate | null): TodayM
       // PRODUCT_SPEC.md §9.4: the ribbon says so when no calendar is connected; SCREENS.md §2.7: the calendar's lines
       // (an issue, blocking paused) are the banner island's own reading (calendar-state.ts).
       calendarConnected: connected,
-      allDay: allDayTitles(eventRows ?? [], day, readByCalendar, privateIds),
-      meetingsLine: meetingsLine(dayMeetings(eventRows ?? [], { day, today, zone, now, readByCalendar, privateIds })),
+      calendarEvents: eventRows ?? [],
+      calendars: calendarRows ?? [],
       removedBlocks,
       calendarLoading: connected && calendarWaiting,
     };
   }, [tasks, carriedTasks, asks, freshAsks, markAsked, settingsRows, taskRows, blockRows, blockTaskRows, eventRows, calendarRows, removedRows, calendarWaiting, workRows, settings, today, day, onToday, past, now, isLoading, repo]);
-}
-
-/** The day's all-day events by title (private calendars say "Busy"); out-of-office days have their own line on the ribbon. */
-export function allDayTitles(rows: readonly CalendarEventRow[], day: LocalDate, readByCalendar: ReadonlyMap<string, boolean>, privateIds: ReadonlySet<string>): string[] {
-  const iso = day.toString();
-  return rows
-    .filter((e) => e.all_day && e.start_date && e.start_date <= iso && iso < (e.end_date ?? localDate(e.start_date).add({ days: 1 }).toString()))
-    .filter((e) => e.status !== "cancelled" && e.self_response !== "declined" && e.event_type !== "outOfOffice")
-    .filter((e) => !e.calendar_id || readByCalendar.get(e.calendar_id) !== false)
-    .map((e) => (e.calendar_id && privateIds.has(e.calendar_id)) || !e.summary ? "Busy" : e.summary);
 }

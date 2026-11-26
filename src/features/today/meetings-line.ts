@@ -1,11 +1,12 @@
-// The day's meetings as the line under the date reads them (REMINDERS_AND_AI_SPEC.md §5):
+// The two lines under Today's date: the day's all-day events, and its meetings (REMINDERS_AND_AI_SPEC.md §5):
 // "Meetings: 11:00 Daily Standup · 14:00 1:1 with Priya". The ribbon and the timeline draw
 // the busy time; this names what is still to come, so a person reading the list sees their
 // meetings without opening the Day view. The web and the phone both read this one file, so
 // they say the same words. It reads the device's rows the way the AI tools read the server's
 // (`server/mcp/core.ts`, `days()`), bar a declined meeting, which is not listed here at all.
-import { Temporal, compareDates, instant, type Instant, type LocalDate } from "@/core/time";
+import { Temporal, compareDates, instant, localDate, type Instant, type LocalDate } from "@/core/time";
 import { normaliseTimestamp } from "@/data/mappers";
+import type { CalendarFullRow } from "@/data/queries/calendar";
 import type { CalendarEventRow } from "@/data/schema.client";
 
 /** How many meetings the line names before it counts the rest. */
@@ -60,4 +61,45 @@ export function meetingsLine(meetings: readonly DayMeeting[]): string | null {
   const named = meetings.slice(0, MEETINGS_NAMED).map((m) => `${m.start} ${m.title}`);
   const rest = meetings.length - named.length;
   return `Meetings: ${[...named, ...(rest > 0 ? [`+${rest} more`] : [])].join(" · ")}`;
+}
+
+/** What the line is made from, as Today's model holds it (hooks/use-today.ts). */
+export interface MeetingsLineModel {
+  calendarEvents: readonly CalendarEventRow[];
+  calendars: readonly Pick<CalendarFullRow, "id" | "read" | "private">[];
+  day: LocalDate;
+  today: LocalDate;
+  settings: { timezone: string } | null;
+}
+
+const calendarsOf = (m: MeetingsLineModel) => ({
+  readByCalendar: new Map(m.calendars.map((c) => [c.id, c.read !== 0])),
+  privateIds: new Set(m.calendars.filter((c) => c.private === 1).map((c) => c.id)),
+});
+
+/**
+ * The line for the day Today shows, from its model: what the web's island and the phone's Today both call. Worked out
+ * here and not in the model, so the web's first download does not carry it (SYSTEM_DESIGN.md §11.6).
+ */
+export function meetingsLineOf(m: MeetingsLineModel, now: Instant): string | null {
+  return meetingsLine(dayMeetings(m.calendarEvents, { day: m.day, today: m.today, zone: m.settings?.timezone ?? "UTC", now, ...calendarsOf(m) }));
+}
+
+/**
+ * The day's all-day events by title, for the line above the meetings (SYSTEM_DESIGN.md §5.4: flagged on the day's
+ * header, never busy). Private calendars say "Busy"; out-of-office days have their own line on the ribbon.
+ */
+export function allDayTitles(rows: readonly CalendarEventRow[], day: LocalDate, readByCalendar: ReadonlyMap<string, boolean>, privateIds: ReadonlySet<string>): string[] {
+  const iso = day.toString();
+  return rows
+    .filter((e) => e.all_day && e.start_date && e.start_date <= iso && iso < (e.end_date ?? localDate(e.start_date).add({ days: 1 }).toString()))
+    .filter((e) => e.status !== "cancelled" && e.self_response !== "declined" && e.event_type !== "outOfOffice")
+    .filter((e) => !e.calendar_id || readByCalendar.get(e.calendar_id) !== false)
+    .map((e) => (e.calendar_id && privateIds.has(e.calendar_id)) || !e.summary ? "Busy" : e.summary);
+}
+
+/** The all-day titles of the day Today shows, from its model. */
+export function allDayOf(m: MeetingsLineModel): string[] {
+  const { readByCalendar, privateIds } = calendarsOf(m);
+  return allDayTitles(m.calendarEvents, m.day, readByCalendar, privateIds);
 }

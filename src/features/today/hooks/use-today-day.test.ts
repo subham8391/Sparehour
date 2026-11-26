@@ -32,6 +32,7 @@ vi.mock("@/data/powersync", () => ({
 }));
 vi.mock("@/features/tasks/use-task-repo", () => ({ useTaskRepo: () => ({ markAsked: vi.fn() }) }));
 
+import { allDayOf, meetingsLineOf } from "../meetings-line";
 import { useToday } from "./use-today";
 
 // Wednesday 7 October 2026, 10:00 UTC; 09:00–17:00 every day (work_hours.weekday 0 = Monday).
@@ -144,17 +145,18 @@ describe("the calendar on the day shown", () => {
   });
 
   it("lists that day's all-day events and hatches that day's unanswered invitations", () => {
-    expect(model().allDay).toEqual([]);
+    expect(allDayOf(model())).toEqual([]);
     const m = model("2026-10-08");
-    expect(m.allDay).toEqual(["Dad's birthday"]);
+    expect(allDayOf(m)).toEqual(["Dad's birthday"]);
     expect(m.meetings).toEqual([{ start: 13 * 60, end: 14 * 60, title: "Interview", unanswered: true }]);
   });
 
   it("says that day's meetings as the line under the date, and nothing on a day with none or a day that has passed", () => {
-    expect(model().meetingsLine).toBeNull();
-    expect(model("2026-10-08").meetingsLine).toBe("Meetings: 13:00 Interview");
+    expect(meetingsLineOf(model(), NOW)).toBeNull();
+    expect(meetingsLineOf(model("2026-10-08"), NOW)).toBe("Meetings: 13:00 Interview");
     // Stepped past it, the same day has passed: its note speaks of its meetings, the line does not.
-    expect(renderHook(() => useToday(instant("2026-10-09T10:00:00Z"), localDate("2026-10-08"))).result.current.meetingsLine).toBeNull();
+    const later = instant("2026-10-09T10:00:00Z");
+    expect(meetingsLineOf(renderHook(() => useToday(later, localDate("2026-10-08"))).result.current, later)).toBeNull();
   });
 
   it("waits on the window the events query holds, so a day stepped past today's months clears once its own lands", () => {

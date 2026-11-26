@@ -268,8 +268,10 @@ describe("the day's meetings under the date (REMINDERS_AND_AI_SPEC.md §5)", () 
     window.history.pushState(null, "", `/today?day=${tomorrow}`);
     view();
     await screen.findByRole("heading", { level: 1, name: title(tomorrow) });
-    const line = screen.getByText("Meetings: 11:00 Daily Standup · 14:00 1:1 with Priya");
+    // The line is an island out of the first download: it comes a moment after the heading.
+    const line = await screen.findByText("Meetings: 11:00 Daily Standup · 14:00 1:1 with Priya");
     const allDay = screen.getByText("All day: Dad's birthday");
+    // (Found together: one island draws both lines.)
     // Both are lines of the header's one paragraph, All day first; neither is a control.
     expect(line.parentElement).toBe(allDay.parentElement);
     expect(allDay.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -281,13 +283,17 @@ describe("the day's meetings under the date (REMINDERS_AND_AI_SPEC.md §5)", () 
     window.history.pushState(null, "", `/today?day=${tomorrow}`);
     view();
     await screen.findByRole("heading", { level: 1, name: title(tomorrow) });
-    expect(screen.getByText("Meetings: 09:00 A · 10:00 B · 11:00 C · +2 more")).toBeInTheDocument();
+    expect(await screen.findByText("Meetings: 09:00 A · 10:00 B · 11:00 C · +2 more")).toBeInTheDocument();
   });
 
   it("is not there on a day with no meeting", async () => {
     calendar([meeting("m1", "11:00", "11:15", "Daily Standup")]);
     view();
     await screen.findByRole("heading", { level: 1, name: title(today) });
+    // Once the island is in: today's calendar has no meeting (the one there is tomorrow's), so it draws nothing.
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
     expect(screen.queryByText(/^Meetings:/)).not.toBeInTheDocument();
   });
 });

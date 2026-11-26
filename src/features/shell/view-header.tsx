@@ -61,7 +61,7 @@ export function ViewHeader({
       </div>
       <div className="col-start-1 row-start-2 min-w-0">{plain ? <h1 className="font-display text-title font-book text-balance text-ink">{title}</h1> : title}</div>
       {beside && <div className="col-start-2 row-start-2 -mt-2 -mr-2 flex items-center justify-end sm:col-start-3 sm:row-span-3 sm:row-start-1 sm:mt-0 sm:mr-0 sm:self-end sm:pb-1 print:hidden">{beside}</div>}
-      {subtitle && <p className="col-start-1 row-start-3 mt-1.5 text-body-sm text-pretty text-ink-2">{subtitle}</p>}
+      {subtitle && <p className="col-start-1 row-start-3 mt-1.5 text-body-sm text-pretty text-ink-2 empty:hidden">{subtitle}</p>}
     </header>
   );
 }

@@ -14,7 +14,7 @@ import { EVENTS_AROUND_SQL, dayWindowParams } from "@/data/queries/today";
 import type { CalendarEventRow } from "@/data/schema.client";
 import { blockSync } from "./block-sync";
 import { calendarIssueFrom, calendarWrites, issueMessage, pausedLine } from "./calendar-state";
-import { allDayTitles } from "./hooks/use-today";
+import { allDayTitles } from "./meetings-line";
 
 const conn = (over: Partial<CalendarConnectionRow>): CalendarConnectionRow => ({ id: "acct", provider: "google", email: "me@gmail.com", status: "ok", can_write: 1, last_synced_at: "2026-10-07T09:12:00Z", last_error: null, write_lost_at: null, ...over });
 const writer = [{ calendar_account_id: "acct", write_target: 1 }];

@@ -58,6 +58,8 @@ import { Loading } from "../loading-view";
 const ExpiredDigest = dynamic(() => import("@/features/today/expired-digest"), { ssr: false });
 // "Want a nudge when this starts?" after the first block on a device not yet asked (PRODUCT_SPEC.md §14 rule 7): loaded only then.
 const BlockNudge = dynamic(() => import("@/features/notifications/block-nudge"), { ssr: false });
+// The lines under the date (all-day events, meetings): read from rows that arrive after the first paint, so never part of it.
+const DayLines = dynamic(() => import("@/features/today/meetings-line-island"), { ssr: false });
 // Today's ⋯ contents and the Trim today panel (SCREENS.md §2.1, PRODUCT_SPEC.md §9.4): out of the shell, fetched on idle.
 const loadTodayMenu = () => import("@/features/today/today-menu");
 const loadTrimToday = () => import("@/features/today/trim-today");
@@ -518,15 +520,9 @@ export default function TodayPage() {
           eyebrow={onToday ? `Today · ${partOfDay(nowMinute, eveningAt)}` : <OffDayEyebrow label={daysAway(day, model.today)} onBack={backHome} />}
           title={formatDay(day, { weekday: "long", month: "long", today: model.today })}
           // The day shown's all-day events sit under its date, never in the busy time (SYSTEM_DESIGN.md §5.4; ruled A12: no switch at M1).
-          // Under them, the meetings still to come, as plain words (REMINDERS_AND_AI_SPEC.md §5): each is a line of the one paragraph.
-          subtitle={
-            model.allDay.length > 0 || model.meetingsLine ? (
-              <>
-                {model.allDay.length > 0 && <span className="block">All day: {model.allDay.join(" · ")}</span>}
-                {model.meetingsLine && <span className="block">{model.meetingsLine}</span>}
-              </>
-            ) : undefined
-          }
+          // Under them, the meetings still to come, as plain words (REMINDERS_AND_AI_SPEC.md §5): each a line of the one
+          // paragraph, which is not drawn while it is empty. Only with events around the day: without them there is nothing to say.
+          subtitle={model.calendarEvents.length > 0 ? <DayLines model={model} now={now} /> : undefined}
           beside={
             <>
               {stepButton(-1)}
