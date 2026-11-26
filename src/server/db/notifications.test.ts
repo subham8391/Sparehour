@@ -274,7 +274,7 @@ describe.skipIf(admin === null)("materialise_notifications", () => {
   it("the schedules exist", async () => {
     const { rows } = await (admin as Client).query("select jobname, schedule, command from cron.job where jobname in ('sparehour_notifications', 'sparehour_push_tick') order by jobname");
     expect(rows).toEqual([
-      { jobname: "sparehour_notifications", schedule: "*/5 * * * *", command: "select private.materialise_notifications()" },
+      { jobname: "sparehour_notifications", schedule: "* * * * *", command: "select private.materialise_notifications()" },
       { jobname: "sparehour_push_tick", schedule: "* * * * *", command: "select private.push_tick()" },
     ]);
   });
