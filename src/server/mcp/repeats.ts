@@ -31,12 +31,12 @@ export class Repeats {
   }
 
   /** The write, the blocks of the day it leaves, and its time on the day it lands. */
-  private async land(row: Row, ops: WireOp[], day: LocalDate | null, what: string): Promise<{ words: string; changed: number }> {
+  private async land(row: Row, ops: WireOp[], day: LocalDate | null, what: string): Promise<{ words: string; changed: number; notes: string }> {
     const id = String(row.id);
     const released = day ? await this.p.releasedBlocks(id, day) : [];
     await this.p.apply([...ops, ...released.map((b) => this.p.del("time_blocks", b))], what);
-    const timed = day ? await this.p.keepTime(id, null) : { words: "", changed: 0 };
-    return { words: timed.words, changed: released.length + timed.changed };
+    const timed = day ? await this.p.keepTime(id, null) : { words: "", changed: 0, notes: "" };
+    return { words: timed.words, changed: released.length + timed.changed, notes: timed.notes };
   }
 
   /** "every monday": a first repeat, or a new rule for one that repeats already (it starts again from today). */
@@ -50,7 +50,7 @@ export class Repeats {
     const day = dateOf(row.do_date) ?? r.first;
     const ops = [this.p.patch("tasks", id, { recurrence_rule: r.rule, recurrence_mode: r.mode, recurrence_series_id: id, miss_policy: "skip", do_date: day.toString(), ...active(row) })];
     const timed = await this.land(row, ops, day, `repeat ${title}`);
-    return { said: `${title} now repeats ${ruleWords(r.rule, r.mode)}, next on ${dayWords(day, c.today)}${timed.words}`, id, blocksChanged: timed.changed };
+    return { said: `${title} now repeats ${ruleWords(r.rule, r.mode)}, next on ${dayWords(day, c.today)}${timed.words}${timed.notes}`, id, blocksChanged: timed.changed };
   }
 
   private async restart(row: Row, rule: string, mode: RecurrenceMode, c: Ctx): Promise<Changed> {
@@ -64,7 +64,7 @@ export class Repeats {
     const ops = [...dropped.map((e) => this.p.del("recurrence_exceptions", String(e.id))), this.p.patch("tasks", s.id, { recurrence_rule: rule, recurrence_mode: mode, ...(doDate ? { do_date: doDate.toString(), ...active(row) } : {}) })];
     const timed = await this.land(row, ops, doDate, `change the repeat of ${s.title}`);
     const lost = dropped.length ? ` · dropped ${dropped.length} one-off ${dropped.length === 1 ? "change" : "changes"}` : "";
-    return { said: `${s.title} now repeats ${ruleWords(rule, mode)}${doDate ? `, next on ${dayWords(doDate, c.today)}` : ""}${lost}${timed.words}`, id: s.id, blocksChanged: timed.changed };
+    return { said: `${s.title} now repeats ${ruleWords(rule, mode)}${doDate ? `, next on ${dayWords(doDate, c.today)}` : ""}${lost}${timed.words}${timed.notes}`, id: s.id, blocksChanged: timed.changed };
   }
 
   /** Stops the repeat: the task stays, once, on the day it is on. */
@@ -86,7 +86,7 @@ export class Repeats {
       this.p.patch("tasks", s.id, { do_date: next.toString(), deadline: deadline?.toString() ?? null, ...active(s.row) }),
     ];
     const timed = await this.land(s.row, ops, next, `skip ${s.title}`);
-    return { said: `Skipped ${s.title} this time · next ${dayWords(next, s.c.today)}${timed.words}`, id: s.id, blocksChanged: timed.changed };
+    return { said: `Skipped ${s.title} this time · next ${dayWords(next, s.c.today)}${timed.words}${timed.notes}`, id: s.id, blocksChanged: timed.changed };
   }
 
   async pause(ref: string, until: string): Promise<Changed> {
@@ -103,6 +103,6 @@ export class Repeats {
     if (s.row.recurrence_paused_until == null) throw new Refusal(`${s.title} is not paused.`);
     const back = s.mode === "after_completion" ? s.c.today : (firstOnOrAfter(s.rule, s.occurrence, s.c.today) ?? s.occurrence);
     const timed = await this.land(s.row, [this.p.patch("tasks", s.id, { recurrence_paused_until: null, do_date: back.toString() })], back, `resume ${s.title}`);
-    return { said: `Resumed ${s.title} · next ${dayWords(back, s.c.today)}${timed.words}`, id: s.id, blocksChanged: timed.changed };
+    return { said: `Resumed ${s.title} · next ${dayWords(back, s.c.today)}${timed.words}${timed.notes}`, id: s.id, blocksChanged: timed.changed };
   }
 }

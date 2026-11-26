@@ -179,6 +179,8 @@ test("Claude connects through the consent screen and works the planner over MCP"
   for (const [name, args] of [["get_settings", {}], ["list_tags", {}], ["get_someday", {}], ["get_logbook", { days: 7 }], ["search", { tag }]] as const) {
     const r = await call(request, token, name, args);
     expect(r.isError, `${name}: ${r.text}`).toBe(false);
+    // Quiet hours are part of what an assistant reads (REMINDERS_AND_AI_SPEC.md §2).
+    if (name === "get_settings") expect(r.text).toMatch(/Quiet hours: (none|\d\d:\d\d–\d\d:\d\d \(no reminders are sent then\))/);
   }
   const repeat = await call(request, token, "change_repeat", { task: taskId, action: "set", repeat: "every friday" });
   expect(repeat.text).toContain("now repeats every Friday");

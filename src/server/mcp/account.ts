@@ -4,6 +4,7 @@
 import { BUFFER, PLANNING_NUMBERS } from "@/features/settings/section-words";
 import { MAX_SEGMENTS, WEEKDAYS, mergeSegments, segmentsError, segmentsLabel, type Segment } from "@/features/settings/settings-rules";
 import type { WireOp } from "@/server/sync/upload";
+import { quietHoursLabel } from "@/core/notifications/quiet-hours";
 import { Refusal, dayWords, quoted, str, type Changed, type PlannerCore } from "./core";
 import type { Row } from "./store";
 
@@ -18,6 +19,8 @@ export interface SettingsView {
   carryAskAfter: number | null;
   autoSomedayDays: number | null;
   reminders: string;
+  /** "21:00–08:00": reminders due then are dropped; null when there are none. */
+  quiet: string | null;
   morning: string | null;
   shutdown: string | null;
 }
@@ -35,6 +38,8 @@ export interface SettingsInput {
   remind_block_start?: boolean;
   remind_minutes_before?: number;
   remind_deadlines?: boolean;
+  /** "23:00-07:00", or "none" (null) for no quiet hours. */
+  quiet_hours?: string | null;
   morning_message?: boolean;
   morning_message_at?: string | null;
   shutdown_reminder?: boolean;
@@ -52,7 +57,7 @@ export class Account {
     const [profile, rows, c] = await Promise.all([this.p.store.profile(), this.p.store.workHours(), this.p.ctx()]);
     const s = profile.settings ?? ({} as Row);
     const on = (key: string) => s[key] !== 0;
-    const reminders = [on("notify_block_start") ? `before a block (${num(s.block_start_lead_min) ?? 5}m)` : null, on("notify_deadline") ? "deadlines" : null].filter(Boolean);
+    const reminders = [on("notify_block_start") ? `before a block (${c.reminders.leadMin === 0 ? "at its start" : `${c.reminders.leadMin}m`})` : null, on("notify_deadline") ? "deadlines" : null].filter(Boolean);
     return {
       zone: c.zone,
       hours: WEEKDAYS.map((day, i) => ({ day, label: segmentsLabel(this.segments(rows, i)) || "off" })),
@@ -64,6 +69,7 @@ export class Account {
       carryAskAfter: num(s.carry_ask_after),
       autoSomedayDays: num(s.auto_someday_days),
       reminders: reminders.length ? reminders.join(", ") : "off",
+      quiet: quietHoursLabel(c.reminders),
       morning: on("notify_morning") ? (time(s.morning_nudge_time) ?? "at the start of the working day") : null,
       shutdown: on("notify_shutdown") ? (time(s.shutdown_nudge_time) ?? "at the end of the working day") : null,
     };
@@ -146,6 +152,22 @@ export class Account {
       if (![0, 5, 10, 15].includes(input.remind_minutes_before)) throw new Refusal("A block's reminder comes 0, 5, 10 or 15 minutes before it.");
       patch.block_start_lead_min = input.remind_minutes_before;
       said.push(`reminders ${input.remind_minutes_before}m before a block`);
+    }
+    if (input.quiet_hours !== undefined) {
+      const given = input.quiet_hours?.trim() ?? "";
+      if (input.quiet_hours === null || /^(none|off|no)$/i.test(given)) {
+        patch.quiet_hours_start = null;
+        patch.quiet_hours_end = null;
+        said.push("quiet hours off");
+      } else {
+        const [from, to, ...rest] = given.split(/\s*(?:-|–|to)\s*/i);
+        if (!from || !to || rest.length) throw new Refusal(`Couldn't read ${quoted(given)} as quiet hours. Use "23:00-07:00", or "none".`);
+        const [start, end] = [clock(from), clock(to)];
+        if (start === end) throw new Refusal('Quiet hours need a start and an end that differ. Say "none" to turn them off.');
+        patch.quiet_hours_start = start;
+        patch.quiet_hours_end = end;
+        said.push(`quiet hours ${start}–${end}`);
+      }
     }
     for (const [value, column, words] of [
       [input.morning_message_at, "morning_nudge_time", "morning message"],

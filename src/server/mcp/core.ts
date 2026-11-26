@@ -4,6 +4,7 @@
 // the task reads and writes; drafts.ts, blocks.ts, repeats.ts, places.ts and account.ts hold the rest of the app.
 import { startOf, timedStep } from "@/core/blocking/timed";
 import { capacityFor, type Capacity } from "@/core/capacity";
+import { heldReminder, heldWords, toReminderSettings, type ReminderSettings } from "@/core/notifications/quiet-hours";
 import type { ParseContext } from "@/core/quickadd";
 import { readTypedDate } from "@/core/quickadd/read-date";
 import { ruleWords } from "@/core/recurrence/words";
@@ -43,6 +44,8 @@ export interface Meeting {
   id?: string;
   taskId?: string | null;
   locked?: boolean;
+  /** A block whose task is finished or dropped: drawn, but nothing to clash with. */
+  closed?: boolean;
 }
 
 export interface Changed {
@@ -62,6 +65,8 @@ export interface Ctx {
   settings: Settings;
   defaultMissPolicy: string | null;
   parse: ParseContext;
+  /** Quiet hours and the block reminder's lead, as the sender reads them. */
+  reminders: ReminderSettings;
 }
 
 export interface PlannerOptions {
@@ -102,6 +107,7 @@ export class PlannerCore {
         settings,
         defaultMissPolicy: str(p.settings?.default_miss_policy),
         parse: { now, zone: settings.timezone, today, eveningStartsAt: settings.eveningStartsAt },
+        reminders: toReminderSettings(p.settings ?? {}),
       };
     })();
     return this.ctxP;
@@ -168,7 +174,7 @@ export class PlannerCore {
   /** The capacity, meetings and blocks of each day, from one read of the calendar around them. */
   async days(days: readonly LocalDate[], taskRows: readonly Row[]): Promise<{ capacity: Capacity | null; meetings: Meeting[]; blocks: Meeting[] }[]> {
     const c = await this.ctx();
-    const { workHours, events, blocks, eventRows, blockRows, read, hidden, titleOf } = await this.around(days[0].subtract({ days: 1 }).toString(), days[days.length - 1].add({ days: 1 }).toString(), taskRows);
+    const { workHours, events, blocks, eventRows, blockRows, read, hidden, titleOf, closed } = await this.around(days[0].subtract({ days: 1 }).toString(), days[days.length - 1].add({ days: 1 }).toString(), taskRows);
     const tasks = taskRows.map((t) => toCapacityTask(t as unknown as TaskRow));
     return days.map((day) => {
       const capacity = capacityFor({
@@ -200,7 +206,7 @@ export class PlannerCore {
       const blockLines: Meeting[] = [];
       for (const b of blockRows) {
         const at = span(b.start_at, b.end_at);
-        if (at) blockLines.push({ ...at, id: String(b.id), taskId: str(b.task_id), locked: b.locked === 1, title: str(b.title) ?? (b.task_id ? (titleOf.get(String(b.task_id)) ?? "A task") : "Block") });
+        if (at) blockLines.push({ ...at, id: String(b.id), taskId: str(b.task_id), locked: b.locked === 1, closed: closed(str(b.task_id)), title: str(b.title) ?? (b.task_id ? (titleOf.get(String(b.task_id)) ?? "A task") : "Block") });
       }
       const byStart = (a: Meeting, b: Meeting) => a.start.localeCompare(b.start);
       return { capacity, meetings: meetings.sort(byStart), blocks: blockLines.sort(byStart) };
@@ -391,8 +397,8 @@ export class PlannerCore {
    * for a new time, moved with it, removed when the time is taken off. It comes after the task's own write, and a
    * failure here never fails the task. `was` is the task's row before the write, null when it is new.
    */
-  async keepTime(id: string, was: Row | null): Promise<{ words: string; changed: number }> {
-    const nothing = { words: "", changed: 0 };
+  async keepTime(id: string, was: Row | null): Promise<{ words: string; changed: number; notes: string }> {
+    const nothing = { words: "", changed: 0, notes: "" };
     try {
       const c = await this.ctx();
       const [row, held] = await Promise.all([this.store.task(id), this.store.blocksOf(id)]);
@@ -412,7 +418,7 @@ export class PlannerCore {
       const title = quoted(String(row.title ?? ""));
       if (step.kind === "remove") {
         await this.apply([this.del("time_blocks", step.id)], `unblock ${title}`);
-        return { words: " · its time block is gone", changed: 1 };
+        return { words: " · its time block is gone", changed: 1, notes: "" };
       }
       const times = { start_at: step.start.toString(), end_at: step.end.toString() };
       const op =
@@ -420,11 +426,30 @@ export class PlannerCore {
           ? this.patch("time_blocks", step.id, times)
           : this.put("time_blocks", this.newId(), { space_id: str(row.space_id), user_id: c.userId, task_id: id, title: str(row.title), ...times, locked: false, source: "manual" });
       await this.apply([op], `block ${title}`);
-      return { words: ` · blocked ${this.clock(step.start, c)}–${this.clock(step.end, c)}`, changed: 1 };
+      const notes = await this.timeNotes(step.start, step.end, { taskId: id }).catch(() => []);
+      return { words: ` · blocked ${this.clock(step.start, c)}–${this.clock(step.end, c)}`, changed: 1, notes: asLines(notes) };
     } catch (e) {
       console.error("mcp timed block failed", e);
       return nothing;
     }
+  }
+
+  /**
+   * What is worth saying about a time on the timeline once it is set (REMINDERS_AND_AI_SPEC.md §2): what it overlaps,
+   * and a reminder quiet hours will hold back. Read at the moment of the write, so an answer the person gave after
+   * the draft is checked too. `except` leaves out the block being written and its own task's other blocks.
+   */
+  async timeNotes(start: Instant, end: Instant, except: { taskId?: string | null; blockId?: string | null } = {}): Promise<string[]> {
+    const c = await this.ctx();
+    if (Temporal.Instant.compare(start, c.now) <= 0) return [];
+    const out: string[] = [];
+    const day = start.toZonedDateTimeISO(c.zone).toPlainDate();
+    const [on] = await this.days([day], []);
+    const clash = overlapping(on, this.clock(start, c), end.toZonedDateTimeISO(c.zone).toPlainDate().equals(day) ? this.clock(end, c) : "24:00", except);
+    if (clash.length) out.push(`Heads up: it overlaps ${clashWords(clash)}.`);
+    const held = heldReminder(start, c.zone, c.reminders);
+    if (held) out.push(heldWords(held));
+    return out;
   }
 
   /** "15:00" on the person's clock. */
@@ -437,6 +462,24 @@ export class PlannerCore {
     return { id, space_id: spaceId, ...row, evening: (row as { evening: boolean }).evening ? 1 : 0, carry_count: 0 };
   }
 }
+
+const minuteOf = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+
+/** The day's meetings and live blocks that share any minute with `from`–`to` ("HH:MM"), in time order. */
+export function overlapping(on: { meetings: readonly Meeting[]; blocks: readonly Meeting[] }, from: string, to: string, except: { taskId?: string | null; blockId?: string | null } = {}): Meeting[] {
+  const [a, b] = [minuteOf(from), minuteOf(to)];
+  return [...on.meetings, ...on.blocks]
+    .filter((m) => !m.title.endsWith("(declined)") && !m.closed)
+    .filter((m) => !(except.blockId && m.id === except.blockId) && !(except.taskId && m.taskId === except.taskId))
+    .filter((m) => minuteOf(m.start) < b && minuteOf(m.end) > a)
+    .sort((x, y) => x.start.localeCompare(y.start));
+}
+
+/** "Standup 11:00–11:15 and Lunch 12:00–13:00", the first two. */
+export const clashWords = (clash: readonly Meeting[]): string => clash.slice(0, 2).map((m) => `${m.title} ${m.start}–${m.end}`).join(" and ");
+
+/** Notes as lines after an answer: "" when there are none. */
+export const asLines = (notes: readonly string[]): string => notes.map((n) => `\n${n}`).join("");
 
 export function exceptionRow(e: Row) {
   return { occurrence_date: String(e.occurrence_date), kind: String(e.kind), moved_to: str(e.moved_to) };

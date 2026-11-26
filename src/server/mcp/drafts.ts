@@ -9,12 +9,13 @@ import { suggestEstimate } from "@/core/estimates";
 import { keyBetween } from "@/core/ordering";
 import { emptyDraft, parse, type TaskDraft } from "@/core/quickadd";
 import { draftRow, type DraftRow } from "@/core/quickadd/draft-row";
-import { compareDates, formatMinutes, localDate, minutesOfDay, type LocalDate } from "@/core/time";
+import { heldReminder } from "@/core/notifications/quiet-hours";
+import { Temporal, compareDates, formatMinutes, localDate, minutesOfDay, timeFromMinutes, toInstant, type LocalDate } from "@/core/time";
 import type { MissPolicy } from "@/core/types";
 import { chooseProject, fileLine } from "@/features/quickadd/file-line";
 import { interpret, resolveTag, type QuickAddProject } from "@/features/quickadd/interpret";
 import type { WireOp } from "@/server/sync/upload";
-import { Refusal, dayWords, estimateMinutes, fold, lastKey, quoted, str, type Ctx, type PlannerCore, type TaskView } from "./core";
+import { Refusal, clashWords, dayWords, estimateMinutes, fold, lastKey, overlapping, quoted, str, type Ctx, type PlannerCore, type TaskView } from "./core";
 import type { Row } from "./store";
 
 /** One task as the assistant passes it: the person's line, and whatever else they said about it. */
@@ -68,6 +69,8 @@ export interface Added {
   steps: string[];
   /** " · blocked 15:00–15:45", when its time is on the timeline now. */
   blocked: string;
+  /** Said after it: what its time overlaps, a reminder quiet hours will hold. Lines, each led by a newline. */
+  notes: string;
   blocksChanged: number;
 }
 
@@ -330,8 +333,14 @@ export class Drafts {
       if (d.doTime && on) {
         const from = minutesOfDay(d.doTime);
         const to = from + blockLength(d.estimateMin, c.settings.defaultEstimateMin);
-        const clash = [...on.meetings, ...on.blocks].filter((m) => !m.title.endsWith("(declined)") && minuteOf(m.start) < to && minuteOf(m.end) > from);
-        if (clash.length) notices.push(`It overlaps ${clash.slice(0, 2).map((m) => `${m.title} ${m.start}–${m.end}`).join(" and ")}.`);
+        const hm = (m: number) => (m >= 24 * 60 ? "24:00" : timeFromMinutes(m).toString({ smallestUnit: "minute" }));
+        const clash = overlapping(on, hm(from), hm(to));
+        if (clash.length) notices.push(`It overlaps ${clashWords(clash)}.`);
+      }
+      if (d.doTime && d.doDate) {
+        const start = toInstant(d.doDate, d.doTime, c.zone);
+        const held = Temporal.Instant.compare(start, c.now) > 0 ? heldReminder(start, c.zone, c.reminders) : null;
+        if (held) notices.push(`Its reminder (${held.at}) is inside quiet hours (${held.quiet}), so none will come. Offer another time, or changing quiet hours.`);
       }
       const best = missing.includes("project") ? projectRows.map((p) => ({ p, n: score(d.title, p) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n)[0] : undefined;
       const usual = suggestEstimate(learned, { estimateMin: d.estimateMin, projectId: r.projectId }, c.settings.defaultEstimateMin);
@@ -417,7 +426,7 @@ export class Drafts {
     const { strip, destination } = this.words(r, c, newTags);
     const fresh = await this.p.store.task(id);
     const [task] = await this.p.views([fresh ?? (this.p.syntheticRow(id, c.spaceId, row) as Row)]);
-    return { task, strip, destination, unfiled: r.unfiled, steps: r.steps, blocked: timed.words, blocksChanged: timed.changed };
+    return { task, strip, destination, unfiled: r.unfiled, steps: r.steps, blocked: timed.words, notes: timed.notes, blocksChanged: timed.changed };
   }
 }
 
@@ -430,7 +439,6 @@ type TodayCapacity = Awaited<ReturnType<PlannerCore["days"]>>[number]["capacity"
 const codeFor = (title: string, c: Ctx): string => createHash("sha256").update(`${c.userId}\n${wordsOf(title).join(" ") || fold(title)}`).digest("hex").slice(0, 6);
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const minuteOf = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 
 /** "every monday", "every 2 weeks", "every! 3 days" as a rule, and the first day it falls on. */
 export function readRepeat(words: string, c: Ctx): { rule: string; mode: "fixed" | "after_completion"; first: LocalDate } {

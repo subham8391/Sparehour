@@ -475,7 +475,7 @@ export class Planner extends PlannerCore {
     await this.apply(ops, `move ${quoted(title)}`);
     const timed = await this.keepTime(id, row);
     const time = typed.time ? ` ${typed.time.toString({ smallestUnit: "minute" })}` : typed.evening ? ", evening" : "";
-    return { said: `Moved ${quoted(title)} to ${dayWords(typed.date, c.today)}${time}${once}${timed.words}`, id, blocksChanged: released.length + timed.changed };
+    return { said: `Moved ${quoted(title)} to ${dayWords(typed.date, c.today)}${time}${once}${timed.words}${timed.notes}`, id, blocksChanged: released.length + timed.changed };
   }
 
   /** Edits the title, note, deadline, estimate, priority, project or tags; only the fields given change. */
@@ -587,8 +587,8 @@ export class Planner extends PlannerCore {
     }
     if (ops.length === 0) throw new Refusal("Nothing to change: give at least one field.");
     await this.apply(ops, `change ${quoted(title)}`);
-    const timed = "do_time" in patch || "estimate_min" in patch ? await this.keepTime(id, row) : { words: "", changed: 0 };
-    return { said: `Changed ${quoted(title)}: ${said.join(", ")}${timed.words}`, id, blocksChanged: timed.changed };
+    const timed = "do_time" in patch || "estimate_min" in patch ? await this.keepTime(id, row) : { words: "", changed: 0, notes: "" };
+    return { said: `Changed ${quoted(title)}: ${said.join(", ")}${timed.words}${timed.notes}`, id, blocksChanged: timed.changed };
   }
 }
 

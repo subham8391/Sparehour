@@ -18,7 +18,8 @@ export interface Effects {
 
 export const SERVER_INSTRUCTIONS = `Sparehour is a calm, time-aware personal planner. A task has a do-date (the day the person plans to do it), maybe a time, an optional deadline (only a missed deadline is late), an estimate, a project or an area, tags, steps, a repeat and a priority. Today shows the day's tasks, This evening, Carried over (tasks whose day passed; say "carried over", never "overdue") and the spare time left after meetings, a buffer and what is planned.
 Adding a task: always call draft_task first with the person's own words and whatever else they told you. It adds nothing; it says what is not set and gives their real choices (days with the spare time on each, their projects and tags, how long such tasks take them). Put those choices to the person in one short message, as tappable options if you can show them, and wait. They may answer only some, or say "add as is". Then call add_task with each task's draft code, their answers and confirmed: true. A task they mention while answering has not been asked about yet: draft it and ask. Never fill in a project, day, time, estimate, priority, deadline or tag they did not give, and never confirm on their behalf. Several tasks at once are drafted and asked about together.
-Look with get_today, get_day, get_inbox, get_upcoming, get_project and search; act with the ids they return (titles work too when only one matches). When a request could mean two things (which task, which day, done or dropped), ask before changing anything. plan_day is the app's own Plan my day for the rest of today and changes nothing; show it, and call apply_day_plan only when the person agrees. Ask before dropping, archiving, deleting an area or changing settings. Say in one line what changed. Keep answers calm and short.`;
+Look with get_today, get_day, get_inbox, get_upcoming, get_project and search; act with the ids they return (titles work too when only one matches). When a request could mean two things (which task, which day, done or dropped), ask before changing anything. plan_day is the app's own Plan my day for the rest of today and changes nothing; show it, and call apply_day_plan only when the person agrees. Ask before dropping, archiving, deleting an area or changing settings. Say in one line what changed. Keep answers calm and short.
+Reminders: a block's reminder comes at its start or a few minutes before, but none is sent in the person's quiet hours (get_settings shows them). When an answer says "No reminder: …" or "Heads up: it overlaps …", tell the person in plain words and offer the fix: another time, or changing quiet hours with update_settings once they agree. Something that takes a moment (a tablet, a short call, a message) is 5 minutes, not the default: offer 5m first.`;
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
@@ -196,7 +197,7 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
 
   server.registerTool(
     "get_settings",
-    { title: "Planning settings", description: "Working hours, buffer, default estimate, evening, reminders and what happens to a task that misses its day.", inputSchema: z.object({}), annotations: READ },
+    { title: "Planning settings", description: "Working hours, buffer, default estimate, evening, reminders, quiet hours (when no reminder is sent) and what happens to a task that misses its day.", inputSchema: z.object({}), annotations: READ },
     () => run(async () => formatSettings(await planner.account.settings())),
   );
 
@@ -205,7 +206,7 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
     {
       title: "Draft a task",
       description:
-        "The first step of adding any task. Adds nothing: it shows how Sparehour reads the person's words, what they have not said (day, how long, project, deadline, priority, tags), the real choices for each, and anything worth telling them (no room that day, a clash, the same task already there). Put its choices to the person, then call add_task.",
+        "The first step of adding any task. Adds nothing: it shows how Sparehour reads the person's words, what they have not said (day, how long, project, deadline, priority, tags), the real choices for each, and anything worth telling them (no room that day, a clash, a reminder quiet hours will hold back, the same task already there). Put its choices to the person, then call add_task.",
       inputSchema: z.object({ tasks: taskInputs }),
       annotations: READ,
     },
@@ -258,7 +259,7 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
         "`text` is one line of Sparehour's quick add, read exactly as the app reads it: a day or time (today, tomorrow, fri, next week, 21 oct, 3pm, tonight, evening) sets the do-date;",
         "~45m or ~1h30 is the estimate; #Project files it in a project (#+Name makes a new one); @tag adds a tag (made if new);",
         "!1, !2 or !3 is the priority (1 highest); {fri} is a deadline; 'after mon' a start date; 'every monday' or 'every 2 weeks' a repeat ('every!' repeats after each completion); '// …' at the end is a note.",
-        "The other fields lay the person's answers over it. A task with a time goes on the timeline too. No day and no project puts it in the Inbox.",
+        "The other fields lay the person's answers over it. A task with a time goes on the timeline too, and the answer says when that time overlaps something or its reminder will not come (quiet hours): tell the person. No day and no project puts it in the Inbox.",
       ].join(" "),
       inputSchema: z.object({
         tasks: taskInputs,
@@ -544,7 +545,7 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
     "update_settings",
     {
       title: "Change planning settings",
-      description: "Changes working hours, buffer, default estimate, evening, reminders or what happens to a missed task. Only the fields given change. Read get_settings first and ask before changing.",
+      description: "Changes working hours, buffer, default estimate, evening, reminders, quiet hours or what happens to a missed task. Only the fields given change. Read get_settings first and ask before changing.",
       inputSchema: z.object({
         work_hours: z
           .array(z.object({ days: z.array(z.string().min(3).max(20)).min(1).describe("Monday to Sunday, “weekdays” or “weekend”."), hours: z.array(z.string().max(20)).max(3).describe("“09:00-13:00”; up to three; [] or “off” for a day off.") }))
@@ -561,6 +562,7 @@ export function registerTools(server: McpServer, planner: Planner, access: Acces
         remind_block_start: z.boolean().optional(),
         remind_minutes_before: z.number().int().optional().describe("0, 5, 10 or 15."),
         remind_deadlines: z.boolean().optional(),
+        quiet_hours: z.string().max(30).nullable().optional().describe("No reminders are sent in these hours: “23:00-07:00”; “none” or null for no quiet hours."),
         morning_message: z.boolean().optional(),
         morning_message_at: z.string().max(20).nullable().optional().describe("null for its usual time."),
         shutdown_reminder: z.boolean().optional(),
@@ -608,7 +610,7 @@ export function registerPrompts(server: McpServer): void {
 
 /** A fresh server for one request, its tools bound to the caller's planner and access. */
 export function buildServer(planner: Planner, access: Access, effects: Effects): McpServer {
-  const server = new McpServer({ name: "sparehour", title: "Sparehour", version: "2.0.0" }, { instructions: SERVER_INSTRUCTIONS });
+  const server = new McpServer({ name: "sparehour", title: "Sparehour", version: "2.1.0" }, { instructions: SERVER_INSTRUCTIONS });
   registerTools(server, planner, access, effects);
   registerPrompts(server);
   return server;

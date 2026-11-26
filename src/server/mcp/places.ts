@@ -331,7 +331,7 @@ export class Places {
     const copy = await this.copyTask(row, projectId, str(row.heading_id), keyBetween(mine ?? lastKey(keys), next));
     await this.p.apply(copy.ops, `duplicate ${quoted(String(row.title))}`);
     const timed = await this.p.keepTime(copy.id, null);
-    return { said: `Duplicated ${quoted(String(row.title))}${timed.words} [id ${copy.id}]`, id: copy.id, blocksChanged: timed.changed };
+    return { said: `Duplicated ${quoted(String(row.title))}${timed.words} [id ${copy.id}]${timed.notes}`, id: copy.id, blocksChanged: timed.changed };
   }
 
   async duplicateProject(ref: string): Promise<Changed> {

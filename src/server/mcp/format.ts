@@ -200,6 +200,7 @@ export function formatSettings(v: SettingsView): string {
     v.carryAskAfter !== null ? `Asks “Still want this?” after: ${v.carryAskAfter} carries` : null,
     v.autoSomedayDays !== null ? `Untouched tasks go to Someday after: ${v.autoSomedayDays} days` : null,
     `Reminders: ${v.reminders}`,
+    `Quiet hours: ${v.quiet ? `${v.quiet} (no reminders are sent then)` : "none"}`,
     `Morning message: ${v.morning ?? "off"}`,
     `Shutdown reminder: ${v.shutdown ?? "off"}`,
   ]
@@ -239,7 +240,7 @@ export function formatDraft(v: DraftView, blocked: "" | "unconfirmed" | "undraft
   const need = new Set(v.lines.flatMap((l) => l.missing));
   const ask: string[] = [];
   if (need.has("when")) ask.push(`When? ${v.choices.days.map((d) => `${d.label}${d.spareMin !== null ? ` (${d.spareMin >= 0 ? `${formatMinutes(d.spareMin)} spare` : `${formatMinutes(-d.spareMin)} over`})` : ""}`).join(" · ")} · this evening · Someday · no day yet. A time too, if it has one.`);
-  if (need.has("length")) ask.push(`How long? 15m · 30m · 1h · 2h (with none it counts as ${formatMinutes(v.choices.defaultEstimateMin)})`);
+  if (need.has("length")) ask.push(`How long? 5m · 15m · 30m · 1h · 2h (with none it counts as ${formatMinutes(v.choices.defaultEstimateMin)}; for something that takes a moment, like a tablet or a short call, put 5m first)`);
   if (need.has("project")) ask.push(`Which project? ${v.choices.projects.length ? `${v.choices.projects.join(" · ")}${v.choices.moreProjects ? ` · ${v.choices.moreProjects} more (list_projects)` : ""} · ` : ""}none · a new one`);
   if (need.has("deadline")) ask.push("A deadline? Only if something is really due; none is fine.");
   if (need.has("priority")) ask.push("Priority? 1 (highest) · 2 · 3 · none");
@@ -255,7 +256,7 @@ export function formatDraft(v: DraftView, blocked: "" | "unconfirmed" | "undraft
 }
 
 export function formatAdded(a: Added, today: LocalDate): string {
-  const lines = [`Added “${a.task.title}”${a.strip ? ` — ${a.strip}` : ""} → ${a.destination}${a.blocked}`, taskLine(a.task, today, { day: true })];
+  const lines = [`Added “${a.task.title}”${a.strip ? ` — ${a.strip}` : ""} → ${a.destination}${a.blocked}${a.notes}`, taskLine(a.task, today, { day: true })];
   if (a.steps.length) lines.push(`steps: ${a.steps.join(" / ")}`);
   if (a.unfiled) lines.push(a.unfiled.several ? `#${a.unfiled.name} fits more than one project, so it stayed in the title.` : `No project is called “${a.unfiled.name}”, so it stayed in the title (#+${a.unfiled.name} makes a new one).`);
   return lines.join("\n");

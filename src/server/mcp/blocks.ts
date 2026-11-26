@@ -3,6 +3,7 @@
 // block never touches its task.
 import { blockLength, chooseSlot, lateSlot } from "@/core/blocking";
 import type { Capacity } from "@/core/capacity";
+import { heldReminder, heldWords } from "@/core/notifications/quiet-hours";
 import { Temporal, compareDates, dayInstants, formatMinutes, minutesOfDay, type LocalDate } from "@/core/time";
 import { normaliseTimestamp } from "@/data/mappers";
 import { isoAt } from "@/features/planning/plan-input";
@@ -99,8 +100,16 @@ export class Blocks {
   /** What a stretch of a day would sit on top of, in words, the block itself left out. */
   private async clash(day: LocalDate, start: number, end: number, except: string | null): Promise<string> {
     const [f] = await this.p.days([day], []);
-    const over = [...f.meetings, ...f.blocks].filter((m) => m.id !== except && !m.title.endsWith("(declined)") && minuteOf(m.start) < end && minuteOf(m.end) > start);
+    const over = [...f.meetings, ...f.blocks].filter((m) => m.id !== except && !m.closed && !m.title.endsWith("(declined)") && minuteOf(m.start) < end && minuteOf(m.end) > start);
     return over.length ? `. It overlaps ${over.slice(0, 3).map((m) => `${m.title} ${m.start}–${m.end}`).join(" and ")}` : "";
+  }
+
+  /** A line for the answer when quiet hours will hold this block's reminder back (REMINDERS_AND_AI_SPEC.md §2). */
+  private quiet(day: LocalDate, start: number, c: Ctx): string {
+    const at = Temporal.Instant.from(normaliseTimestamp(isoAt(day, start, c.zone)));
+    if (Temporal.Instant.compare(at, c.now) <= 0) return "";
+    const held = heldReminder(at, c.zone, c.reminders);
+    return held ? `\n${heldWords(held)}` : "";
   }
 
   /** The length asked for: an end, some minutes, or what it was. */
@@ -147,7 +156,7 @@ export class Blocks {
     }
     const over = await this.clash(day, start, end, null);
     await this.p.apply(ops, `block ${quoted(title ?? "time")}`);
-    return { said: `Blocked ${quoted(title ?? "time")} on ${dayWords(day, c.today)} ${hm(start)}–${hm(end)}${moved} [block ${id}]${over}`, id, blocksChanged: 1 };
+    return { said: `Blocked ${quoted(title ?? "time")} on ${dayWords(day, c.today)} ${hm(start)}–${hm(end)}${moved} [block ${id}]${over}${this.quiet(day, start, c)}`, id, blocksChanged: 1 };
   }
 
   /** Where the app's B would put it: the next free gap that fits, else the widest one left, else after the working day. */
@@ -210,7 +219,7 @@ export class Blocks {
       patch.start_at = isoAt(day, start, c.zone);
       patch.end_at = isoAt(day, end, c.zone);
       said.push(`moved to ${dayWords(day, c.today)} ${hm(start)}–${hm(end)} (${formatMinutes(end - start)})`);
-      over = await this.clash(day, start, end, id);
+      over = `${await this.clash(day, start, end, id)}${this.quiet(day, start, c)}`;
     }
     if (input.title !== undefined) {
       patch.title = input.title?.trim() || null;
