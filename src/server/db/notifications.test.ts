@@ -199,6 +199,29 @@ describe.skipIf(admin === null)("materialise_notifications", () => {
       await c.query("rollback to savepoint lead");
     }));
 
+  it("a block made after its reminder time has passed still gets one, at once and with the time really left; a started block gets none", () =>
+    inTx(async (c) => {
+      const uid = await newUser(c, "notif-late@contract.test", "Asia/Kolkata");
+      const sid = await spaceOf(c, uid);
+      await c.query("update public.user_settings set block_start_lead_min = 5 where user_id = $1", [uid]);
+      const late = await addBlock(c, sid, uid, await addTask(c, sid, "Having breakfast"), 3, 15);
+      await addBlock(c, sid, uid, await addTask(c, sid, "Already under way"), -1, 15);
+      const onTime = await addBlock(c, sid, uid, await addTask(c, sid, "Later on"), 60, 15);
+      await materialise(c);
+      const made = await rows(c, uid, "block_start");
+      expect(made.map((r) => r.entity_id).sort()).toEqual([late, onTime].sort());
+      const lateRow = made.find((r) => r.entity_id === late)!;
+      expect(lateRow.status).toBe("pending");
+      expect(lateRow.payload.notification.body).toMatch(/^\d\d:\d\d–\d\d:\d\d · 15m · starts in 3m$/);
+      const due = await c.query<{ due: boolean }>("select fire_at <= now() as due from private.scheduled_notifications where id = $1", [lateRow.id]);
+      expect(due.rows[0].due).toBe(true);
+      // The one with time to spare keeps its own five minutes.
+      expect(made.find((r) => r.entity_id === onTime)!.payload.notification.body).toMatch(/ · starts in 5m$/);
+      // Running again changes nothing and makes no second row.
+      await materialise(c);
+      expect(await rows(c, uid, "block_start")).toHaveLength(2);
+    }));
+
   it("with no custom times the nudges follow working hours, and editing the hours re-times the pending rows", () =>
     inTx(async (c) => {
       const uid = await newUser(c, "notif-derive@contract.test", "Europe/Berlin");
