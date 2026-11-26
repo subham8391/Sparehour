@@ -58,6 +58,8 @@ export interface TodayViewProps {
   onNextDay?: () => void;
   /** The day's all-day events, by title, for the line under the date. */
   allDay?: readonly string[];
+  /** The day's meetings still to come, as the web says them: "Meetings: 11:00 Daily Standup · +2 more". Left out or null with none. */
+  meetingsLine?: string | null;
   /** A day that has passed: a short note, what was finished, nothing to plan. */
   past?: boolean;
   summary: Summary;
@@ -257,7 +259,7 @@ export function TodayView(p: TodayViewProps) {
     </>
   );
   const under =
-    p.onBackToToday || (p.allDay && p.allDay.length > 0) ? (
+    p.onBackToToday || (p.allDay && p.allDay.length > 0) || p.meetingsLine ? (
       <View style={styles.under}>
         {p.onBackToToday ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Back to today" onPress={p.onBackToToday} style={styles.back}>
@@ -267,6 +269,8 @@ export function TodayView(p: TodayViewProps) {
         ) : null}
         {/* All-day events sit under the date, never in the busy time. */}
         {p.allDay && p.allDay.length > 0 ? <Text style={[styles.allDay, { color: c.ink2 }]}>All day: {p.allDay.join(" · ")}</Text> : null}
+        {/* Then the meetings still to come: words to read, not rows (REMINDERS_AND_AI_SPEC.md §5). */}
+        {p.meetingsLine ? <Text style={[styles.allDay, { color: c.ink2 }]}>{p.meetingsLine}</Text> : null}
       </View>
     ) : null;
   const rowMenu = <RowMenuSheet task={menu?.task ?? null} items={menu ? itemsFor(menu.section, menu.task) : []} onClose={() => setMenu(null)} />;

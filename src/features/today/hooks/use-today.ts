@@ -5,7 +5,7 @@
 // has its own tasks, blocks and meetings and no now; a day that has passed keeps
 // only its blocks and meetings (what was finished there is the page's done list);
 // Carried over and its asks belong to today alone. The calendar's state follows the
-// day shown: its all-day line, unanswered invitations, out of office, the loading
+// day shown: its all-day line, its meetings line, unanswered invitations, out of office, the loading
 // flag (the same month window the events query holds) and removed-block notes.
 import { useCallback, useMemo } from "react";
 import { useQuery, useSyncStream } from "@/data/powersync";
@@ -19,6 +19,7 @@ import { monthsBack } from "@/data/queries/shell";
 import { CALENDARS_FULL_SQL, type CalendarFullRow } from "@/data/queries/calendar";
 import type { TaskRepo } from "@/data/repositories/task-repo";
 import { useCarryAsks } from "@/features/rollover/use-carry-asks";
+import { dayMeetings, meetingsLine } from "@/features/today/meetings-line";
 import { useTaskRepo } from "@/features/tasks/use-task-repo";
 import type { CalendarEventRow, TaskRow, TimeBlockRow, UserSettingsRow, WorkHoursRow } from "@/data/schema.client";
 
@@ -148,6 +149,8 @@ export interface TodayModel {
   calendarConnected: boolean;
   /** The day shown's all-day events, by title, for the line under the date (SYSTEM_DESIGN.md §5.4: flagged, never busy). */
   allDay: string[];
+  /** The day shown's meetings still to come, as the line under the date says them ("Meetings: 11:00 Daily Standup · +2 more"); null with none (REMINDERS_AND_AI_SPEC.md §5). */
+  meetingsLine: string | null;
   /** Each task's blocks that Google removed, for the row's one quiet note (PRODUCT_SPEC.md §10.3 rule 3). */
   removedBlocks: ReadonlyMap<string, readonly string[]>;
   /** A calendar is connected but the window of its events around the day shown has not arrived yet (SCREENS.md §21 Loading). */
@@ -274,6 +277,7 @@ export function useToday(now: Temporal.Instant, view?: LocalDate | null): TodayM
       // (an issue, blocking paused) are the banner island's own reading (calendar-state.ts).
       calendarConnected: connected,
       allDay: allDayTitles(eventRows ?? [], day, readByCalendar, privateIds),
+      meetingsLine: meetingsLine(dayMeetings(eventRows ?? [], { day, today, zone, now, readByCalendar, privateIds })),
       removedBlocks,
       calendarLoading: connected && calendarWaiting,
     };

@@ -352,6 +352,7 @@ export function Today() {
           onPrevDay={() => stepBy(-1)}
           onNextDay={() => stepBy(1)}
           allDay={model.allDay}
+          meetingsLine={model.meetingsLine}
           past={past}
           summary={todaySummary(model.capacity, {
             connected: model.calendarConnected,

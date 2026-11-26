@@ -10,7 +10,8 @@ import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Temporal, todayFor } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
-import { SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
+import { CALENDARS_FULL_SQL } from "@/data/queries/calendar";
+import { EVENTS_AROUND_SQL, SETTINGS_SQL, WORK_HOURS_SQL } from "@/data/queries/today";
 import { BlockingProvider } from "@/features/blocking/blocking-provider";
 import { runViewKey } from "@/features/commands/view-keys";
 import { requestToday } from "@/features/today/today-request";
@@ -242,6 +243,52 @@ describe("Today, stepped a day at a time", () => {
     view();
     const done = await screen.findByRole("region", { name: `Done on ${formatDay(old, { today })}` });
     expect(await within(done).findByText("Nothing was finished on this day.")).toBeInTheDocument();
+  });
+});
+
+describe("the day's meetings under the date (REMINDERS_AND_AI_SPEC.md §5)", () => {
+  // Tomorrow's calendar, so the hour the suite runs at decides nothing: a later day keeps all its meetings.
+  const meeting = (id: string, from: string, to: string, summary: string, over: Row = {}) => ({ id, calendar_id: "c1", all_day: 0, start_at: `${tomorrow}T${from}:00Z`, end_at: `${tomorrow}T${to}:00Z`, start_date: null, end_date: null, summary, status: "confirmed", self_response: "accepted", event_type: "default", is_ours: 0, ...over });
+  const calendar = (events: Row[]) => {
+    const base = h.answer;
+    h.answer = (sql, params) => {
+      if (sql === EVENTS_AROUND_SQL) return events;
+      if (sql === CALENDARS_FULL_SQL) return [{ id: "c1", calendar_account_id: "a1", read: 1, private: 0, write_target: 0 }];
+      return base(sql, params);
+    };
+  };
+
+  it("names the day's meetings in one line of plain words, under the all-day line", async () => {
+    calendar([
+      meeting("m2", "14:00", "14:30", "1:1 with Priya"),
+      meeting("m1", "11:00", "11:15", "Daily Standup"),
+      meeting("m3", "15:00", "16:00", "Lunch", { self_response: "declined" }),
+      { id: "a1", calendar_id: "c1", all_day: 1, start_at: null, end_at: null, start_date: tomorrow.toString(), end_date: tomorrow.add({ days: 1 }).toString(), summary: "Dad's birthday", status: "confirmed", self_response: null, event_type: "default", is_ours: 0 },
+    ]);
+    window.history.pushState(null, "", `/today?day=${tomorrow}`);
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(tomorrow) });
+    const line = screen.getByText("Meetings: 11:00 Daily Standup · 14:00 1:1 with Priya");
+    const allDay = screen.getByText("All day: Dad's birthday");
+    // Both are lines of the header's one paragraph, All day first; neither is a control.
+    expect(line.parentElement).toBe(allDay.parentElement);
+    expect(allDay.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(line.closest("button, a, [role='row']")).toBeNull();
+  });
+
+  it("names three and counts the rest", async () => {
+    calendar([meeting("m1", "09:00", "09:30", "A"), meeting("m2", "10:00", "10:30", "B"), meeting("m3", "11:00", "11:30", "C"), meeting("m4", "12:00", "12:30", "D"), meeting("m5", "13:00", "13:30", "E")]);
+    window.history.pushState(null, "", `/today?day=${tomorrow}`);
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(tomorrow) });
+    expect(screen.getByText("Meetings: 09:00 A · 10:00 B · 11:00 C · +2 more")).toBeInTheDocument();
+  });
+
+  it("is not there on a day with no meeting", async () => {
+    calendar([meeting("m1", "11:00", "11:15", "Daily Standup")]);
+    view();
+    await screen.findByRole("heading", { level: 1, name: title(today) });
+    expect(screen.queryByText(/^Meetings:/)).not.toBeInTheDocument();
   });
 });
 

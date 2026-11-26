@@ -518,7 +518,15 @@ export default function TodayPage() {
           eyebrow={onToday ? `Today · ${partOfDay(nowMinute, eveningAt)}` : <OffDayEyebrow label={daysAway(day, model.today)} onBack={backHome} />}
           title={formatDay(day, { weekday: "long", month: "long", today: model.today })}
           // The day shown's all-day events sit under its date, never in the busy time (SYSTEM_DESIGN.md §5.4; ruled A12: no switch at M1).
-          subtitle={model.allDay.length > 0 ? `All day: ${model.allDay.join(" · ")}` : undefined}
+          // Under them, the meetings still to come, as plain words (REMINDERS_AND_AI_SPEC.md §5): each is a line of the one paragraph.
+          subtitle={
+            model.allDay.length > 0 || model.meetingsLine ? (
+              <>
+                {model.allDay.length > 0 && <span className="block">All day: {model.allDay.join(" · ")}</span>}
+                {model.meetingsLine && <span className="block">{model.meetingsLine}</span>}
+              </>
+            ) : undefined
+          }
           beside={
             <>
               {stepButton(-1)}

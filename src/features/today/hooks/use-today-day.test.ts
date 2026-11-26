@@ -150,6 +150,13 @@ describe("the calendar on the day shown", () => {
     expect(m.meetings).toEqual([{ start: 13 * 60, end: 14 * 60, title: "Interview", unanswered: true }]);
   });
 
+  it("says that day's meetings as the line under the date, and nothing on a day with none or a day that has passed", () => {
+    expect(model().meetingsLine).toBeNull();
+    expect(model("2026-10-08").meetingsLine).toBe("Meetings: 13:00 Interview");
+    // Stepped past it, the same day has passed: its note speaks of its meetings, the line does not.
+    expect(renderHook(() => useToday(instant("2026-10-09T10:00:00Z"), localDate("2026-10-08"))).result.current.meetingsLine).toBeNull();
+  });
+
   it("waits on the window the events query holds, so a day stepped past today's months clears once its own lands", () => {
     const far = "2027-01-15";
     expect(model(far).calendarLoading).toBe(true);

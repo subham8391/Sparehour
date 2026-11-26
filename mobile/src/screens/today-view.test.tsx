@@ -99,6 +99,20 @@ describe("<TodayView>: the day and the hero", () => {
     expect(screen.getByText("All day: Ana’s birthday · Busy")).toBeTruthy();
   });
 
+  it("says the day's meetings under the all-day line, as words and not a control, and nothing with none", async () => {
+    const line = "Meetings: 11:00 Daily Standup · 14:00 1:1 with Priya · +2 more";
+    const view = await render(<TodayView {...props({ allDay: ["Ana’s birthday"], meetingsLine: line })} />);
+    expect(screen.getByText("All day: Ana’s birthday")).toBeTruthy();
+    expect(screen.getByText(line)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Meetings:/ })).toBeNull();
+    // With no all-day event the line still shows by itself.
+    await view.rerender(<TodayView {...props({ meetingsLine: line })} />);
+    expect(screen.getByText(line)).toBeTruthy();
+    expect(screen.queryByText(/^All day:/)).toBeNull();
+    await view.rerender(<TodayView {...props({ meetingsLine: null })} />);
+    expect(screen.queryByText(/^Meetings:/)).toBeNull();
+  });
+
   it("another day says how far it is, with the way back, its own section name and no ritual", async () => {
     const later = todayFixture({ now: false });
     const onBack = jest.fn();
