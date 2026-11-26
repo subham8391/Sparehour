@@ -4,24 +4,26 @@
 // Lock and Remove — a sheet on the phone, a popover above it, reachable by a screen reader like any other field.
 // Under them, when the blocks and the estimate disagree, a quiet line says by how much (PRODUCT_SPEC.md §10.2:
 // a hint, never an error). Every change is the timeline's own write (BlockRepo.move), so it is undone and pushed
-// to Google the same way. Rides in the detail's island.
-import { useMemo, useState, type FormEvent } from "react";
+// to Google the same way. Under a block that has not started and whose reminder quiet hours will drop, a line says
+// so, with the way to Settings › Notifications (docs/product/REMINDERS_AND_AI_SPEC.md §1: a note in ink-2, never
+// red, never a popup). Rides in the detail's island.
+import Link from "next/link";
+import { Fragment, useMemo, useState, type FormEvent } from "react";
 import { useQuery } from "@/data/powersync";
 import { coveredMinutes, estimateMismatch } from "@/core/blocking/coverage";
-import { compareDates, formatMinutes, formatTime, instant, timeFromMinutes, type LocalDate } from "@/core/time";
+import type { ReminderSettings } from "@/core/notifications/quiet-hours";
+import { compareDates, formatMinutes, formatTime, instant, timeFromMinutes, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import { normaliseTimestamp } from "@/data/mappers";
+import { TASK_BLOCKS_SQL } from "@/data/queries/blocks";
 import type { TimeBlockRow } from "@/data/schema.client";
+import { CHANGE_QUIET_HOURS, heldNote } from "@/features/notifications/held-reminders";
 import { FieldRow } from "@/features/tasks/task-detail-panel";
 import { instantAt, minutesOfField } from "./minutes";
-import { Button } from "@/ui/button";
+import { Button, buttonClass } from "@/ui/button";
+import { cx } from "@/ui/cx";
 import { TimeField } from "@/ui/time-field";
 import { useBlockRepo } from "./use-block-repo";
-
-export const TASK_BLOCKS_SQL = `
-  select * from time_blocks
-  where task_id = ? and deleted_at is null and substr(end_at, 1, 10) >= ?
-  order by start_at`;
 
 export interface TaskBlock {
   id: string;
@@ -29,6 +31,8 @@ export interface TaskBlock {
   start: number;
   end: number;
   locked: boolean;
+  /** The row's own start, for what is asked of the moment itself (whether its reminder will come). */
+  startAt: string;
 }
 
 /** The task's blocks from `today` on, as minutes of their local days; one that runs past midnight ends at 24:00. */
@@ -40,13 +44,29 @@ export function taskBlocks(rows: readonly TimeBlockRow[], zone: string, today: L
     const day = s.toPlainDate();
     if (compareDates(e.toPlainDate(), today) < 0) return [];
     const end = e.toPlainDate().equals(day) ? e.hour * 60 + e.minute : 24 * 60;
-    return [{ id: r.id, day, start: s.hour * 60 + s.minute, end, locked: r.locked === 1 }];
+    return [{ id: r.id, day, start: s.hour * 60 + s.minute, end, locked: r.locked === 1, startAt: r.start_at }];
   });
 }
 
 const hm = (m: number) => (m >= 24 * 60 ? "24:00" : formatTime(timeFromMinutes(m)));
 
-export function BlockRows({ taskId, estimateMin, zone, today }: { taskId: string; estimateMin: number | null; zone: string; today: LocalDate }) {
+export function BlockRows({
+  taskId,
+  estimateMin,
+  zone,
+  today,
+  now,
+  reminders = null,
+}: {
+  taskId: string;
+  estimateMin: number | null;
+  zone: string;
+  today: LocalDate;
+  /** The moment, for which blocks have started; without it nothing is said about reminders. */
+  now?: Instant;
+  /** The person's reminder settings; null while they are not read, and for a task no reminder is made for (done, parked, dropped). */
+  reminders?: ReminderSettings | null;
+}) {
   const { data } = useQuery<TimeBlockRow>(TASK_BLOCKS_SQL, [taskId, today.subtract({ days: 1 }).toString()]);
   const blocks = useMemo(() => taskBlocks(data ?? [], zone, today), [data, zone, today]);
   const repo = useBlockRepo();
@@ -56,32 +76,34 @@ export function BlockRows({ taskId, estimateMin, zone, today }: { taskId: string
   return (
     <>
       {blocks.map((b) => (
-        <FieldRow
-          key={b.id}
-          label="Blocked"
-          value={
-            <span>
-              {!b.day.equals(today) && `${formatDay(b.day, { today })} · `}
-              {hm(b.start)}–{hm(b.end)}
-              {b.locked && <span className="font-normal text-ink-3"> · locked</span>}
-            </span>
-          }
-        >
-          {(close) => (
-            <BlockTimes
-              block={b}
-              onSave={(start, end) => {
-                void repo.move(b.id, instantAt(b.day, zone, start), instantAt(b.day, zone, end));
-                close();
-              }}
-              onLock={() => void repo.setLocked(b.id, !b.locked)}
-              onRemove={() => {
-                void repo.remove(b.id);
-                close();
-              }}
-            />
-          )}
-        </FieldRow>
+        <Fragment key={b.id}>
+          <FieldRow
+            label="Blocked"
+            value={
+              <span>
+                {!b.day.equals(today) && `${formatDay(b.day, { today })} · `}
+                {hm(b.start)}–{hm(b.end)}
+                {b.locked && <span className="font-normal text-ink-3"> · locked</span>}
+              </span>
+            }
+          >
+            {(close) => (
+              <BlockTimes
+                block={b}
+                onSave={(start, end) => {
+                  void repo.move(b.id, instantAt(b.day, zone, start), instantAt(b.day, zone, end));
+                  close();
+                }}
+                onLock={() => void repo.setLocked(b.id, !b.locked)}
+                onRemove={() => {
+                  void repo.remove(b.id);
+                  close();
+                }}
+              />
+            )}
+          </FieldRow>
+          <HeldNote words={now ? heldNote(b.startAt, now, zone, reminders) : null} />
+        </Fragment>
       ))}
       {off && (
         <p className="px-4 py-2.5 text-body-sm text-ink-3 sm:px-5" data-testid="block-estimate-hint">
@@ -89,6 +111,19 @@ export function BlockRows({ taskId, estimateMin, zone, today }: { taskId: string
         </p>
       )}
     </>
+  );
+}
+
+/** Under a block whose reminder will not come: the rule's own sentence, and the way to change the quiet hours. */
+function HeldNote({ words }: { words: string | null }) {
+  if (!words) return null;
+  return (
+    <p className="flex min-h-11 flex-wrap items-center gap-x-1.5 px-4 py-1.5 text-body-sm text-ink-2 sm:px-5" data-testid="block-held-note">
+      <span className="mr-auto">{words}</span>
+      <Link href="/settings#notifications" className={cx(buttonClass({ variant: "link" }), "text-ink-2")}>
+        {CHANGE_QUIET_HOURS}
+      </Link>
+    </p>
   );
 }
 

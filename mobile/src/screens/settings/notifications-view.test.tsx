@@ -113,6 +113,18 @@ describe("<NotificationsView>", () => {
     expect(p.onChange).toHaveBeenCalledWith({ morningNudgeTime: null });
   });
 
+  it("says under Quiet hours which reminders they hold back, and nothing when none is held", async () => {
+    const held = "Held back now: going to gym (Fri 07:25), Vitamin D3 (Thu 21:25) and 2 more.";
+    const view = await render(<NotificationsView {...props({ held })} />);
+    expect(screen.getByText(held)).toBeTruthy();
+    // A note, never an alert; it goes when a change to the times lets the reminders through.
+    expect(screen.queryByRole("alert")).toBeNull();
+    await view.rerender(<NotificationsView {...props({ held: null })} />);
+    expect(screen.queryByText(/Held back now/)).toBeNull();
+    await view.rerender(<NotificationsView {...props()} />);
+    expect(screen.queryByText(/Held back now/)).toBeNull();
+  });
+
   it("sets quiet hours an end at a time, and None clears both", async () => {
     const p = props();
     await render(<NotificationsView {...p} />);

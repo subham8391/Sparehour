@@ -7,12 +7,14 @@
 import { useContext, useEffect } from "react";
 import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
 import { suggestEstimate } from "@/core/estimates";
+import { toReminderSettings } from "@/core/notifications/quiet-hours";
 import type { SeriesRepo } from "@/data/repositories/series-repo";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import { setTook } from "@/data/repositories/took";
 import { useBlockingOptional } from "@/features/blocking/blocking-provider";
 import { learnedIsOld } from "@/features/estimates/learned-store";
 import { useLearned } from "@/features/estimates/use-learned";
+import { remindable } from "@/features/notifications/held-reminders";
 import { useUndoSink } from "@/features/undo/undo-provider";
 import { BlockRows } from "@/features/blocking/block-rows";
 import { preloadMarkdown } from "@/ui/note-field";
@@ -37,7 +39,7 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
   const checklistRepo = useChecklistRepo();
   const tagRepo = useTagRepo();
   const now = useNow();
-  const { today, zone } = useLocalDay(now);
+  const { today, zone, row: settingsRow } = useLocalDay(now);
   const blocking = useBlockingOptional();
   // Convert to project closes the detail and opens the new project, cursor in its add row.
   const convert = useConvertToProject(repo, onClose);
@@ -84,7 +86,8 @@ export function TaskDetail({ id, field = null, onClose }: { id: string; field?: 
       onSomeday={() => void repo.setState(task.id, "someday").then(onClose)}
       onDrop={() => void repo.setState(task.id, "dropped").then(onClose)}
       onBlock={blocking?.available ? () => blocking.blockTask(task.id) : undefined}
-      blockRows={<BlockRows taskId={task.id} estimateMin={task.estimateMin} zone={zone} today={today} />}
+      // Under a block still to come, whether quiet hours will drop its reminder: asked only of a task a reminder is made for.
+      blockRows={<BlockRows taskId={task.id} estimateMin={task.estimateMin} zone={zone} today={today} now={now} reminders={settingsRow && remindable(task.state) ? toReminderSettings(settingsRow) : null} />}
       took={row?.actual_min ?? null}
       onTook={(minutes) => void setTook(db, undo, task.id, minutes).then(learnedIsOld)}
       usual={suggestEstimate(learned, task, defaultEstimate)?.minutes ?? null}

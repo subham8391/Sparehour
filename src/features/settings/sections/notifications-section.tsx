@@ -3,7 +3,10 @@
 // device's permission, honestly stated, with the one useful action; the
 // category switches; how early a block reminder comes; when the morning and
 // shutdown nudges come (from working hours unless a time is chosen); quiet
-// hours, which drop what falls inside them; and the app-icon badge.
+// hours, which drop what falls inside them, and under them the reminders they
+// hold back in the coming week (REMINDERS_AND_AI_SPEC.md §1); and the
+// app-icon badge.
+import { useHeldLine } from "@/features/notifications/use-held-line";
 import { InstallCoaching } from "@/features/pwa/install-coaching";
 import { Button } from "@/ui/button";
 import { cx } from "@/ui/cx";
@@ -14,7 +17,7 @@ import { ERROR, HINT, LABEL, NOTE, ROW } from "../rows";
 import { BLOCK_LEADS, leadLabel, nudgeHint, suggestedNudgeTime } from "../notify-rules";
 import { BADGE_HINT, NEVER_LATE, QUIET_HOURS_HINT } from "../section-words";
 import { Section, SwitchRow, useSavedFlash } from "../settings-ui";
-import type { SettingsFormProps } from "../types";
+import type { SettingsFormProps, SettingsValues } from "../types";
 
 export function NotificationsSection(p: SettingsFormProps) {
   const { values } = p;
@@ -109,6 +112,7 @@ export function NotificationsSection(p: SettingsFormProps) {
             </Button>
           )}
         </span>
+        <HeldLine values={values} />
       </div>
       <SwitchRow
         id="n-badge"
@@ -119,6 +123,21 @@ export function NotificationsSection(p: SettingsFormProps) {
       />
       <p className={cx(NOTE, "px-4 py-2.5")}>{NEVER_LATE}</p>
     </Section>
+  );
+}
+
+/**
+ * "Held back now: going to gym (Fri 07:25)." under the two times: the coming week's reminders quiet hours will drop,
+ * as the times stand in the fields, so a change shows its effect before the page is left. A note in the hint's ink;
+ * nothing when none is held. Its own component, so only it reads the device's blocks.
+ */
+function HeldLine({ values }: { values: SettingsValues }) {
+  const held = useHeldLine(values);
+  if (!held) return null;
+  return (
+    <p className={cx(HINT, "basis-full")} data-testid="held-line">
+      {held}
+    </p>
   );
 }
 

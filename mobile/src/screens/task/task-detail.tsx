@@ -2,12 +2,16 @@
 // phone's own database. Everything it reads and writes is the web app's own code, used as it is: the detail's data
 // hook (features/tasks/use-task-detail.ts), the repositories that write and record their undo (TaskRepo, with the time
 // block a timed task holds; the checklist's and the tags'; the series edits; how long it took), and what the
-// estimates learned. The drawing is task-detail-view.tsx.
+// estimates learned. The task's blocks and the reminder settings are read for one line: a block's reminder that quiet
+// hours will drop (features/notifications/held-reminders.ts). The drawing is task-detail-view.tsx.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { suggestEstimate } from "@/core/estimates";
-import { useLocalDatabase, type LocalDatabase } from "@/data/powersync";
+import { toReminderSettings } from "@/core/notifications/quiet-hours";
+import { useLocalDatabase, useQuery, type LocalDatabase } from "@/data/powersync";
+import { TASK_BLOCKS_SQL } from "@/data/queries/blocks";
 import { duplicateTask } from "@/data/repositories/duplicate";
 import type { SeriesRepo } from "@/data/repositories/series-repo";
+import type { TimeBlockRow } from "@/data/schema.client";
 import { setTook } from "@/data/repositories/took";
 import { learnedIsOld } from "@/features/estimates/learned-store";
 import { useLearned } from "@/features/estimates/use-learned";
@@ -35,7 +39,9 @@ export function TaskDetail() {
   // How the person's estimates run (DECISIONS.md, amendment 2026-11-15): said under the Estimate, taken with a tap.
   const learned = useLearned(askServer);
   const now = useNow();
-  const { today, zone, settings } = useLocalDay(now);
+  const { today, zone, settings, row: settingsRow } = useLocalDay(now);
+  // The task's blocks from yesterday's date on, as the web's detail reads them (features/blocking/block-rows.tsx).
+  const { data: blocks } = useQuery<TimeBlockRow>(TASK_BLOCKS_SQL, [id, today.subtract({ days: 1 }).toString()]);
   const { task, row, missing, project, area, projects, areas, headings, checklist, tags, allTags, exceptions } = useTaskDetail(id);
   const back = () => (router.canGoBack() ? router.back() : router.replace("/"));
 
@@ -78,6 +84,9 @@ export function TaskDetail() {
       took={row?.actual_min ?? null}
       onTook={(minutes) => void setTook(db, undo, task.id, minutes).then(learnedIsOld)}
       usual={suggestEstimate(learned, task, defaultEstimate)?.minutes ?? null}
+      blocks={blocks ?? []}
+      reminders={settingsRow ? toReminderSettings(settingsRow) : null}
+      onQuietHours={() => router.push("/settings/notifications")}
       // The task becomes a project and is gone as a task: the project takes this screen's place.
       onConvert={() => void repo.convertToProject(task.id).then((out) => out && router.replace(`/project/${out.projectId}`))}
       // A copy right after the task, which then opens over this one.

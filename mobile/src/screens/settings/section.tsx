@@ -25,6 +25,7 @@ import { appConnectNotice } from "@/features/calendar/consent-outcome";
 import type { CalendarProviderId } from "@/features/calendar/providers";
 import { calendarSyncNow } from "@/features/calendar/sync-now";
 import { useLearned } from "@/features/estimates/use-learned";
+import { useHeldLine } from "@/features/notifications/use-held-line";
 import { sectionTitle } from "@/features/settings/sections";
 import { useConnections } from "@/features/settings/use-connections";
 import { useUndoSink } from "@/features/undo/undo-context";
@@ -95,14 +96,19 @@ function Opening() {
   return <Text style={{ fontFamily: font.regular, fontSize: 16, marginHorizontal: 22, color: c.ink3 }}>Opening…</Text>;
 }
 
-/** The account's reminder settings, and this device's own reminders (~/push): turned on and off here, a block lifted in Android's settings. */
+/**
+ * The account's reminder settings, and this device's own reminders (~/push): turned on and off here, a block lifted in
+ * Android's settings. Under Quiet hours, the coming week's reminders they hold back, read as the web's section reads them.
+ */
 function NotificationsSection({ data }: { data: Ready }) {
   const r = useReminders();
+  const held = useHeldLine(data.values);
   return (
     <NotificationsView
       values={data.values}
       workHours={data.workHours}
       onChange={data.change}
+      held={held}
       device={r.ready ? { copy: r.copy, busy: r.busy, error: r.error, onEnable: () => void r.enable(), onDisable: () => void r.disable(), onOpenSettings: () => void Linking.openSettings().catch(() => undefined) } : null}
     />
   );

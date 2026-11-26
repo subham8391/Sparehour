@@ -20,12 +20,14 @@ export function useNow(intervalMs = 60_000): Temporal.Instant {
 
 /**
  * The day, the settings row and its zone. Until the row has been read (a few milliseconds after a mount) the zone is
- * UTC; `ready` says it has been, so a write that depends on the zone ("In 4 hours") waits for it.
+ * UTC; `ready` says it has been, so a write that depends on the zone ("In 4 hours") waits for it. `row` is the row as
+ * stored, for the columns `settings` does not carry (the reminder ones: core/notifications/quiet-hours.ts).
  */
-export function useLocalDay(now: Temporal.Instant): { today: LocalDate; settings: Settings | null; zone: string; ready: boolean } {
+export function useLocalDay(now: Temporal.Instant): { today: LocalDate; settings: Settings | null; row: UserSettingsRow | null; zone: string; ready: boolean } {
   const { data, isLoading } = useQuery<UserSettingsRow>(SETTINGS_SQL);
-  const settings = data?.[0] ? toSettings(data[0]) : null;
+  const row = data?.[0] ?? null;
+  const settings = row ? toSettings(row) : null;
   const zone = settings?.timezone ?? "UTC";
   const today = todayFor({ timezone: zone, dayRolloverHour: settings?.dayRolloverHour ?? 4 }, now);
-  return { today, settings, zone, ready: settings !== null || !isLoading };
+  return { today, settings, row, zone, ready: settings !== null || !isLoading };
 }

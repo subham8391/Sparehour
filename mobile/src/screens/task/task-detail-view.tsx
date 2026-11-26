@@ -4,15 +4,19 @@
 // menu. Every field saves on change; there is no Save button. Presentational: it is handed everything it shows, so it
 // is drawn with made-up data in the browser preview and in tests, and with the real task by task-detail.tsx. What a
 // field offers, what it says and when it asks are the web's own rules (features/tasks/detail-rules.ts and beside it).
+// Under the Do field, for each of the task's blocks still to come whose reminder quiet hours will drop, the web's own
+// line says so, with the way to Settings › Notifications (docs/product/REMINDERS_AND_AI_SPEC.md §1).
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View, type TextInputInstance } from "react-native";
 import { Text, TextInput } from "~/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { ReminderSettings } from "@/core/notifications/quiet-hours";
 import { compareDates, formatMinutes, formatTime, type Instant, type LocalDate } from "@/core/time";
 import { formatDay } from "@/core/time/format-day";
 import type { ChecklistItem, RecurrenceException, RecurrenceMode, TagRef, Task } from "@/core/types";
 import type { TaskPatch } from "@/data/repositories/task-repo";
 import type { DayPart } from "@/features/looks/look";
+import { CHANGE_QUIET_HOURS, heldNotes, remindable } from "@/features/notifications/held-reminders";
 import { dayLabel } from "@/features/quickadd/day-label";
 import { MISS_POLICIES, PRIORITIES, asksSeriesDay, carriedWords, detailActions, dueBeforeDo, repeatValue, type SeriesDayChange } from "@/features/tasks/detail-rules";
 import { guessLabel } from "@/features/tasks/estimate-presets";
@@ -67,6 +71,12 @@ export interface TaskDetailViewProps {
   onTook?: (minutes: number | null) => void;
   /** What a task like this usually takes, when that is not what it is counted as. */
   usual?: number | null;
+  /** The task's time blocks as stored, for the line under one whose reminder quiet hours will drop. */
+  blocks?: readonly { id: string; start_at: string | null }[];
+  /** The person's reminder settings; null while they are not read. */
+  reminders?: ReminderSettings | null;
+  /** Opens Settings › Notifications, from that line. */
+  onQuietHours?: () => void;
   onConvert?: () => void;
   onDuplicate?: () => void;
   onChecklistAdd?: (title: string, sortKey?: string) => void;
@@ -132,6 +142,9 @@ export function TaskDetailView(p: TaskDetailViewProps) {
   const repeat = repeatValue(task);
   const carried = carriedWords(task, today);
   const place = [p.areaName, p.projectName].filter(Boolean).join(" › ");
+  // A reminder is made only for a task still to be done, and only a block that has not started can still miss one.
+  // This screen draws no row per block, so a sentence two blocks share (the same time on two days) is said once.
+  const held = (remindable(task.state) ? heldNotes(p.blocks ?? [], p.now, p.zone, p.reminders ?? null) : []).filter((h, i, all) => all.findIndex((x) => x.words === h.words) === i);
 
   // Everything the footer does not show as a button, in the web menu's order (SCREENS.md §10 footer ⋯).
   const then = (run: () => void) => () => (close(), run());
@@ -195,6 +208,12 @@ export function TaskDetailView(p: TaskDetailViewProps) {
             extra={task.doDate && task.doTime ? <Chip tone="time" label={formatTime(task.doTime)} /> : task.doDate && task.evening ? <Chip label="evening" /> : undefined}
             onPress={() => setOpen("do")}
           />
+          {held.map((h) => (
+            // A note in ink-2, never red and never a popup; the words are the rule's own (quiet-hours.ts).
+            <CardRow key={h.id}>
+              <FieldNote text={h.words} action={CHANGE_QUIET_HOURS} onPress={p.onQuietHours} />
+            </CardRow>
+          ))}
           <CardRow>
             {task.deadline ? (
               // Only a missed deadline is red.

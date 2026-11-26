@@ -3,7 +3,8 @@
 // one useful action (Turn on reminders, Turn off, or, when Android blocks them, the way to its settings); then the
 // account's reminder settings, which every device shares: the category switches, how early a block reminder comes,
 // when the morning and shutdown nudges come (from working hours unless a time is chosen), quiet hours, which drop
-// what falls inside them, and the badge. The choices and the sentences are the web's own (notify-rules.ts,
+// what falls inside them, with the reminders they hold back in the coming week said under them
+// (REMINDERS_AND_AI_SPEC.md §1), and the badge. The choices and the sentences are the web's own (notify-rules.ts,
 // section-words.ts, push.ts read for the phone by ~/push/copy.ts). Presentational.
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -40,6 +41,8 @@ export interface NotificationsViewProps {
   onChange: (patch: SettingsPatch) => void;
   /** This device's reminders; null while Android's answer is being read (a moment). */
   device: DeviceReminders | null;
+  /** "Held back now: going to gym (Fri 07:25)." (features/notifications/held-reminders.ts); null or left out when quiet hours hold nothing back. */
+  held?: string | null;
 }
 
 type TimeKey = "morningNudgeTime" | "shutdownNudgeTime" | "quietHoursStart" | "quietHoursEnd";
@@ -50,7 +53,7 @@ const TIME_TITLES: Record<TimeKey, string> = {
   quietHoursEnd: "Quiet hours end",
 };
 
-export function NotificationsView({ values, workHours, onChange, device }: NotificationsViewProps) {
+export function NotificationsView({ values, workHours, onChange, device, held = null }: NotificationsViewProps) {
   const c = useColours();
   const [saved, flash] = useSavedFlash();
   const [time, setTime] = useState<TimeKey | null>(null);
@@ -103,6 +106,8 @@ export function NotificationsView({ values, workHours, onChange, device }: Notif
               <Button label={values.quietHoursEnd || "End"} accessibilityLabel={`Quiet hours end, ${values.quietHoursEnd || "none"}`} onPress={() => setTime("quietHoursEnd")} />
               {values.quietHoursStart || values.quietHoursEnd ? <Button variant="quiet" label="None" accessibilityLabel="No quiet hours" onPress={() => change({ quietHoursStart: null, quietHoursEnd: null })} /> : null}
             </View>
+            {/* A note in the hint's ink, never red: it follows the two times as they are changed. */}
+            {held ? <Text style={[styles.detail, { color: c.ink2 }]}>{held}</Text> : null}
           </SettingRow>
         </CardRow>
         <CardRow>

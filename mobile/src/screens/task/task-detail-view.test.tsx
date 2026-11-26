@@ -1,6 +1,7 @@
 // A task's detail as the phone draws it: what each field shows, which sheet it opens, and what each control writes.
 // Every field saves on change, so each test ends at the one call the choice makes.
 import { fireEvent, render, screen } from "@testing-library/react-native";
+import { toReminderSettings } from "@/core/notifications/quiet-hours";
 import { instant, localDate, localTime } from "@/core/time";
 import type { ChecklistItem, SpaceId, Task, TaskId } from "@/core/types";
 import { TaskDetailView, TaskMissingView, type TaskDetailViewProps } from "./task-detail-view";
@@ -560,6 +561,61 @@ describe("<TaskDetailView> checklist, tags and notes", () => {
     await fireEvent.changeText(box, "Half a thought");
     await view.unmount();
     expect(p.onPatch).toHaveBeenCalledWith({ notes: "Half a thought" });
+  });
+});
+
+describe("<TaskDetailView> and quiet hours (REMINDERS_AND_AI_SPEC.md §1)", () => {
+  // Quiet from 21:00 to 08:00, reminders five minutes before a block; it is Saturday 10:03 in London.
+  const quiet = toReminderSettings({ notify_block_start: 1, block_start_lead_min: 5, quiet_hours_start: "21:00", quiet_hours_end: "08:00" });
+  const HELD = "No reminder: 07:25 is inside quiet hours (21:00–08:00).";
+  const early = { id: "b1", start_at: "2026-11-22T07:30:00Z" };
+  const timed: Partial<Task> = { doDate: localDate("2026-11-22"), doTime: localTime("07:30") };
+
+  it("says under the Do field that a coming block's reminder is held, and nothing for one outside quiet hours", async () => {
+    const view = await render(<TaskDetailView {...props(timed, { blocks: [early, { id: "b2", start_at: "2026-11-22T13:00:00Z" }], reminders: quiet })} />);
+    expect(screen.getAllByText(HELD)).toHaveLength(1);
+    await view.rerender(<TaskDetailView {...props(timed, { blocks: [{ id: "b2", start_at: "2026-11-22T13:00:00Z" }], reminders: quiet })} />);
+    expect(screen.queryByText(HELD)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Change quiet hours" })).toBeNull();
+  });
+
+  it("Change quiet hours opens Settings › Notifications", async () => {
+    const onQuietHours = jest.fn();
+    await render(<TaskDetailView {...props(timed, { blocks: [early], reminders: quiet, onQuietHours })} />);
+    // A note, never an alert.
+    expect(screen.queryByRole("alert")).toBeNull();
+    await press("Change quiet hours");
+    expect(onQuietHours).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing with block reminders off, with no quiet hours, or before the settings are read", async () => {
+    const view = await render(<TaskDetailView {...props(timed, { blocks: [early], reminders: { ...quiet, blockReminders: false } })} />);
+    expect(screen.queryByText(HELD)).toBeNull();
+    await view.rerender(<TaskDetailView {...props(timed, { blocks: [early], reminders: toReminderSettings({ notify_block_start: 1, block_start_lead_min: 5 }) })} />);
+    expect(screen.queryByText(HELD)).toBeNull();
+    await view.rerender(<TaskDetailView {...props(timed, { blocks: [early], reminders: null })} />);
+    expect(screen.queryByText(HELD)).toBeNull();
+    await view.rerender(<TaskDetailView {...props(timed, { blocks: [early], reminders: quiet })} />);
+    expect(screen.getByText(HELD)).toBeTruthy();
+  });
+
+  it("says nothing for a block that has started, or a task that is done or parked", async () => {
+    const view = await render(<TaskDetailView {...props(timed, { blocks: [early], reminders: quiet, now: instant("2026-11-22T07:29:00Z") })} />);
+    expect(screen.getByText(HELD)).toBeTruthy();
+    await view.rerender(<TaskDetailView {...props(timed, { blocks: [early], reminders: quiet, now: instant("2026-11-22T07:30:00Z") })} />);
+    expect(screen.queryByText(HELD)).toBeNull();
+    await view.rerender(<TaskDetailView {...props({ ...timed, state: "done" }, { blocks: [early], reminders: quiet })} />);
+    expect(screen.queryByText(HELD)).toBeNull();
+    await view.rerender(<TaskDetailView {...props({ ...timed, state: "someday" }, { blocks: [early], reminders: quiet })} />);
+    expect(screen.queryByText(HELD)).toBeNull();
+  });
+
+  it("says the same sentence once for two days' blocks at one time, and each time of its own", async () => {
+    const blocks = [early, { id: "b2", start_at: "2026-11-23T07:30:00Z" }, { id: "b3", start_at: "2026-11-22T21:30:00Z" }];
+    await render(<TaskDetailView {...props(timed, { blocks, reminders: quiet, onQuietHours: jest.fn() })} />);
+    expect(screen.getAllByText(HELD)).toHaveLength(1);
+    expect(screen.getByText("No reminder: 21:25 is inside quiet hours (21:00–08:00).")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Change quiet hours" })).toHaveLength(2);
   });
 });
 
